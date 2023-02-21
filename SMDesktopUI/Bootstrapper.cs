@@ -1,4 +1,6 @@
 ﻿using Caliburn.Micro;
+using SMDesktopUI.Helpers;
+using SMDesktopUI.Models;
 using SMDesktopUI.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -6,17 +8,23 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace SMDesktopUI
 {
     public class Bootstrapper : BootstrapperBase
     {
-        // Dependency injection system build with CaliburnMicro
+        // Dependency injection container system build with CaliburnMicro
         private SimpleContainer _container = new SimpleContainer();
 
         public Bootstrapper() 
         {
             Initialize();
+
+            ConventionManager.AddElementConvention<PasswordBox>(
+                PasswordBoxHelper.BoundPasswordProperty,
+                "Password",
+                "PasswordChanged");
         }
 
         // The container contains an instance of itself to pass it out when requested
@@ -26,7 +34,8 @@ namespace SMDesktopUI
 
             _container
                 .Singleton<IWindowManager, WindowManager>()
-                .Singleton<IEventAggregator, EventAggregator>();
+                .Singleton<IEventAggregator, EventAggregator>()
+                .Singleton<IAPIHelper, APIHelper>();
 
             // Connect ViewModels to Views (slow performance)
             GetType().Assembly.GetTypes()
@@ -39,7 +48,7 @@ namespace SMDesktopUI
 
         protected override void OnStartup(object sender, StartupEventArgs e)
         {
-            DisplayRootViewForAsync<ShellViewModel>();
+            DisplayRootViewFor<ShellViewModel>();
         }
 
         // Pass a head type and use the container to instantiate the ShellViewModel
