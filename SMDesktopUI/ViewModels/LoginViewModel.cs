@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using SMDesktopUI.Library.Api;
 
 namespace SMDesktopUI.ViewModels
 {
@@ -91,6 +92,9 @@ namespace SMDesktopUI.ViewModels
 			{
 				ErrorMessage = string.Empty;
 				var result = await _apiHelper.Authenticate(UserName, Password);
+
+				// Get more information about the user
+				await _apiHelper.GetLoggedInUserInfo(result.Access_Token);
 			}
 			catch (Exception ex)
 			{

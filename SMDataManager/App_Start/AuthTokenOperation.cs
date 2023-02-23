@@ -20,7 +20,7 @@ namespace SMDataManager.App_Start
                     tags = new List<string> { "Auth" },
                     consumes = new List<string>
                     {
-                        "application/x/www-form-urlencoded"
+                        "application/x-www-form-urlencoded"
                     },
                     parameters = new List<Parameter>
                     {

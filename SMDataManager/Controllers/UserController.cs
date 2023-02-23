@@ -12,14 +12,15 @@ namespace SMDataManager.Controllers
     [Authorize]
     public class UserController : ApiController
     {
-        // GET: User/Details/5
-        public List<UserModel> GetById()
+        [HttpGet]
+        // GET: User/Details/First user
+        public UserModel GetById()
         {
             // request the userId from the API directly (much more secure)
             string userId = RequestContext.Principal.Identity.GetUserId();
             UserData data = new UserData();
 
-            return data.GetUserById(userId);
+            return data.GetUserById(userId).First();
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using SMDesktopUI.Models;
+﻿using SMDesktopUI.Library.Models;
+using SMDesktopUI.Models;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -9,15 +10,17 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SMDesktopUI.Helpers
+namespace SMDesktopUI.Library.Api
 {
     public class APIHelper : IAPIHelper
     {
         private HttpClient apiClient;
+        private ILoggedInUserModel _loggedInUser;
 
-        public APIHelper()
+        public APIHelper(ILoggedInUserModel loggedInUser)
         {
             InitializeClient();
+            _loggedInUser = loggedInUser;
         }
 
         private void InitializeClient()
@@ -51,7 +54,34 @@ namespace SMDesktopUI.Helpers
                     throw new Exception(response.ReasonPhrase);
                 }
             }
+        }
 
+        public async Task GetLoggedInUserInfo(string token)
+        {
+            apiClient.DefaultRequestHeaders.Clear();
+            apiClient.DefaultRequestHeaders.Accept.Clear();
+            apiClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            apiClient.DefaultRequestHeaders.Add("Authorization", $"bearer {token}");
+
+            using (HttpResponseMessage response = await apiClient.GetAsync("/api/User"))
+            {
+                if (response.IsSuccessStatusCode )
+                {
+                    // Map the data between the interface and database
+                    var results = await response.Content.ReadAsAsync<LoggedInUserModel>();
+                    _loggedInUser.CreatedDate = results.CreatedDate;
+                    _loggedInUser.EmailAddress = results.EmailAddress;
+                    _loggedInUser.LastName = results.LastName;
+                    _loggedInUser.FirstName = results.FirstName;
+                    _loggedInUser.Id = results.Id;
+                    _loggedInUser.Token = token;
+
+                }
+                else
+                { 
+                    throw new Exception(response.ReasonPhrase);
+                }
+            }
         }
     }
 }

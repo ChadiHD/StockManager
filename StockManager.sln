@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMDesktopUI", "SMDesktopUI\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMDataManager.Library", "SMDataManager.Library\SMDataManager.Library.csproj", "{5D590FDA-A5D7-471E-94BB-308FE5DFE843}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMDesktopUI.Library", "SMDesktopUI.Library\SMDesktopUI.Library.csproj", "{D930B2DF-3E32-48EE-BC64-C92366E63786}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -35,6 +37,10 @@ Global
 		{5D590FDA-A5D7-471E-94BB-308FE5DFE843}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5D590FDA-A5D7-471E-94BB-308FE5DFE843}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5D590FDA-A5D7-471E-94BB-308FE5DFE843}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D930B2DF-3E32-48EE-BC64-C92366E63786}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D930B2DF-3E32-48EE-BC64-C92366E63786}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D930B2DF-3E32-48EE-BC64-C92366E63786}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D930B2DF-3E32-48EE-BC64-C92366E63786}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
