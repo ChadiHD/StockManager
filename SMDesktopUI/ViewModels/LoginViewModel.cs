@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using SMDesktopUI.Library.Api;
+using SMDesktopUI.EventModels;
 
 namespace SMDesktopUI.ViewModels
 {
@@ -17,10 +18,13 @@ namespace SMDesktopUI.ViewModels
 		private string _userName;
 		private string _password;
 		private IAPIHelper _apiHelper;
+		private IEventAggregator _events;
 
-        public LoginViewModel(IAPIHelper apiHelper)
+		// Dependency Injection
+        public LoginViewModel(IAPIHelper apiHelper, IEventAggregator events)
         {
             _apiHelper = apiHelper;
+			_events = events;
         }
 
         public string UserName
@@ -95,6 +99,9 @@ namespace SMDesktopUI.ViewModels
 
 				// Get more information about the user
 				await _apiHelper.GetLoggedInUserInfo(result.Access_Token);
+
+				// Publish the UI on an empty class to differentiate it from other events
+				_events.PublishOnUIThread(new LogOnEvent());
 			}
 			catch (Exception ex)
 			{

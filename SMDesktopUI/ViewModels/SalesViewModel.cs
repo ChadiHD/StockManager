@@ -34,9 +34,9 @@ namespace SMDesktopUI.ViewModels
             }
         }
 
-        private string _itemQuantity;
+        private int _itemQuantity;
 
-        public string ItemQuantity
+        public int ItemQuantity
         {
             get { return _itemQuantity; }
             set
@@ -72,7 +72,6 @@ namespace SMDesktopUI.ViewModels
                 return "£0.00";
             }
         }
-
 
         public bool CanAddToCart
         {
@@ -126,6 +125,5 @@ namespace SMDesktopUI.ViewModels
         {
 
         }
-
     }
 }
