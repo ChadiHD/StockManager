@@ -32,7 +32,8 @@ namespace SMDesktopUI
         // The container contains an instance of itself to pass it out when requested
         protected override void Configure()
         {
-            _container.Instance(_container);
+            _container.Instance(_container)
+                .PerRequest<IProductEndpoint, ProductEndpoint>();
 
             _container
                 .Singleton<IWindowManager, WindowManager>()
