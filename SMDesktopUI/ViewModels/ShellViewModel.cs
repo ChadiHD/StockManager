@@ -12,21 +12,18 @@ namespace SMDesktopUI.ViewModels
     {
         private IEventAggregator _events;
         private SalesViewModel _salesVM;
-        private SimpleContainer _container;
 
         // Contructor dependency injection
         // all Subscribers are notified with all events in this form
-        public ShellViewModel(IEventAggregator events, SalesViewModel salesVM, 
-            SimpleContainer container)
+        public ShellViewModel(IEventAggregator events, SalesViewModel salesVM)
         {
             _events = events;
             _salesVM = salesVM;
-            _container = container;
 
             _events.Subscribe(this);
 
             // Create a new instance of LoginView everytime it's called
-            ActivateItem(_container.GetInstance<LoginViewModel>());
+            ActivateItem(IoC.Get<LoginViewModel>());
         }
 
         public void Handle(LogOnEvent message)
