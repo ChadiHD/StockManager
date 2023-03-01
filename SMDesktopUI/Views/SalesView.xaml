@@ -30,7 +30,7 @@
         <!-- Column 0 -->
         <TextBlock Text="Products" Grid.Row="1" Grid.Column="0"/>
         <ListBox x:Name="Products" Grid.Row="2" Grid.Column="0" 
-                 MinHeight="200" MinWidth="150">
+                 MinHeight="200" MinWidth="150" SelectedItem="{Binding SelectedProduct}">
             <!--Display objects in a listbox-->
             <ListBox.ItemTemplate>
                 <DataTemplate>
@@ -44,7 +44,7 @@
         <StackPanel Orientation="Vertical" Grid.Row="2" Grid.Column="1"
                     Margin="20 0">
             <TextBlock Text="Quantity" />
-            <TextBlock x:Name="ItemQuantity" MinWidth="100" Margin="0 0 0 10"/>
+            <TextBox x:Name="ItemQuantity" MinWidth="100" Margin="0 0 0 10"/>
             <Button x:Name="AddToCart" Content="Add to Cart" Margin="0 0 0 30"
                     Padding="5" />
             <Button x:Name="RemoveFromCart" Content="Remove from Cart"
@@ -53,7 +53,14 @@
             <!-- Column 2 -->
         <TextBlock Text="Cart" Grid.Row="1" Grid.Column="2"/>
         <ListBox x:Name="Cart" Grid.Row="2" Grid.Column="2" 
-                 MinHeight="200" MinWidth="150" />
+                 MinHeight="200" MinWidth="150">
+            <!--Display objects in a listbox-->
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding DisplayText}"/>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <DockPanel Grid.Row="3" Grid.Column="2">
             <TextBlock Text="SubTotal: "/>
