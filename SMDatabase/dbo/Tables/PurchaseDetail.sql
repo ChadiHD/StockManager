@@ -6,4 +6,6 @@
     [Quantity] INT NOT NULL DEFAULT 1,
     [PurchasePrice] MONEY NOT NULL, 
     [VAT] MONEY NOT NULL DEFAULT 0, 
+    CONSTRAINT [FK_PurchaseDetail_ToPurchase] FOREIGN KEY (PurchaseId) REFERENCES Purchase(Id), 
+    CONSTRAINT [FK_PurchaseDetail_ToProduct] FOREIGN KEY (ProductId) REFERENCES Product(Id), 
 )
