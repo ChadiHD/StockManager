@@ -1,6 +1,7 @@
 ﻿using Caliburn.Micro;
 using SMDesktopUI.Helpers;
 using SMDesktopUI.Library.Api;
+using SMDesktopUI.Library.Helpers;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
 using SMDesktopUI.ViewModels;
@@ -39,6 +40,7 @@ namespace SMDesktopUI
                 .Singleton<IWindowManager, WindowManager>()
                 .Singleton<IEventAggregator, EventAggregator>()
                 .Singleton<ILoggedInUserModel, LoggedInUserModel>()
+                .Singleton<IConfigHelper, ConfigHelper>()
                 .Singleton<IAPIHelper, APIHelper>();
 
             // Connect ViewModels to Views (slow performance)
