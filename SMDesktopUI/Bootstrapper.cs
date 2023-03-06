@@ -1,4 +1,5 @@
-﻿using Caliburn.Micro;
+﻿using AutoMapper;
+using Caliburn.Micro;
 using SMDesktopUI.Helpers;
 using SMDesktopUI.Library.Api;
 using SMDesktopUI.Library.Helpers;
@@ -12,6 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Markup;
 
 namespace SMDesktopUI
 {
@@ -30,9 +32,25 @@ namespace SMDesktopUI
                 "PasswordChanged");
         }
 
+        private IMapper ConfigureAutoMapper()
+        {
+            var config = new MapperConfiguration(cfg =>
+            {
+                cfg.CreateMap<ProductModel, ProductDisplayModel>();
+                cfg.CreateMap<CartItemModel, CartItemDisplayModel>();
+            });
+
+            var output = config.CreateMapper();
+
+            return output;
+        }
+
         // The container contains an instance of itself to pass it out when requested
         protected override void Configure()
         {
+            // Add the mapper to the container
+            _container.Instance(ConfigureAutoMapper());
+
             _container.Instance(_container)
                 .PerRequest<IProductEndpoint, ProductEndpoint>()
                 .PerRequest<IPurchaseEndpoint, PurchaseEndpoint>();
