@@ -51,7 +51,10 @@
     <Compile Include="Api\APIHelper.cs" />
     <Compile Include="Api\IAPIHelper.cs" />
     <Compile Include="Api\IProductEndpoint.cs" />
+    <Compile Include="Api\IPurchaseEndpoint.cs" />
     <Compile Include="Api\ProductEndpoint.cs" />
+    <Compile Include="Api\PurchaseEndpoint.cs" />
+    <Compile Include="ConfigHelper.cs" />
     <Compile Include="Helpers\ConfigHelper.cs" />
     <Compile Include="Helpers\IConfigHelper.cs" />
     <Compile Include="Models\AuthenticatedUser.cs" />
@@ -59,6 +62,8 @@
     <Compile Include="Models\ILoggedInUserModel.cs" />
     <Compile Include="Models\LoggedInUserModel.cs" />
     <Compile Include="Models\ProductModel.cs" />
+    <Compile Include="Models\PurchaseDetailModel.cs" />
+    <Compile Include="Models\PurchaseModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

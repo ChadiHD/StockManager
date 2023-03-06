@@ -34,7 +34,8 @@ namespace SMDesktopUI
         protected override void Configure()
         {
             _container.Instance(_container)
-                .PerRequest<IProductEndpoint, ProductEndpoint>();
+                .PerRequest<IProductEndpoint, ProductEndpoint>()
+                .PerRequest<IPurchaseEndpoint, PurchaseEndpoint>();
 
             _container
                 .Singleton<IWindowManager, WindowManager>()

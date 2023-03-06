@@ -14,11 +14,13 @@ namespace SMDesktopUI.ViewModels
     public class SalesViewModel : Screen
     {
         IProductEndpoint _productEndpoint;
+        IPurchaseEndpoint _purchaseEndpoint;
         IConfigHelper _configHelper;
 
-        public SalesViewModel(IProductEndpoint productEndpoint, IConfigHelper configHelper)
+        public SalesViewModel(IProductEndpoint productEndpoint, IPurchaseEndpoint purchaseEndpoint, IConfigHelper configHelper)
         {
             _productEndpoint = productEndpoint;
+            _purchaseEndpoint = purchaseEndpoint;
             _configHelper = configHelper;
         }
 
@@ -184,6 +186,7 @@ namespace SMDesktopUI.ViewModels
             NotifyOfPropertyChange(() => SubTotal);
             NotifyOfPropertyChange(() => VAT);
             NotifyOfPropertyChange(() => FinalPrice);
+            NotifyOfPropertyChange(() => CanCheckOut);
         }
 
         public bool CanRemoveFromCart
@@ -203,6 +206,7 @@ namespace SMDesktopUI.ViewModels
             NotifyOfPropertyChange(() => SubTotal);
             NotifyOfPropertyChange(() => VAT);
             NotifyOfPropertyChange(() => FinalPrice);
+            NotifyOfPropertyChange(() => CanCheckOut);
         }
 
         public bool CanCheckOut
@@ -212,14 +216,30 @@ namespace SMDesktopUI.ViewModels
                 bool output = false;
 
                 // Validate if there is an item in cart
+                if (Cart.Count > 0)
+                {
+                    output = true;
+                }
 
                 return output;
             }
         }
 
-        public void CheckOut()
+        public async Task CheckOut()
         {
+            // Create a SaleModel that is connected to the API
+            PurchaseModel sale = new PurchaseModel();
 
+            foreach (var item in Cart)
+            {
+                sale.PurchaseDetails.Add(new PurchaseDetailModel
+                {
+                    ProductId = item.Product.Id,
+                    Quantity = item.QuantityInCart
+                });
+            }
+            
+            await _purchaseEndpoint.PostPurchase(sale);
         }
     }
 }

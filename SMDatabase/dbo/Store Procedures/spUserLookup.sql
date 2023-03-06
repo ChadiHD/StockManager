@@ -1,5 +1,5 @@
 ﻿CREATE PROCEDURE [dbo].[spUserLookup]
-	@Id nvarchar(128)
+	@UserId nvarchar(128)
 
 AS
 begin
@@ -7,5 +7,5 @@ begin
 
 	SELECT UserId, FirstName, LastName, EmailAddress, CreatedDate
 	FROM [dbo].[User]
-	WHERE UserId = @Id;
+	WHERE UserId = @UserId;
 end

@@ -14,7 +14,7 @@ namespace SMDataManager.Library.DataAccess
         {
             SqlDataAccess sql = new SqlDataAccess();
 
-            var p = new { Id = Id };
+            var p = new { UserId = Id };
 
             var output = sql.LoadData<UserModel, dynamic>("dbo.spUserLookup", p, "SMDatabase");
 
