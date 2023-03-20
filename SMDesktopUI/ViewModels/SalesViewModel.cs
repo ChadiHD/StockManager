@@ -72,6 +72,17 @@ namespace SMDesktopUI.ViewModels
             }
         }
 
+        private async Task ResetSalesViewModel()
+        {
+            Cart = new BindingList<CartItemDisplayModel>();
+            await LoadProducts();
+
+            NotifyOfPropertyChange(() => SubTotal);
+            NotifyOfPropertyChange(() => VAT);
+            NotifyOfPropertyChange(() => FinalPrice);
+            NotifyOfPropertyChange(() => CanCheckOut);
+        }
+
         private CartItemDisplayModel _selectedCartItem;
 
         public CartItemDisplayModel SelectedCartItem
@@ -215,7 +226,7 @@ namespace SMDesktopUI.ViewModels
                 bool output = false;
 
                 // Validate if something is selected
-                if (SelectedCartItem != null && SelectedCartItem?.Product.QuantityInStock > 0)
+                if (SelectedCartItem != null && SelectedCartItem?.QuantityInCart > 0)
                 {
                     output = true;
                 }
@@ -240,6 +251,7 @@ namespace SMDesktopUI.ViewModels
             NotifyOfPropertyChange(() => VAT);
             NotifyOfPropertyChange(() => FinalPrice);
             NotifyOfPropertyChange(() => CanCheckOut);
+            NotifyOfPropertyChange(() => CanAddToCart);
         }
 
         public bool CanCheckOut
@@ -273,6 +285,8 @@ namespace SMDesktopUI.ViewModels
             }
             
             await _purchaseEndpoint.PostPurchase(sale);
+
+            await ResetSalesViewModel();
         }
     }
 }
