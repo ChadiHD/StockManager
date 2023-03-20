@@ -7,10 +7,12 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Globalization;
+using System.Security.Cryptography;
 
 namespace SMDataManager.Library.Internal.DataAccess
 {
-    internal class SqlDataAccess
+    internal class SqlDataAccess : IDisposable
     {
         public string GetConnectionString(string name)
         {
@@ -40,6 +42,56 @@ namespace SMDataManager.Library.Internal.DataAccess
                 connection.Execute(storeProcedure, parameters,
                     commandType: CommandType.StoredProcedure);
             }
+        }
+
+        // Start transaction method
+        private IDbConnection _connection;
+        private IDbTransaction _transaction;
+
+        public void StartTransaction(string cnnStringName)
+        {
+            string connectionString = GetConnectionString(cnnStringName);
+
+            _connection = new SqlConnection(connectionString);
+
+            _connection.Open();
+
+            _transaction = _connection.BeginTransaction();
+        }
+        // Load using the transaction
+        public List<T> LoadDataInTransaction<T, U>(string storeProcedure, U parameters)
+        {
+            List<T> rows = _connection.Query<T>(storeProcedure, parameters,
+                commandType: CommandType.StoredProcedure, transaction: _transaction).ToList();
+
+            return rows;
+        }
+
+        // Save the transaction
+        public void SaveDataInTransaction<T>(string storeProcedure, T parameters)
+        {
+            _connection.Execute(storeProcedure, parameters,
+                commandType: CommandType.StoredProcedure, transaction: _transaction);
+        }
+
+        // Stop transaction method
+            // If transaction is successful
+        public void CommitTransaction()
+        {
+            _transaction?.Commit();
+            _connection?.Close();
+        }
+            // If transaction fails
+        public void RollbackTransaction()
+        {
+            _transaction?.Rollback();
+            _connection?.Close();
+        }
+
+        // Dispose transaction
+        public void Dispose()
+        {
+            CommitTransaction();
         }
     }
 }

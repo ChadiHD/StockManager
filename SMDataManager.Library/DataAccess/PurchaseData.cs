@@ -56,19 +56,33 @@ namespace SMDataManager.Library.DataAccess
 
             purchase.FinalPrice = purchase.SubTotal + purchase.VAT;
 
-            // Save the PurchaseModel
-            SqlDataAccess sql = new SqlDataAccess();
-            sql.SaveData<PurchaseDBModel>("dbo.spPurchase_Insert", purchase, "SMDatabase");
-
-            // Get ID from PurchaseDBModel
-            int purchaseId = sql.LoadData<int, dynamic>("dbo.spPurchase_LookUp", new { purchase.StaffId, purchase.PurchaseDate }, "SMDatabase").FirstOrDefault();
-
-            // Finish completing the PurchaseDetailsModel
-            foreach (var item in details)
+            using (SqlDataAccess sql = new SqlDataAccess())
             {
-                item.PurchaseId = purchaseId;
-                // Save the PurchaseDetailsModel
-                sql.SaveData("dbo.spPurchaseDetails_Insert", item, "SMDatabase");
+                try
+                {
+                    sql.StartTransaction("SMDataBase");
+
+                    // Save the PurchaseModel
+                    sql.SaveDataInTransaction("dbo.spPurchase_Insert", purchase);
+
+                    // Get ID from PurchaseDBModel
+                    int purchaseId = sql.LoadDataInTransaction<int, dynamic>("dbo.spPurchase_LookUp", new { purchase.StaffId, purchase.PurchaseDate }).FirstOrDefault();
+
+                    // Finish completing the PurchaseDetailsModel
+                    foreach (var item in details)
+                    {
+                        item.PurchaseId = purchaseId;
+                        // Save the PurchaseDetailsModel
+                        sql.SaveDataInTransaction("dbo.spPurchaseDetails_Insert", item);
+                    }
+
+                    sql.CommitTransaction();
+                }
+                catch
+                {
+                    sql.RollbackTransaction();
+                    throw;
+                }
             }
         }
     }
