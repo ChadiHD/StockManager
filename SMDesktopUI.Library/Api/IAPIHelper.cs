@@ -8,6 +8,7 @@ namespace SMDesktopUI.Library.Api
     {
         HttpClient ApiClient { get; }
         Task<AuthenticatedUser> Authenticate(string username, string password);
+        void LogOff();
         Task GetLoggedInUserInfo(string token);
     }
 }

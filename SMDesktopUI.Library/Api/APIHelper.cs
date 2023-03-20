@@ -61,6 +61,12 @@ namespace SMDesktopUI.Library.Api
                 }
             }
         }
+
+        public void LogOff()
+        {
+            _apiClient.DefaultRequestHeaders.Clear();
+        }
+
         // Creates calls that gets information about users
         public async Task GetLoggedInUserInfo(string token)
         {

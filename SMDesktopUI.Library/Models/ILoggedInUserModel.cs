@@ -11,6 +11,6 @@ namespace SMDesktopUI.Library.Models
         string LastName { get; set; }
         string Token { get; set; }
 
-        void Logoff();
+        void ResetUserModel();
     }
 }

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Caliburn.Micro;
 using SMDesktopUI.EventModels;
+using SMDesktopUI.Library.Api;
 using SMDesktopUI.Library.Models;
 
 namespace SMDesktopUI.ViewModels
@@ -14,14 +15,16 @@ namespace SMDesktopUI.ViewModels
         private IEventAggregator _events;
         private SalesViewModel _salesVM;
         private ILoggedInUserModel _user;
+        private IAPIHelper _apiHelper;
 
         // Contructor dependency injection
         // all Subscribers are notified with all events in this form
-        public ShellViewModel(IEventAggregator events, SalesViewModel salesVM, ILoggedInUserModel user)
+        public ShellViewModel(IEventAggregator events, SalesViewModel salesVM, ILoggedInUserModel user, IAPIHelper apiHelper)
         {
             _events = events;
             _salesVM = salesVM;
             _user = user;
+            _apiHelper = apiHelper;
 
             _events.Subscribe(this);
 
@@ -58,7 +61,9 @@ namespace SMDesktopUI.ViewModels
 
         public void LogOut()
         {
-            _user.Logoff();
+            _user.ResetUserModel();
+            // Clears the Token for security breach
+            _apiHelper.LogOff();
             ActivateItem(IoC.Get<LoginViewModel>());
             NotifyOfPropertyChange(() => IsLoggedIn);
         }

@@ -17,7 +17,7 @@ namespace SMDesktopUI.Library.Models
         public DateTime CreatedDate { get; set; }
 
         // Incase the user wants to logoff this will reset the view model
-        public void Logoff() 
+        public void ResetUserModel()
         { 
             Token= string.Empty;
             Id= string.Empty;
