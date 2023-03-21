@@ -7,9 +7,11 @@ using SMDesktopUI.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Dynamic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace SMDesktopUI.ViewModels
 {
@@ -19,23 +21,52 @@ namespace SMDesktopUI.ViewModels
         IPurchaseEndpoint _purchaseEndpoint;
         IConfigHelper _configHelper;
         IMapper _mapper;
+        private readonly StatusInfoViewModel _status;
+        private readonly IWindowManager _window;
 
         public SalesViewModel
             (IProductEndpoint productEndpoint, 
             IPurchaseEndpoint purchaseEndpoint, 
             IConfigHelper configHelper,
-            IMapper mapper)
+            IMapper mapper,
+            StatusInfoViewModel status,
+            IWindowManager window)
         {
             _productEndpoint = productEndpoint;
             _purchaseEndpoint = purchaseEndpoint;
             _configHelper = configHelper;
             _mapper = mapper;
+            _status = status;
+            _window = window;
         }
 
         protected override async void OnViewLoaded(object view)
         {
             base.OnViewLoaded(view);
-            await LoadProducts(); 
+            try
+            {
+                await LoadProducts();
+            }
+            catch (Exception ex)
+            {
+                // Message box template for catching exception and showing to the user
+                dynamic settings = new ExpandoObject();
+                settings.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+                settings.ResizeMode = ResizeMode.NoResize;
+                settings.Title = "Error";
+
+                if (ex.Message == "Unauthorized")
+                {
+                    _status.UpdateMessage("Unauthorised Access", "Access Denied to interact with the sales page");
+                    _window.ShowDialog(_status, null, settings); 
+                }
+                else
+                {
+                    _status.UpdateMessage("Expection Error", ex.Message);
+                    _window.ShowDialog(_status, null, settings);
+                }
+                TryClose();
+            }
         }
 
         // A constructor doesn't return Tasks therefore this function is created
