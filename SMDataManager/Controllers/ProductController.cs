@@ -9,7 +9,7 @@ using System.Web.Http;
 
 namespace SMDataManager.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Staff")]
     public class ProductController : ApiController
     {
         public List<ProductModel> Get()

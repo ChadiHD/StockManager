@@ -14,6 +14,7 @@ namespace SMDataManager.Controllers
     [Authorize]
     public class PurchaseController : ApiController
     {
+        [Authorize(Roles = "Staff")]
         public void Post(PurchaseModel purchase)
         {
             PurchaseData data = new PurchaseData();
@@ -23,6 +24,7 @@ namespace SMDataManager.Controllers
             data.SavePurchases(purchase, userId);
         }
 
+        [Authorize(Roles = "Admin,Manager")]
         [Route("GetPurchaseReport")]
         public List<PurchaseReportModel> GetPurchaseReports()
         {
