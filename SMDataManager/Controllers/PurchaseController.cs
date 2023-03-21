@@ -22,5 +22,12 @@ namespace SMDataManager.Controllers
 
             data.SavePurchases(purchase, userId);
         }
+
+        [Route("GetPurchaseReport")]
+        public List<PurchaseReportModel> GetPurchaseReports()
+        {
+            PurchaseData data = new PurchaseData();
+            return data.GetPurchaseReport();
+        }
     }
 }

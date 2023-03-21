@@ -85,5 +85,14 @@ namespace SMDataManager.Library.DataAccess
                 }
             }
         }
+
+        public List<PurchaseReportModel> GetPurchaseReport()
+        {
+            SqlDataAccess sql = new SqlDataAccess();
+
+            var output = sql.LoadData<PurchaseReportModel, dynamic>("spPurchase_PurchaseReport", new {}, "SMDatabase");
+
+            return output;
+        }
     }
 }

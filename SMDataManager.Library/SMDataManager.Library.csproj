@@ -45,13 +45,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DataAccess\InventoryData.cs" />
     <Compile Include="DataAccess\ProductData.cs" />
     <Compile Include="DataAccess\PurchaseData.cs" />
+    <Compile Include="Models\InventoryModel.cs" />
     <Compile Include="Models\ProductModel.cs" />
     <Compile Include="Models\PurchaseDBModel.cs" />
     <Compile Include="Models\PurchaseDetailDBModel.cs" />
     <Compile Include="Models\PurchaseDetailModel.cs" />
     <Compile Include="Models\PurchaseModel.cs" />
+    <Compile Include="Models\PurchaseReportModel.cs" />
     <Compile Include="Models\UserModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Internal\DataAccess\SqlDataAccess.cs" />
