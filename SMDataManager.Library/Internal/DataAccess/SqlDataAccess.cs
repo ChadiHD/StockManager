@@ -57,6 +57,8 @@ namespace SMDataManager.Library.Internal.DataAccess
             _connection.Open();
 
             _transaction = _connection.BeginTransaction();
+
+            isClosed = false;
         }
         // Load using the transaction
         public List<T> LoadDataInTransaction<T, U>(string storeProcedure, U parameters)
@@ -74,24 +76,43 @@ namespace SMDataManager.Library.Internal.DataAccess
                 commandType: CommandType.StoredProcedure, transaction: _transaction);
         }
 
+        private bool isClosed = false;
+
         // Stop transaction method
             // If transaction is successful
         public void CommitTransaction()
         {
             _transaction?.Commit();
             _connection?.Close();
+
+            isClosed = true;
         }
             // If transaction fails
         public void RollbackTransaction()
         {
             _transaction?.Rollback();
             _connection?.Close();
+
+            isClosed = true;
         }
 
         // Dispose transaction
         public void Dispose()
         {
-            CommitTransaction();
+            if (isClosed == true)
+            {
+                try
+                {
+                    CommitTransaction();
+                }
+                catch
+                {
+
+                }
+            }
+
+            _transaction = null;
+            _connection = null;
         }
     }
 }
