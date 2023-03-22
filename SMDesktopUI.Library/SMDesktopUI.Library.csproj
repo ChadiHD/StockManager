@@ -52,11 +52,14 @@
     <Compile Include="Api\IAPIHelper.cs" />
     <Compile Include="Api\IProductEndpoint.cs" />
     <Compile Include="Api\IPurchaseEndpoint.cs" />
+    <Compile Include="Api\IUserEndpoint.cs" />
     <Compile Include="Api\ProductEndpoint.cs" />
     <Compile Include="Api\PurchaseEndpoint.cs" />
+    <Compile Include="Api\UserEndpoint.cs" />
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="Helpers\ConfigHelper.cs" />
     <Compile Include="Helpers\IConfigHelper.cs" />
+    <Compile Include="Models\UserModel.cs" />
     <Compile Include="Models\AuthenticatedUser.cs" />
     <Compile Include="Models\CartItemModel.cs" />
     <Compile Include="Models\ILoggedInUserModel.cs" />

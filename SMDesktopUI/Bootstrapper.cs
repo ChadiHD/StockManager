@@ -53,7 +53,8 @@ namespace SMDesktopUI
 
             _container.Instance(_container)
                 .PerRequest<IProductEndpoint, ProductEndpoint>()
-                .PerRequest<IPurchaseEndpoint, PurchaseEndpoint>();
+                .PerRequest<IPurchaseEndpoint, PurchaseEndpoint>()
+                .PerRequest<IUserEndpoint, UserEndpoint>();
 
             _container
                 .Singleton<IWindowManager, WindowManager>()
