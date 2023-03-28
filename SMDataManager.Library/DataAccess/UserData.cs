@@ -1,4 +1,5 @@
-﻿using SMDataManager.Library.Internal.DataAccess;
+﻿using Microsoft.Extensions.Configuration;
+using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using System;
 using System.Collections.Generic;
@@ -10,9 +11,15 @@ namespace SMDataManager.Library.DataAccess
 {
     public class UserData
     {
+        private readonly IConfiguration _config;
+
+        public UserData(IConfiguration config)
+        {
+            _config = config;
+        }
         public List<UserModel> GetUserById(string Id)
         {
-            SqlDataAccess sql = new SqlDataAccess();
+            SqlDataAccess sql = new SqlDataAccess(_config);
 
             var p = new { UserId = Id };
 

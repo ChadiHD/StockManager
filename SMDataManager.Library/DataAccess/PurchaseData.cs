@@ -1,4 +1,5 @@
-﻿using SMDataManager.Library.Internal.DataAccess;
+﻿using Microsoft.Extensions.Configuration;
+using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using SMDesktopUI.Library;
 using System;
@@ -10,11 +11,17 @@ namespace SMDataManager.Library.DataAccess
 {
     public class PurchaseData
     {
+        private readonly IConfiguration _config;
+
+        public PurchaseData(IConfiguration config)
+        {
+            _config = config;
+        }
         public void SavePurchases(PurchaseModel purchaseInfo, string staffId)
         {
             // Deposit the PurchaseDetailModel that are going to be saved in the database
             List<PurchaseDetailDBModel> details = new List<PurchaseDetailDBModel>();
-            ProductData products = new ProductData();
+            ProductData products = new ProductData(_config);
             var taxRate = ConfigHelper.GetTaxRate() / 100;
 
             foreach (var item in purchaseInfo.PurchaseDetails)
@@ -51,7 +58,7 @@ namespace SMDataManager.Library.DataAccess
 
             purchase.FinalPrice = purchase.SubTotal + purchase.VAT;
 
-            using (SqlDataAccess sql = new SqlDataAccess())
+            using (SqlDataAccess sql = new SqlDataAccess(_config))
             {
                 try
                 {
@@ -83,7 +90,7 @@ namespace SMDataManager.Library.DataAccess
 
         public List<PurchaseReportModel> GetPurchaseReport()
         {
-            SqlDataAccess sql = new SqlDataAccess();
+            SqlDataAccess sql = new SqlDataAccess(_config);
 
             var output = sql.LoadData<PurchaseReportModel, dynamic>("spPurchase_PurchaseReport", new {}, "SMDatabase");
 

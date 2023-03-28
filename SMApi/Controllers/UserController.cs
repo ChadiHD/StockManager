@@ -12,6 +12,7 @@ using SMDataManager.Library.DataAccess;
 using SMApi.Models;
 using SMApi.Data;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.Extensions.Configuration;
 
 namespace SMApi.Controllers
 {
@@ -22,11 +23,13 @@ namespace SMApi.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly IConfiguration _config;
 
-        public UserController(ApplicationDbContext context, UserManager<IdentityUser> userManager)
+        public UserController(ApplicationDbContext context, UserManager<IdentityUser> userManager, IConfiguration config)
         {
             _context = context;
             _userManager = userManager;
+            _config = config;
         }
 
         [HttpGet]
@@ -35,7 +38,7 @@ namespace SMApi.Controllers
         {
             // request the userId from the API directly
             string userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Outdated - RequestContext.Principal.Identity.GetUserId();
-            UserData data = new UserData();
+            UserData data = new UserData(_config);
 
             return data.GetUserById(userId).First();
         }
