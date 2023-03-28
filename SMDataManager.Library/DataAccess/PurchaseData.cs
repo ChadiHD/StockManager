@@ -1,14 +1,9 @@
 ﻿using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using SMDesktopUI.Library;
-using SMDesktopUI.Library.Models;
 using System;
 using System.Collections.Generic;
-using System.Data.SqlTypes;
 using System.Linq;
-using System.Net.NetworkInformation;
-using System.Text;
-using System.Threading.Tasks;
 using PurchaseModel = SMDataManager.Library.Models.PurchaseModel;
 
 namespace SMDataManager.Library.DataAccess
