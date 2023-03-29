@@ -22,6 +22,7 @@ namespace SMApi.Controllers
         }
 
         [Authorize(Roles = "Staff")]
+        [HttpPost]
         public void Post(PurchaseModel purchase)
         {
             PurchaseData data = new PurchaseData(_config);
@@ -33,6 +34,7 @@ namespace SMApi.Controllers
 
         [Authorize(Roles = "Admin,Manager")]
         [Route("GetPurchaseReport")]
+        [HttpGet]
         public List<PurchaseReportModel> GetPurchaseReports()
         {
             PurchaseData data = new PurchaseData(_config);

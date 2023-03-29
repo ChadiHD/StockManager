@@ -15,6 +15,12 @@ namespace SMDataManager.Library.Internal.DataAccess
 {
     internal class SqlDataAccess : IDisposable
     {
+        /// <summary>
+        /// Retrieves a connection string for our db based on configuration file
+        /// </summary>
+        /// <param name="name">A connection string name to look for in configuration file</param>
+        /// <returns>the connection string</returns>
+        private readonly IConfiguration _config;
         public SqlDataAccess(IConfiguration config)
         {
             _config = config;
@@ -82,8 +88,6 @@ namespace SMDataManager.Library.Internal.DataAccess
         }
 
         private bool isClosed = false;
-        private readonly IConfiguration _config;
-
         // Stop transaction method
         // If transaction is successful
         public void CommitTransaction()
