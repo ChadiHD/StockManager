@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using SMDesktopUI.Library.Api;
 using SMDesktopUI.EventModels;
@@ -101,7 +102,7 @@ namespace SMDesktopUI.ViewModels
 				await _apiHelper.GetLoggedInUserInfo(result.Access_Token);
 
 				// Publish the UI on an empty class to differentiate it from other events
-				_events.PublishOnUIThread(new LogOnEvent());
+				await _events.PublishOnUIThreadAsync(new LogOnEvent(), new CancellationToken());
 			}
 			catch (Exception ex)
 			{

@@ -15,6 +15,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SMApi.Data;
+using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Internal.DataAccess;
 
 namespace SMApi
 {
@@ -38,6 +40,13 @@ namespace SMApi
                 .AddEntityFrameworkStores<ApplicationDbContext>();
             services.AddControllersWithViews();
             services.AddRazorPages();
+
+            // NetCore upgraded Services
+            services.AddTransient<IInventoryData, InventoryData>();
+            services.AddTransient<ISqlDataAccess, SqlDataAccess>();
+            services.AddTransient<IProductData,  ProductData>();
+            services.AddTransient<IPurchaseData, PurchaseData>();
+
             // Add Authentication for JWT on Core API
             services.AddAuthentication(options =>
             {
@@ -49,7 +58,7 @@ namespace SMApi
                 jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("IloveSpeedingCars")),
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration.GetValue<string>("Secrets:SecurityKey"))),
                     ValidateIssuer = false,
                     ValidateAudience = false,
                     ValidateLifetime = true,

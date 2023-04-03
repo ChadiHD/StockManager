@@ -13,27 +13,25 @@ namespace SMApi.Controllers
     [Authorize]
     public class InventoryController : ControllerBase
     {
-        private readonly IConfiguration _config;
+        private readonly InventoryData _inventoryData;
 
-        public InventoryController(IConfiguration config)
+        public InventoryController(InventoryData inventoryData)
         {
-            _config = config;
+            _inventoryData = inventoryData;
         }
 
         [Authorize(Roles = "Manager,Admin")]
         [HttpGet]
         public List<InventoryModel> Get()
         {
-            InventoryData data = new InventoryData(_config);
-            return data.GetInventory();
+            return _inventoryData.GetInventory();
         }
 
         [Authorize(Roles = "Admin")]
         [HttpPost]
         public void Post(InventoryModel item)
         {
-            InventoryData data = new InventoryData(_config);
-            data.SaveInventoryData(item);
+            _inventoryData.SaveInventoryData(item);
         }
     }
 }

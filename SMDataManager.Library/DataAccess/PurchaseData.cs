@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
-using SMDesktopUI.Library;
+using SMDesktopUI.Library.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,31 +9,32 @@ using PurchaseModel = SMDataManager.Library.Models.PurchaseModel;
 
 namespace SMDataManager.Library.DataAccess
 {
-    public class PurchaseData
+    public class PurchaseData : IPurchaseData
     {
-        private readonly IConfiguration _config;
+        private readonly IProductData _productData;
+        private readonly ISqlDataAccess _sqlDataAccess;
 
-        public PurchaseData(IConfiguration config)
+        public PurchaseData(IProductData productData, ISqlDataAccess sqlDataAccess)
         {
-            _config = config;
+            _productData = productData;
+            _sqlDataAccess = sqlDataAccess;
         }
         public void SavePurchases(PurchaseModel purchaseInfo, string staffId)
         {
             // Deposit the PurchaseDetailModel that are going to be saved in the database
             List<PurchaseDetailDBModel> details = new List<PurchaseDetailDBModel>();
-            ProductData products = new ProductData(_config);
             var taxRate = ConfigHelper.GetTaxRate() / 100;
 
             foreach (var item in purchaseInfo.PurchaseDetails)
             {
                 var detail = new PurchaseDetailDBModel
                 {
-                    ProductId= item.ProductId,
-                    Quantity= item.Quantity,
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
                 };
 
                 // Get the information about this product
-                var productInfo = products.GetProductById(detail.ProductId);
+                var productInfo = _productData.GetProductById(detail.ProductId);
                 if (productInfo == null)
                 {
                     throw new Exception($"The Product ID of {item.ProductId} could not be found in the database");
@@ -58,41 +59,36 @@ namespace SMDataManager.Library.DataAccess
 
             purchase.FinalPrice = purchase.SubTotal + purchase.VAT;
 
-            using (SqlDataAccess sql = new SqlDataAccess(_config))
+            try
             {
-                try
+                _sqlDataAccess.StartTransaction("SMDataBase");
+
+                // Save the PurchaseModel
+                _sqlDataAccess.SaveDataInTransaction("dbo.spPurchase_Insert", purchase);
+
+                // Get ID from PurchaseDBModel
+                int purchaseId = _sqlDataAccess.LoadDataInTransaction<int, dynamic>("dbo.spPurchase_LookUp", new { purchase.StaffId, purchase.PurchaseDate }).FirstOrDefault();
+
+                // Finish completing the PurchaseDetailsModel
+                foreach (var item in details)
                 {
-                    sql.StartTransaction("SMDataBase");
-
-                    // Save the PurchaseModel
-                    sql.SaveDataInTransaction("dbo.spPurchase_Insert", purchase);
-
-                    // Get ID from PurchaseDBModel
-                    int purchaseId = sql.LoadDataInTransaction<int, dynamic>("dbo.spPurchase_LookUp", new { purchase.StaffId, purchase.PurchaseDate }).FirstOrDefault();
-
-                    // Finish completing the PurchaseDetailsModel
-                    foreach (var item in details)
-                    {
-                        item.PurchaseId = purchaseId;
-                        // Save the PurchaseDetailsModel
-                        sql.SaveDataInTransaction("dbo.spPurchaseDetails_Insert", item);
-                    }
-
-                    sql.CommitTransaction();
+                    item.PurchaseId = purchaseId;
+                    // Save the PurchaseDetailsModel
+                    _sqlDataAccess.SaveDataInTransaction("dbo.spPurchaseDetails_Insert", item);
                 }
-                catch
-                {
-                    sql.RollbackTransaction();
-                    throw;
-                }
+
+                _sqlDataAccess.CommitTransaction();
+            }
+            catch
+            {
+                _sqlDataAccess.RollbackTransaction();
+                throw;
             }
         }
 
         public List<PurchaseReportModel> GetPurchaseReport()
         {
-            SqlDataAccess sql = new SqlDataAccess(_config);
-
-            var output = sql.LoadData<PurchaseReportModel, dynamic>("spPurchase_PurchaseReport", new {}, "SMDatabase");
+            var output = _sqlDataAccess.LoadData<PurchaseReportModel, dynamic>("spPurchase_PurchaseReport", new { }, "SMDatabase");
 
             return output;
         }

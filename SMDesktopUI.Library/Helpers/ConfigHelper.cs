@@ -1,24 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SMDesktopUI.Library.Helpers
 {
-    public class ConfigHelper : IConfigHelper
+    public class ConfigHelper
     {
         // Activate the tax rate specified in App.config
-        public decimal GetTaxRate()
+        public static decimal GetTaxRate()
         {
             string rateText = ConfigurationManager.AppSettings["taxRate"];
 
-            bool IsValidVat = Decimal.TryParse(rateText, out decimal output);
+            bool IsValidVat = decimal.TryParse(rateText, out decimal output);
 
             if (IsValidVat == false)
             {
-                throw new ConfigurationErrorsException("The tax rate is not");
+                throw new ConfigurationErrorsException("The tax rate is not valid");
             }
 
             return output;

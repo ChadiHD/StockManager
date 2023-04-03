@@ -14,22 +14,21 @@ namespace SMApi.Controllers
     [Authorize]
     public class PurchaseController : ControllerBase
     {
-        private readonly IConfiguration _config;
+        private readonly IPurchaseData _purchaseData;
 
-        public PurchaseController(IConfiguration config)
+        public PurchaseController(IPurchaseData purchaseData)
         {
-            _config = config;
+            _purchaseData = purchaseData;
         }
 
         [Authorize(Roles = "Staff")]
         [HttpPost]
         public void Post(PurchaseModel purchase)
         {
-            PurchaseData data = new PurchaseData(_config);
             // request the staffId from the API directly (much more secure)
             string userId = User.FindFirstValue(ClaimTypes.NameIdentifier); //RequestContext.Principal.Identity.GetUserId();
 
-            data.SavePurchases(purchase, userId);
+            _purchaseData.SavePurchases(purchase, userId);
         }
 
         [Authorize(Roles = "Admin,Manager")]
@@ -37,8 +36,7 @@ namespace SMApi.Controllers
         [HttpGet]
         public List<PurchaseReportModel> GetPurchaseReports()
         {
-            PurchaseData data = new PurchaseData(_config);
-            return data.GetPurchaseReport();
+            return _purchaseData.GetPurchaseReport();
         }
     }
 }

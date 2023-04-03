@@ -58,14 +58,14 @@ namespace SMDesktopUI.ViewModels
                 if (ex.Message == "Unauthorized")
                 {
                     _status.UpdateMessage("Unauthorised Access", "Access Denied to interact with the sales page");
-                    _window.ShowDialog(_status, null, settings); 
+                    await _window.ShowDialogAsync(_status, null, settings); 
                 }
                 else
                 {
                     _status.UpdateMessage("Expection Error", ex.Message);
-                    _window.ShowDialog(_status, null, settings);
+                    await _window.ShowDialogAsync(_status, null, settings);
                 }
-                TryClose();
+                TryCloseAsync();
             }
         }
 

@@ -10,10 +10,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Globalization;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
 
 namespace SMDataManager.Library.Internal.DataAccess
 {
-    internal class SqlDataAccess : IDisposable
+    public class SqlDataAccess : IDisposable, ISqlDataAccess
     {
         /// <summary>
         /// Retrieves a connection string for our db based on configuration file
@@ -21,9 +22,12 @@ namespace SMDataManager.Library.Internal.DataAccess
         /// <param name="name">A connection string name to look for in configuration file</param>
         /// <returns>the connection string</returns>
         private readonly IConfiguration _config;
-        public SqlDataAccess(IConfiguration config)
+        private readonly ILogger<SqlDataAccess> _logger;
+
+        public SqlDataAccess(IConfiguration config, ILogger<SqlDataAccess> logger)
         {
             _config = config;
+            _logger = logger;
         }
         public string GetConnectionString(string name)
         {
@@ -33,7 +37,7 @@ namespace SMDataManager.Library.Internal.DataAccess
         // Using Dapper as a Micro ORM
         public List<T> LoadData<T, U>(string storeProcedure, U parameters, string connectionStringName)
         {
-            string connectionString = GetConnectionString(connectionStringName); 
+            string connectionString = GetConnectionString(connectionStringName);
 
             using (IDbConnection connection = new SqlConnection(connectionString))
             {
@@ -97,7 +101,7 @@ namespace SMDataManager.Library.Internal.DataAccess
 
             isClosed = true;
         }
-            // If transaction fails
+        // If transaction fails
         public void RollbackTransaction()
         {
             _transaction?.Rollback();
@@ -115,9 +119,9 @@ namespace SMDataManager.Library.Internal.DataAccess
                 {
                     CommitTransaction();
                 }
-                catch
+                catch (Exception ex)
                 {
-
+                    _logger.LogError(ex, "Commit transaction failed in the dispose method.");
                 }
             }
 
