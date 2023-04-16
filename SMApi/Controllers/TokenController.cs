@@ -24,7 +24,7 @@ namespace SMApi.Controllers
             _userManager = userManager;
         }
 
-        [Route("/token")]
+        [Route("/Token")]
         [HttpPost]
         public async Task<IActionResult> Create(string username, string password, string grant_type)
         {
@@ -70,7 +70,7 @@ namespace SMApi.Controllers
                 new JwtHeader(
                     new SigningCredentials(
                         new SymmetricSecurityKey(Encoding.UTF8.GetBytes("IloveSpeedingCars")),
-                            SecurityAlgorithms.HmacSha256)),
+                            SecurityAlgorithms.HmacSha512Signature)),
                 new JwtPayload(claims));
 
             var output = new

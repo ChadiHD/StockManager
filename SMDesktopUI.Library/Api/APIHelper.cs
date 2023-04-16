@@ -45,7 +45,7 @@ namespace SMDesktopUI.Library.Api
                 new KeyValuePair<string, string>("username", username),
                 new KeyValuePair<string, string>("password", password)
             });
-            using (HttpResponseMessage response = await _apiClient.PostAsync("/Token", data))
+            using (HttpResponseMessage response = await _apiClient.PostAsync(_apiClient.BaseAddress + "Token", data))
             {
                 if (response.IsSuccessStatusCode)
                 {
@@ -70,18 +70,18 @@ namespace SMDesktopUI.Library.Api
             _apiClient.DefaultRequestHeaders.Clear();
             _apiClient.DefaultRequestHeaders.Accept.Clear();
             _apiClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            _apiClient.DefaultRequestHeaders.Add("Authorization", $"bearer {token}");
+            _apiClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
 
-            using (HttpResponseMessage response = await _apiClient.GetAsync("/api/User"))
+            using (HttpResponseMessage response = await _apiClient.GetAsync(_apiClient.BaseAddress + "api/User"))
             {
                 if (response.IsSuccessStatusCode )
                 {
                     // Map the data between the interface and database
-                    var results = await response.Content.ReadAsAsync<LoggedInUserModel>();
+                    var results = await response.Content.ReadAsStringAsync<LoggedInUserModel>();
                     _loggedInUser.CreatedDate = results.CreatedDate;
                     _loggedInUser.EmailAddress = results.EmailAddress;
-                    _loggedInUser.LastName = results.LastName;
                     _loggedInUser.FirstName = results.FirstName;
+                    _loggedInUser.LastName = results.LastName;
                     _loggedInUser.Id = results.Id;
                     _loggedInUser.Token = token;
 

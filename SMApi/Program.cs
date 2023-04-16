@@ -21,6 +21,6 @@ namespace SMApi
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
-                });
+                }).ConfigureLogging(logging => logging.AddConsole().SetMinimumLevel(LogLevel.Debug));
     }
 }

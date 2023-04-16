@@ -6,12 +6,14 @@
 	</PropertyGroup>
 	<ItemGroup>
 	  <PackageReference Include="Dapper" Version="1.60.6" />
+	  <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.9" />
 	  <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="7.0.0" />
 	  <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
 	  <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
 	  <PackageReference Include="System.Data.SqlClient" Version="4.8.5" />
 	</ItemGroup>
 	<ItemGroup>
+	  <ProjectReference Include="..\SMDatabase\SMDatabase.sqlproj" />
 	  <ProjectReference Include="..\SMDesktopUI.Library\SMDesktopUI.Library.csproj" />
 	</ItemGroup>
 	<ItemGroup>

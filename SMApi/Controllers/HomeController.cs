@@ -32,12 +32,12 @@ namespace SMApi.Controllers
 
         public async Task<IActionResult> Privacy()
         {
-            // This is a method to create roles within EFCore and test the application startup
+            //This is a method to create roles within EFCore and test the application startup
 
             //string[] roles = { "Manager", "Admin", "Staff" };
             //foreach (string role in roles)
             //{
-            //    var roleExist =  await _roleManager.RoleExistsAsync(role);
+            //    var roleExist = await _roleManager.RoleExistsAsync(role);
             //    if (!roleExist)
             //    {
             //        await _roleManager.CreateAsync(new IdentityRole(role));
