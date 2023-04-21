@@ -1,6 +1,6 @@
 {
-  "name": "SMPortal",
-  "short_name": "SMPortal",
+  "name": "BlazorApp-empty1",
+  "short_name": "BlazorApp-empty1",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -11,11 +11,6 @@
       "src": "icon-512.png",
       "type": "image/png",
       "sizes": "512x512"
-    },
-    {
-      "src": "icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
     }
   ]
 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using SMDesktopUI.Library.Helpers;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
 using System;
@@ -79,13 +80,16 @@ namespace SMDesktopUI.Library.Api
             {
                 if (response.IsSuccessStatusCode )
                 {
+                    List<System.Net.Http.Formatting.MediaTypeFormatter> formatters = new List<System.Net.Http.Formatting.MediaTypeFormatter>();
+                    formatters.Add(new System.Net.Http.Formatting.JsonMediaTypeFormatter());
+                    formatters.Add(new VndApiJsonMediaTypeFormatter());
                     // Map the data between the interface and database
-                    var results = await response.Content.ReadAsAsync<LoggedInUserModel>();
-                    _loggedInUser.CreatedDate = results.CreatedDate;
-                    _loggedInUser.EmailAddress = results.EmailAddress;
-                    _loggedInUser.FirstName = results.FirstName;
-                    _loggedInUser.LastName = results.LastName;
-                    _loggedInUser.Id = results.Id;
+                    var result = await response.Content.ReadAsAsync<LoggedInUserModel>(formatters);
+                    _loggedInUser.CreatedDate = result.CreatedDate;
+                    _loggedInUser.EmailAddress = result.EmailAddress;
+                    _loggedInUser.FirstName = result.FirstName;
+                    _loggedInUser.LastName = result.LastName;
+                    _loggedInUser.Id = result.Id;
                     _loggedInUser.Token = token;
 
                 }

@@ -6,15 +6,6 @@ namespace SMPortal.Authentication
 {
     public class JwtParser
     {
-        //public static JwtPayload Parse(string token)
-        //{
-        //    var parts = token.Split('.');
-        //    var payload = parts[1];
-        //    var jsonBytes = ParseBase64WithoutPadding(payload);
-        //    var json = Encoding.UTF8.GetString(jsonBytes);
-        //    return JsonConvert.DeserializeObject<JwtPayload>(json);
-        //}
-
         public static IEnumerable<Claim> ParseClaimsFromJwt(string jwt) 
         {
             var claims = new List<Claim>();

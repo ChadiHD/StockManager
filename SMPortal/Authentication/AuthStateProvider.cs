@@ -16,6 +16,7 @@ namespace SMPortal.Authentication
         {
             _httpClient = httpClient;
             _localStorge = localStorge;
+            _anonymous = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         }
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
