@@ -80,9 +80,11 @@ namespace SMDesktopUI.Library.Api
             {
                 if (response.IsSuccessStatusCode )
                 {
-                    List<System.Net.Http.Formatting.MediaTypeFormatter> formatters = new List<System.Net.Http.Formatting.MediaTypeFormatter>();
-                    formatters.Add(new System.Net.Http.Formatting.JsonMediaTypeFormatter());
-                    formatters.Add(new VndApiJsonMediaTypeFormatter());
+                    List<System.Net.Http.Formatting.MediaTypeFormatter> formatters = new List<System.Net.Http.Formatting.MediaTypeFormatter>
+                    {
+                        new System.Net.Http.Formatting.JsonMediaTypeFormatter(),
+                        new VndApiJsonMediaTypeFormatter()
+                    };
                     // Map the data between the interface and database
                     var result = await response.Content.ReadAsAsync<LoggedInUserModel>(formatters);
                     _loggedInUser.CreatedDate = result.CreatedDate;
