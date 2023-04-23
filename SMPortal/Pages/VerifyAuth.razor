@@ -2,20 +2,30 @@
 
 <h3>VerifyAuth</h3>
 
-@if(isAuthenticated)
-{
-	<h4>@userName is authenticated</h4>
-	<ul>
-		<li>Access to Admin Role: @isAdminUser</li>
-		<li>Access to Staff Role: @isStaff</li>
-		<li>Access to Manager Role: @isManager</li>
-	</ul>
-}
-else
-{
-	<h4>The user is not authenticated</h4>
-}
-
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <!--Add Html content here-->
+        <!-- This content is only visible to users in the Admin role -->
+		<p>the user (@context.User.FindFirst(ClaimTypes.Name).Value) is authorized.</p>
+        
+        @if(isAuthenticated)
+		{
+			<h4>@userName is authenticated</h4>
+			<ul>
+				<li>Access to Admin Role: @isAdminUser</li>
+				<li>Access to Staff Role: @isStaff</li>
+				<li>Access to Manager Role: @isManager</li>
+			</ul>
+		}
+		else
+		{
+			<h4>The user is not authenticated</h4>
+		}
+	</Authorized>
+	<NotAuthorized>
+		<p role="alert">Sorry, you're not authorized to see this.</p>
+	</NotAuthorized>
+</AuthorizeView>
 @code {
 	[CascadingParameter]
 	public Task<AuthenticationState> AuthStateTask { get; set; }

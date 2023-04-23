@@ -1,7 +1,22 @@
 ﻿@inherits LayoutComponentBase
 
-<main>
-    <article class="content">
+<div class="page">
+    <div class="main">
+        <div class="top-row px-4">
+            <AuthorizeView>
+                <Authorized>
+                    Welcome, @context.User.FindFirst(ClaimTypes.Name).Value
+                    <NavLink class="nav-link" href="logout">
+                        <span class="oi oi-account-logout"></span> Log Out
+                    </NavLink>
+                </Authorized>
+                <NotAuthorized>
+                    <Login />
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+    <div class="content">
         @Body
-    </article>
-</main>
+    </div>
+</div>
