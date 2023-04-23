@@ -42,6 +42,56 @@ namespace StockApi.Controllers
             return _userData.GetUserById(userId).First();
         }
 
+        public record UserRegistrationModel(
+            string FirstName,
+            string LastName,
+            string Email,
+            string Password);
+
+        [HttpPost]
+        [Route("User/Register")]
+        [AllowAnonymous]
+        // POST: User/Register
+        public async Task<IActionResult> Register(UserRegistrationModel user)
+        {
+            if (ModelState.IsValid)
+            {
+                var existingUser = await _userManager.FindByEmailAsync(user.Email);
+                if (existingUser is null)
+                {
+                    IdentityUser newUser = new()
+                    {
+                        Email = user.Email,
+                        EmailConfirmed = true,
+                        UserName = user.Email
+                    };
+
+                    IdentityResult result = await _userManager.CreateAsync(newUser, user.Password);
+
+                    if (result.Succeeded)
+                    {
+                        existingUser = await _userManager.FindByEmailAsync(user.Email);
+
+                        if (existingUser is null)
+                        {
+                            return BadRequest();
+                        }
+
+                        _userData.CreateUser(new UserModel
+                        {
+                            UserId = existingUser.Id,
+                            FirstName = user.FirstName,
+                            LastName = user.LastName,
+                            EmailAddress = user.Email
+                        });
+                        return Ok();
+                    }
+                }
+            }
+
+            return BadRequest();
+        }
+
         [Authorize(Roles = "Admin")]
         [HttpGet]
         [Route("Admin/GetAllUsers")]

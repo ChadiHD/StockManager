@@ -80,6 +80,7 @@
     <Build Include="dbo\Store Procedures\spInventory_GetAll.sql" />
     <Build Include="dbo\Store Procedures\spInventory_Insert.sql" />
     <Build Include="dbo\Store Procedures\spPurchase_PurchaseReport.sql" />
+    <Build Include="dbo\Store Procedures\spUser_Insert.sql" />
   </ItemGroup>
   <ItemGroup>
     <RefactorLog Include="SMDatabase.refactorlog" />

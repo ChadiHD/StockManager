@@ -23,5 +23,10 @@ namespace SMDataManager.Library.DataAccess
 
             return output;
         }
+
+        public void CreateUser(UserModel user)
+        {
+            _sqlDataAccess.SaveData("dbo.spUser_Insert", new {user.UserId, user.FirstName, user.LastName, user.EmailAddress}, "SMDatabase");
+        }
     }
 }
