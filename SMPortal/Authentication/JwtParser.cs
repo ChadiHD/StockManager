@@ -50,7 +50,6 @@ namespace SMPortal.Authentication
         {
             switch (base64.Length % 4)
             {
-            
                 case 2: base64 += "=="; break;
                 case 3: base64 += "="; break;
             }

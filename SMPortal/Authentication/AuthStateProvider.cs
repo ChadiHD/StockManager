@@ -10,18 +10,23 @@ namespace SMPortal.Authentication
     {
         private readonly HttpClient _httpClient;
         private readonly ILocalStorageService _localStorge;
+        private readonly IConfiguration _config;
         private readonly AuthenticationState _anonymous;
 
-        public AuthStateProvider(HttpClient httpClient, ILocalStorageService localStorge)
+        public AuthStateProvider(HttpClient httpClient,
+                                 ILocalStorageService localStorge,
+                                 IConfiguration config)
         {
             _httpClient = httpClient;
             _localStorge = localStorge;
+            _config = config;
             _anonymous = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         }
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
-            var token = await _localStorge.GetItemAsync<string>("authToken");
+            string authTokenStorageKey = _config["authTokenStorageKey"];
+            var token = await _localStorge.GetItemAsync<string>(authTokenStorageKey);
 
             if (string.IsNullOrWhiteSpace(token))
             {

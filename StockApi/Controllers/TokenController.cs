@@ -20,7 +20,7 @@ namespace StockApi.Controllers
             _userManager = userManager;
         }
 
-        [Route("/Token")]
+        [Route("/token")]
         [HttpPost]
         public async Task<IActionResult> Create(string username, string password, string grant_type)
         {
@@ -42,7 +42,6 @@ namespace StockApi.Controllers
             return await _userManager.CheckPasswordAsync(user, password);
         }
 
-        [AllowAnonymous]
         private async Task<dynamic> GenerateToken(string username)
         {
             var user = await _userManager.FindByEmailAsync(username);

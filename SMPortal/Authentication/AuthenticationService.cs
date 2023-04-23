@@ -11,14 +11,19 @@ namespace SMPortal.Authentication
         private readonly HttpClient _client;
         private readonly AuthenticationStateProvider _authStateProvider;
         private readonly ILocalStorageService _localStorage;
+        private readonly IConfiguration _config;
+        private string authTokenStorageKey;
 
         public AuthenticationService(HttpClient client,
                                      AuthenticationStateProvider authStateProvider,
-                                     ILocalStorageService localStorage)
+                                     ILocalStorageService localStorage,
+                                     IConfiguration config)
         {
             _client = client;
             _authStateProvider = authStateProvider;
             _localStorage = localStorage;
+            _config = config;
+            authTokenStorageKey = _config["authTokenStorageKey"];
         }
 
         public async Task<AuthenticatedUserModel> Login(AuthenticationUserModel userForAuthentication)
@@ -30,7 +35,8 @@ namespace SMPortal.Authentication
                 new KeyValuePair<string, string>("password", userForAuthentication.Password)
             });
 
-            var authResult = await _client.PostAsync("https://localhost:5001/token", data);
+            string api = _config["apiLocation"] + _config["tokenEndPoint"];
+            var authResult = await _client.PostAsync(api, data);
             var authContent = await authResult.Content.ReadAsStringAsync();
 
             if (authResult.IsSuccessStatusCode == false)
@@ -44,7 +50,7 @@ namespace SMPortal.Authentication
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
                 );
 
-            await _localStorage.SetItemAsync("authToken", result.Access_Token);
+            await _localStorage.SetItemAsync(authTokenStorageKey, result.Access_Token);
 
             ((AuthStateProvider)_authStateProvider).MarkUserAsAuthenticated(result.Access_Token);
 
@@ -53,9 +59,9 @@ namespace SMPortal.Authentication
             return result;
         }
 
-        public async Task Logut()
+        public async Task Logout()
         {
-            await _localStorage.RemoveItemAsync("authToken");
+            await _localStorage.RemoveItemAsync(authTokenStorageKey);
 
             ((AuthStateProvider)_authStateProvider).MarkUserAsLoggedOut();
 
