@@ -33,7 +33,7 @@ namespace SMDesktopUI.Library.Api
         private void InitializeClient()
         {
             // App.config for api URL location
-            string api = ConfigurationManager.AppSettings["api"];
+            string api = _config.GetSection("app.config")["api"];
 
             _apiClient = new HttpClient();
             _apiClient.BaseAddress = new Uri(api);
