@@ -40,10 +40,9 @@ namespace SMDesktopUI.ViewModels
             {
                 _selectedUser = value;
                 SelectedUserName = value.Email;
-                UserRoles.Clear();
                 // Create a new binding list of the roles containing only the Name of the Role
                 UserRoles = new BindingList<string>(value.Roles.Select(x => x.Value).ToList());
-                LoadRoles();
+				LoadRoles().Wait();
                 NotifyOfPropertyChange(() => SelectedUser);
             }
         }
@@ -84,7 +83,7 @@ namespace SMDesktopUI.ViewModels
             }
         }
 
-        private BindingList<string> _userRoles = new BindingList<string>();
+        private BindingList<string> _userRoles = new();
         public BindingList<string> UserRoles
         {
             get { return _userRoles; }
@@ -95,7 +94,7 @@ namespace SMDesktopUI.ViewModels
             }
         }
 
-        private BindingList<string> _availableRoles = new BindingList<string>();
+        private BindingList<string> _availableRoles = new();
         public BindingList<string> AvailableRoles
         {
             get { return _availableRoles; }
@@ -140,7 +139,7 @@ namespace SMDesktopUI.ViewModels
                     _status.UpdateMessage("Expection Error", ex.Message);
                     await _window.ShowDialogAsync(_status, null, settings);
                 }
-                TryCloseAsync();
+                await TryCloseAsync();
             }
         }
 

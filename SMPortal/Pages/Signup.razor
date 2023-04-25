@@ -1,4 +1,7 @@
-﻿@page "/signup"
+﻿@page "/register"
+@inject IUserEndpoint UserEndpoint
+@inject NavigationManager NavManager
+@inject IAuthenticationService AuthService
 
   <head>
 
@@ -12,13 +15,7 @@
 
     <!-- Bootstrap core CSS -->
     <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-<!--
-
-TemplateMo 546 Sixteen Clothing
-
-https://templatemo.com/tm-546-sixteen-clothing
-
--->
+    <!--TemplateMo 546 Sixteen Clothing https://templatemo.com/tm-546-sixteen-clothing-->
 
     <!-- Additional CSS Files -->
     <link rel="stylesheet" href="assets/css/fontawesome.css">
@@ -67,9 +64,6 @@ https://templatemo.com/tm-546-sixteen-clothing
             <li class="nav-item">
                 <a class="nav-link" href="/checkout">Checkout</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/login">Log In</a>
-            </li>
             </ul>
           </div>
         </div>
@@ -80,69 +74,63 @@ https://templatemo.com/tm-546-sixteen-clothing
     <main class="mx-3">
       <div class="" style="padding: 40px 0;"></div>
       
-      <div class="sign-up bg-white shadow p-5 mb-3 bg-body-tertiary">
+        <div class="sign-up bg-white shadow p-5 mb-3 bg-body-tertiary">
         <div class="container text-md-start text-center">
           <div class="row">
             <div class="col-md-6">
               <h2 class="mb-5 form-title font-weight-bold">Sign up</h2>
-              <form class="register-form" id="signup-form">
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-user"></i></span>
+                @if (string.IsNullOrWhiteSpace(errorMessage) == false)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @errorMessage
                     </div>
-                    <input name="firstname" type="text" class="form-control rounded-0" placeholder="First Name" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-user"></i></span>
+                }
+                 <form class="register-form" id="signup-form" @onsubmit="OnValidSubmit">
+                    <div class="input-group mb-4">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa fa-user"></i></span>
+                        </div>
+                        <input name="firstname" type="text" class="form-control rounded-0" placeholder="First Name" required="" @bind-value="model.FirstName">
+                        
                     </div>
-                    <input name="lastname" type="text" class="form-control rounded-0" placeholder="Last Name" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-phone"></i></span>
+                    <div class="input-group mb-4">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa fa-user"></i></span>
+                        </div>
+                         <input name="lastname" type="text" class="form-control rounded-0" placeholder="Last Name" required="" @bind-value="model.LastName">
+                         
                     </div>
-                    <input name="phonenumber" type="text" class="form-control rounded-0" placeholder="Phone" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-envelope"></i></span>
+                    <div class="input-group mb-4">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa fa-envelope"></i></span>
+                        </div>
+                        <input name="email" type="text" class="form-control rounded-0" placeholder="Your Email" required="" @bind-value="model.EmailAddress">
+                        
                     </div>
-                    <input name="email" type="text" class="form-control rounded-0" placeholder="Your Email" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-lock"></i></span>
+                    <div class="input-group mb-4">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa fa-lock"></i></span>
+                        </div>
+                        <input name="password" type="password" class="form-control rounded-0" placeholder="Password" required="" @bind-value="model.Password">
+                        
                     </div>
-                    <input name="password" type="password" class="form-control rounded-0" placeholder="Password" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-lock"></i></span>
+                    <div class="input-group mb-4">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-transparent border-0"><i class="fa fa-lock"></i></span>
+                        </div>
+                        <input name="password" type="password" class="form-control rounded-0" placeholder="Confirm password" required="" @bind-value="model.ConfirmPassword">
+                        
                     </div>
-                    <input name="password" type="password" class="form-control rounded-0" placeholder="Repeat your password" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa-sharp fa-solid fa-location-dot"></i></span>
+                    <div class="input-group mb-4">
+                        <div class="text-left ml-2">
+                            <p> By clicking Register you agree to all statements in Terms of service</p>
+                        </div>
                     </div>
-                    <input name="address" type="text" class="form-control rounded-0" placeholder="Address" required="">
-                </div>
-                <div class="input-group mb-4">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text bg-transparent border-0"><i class="fa fa-location"></i></span>
+                    <div class="form-button mt-5">
+                        <button type="submit" id="form-submit" class="filled-button">Register</button>
                     </div>
-                    <input name="location" type="text" class="form-control rounded-0" placeholder="Location" required="">
-                </div>
-                <div class="text-left ml-2">
-                  <p> By clicking Register you agree to all statements in Terms of service</p>
-                </div>
-                <div class="form-button mt-5">
-                  <button type="submit" id="form-submit" class="filled-button">Register</button>
-                </div>
-              </form>
+                </form>
             </div>
-
             <div class="col-md-6 text-center">
               <img src="./assets/images/signup-image.jpg" class="img-fluid" alt="Placeholder image">
               <p class="mt-5"><a href="/login.html">I am already member</a></p>
@@ -181,6 +169,33 @@ https://templatemo.com/tm-546-sixteen-clothing
   
   
 </body>
-@code {
 
+@code {
+    CreateUserModel model = new();
+    string errorMessage = "";
+
+    private async Task OnValidSubmit()
+    {
+        errorMessage = "";
+
+        try
+        {
+            await UserEndpoint.CreateUser(model);
+
+            AuthenticatedUserModel result = await AuthService.Login(new() {Email = model.EmailAddress, Password = model.Password});
+
+            if (result is not null)
+            {
+                NavManager.NavigateTo("/index");
+            }
+            else
+            {
+                errorMessage = "The user registration worked but there was an error when logging in";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
 }

@@ -12,7 +12,7 @@ namespace SMPortal.Authentication
         private readonly AuthenticationStateProvider _authStateProvider;
         private readonly ILocalStorageService _localStorage;
         private readonly IConfiguration _config;
-        private string authTokenStorageKey;
+        private readonly string authTokenStorageKey;
 
         public AuthenticationService(HttpClient client,
                                      AuthenticationStateProvider authStateProvider,
@@ -35,7 +35,7 @@ namespace SMPortal.Authentication
                 new KeyValuePair<string, string>("password", userForAuthentication.Password)
             });
 
-            string api = _config["apiLocation"] + _config["tokenEndPoint"];
+            string api = _config["api"] + _config["tokenEndPoint"];
             var authResult = await _client.PostAsync(api, data);
             var authContent = await authResult.Content.ReadAsStringAsync();
 

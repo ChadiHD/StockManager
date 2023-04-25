@@ -33,9 +33,9 @@ namespace SMDesktopUI.Library.Api
         private void InitializeClient()
         {
             // App.config for api URL location
-            string api = _config.GetSection("app.config")["api"];
+            string api = _config.GetValue<string>("api");
 
-            _apiClient = new HttpClient();
+			_apiClient = new HttpClient();
             _apiClient.BaseAddress = new Uri(api);
             _apiClient.DefaultRequestHeaders.Accept.Clear();
             _apiClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -49,7 +49,7 @@ namespace SMDesktopUI.Library.Api
                 new KeyValuePair<string, string>("username", username),
                 new KeyValuePair<string, string>("password", password)
             });
-            using (HttpResponseMessage response = await _apiClient.PostAsync("/Token", data))
+            using (HttpResponseMessage response = await _apiClient.PostAsync("/token", data))
             {
                 if (response.IsSuccessStatusCode)
                 {

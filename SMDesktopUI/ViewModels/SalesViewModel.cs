@@ -17,10 +17,10 @@ namespace SMDesktopUI.ViewModels
 {
     public class SalesViewModel : Screen
     {
-        IProductEndpoint _productEndpoint;
-        IPurchaseEndpoint _purchaseEndpoint;
-        IConfigHelper _configHelper;
-        IMapper _mapper;
+        readonly IProductEndpoint _productEndpoint;
+        readonly IPurchaseEndpoint _purchaseEndpoint;
+        readonly IConfigHelper _configHelper;
+        readonly IMapper _mapper;
         private readonly StatusInfoViewModel _status;
         private readonly IWindowManager _window;
 
@@ -65,7 +65,7 @@ namespace SMDesktopUI.ViewModels
                     _status.UpdateMessage("Expection Error", ex.Message);
                     await _window.ShowDialogAsync(_status, null, settings);
                 }
-                TryCloseAsync();
+                await TryCloseAsync();
             }
         }
 
@@ -128,7 +128,7 @@ namespace SMDesktopUI.ViewModels
         }
 
 
-        private BindingList<CartItemDisplayModel> _cart = new BindingList<CartItemDisplayModel>();
+        private BindingList<CartItemDisplayModel> _cart = new();
 
         public BindingList<CartItemDisplayModel> Cart
         {
@@ -180,14 +180,6 @@ namespace SMDesktopUI.ViewModels
             taxAmount = Cart.Where(x => x.Product.IsTaxable)
                 .Sum(x => x.Product.RetailPrice * x.QuantityInCart * taxRate);
 
-            //foreach (var item in Cart)
-            //{
-            //    if (item.Product.IsTaxable)
-            //    {
-            //        taxAmount += (item.Product.RetailPrice * item.QuantityInCart * taxRate);
-            //    }
-            //}
-
             return taxAmount;
         }
 
@@ -234,7 +226,7 @@ namespace SMDesktopUI.ViewModels
             }
             else
             {
-                CartItemDisplayModel item = new CartItemDisplayModel()
+                CartItemDisplayModel item = new()
                 {
                     Product = SelectedProduct,
                     QuantityInCart = ItemQuantity
@@ -304,7 +296,7 @@ namespace SMDesktopUI.ViewModels
         public async Task CheckOut()
         {
             // Create a SaleModel that is connected to the API
-            PurchaseModel sale = new PurchaseModel();
+            PurchaseModel sale = new();
 
             foreach (var item in Cart)
             {

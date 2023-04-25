@@ -18,8 +18,8 @@ namespace SMDesktopUI.ViewModels
 	{
 		private string _userName = "chadi.hammoud@gmail.com";
 		private string _password = "Pwd12345.";
-		private IAPIHelper _apiHelper;
-		private IEventAggregator _events;
+		private readonly IAPIHelper _apiHelper;
+		private readonly IEventAggregator _events;
 
 		// Dependency Injection
         public LoginViewModel(IAPIHelper apiHelper, IEventAggregator events)

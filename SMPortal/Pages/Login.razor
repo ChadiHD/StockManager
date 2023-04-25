@@ -15,6 +15,9 @@
 		<div class="col-auto">
 			<button type="submit" class="btn btn-success" @onclick=ExecuteLogin> Log In </button>
 		</div>
+		<div class="col-auto">
+			<button type="button" class="btn btn-primary" @onclick=RegisterUser> Register </button>
+		</div>
 		@if (ShowAuthenticationError)
 		{
 			<div class="alert alert-danger" role="alert">
@@ -24,11 +27,17 @@
 	</div>
 </EditForm>
 
+
 @code {
     private AuthenticationUserModel model = new();
 
     private bool ShowAuthenticationError = false;
     private string AuthenticationErrorText = string.Empty;
+
+	private void RegisterUser()
+	{
+		NavManager.NavigateTo("/register");
+	}
 
     private async Task ExecuteLogin()
     {

@@ -5,9 +5,9 @@ namespace SMPortal.Models
     public class AuthenticationUserModel
     {
         [Required(ErrorMessage ="Email Address is required")]
-        public string Email { get; set; }
+        public string? Email { get; set; }
 
         [Required(ErrorMessage = "Password is required")]
-        public string Password { get; set; }
+        public string? Password { get; set; }
     }
 }

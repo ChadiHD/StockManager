@@ -49,7 +49,7 @@ namespace StockApi.Controllers
             string Password);
 
         [HttpPost]
-        [Route("User/Register")]
+        [Route("Register")]
         [AllowAnonymous]
         // POST: User/Register
         public async Task<IActionResult> Register(UserRegistrationModel user)
@@ -97,7 +97,7 @@ namespace StockApi.Controllers
         [Route("Admin/GetAllUsers")]
         public List<ApplicationUserModel> GetAllUsers()
         {
-            List<ApplicationUserModel> output = new List<ApplicationUserModel>();
+            List<ApplicationUserModel> output = new();
 
             // Entity Framework Application context manager
             var users = _context.Users.ToList();
@@ -107,7 +107,7 @@ namespace StockApi.Controllers
 
             foreach (var user in users)
             {
-                ApplicationUserModel uModel = new ApplicationUserModel
+                ApplicationUserModel uModel = new()
                 {
                     Id = user.Id,
                     Email = user.Email,
