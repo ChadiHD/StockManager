@@ -1,5 +1,6 @@
 ﻿@page "/products"
 @inject IProductEndpoint ProductEndpoint
+@inject IConfiguration Config
 @attribute [Authorize(Roles = "Staff")]
 
 <head>
@@ -96,18 +97,6 @@ https://templatemo.com/tm-546-sixteen-clothing
   <div class="products">
     <div class="container">
       <div class="row">
-        <div class="col-md-12">
-          <div class="filters">
-            <ul>
-              <li id="jackets" class="active">Jackets</li>
-              <li id="hoodies">Hoodies</li>
-              <li id="shirts">Shirts</li>
-              <li id="jeans">Jeans</li>
-              <li id="cargo">Cargo</li>
-            </ul>
-          </div>
-        </div>
-        
         <div class="col-md-12 products-list">
           <div class="filters-content">
             <div id="products-list" class="row grid">
@@ -115,7 +104,7 @@ https://templatemo.com/tm-546-sixteen-clothing
                 {
                     <div class="col-lg-4 col-md-4 all des">
                         <div class="product-item">
-                            <a href="#"><img class="decrease-height" src="assets/images/products/jackets/1.webp" alt=""></a>
+                                        <a href="#"><img class="decrease-height" src="@( $"{api}{product.ProductImage}" )" alt=""></a>
                             <div class="down-content">
                                 <a href="#">
                                     <h4>@product.ProductName</h4>
@@ -168,9 +157,11 @@ https://templatemo.com/tm-546-sixteen-clothing
 
 @code {
     private List<ProductModel> products;
+    private string api;
 
     protected override async Task OnInitializedAsync()
 	{
+        api = Config.GetValue<string>("api");
         products = await ProductEndpoint.GetAll();
 	}
 }

@@ -5,7 +5,7 @@ AS
 BEGIN
 	SET NOCOUNT ON;
 
-	SELECT [Id], [ProductName], [Description], [RetailPrice], [IsTaxable]
+	SELECT [Id], [ProductName], [Description], [RetailPrice], [IsTaxable], [ProductImage]
 	FROM dbo.Product
 	WHERE Id = @Id
 END
