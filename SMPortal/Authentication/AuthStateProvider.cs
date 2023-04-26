@@ -37,7 +37,12 @@ namespace SMPortal.Authentication
                 return _anonymous;
             }
 
-            await MarkUserAsAuthenticated(token);
+            bool isAuthenticated = await MarkUserAsAuthenticated(token);
+
+            if (isAuthenticated == false)
+            {
+				return _anonymous;
+			}
 
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", token);
 
@@ -47,8 +52,9 @@ namespace SMPortal.Authentication
                             "jwtAuthType")));
         }
 
-        public async Task MarkUserAsAuthenticated(string token)
+        public async Task<bool> MarkUserAsAuthenticated(string token)
         {
+            bool isAuthenticatedOutput = false;
             Task<AuthenticationState> authState;
             try
             {
@@ -58,13 +64,17 @@ namespace SMPortal.Authentication
 					"jwtAuthType"));
 				authState = Task.FromResult(new AuthenticationState(authenticatedUser));
 				NotifyAuthenticationStateChanged(authState);
+                isAuthenticatedOutput = true;
 
 			}
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
 				await MarkUserAsLoggedOut();
+                isAuthenticatedOutput = false;
 			}
+
+            return isAuthenticatedOutput;
 		}
 
         public async Task MarkUserAsLoggedOut()

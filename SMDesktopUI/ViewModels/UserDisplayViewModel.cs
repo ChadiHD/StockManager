@@ -42,7 +42,7 @@ namespace SMDesktopUI.ViewModels
                 SelectedUserName = value.Email;
                 // Create a new binding list of the roles containing only the Name of the Role
                 UserRoles = new BindingList<string>(value.Roles.Select(x => x.Value).ToList());
-				LoadRoles().Wait();
+				LoadRoles();
                 NotifyOfPropertyChange(() => SelectedUser);
             }
         }

@@ -1,4 +1,6 @@
 ﻿@page "/products"
+@inject IProductEndpoint ProductEndpoint
+@attribute [Authorize(Roles = "Staff")]
 
 <head>
 
@@ -70,9 +72,6 @@ https://templatemo.com/tm-546-sixteen-clothing
             <li class="nav-item">
                 <a class="nav-link" href="/checkout">Checkout</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/login">Log In</a>
-            </li>
           </ul>
         </div>
       </div>
@@ -108,130 +107,26 @@ https://templatemo.com/tm-546-sixteen-clothing
             </ul>
           </div>
         </div>
+        
         <div class="col-md-12 products-list">
           <div class="filters-content">
             <div id="products-list" class="row grid">
-              <div class="col-lg-4 col-md-4 all des">
-                <div class="product-item">
-                  <a href="#"><img class="decrease-height" src="assets/images/products/jackets/1.webp" alt=""></a>
-                  <div class="down-content">
-                    <a href="#">
-                      <h4>Green Baseball jacket</h4>
-                    </a>
-                    <h6>$47.25</h6>
-                    <p class="jackets">Green Baseball jacket- soft felted fabric with lightly padded sleeves in a contrasting colour. Regular fit with press-studs down the front and welt front pockets with a press-stud. Small, ribbed stand-up collar and matching ribbing at the cuffs and hem.</p>
-                    <ul class="stars">
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                    </ul>
-                    <span>Reviews (12)</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-4 col-md-4 all dev">
-                <div class="product-item align-bottom">
-                  <a href="#"><img class="decrease-height" src="assets/images/products/jackets/2.webp" alt=""></a>
-                  <div class="down-content">
-                    <a href="#">
-                      <h4 class="decrease-font-m">Black Lightweight puffer jacket</h4>
-                    </a>
-                    <h6>$55.50</h6>
-                    <p class="jackets">Black Lightweight puffer jacket- woven fabric with a hood and discreet zip down the front with a chin guard. Pockets in the side seams with a concealed zip, and narrow elastication at the cuffs and hem. Unlined.</p>
-                    <ul class="stars">
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                    </ul>
-                    <span>Reviews (24)</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-4 col-md-4 all gra">
-                <div class="product-item">
-                  <a href="#"><img class="decrease-height" src="assets/images/products/jackets/3.webp" alt=""></a>
-                  <div class="down-content">
-                    <a href="#">
-                      <h4 class="decrease-font">Brown Lightly padded jacket</h4>
-                    </a>
-                    <h6>$42.75</h6>
-                    <p class="jackets">Brown Lightly padded jacket- woven fabric with embroidered motifs front and back. Regular fit with a collar, zip down the front, and long sleeves. Diagonal welt front pockets with a press-stud and an inner pocket with a press-stud. Quilted lining.</p>
-                    <ul class="stars">
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                    </ul>
-                    <span>Reviews (36)</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-4 col-md-4 all gra">
-                <div class="product-item">
-                  <a href="#"><img class="decrease-height" src="assets/images/products/jackets/4.webp" alt=""></a>
-                  <div class="down-content">
-                    <a href="#">
-                      <h4>Light Grey Regular</h4>
-                    </a>
-                    <h6>$50.25</h6>
-                    <p class="jackets">Light Grey Regular- fit jacket- windbreaker in windproof. Lined hood with an elastic drawstring, a zip down the front and long sleeves. Diagonal side pockets with a zip and an inner pocket with a press-stud. Covered elastication and an adjustable hook.</p>
-                    <ul class="stars">
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                    </ul>
-                    <span>Reviews (48)</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-4 col-md-4 all dev">
-                <div class="product-item">
-                  <a href="#"><img class="decrease-height" src="assets/images/products/jackets/5.webp" alt=""></a>
-                  <div class="down-content">
-                    <a href="#">
-                      <h4>Multi Green jacket</h4>
-                    </a>
-                    <h6>$44.25</h6>
-                    <p class="jackets">Multi Green jacket- patterned cotton twill with a collar, metal buttons down the front, open chest pockets and a yoke at the back. Relaxed fit with dropped shoulders, long sleeves with buttoned cuffs, and a straight-cut hem. Unlined.
-                    </p>
-                    <ul class="stars">
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                    </ul>
-                    <span>Reviews (60)</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-4 col-md-4 all des">
-                <div class="product-item">
-                  <a href="#"><img class="decrease-height" src="assets/images/products/jackets/6.webp" alt=""></a>
-                  <div class="down-content">
-                    <a href="#">
-                      <h4>White Track jacket</h4>
-                    </a>
-                    <h6>$59.00</h6>
-                    <p class="jackets">White Track jacket- jacquard-weave terry with an embroidered motif on the chest and narrow piping in a contrasting colour over the chest and down the sleeves. Relaxed fit with a stand-up collar, zip down the front, long sleeves and side pockets.</p>
-                    <ul class="stars">
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                      <li><i class="fa fa-star"></i></li>
-                    </ul>
-                    <span>Reviews (72)</span>
-                  </div>
-                </div>
-              </div>
+                @foreach (ProductModel product in products)
+                {
+                    <div class="col-lg-4 col-md-4 all des">
+                        <div class="product-item">
+                            <a href="#"><img class="decrease-height" src="assets/images/products/jackets/1.webp" alt=""></a>
+                            <div class="down-content">
+                                <a href="#">
+                                    <h4>@product.ProductName</h4>
+                                </a>
+                                <h6>£@product.RetailPrice</h6>
+                                <p class="my-2 text-justify">@product.Description</p>
+                                <strong>Quantity: </strong>@product.QuantityInStock
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
           </div>
         </div>
@@ -272,5 +167,10 @@ https://templatemo.com/tm-546-sixteen-clothing
 </body>
 
 @code {
+    private List<ProductModel> products;
 
+    protected override async Task OnInitializedAsync()
+	{
+        products = await ProductEndpoint.GetAll();
+	}
 }
