@@ -52,7 +52,7 @@ namespace SMPortal.Authentication
 
             await _localStorage.SetItemAsync(authTokenStorageKey, result.Access_Token);
 
-            ((AuthStateProvider)_authStateProvider).MarkUserAsAuthenticated(result.Access_Token);
+            await ((AuthStateProvider)_authStateProvider).MarkUserAsAuthenticated(result.Access_Token);
 
             _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", result.Access_Token);
 
@@ -61,11 +61,7 @@ namespace SMPortal.Authentication
 
         public async Task Logout()
         {
-            await _localStorage.RemoveItemAsync(authTokenStorageKey);
-
-            ((AuthStateProvider)_authStateProvider).MarkUserAsLoggedOut();
-
-            _client.DefaultRequestHeaders.Authorization = null;
+            await ((AuthStateProvider)_authStateProvider).MarkUserAsLoggedOut();
         }
     }
 }

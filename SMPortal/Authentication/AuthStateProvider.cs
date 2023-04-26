@@ -1,5 +1,6 @@
 ﻿using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
+using SMDesktopUI.Library.Api;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
@@ -11,16 +12,19 @@ namespace SMPortal.Authentication
         private readonly HttpClient _httpClient;
         private readonly ILocalStorageService _localStorge;
         private readonly IConfiguration _config;
-        private readonly AuthenticationState _anonymous;
+		private readonly IAPIHelper _apiHelper;
+		private readonly AuthenticationState _anonymous;
 
         public AuthStateProvider(HttpClient httpClient,
                                  ILocalStorageService localStorge,
-                                 IConfiguration config)
+                                 IConfiguration config,
+                                 IAPIHelper apiHelper)
         {
             _httpClient = httpClient;
             _localStorge = localStorge;
             _config = config;
-            _anonymous = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+			_apiHelper = apiHelper;
+			_anonymous = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         }
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
@@ -33,6 +37,8 @@ namespace SMPortal.Authentication
                 return _anonymous;
             }
 
+            await MarkUserAsAuthenticated(token);
+
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", token);
 
             return new AuthenticationState(
@@ -41,19 +47,35 @@ namespace SMPortal.Authentication
                             "jwtAuthType")));
         }
 
-        public void MarkUserAsAuthenticated(string token)
+        public async Task MarkUserAsAuthenticated(string token)
         {
-            var authenticatedUser = new ClaimsPrincipal(
-                new ClaimsIdentity(JwtParser.ParseClaimsFromJwt(token),
-                    "jwtAuthType"));
-            var authState = Task.FromResult(new AuthenticationState(authenticatedUser));
-            NotifyAuthenticationStateChanged(authState);
-        }
+            Task<AuthenticationState> authState;
+            try
+            {
+                await _apiHelper.GetLoggedInUserInfo(token);
+				var authenticatedUser = new ClaimsPrincipal(
+				new ClaimsIdentity(JwtParser.ParseClaimsFromJwt(token),
+					"jwtAuthType"));
+				authState = Task.FromResult(new AuthenticationState(authenticatedUser));
+				NotifyAuthenticationStateChanged(authState);
 
-        public void MarkUserAsLoggedOut()
+			}
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+				await MarkUserAsLoggedOut();
+			}
+		}
+
+        public async Task MarkUserAsLoggedOut()
         {
-            var authState = Task.FromResult(_anonymous);
-            NotifyAuthenticationStateChanged(authState);
+			// Grab the token information
+			string authTokenStorageKey = _config["authTokenStorageKey"];
+			await _localStorge.RemoveItemAsync(authTokenStorageKey);
+			var authState = Task.FromResult(_anonymous);
+            _apiHelper.LogOff();
+			_httpClient.DefaultRequestHeaders.Authorization = null;
+			NotifyAuthenticationStateChanged(authState);
         }
     }
 }

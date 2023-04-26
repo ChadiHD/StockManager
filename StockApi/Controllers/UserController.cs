@@ -33,8 +33,8 @@ namespace StockApi.Controllers
         }
 
         [HttpGet]
-        // GET: User/Details/First user
-        public UserModel GetById()
+		// GET: User/Details/First user
+		public UserModel GetById()
         {
             // request the userId from the API directly
             string userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Outdated - RequestContext.Principal.Identity.GetUserId();
@@ -109,11 +109,11 @@ namespace StockApi.Controllers
             {
                 ApplicationUserModel uModel = new()
                 {
-                    Id = user.Id,
+                    UserId = user.Id,
                     Email = user.Email,
                 };
 
-                uModel.Roles = userRoles.Where(x => x.UserId == uModel.Id).ToDictionary(key => key.RoleId, val => val.Name);
+                uModel.Roles = userRoles.Where(x => x.UserId == uModel.UserId).ToDictionary(key => key.RoleId, val => val.Name);
 
                 output.Add(uModel);
             }

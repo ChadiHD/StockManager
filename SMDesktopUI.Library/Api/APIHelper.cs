@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Configuration;
-using SMDesktopUI.Library.Helpers;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
 using System;
@@ -8,6 +7,7 @@ using System.Configuration;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace SMDesktopUI.Library.Api
 {
@@ -15,7 +15,7 @@ namespace SMDesktopUI.Library.Api
     {
         // HttpClient is instantiated once for as long as runtime
         private HttpClient _apiClient;
-        private ILoggedInUserModel _loggedInUser;
+        private readonly ILoggedInUserModel _loggedInUser;
         private readonly IConfiguration _config;
 
         public APIHelper(ILoggedInUserModel loggedInUser, IConfiguration config)
@@ -32,12 +32,14 @@ namespace SMDesktopUI.Library.Api
 
         private void InitializeClient()
         {
-            // App.config for api URL location
+            // appsettings.json for api URL location
             string api = _config.GetValue<string>("api");
 
-			_apiClient = new HttpClient();
-            _apiClient.BaseAddress = new Uri(api);
-            _apiClient.DefaultRequestHeaders.Accept.Clear();
+			_apiClient = new HttpClient
+			{
+				BaseAddress = new Uri(api)
+			};
+			_apiClient.DefaultRequestHeaders.Accept.Clear();
             _apiClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
 
@@ -49,19 +51,17 @@ namespace SMDesktopUI.Library.Api
                 new KeyValuePair<string, string>("username", username),
                 new KeyValuePair<string, string>("password", password)
             });
-            using (HttpResponseMessage response = await _apiClient.PostAsync("/token", data))
-            {
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadAsAsync<AuthenticatedUser>();
-                    return result;
-                }
-                else
-                {
-                    throw new Exception(response.ReasonPhrase);
-                }
-            }
-        }
+			using HttpResponseMessage response = await _apiClient.PostAsync("/token", data);
+			if (response.IsSuccessStatusCode)
+			{
+				var result = await response.Content.ReadAsAsync<AuthenticatedUser>();
+				return result;
+			}
+			else
+			{
+				throw new Exception(response.ReasonPhrase);
+			}
+		}
 
         public void LogOff()
         {
@@ -74,32 +74,26 @@ namespace SMDesktopUI.Library.Api
             _apiClient.DefaultRequestHeaders.Clear();
             _apiClient.DefaultRequestHeaders.Accept.Clear();
             _apiClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            _apiClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+            _apiClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token );
+			
+			using HttpResponseMessage response = await _apiClient.GetAsync("/api/User");
+			if (response.IsSuccessStatusCode)
+			{
+                // Map the data between the interface and database
+                string json = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<LoggedInUserModel>(json);
+				_loggedInUser.CreatedDate = result.CreatedDate;
+				_loggedInUser.EmailAddress = result.EmailAddress;
+				_loggedInUser.FirstName = result.FirstName;
+				_loggedInUser.LastName = result.LastName;
+				_loggedInUser.Id = result.Id;
+				_loggedInUser.Token = token;
 
-            using (HttpResponseMessage response = await _apiClient.GetAsync("/api/User"))
-            {
-                if (response.IsSuccessStatusCode )
-                {
-                    List<System.Net.Http.Formatting.MediaTypeFormatter> formatters = new List<System.Net.Http.Formatting.MediaTypeFormatter>
-                    {
-                        new System.Net.Http.Formatting.JsonMediaTypeFormatter(),
-                        new VndApiJsonMediaTypeFormatter()
-                    };
-                    // Map the data between the interface and database
-                    var result = await response.Content.ReadAsAsync<LoggedInUserModel>(formatters);
-                    _loggedInUser.CreatedDate = result.CreatedDate;
-                    _loggedInUser.EmailAddress = result.EmailAddress;
-                    _loggedInUser.FirstName = result.FirstName;
-                    _loggedInUser.LastName = result.LastName;
-                    _loggedInUser.Id = result.Id;
-                    _loggedInUser.Token = token;
-
-                }
-                else
-                { 
-                    throw new Exception(response.ReasonPhrase);
-                }
-            }
-        }
+			}
+			else
+			{
+				throw new Exception(response.ReasonPhrase);
+			}
+		}
     }
 }

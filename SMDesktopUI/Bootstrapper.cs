@@ -1,8 +1,8 @@
 ﻿using AutoMapper;
+using Microsoft.Extensions.Configuration;
 using Caliburn.Micro;
 using SMDesktopUI.Helpers;
 using SMDesktopUI.Library.Api;
-using SMDesktopUI.Library.Helpers;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
 using SMDesktopUI.ViewModels;
@@ -14,13 +14,14 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
+using System.IO;
 
 namespace SMDesktopUI
 {
     public class Bootstrapper : BootstrapperBase
     {
         // Dependency injection container system build with CaliburnMicro
-        private SimpleContainer _container = new SimpleContainer();
+        private readonly SimpleContainer _container = new();
 
         public Bootstrapper() 
         {
@@ -32,7 +33,7 @@ namespace SMDesktopUI
                 "PasswordChanged");
         }
 
-        private IMapper ConfigureAutoMapper()
+        private static IMapper ConfigureAutoMapper()
         {
             var config = new MapperConfiguration(cfg =>
             {
@@ -43,6 +44,20 @@ namespace SMDesktopUI
             var output = config.CreateMapper();
 
             return output;
+        }
+
+        private static IConfiguration AddConfiguration()
+        {
+            IConfigurationBuilder builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json");
+
+#if DEBUG
+            builder.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
+#else
+            builder.AddJsonFile("appsettings.Production.json", optional: true, reloadOnChange: true);
+#endif
+            return builder.Build();
         }
 
         // The container contains an instance of itself to pass it out when requested
@@ -60,8 +75,9 @@ namespace SMDesktopUI
                 .Singleton<IWindowManager, WindowManager>()
                 .Singleton<IEventAggregator, EventAggregator>()
                 .Singleton<ILoggedInUserModel, LoggedInUserModel>()
-                //.Singleton<IConfigHelper, ConfigHelper>()
                 .Singleton<IAPIHelper, APIHelper>();
+
+            _container.RegisterInstance(typeof(IConfiguration), "IConfiguration", AddConfiguration());
 
             // Connect ViewModels to Views (slow performance)
             GetType().Assembly.GetTypes()

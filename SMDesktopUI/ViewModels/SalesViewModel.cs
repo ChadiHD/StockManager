@@ -1,7 +1,7 @@
 ﻿using AutoMapper;
 using Caliburn.Micro;
+using Microsoft.Extensions.Configuration;
 using SMDesktopUI.Library.Api;
-using SMDesktopUI.Library.Helpers;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
 using System;
@@ -19,7 +19,7 @@ namespace SMDesktopUI.ViewModels
     {
         readonly IProductEndpoint _productEndpoint;
         readonly IPurchaseEndpoint _purchaseEndpoint;
-        readonly IConfigHelper _configHelper;
+		private readonly IConfiguration _config;
         readonly IMapper _mapper;
         private readonly StatusInfoViewModel _status;
         private readonly IWindowManager _window;
@@ -27,14 +27,14 @@ namespace SMDesktopUI.ViewModels
         public SalesViewModel
             (IProductEndpoint productEndpoint, 
             IPurchaseEndpoint purchaseEndpoint, 
-            IConfigHelper configHelper,
+            IConfiguration config,
             IMapper mapper,
             StatusInfoViewModel status,
             IWindowManager window)
         {
             _productEndpoint = productEndpoint;
             _purchaseEndpoint = purchaseEndpoint;
-            _configHelper = configHelper;
+			_config = config;
             _mapper = mapper;
             _status = status;
             _window = window;
@@ -175,7 +175,7 @@ namespace SMDesktopUI.ViewModels
         private decimal CalculateVAT()
         {
             decimal taxAmount = 0;
-            decimal taxRate = _configHelper.GetTaxRate()/100;
+            decimal taxRate = _config.GetValue<decimal>("taxRate")/100;
 
             taxAmount = Cart.Where(x => x.Product.IsTaxable)
                 .Sum(x => x.Product.RetailPrice * x.QuantityInCart * taxRate);

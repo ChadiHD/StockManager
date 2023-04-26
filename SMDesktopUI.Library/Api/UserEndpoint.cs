@@ -46,14 +46,12 @@ namespace SMDesktopUI.Library.Api
                 model.Password 
             };
 
-            using (HttpResponseMessage response = await _apiHelper.ApiClient.PostAsJsonAsync("/api/User/Register", data))
-            {
-                if (response.IsSuccessStatusCode == false)
-                {
-                    throw new Exception(response.ReasonPhrase);
-                }
-            }
-        }
+			using HttpResponseMessage response = await _apiHelper.ApiClient.PostAsJsonAsync("api/User/Register", data);
+			if (response.IsSuccessStatusCode == false)
+			{
+				throw new Exception(response.ReasonPhrase);
+			}
+		}
 
         public async Task<Dictionary<string, string>> GetAllRoles()
         {

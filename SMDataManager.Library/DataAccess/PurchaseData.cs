@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
-using SMDesktopUI.Library.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,17 +12,19 @@ namespace SMDataManager.Library.DataAccess
     {
         private readonly IProductData _productData;
         private readonly ISqlDataAccess _sqlDataAccess;
+		private readonly IConfiguration _config;
 
-        public PurchaseData(IProductData productData, ISqlDataAccess sqlDataAccess)
+		public PurchaseData(IProductData productData, ISqlDataAccess sqlDataAccess, IConfiguration config)
         {
             _productData = productData;
             _sqlDataAccess = sqlDataAccess;
-        }
+			_config = config;
+		}
         public void SavePurchases(PurchaseModel purchaseInfo, string staffId)
         {
             // Deposit the PurchaseDetailModel that are going to be saved in the database
             List<PurchaseDetailDBModel> details = new List<PurchaseDetailDBModel>();
-            var taxRate = ConfigHelper.GetTaxRate() / 100;
+            var taxRate = _config.GetValue<decimal>("taxRate") / 100;
 
             foreach (var item in purchaseInfo.PurchaseDetails)
             {

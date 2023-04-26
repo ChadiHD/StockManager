@@ -1,4 +1,5 @@
 ﻿@page "/verifyauth"
+@inject IProductEndpoint Products
 
 <h3>VerifyAuth</h3>
 
@@ -44,6 +45,21 @@
 		{
 			isAuthenticated = true;
 
+			try
+			{
+				List<ProductModel> data = await Products.GetAll();
+
+				foreach (var item in data)
+				{
+					Console.WriteLine(item.Description);
+				}
+			}
+			catch (Exception ex)
+			{
+
+				Console.WriteLine(ex.Message);
+			}
+			
 			userName = authState.User.FindFirst(ClaimTypes.Name).Value;
 
 			isAdminUser = authState.User.IsInRole("Admin");
