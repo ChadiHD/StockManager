@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.4.33122.133
+# Visual Studio Version 18
+VisualStudioVersion = 18.7.11903.348 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "SMDatabase", "SMDatabase\SMDatabase.sqlproj", "{D1A3D78B-7C53-46D6-9079-20FF94A9B15D}"
 EndProject
@@ -22,6 +22,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SMPortal", "SMPortal\SMPortal.csproj", "{B8E24E39-5C05-42FD-8151-1936CCA54136}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StockApi", "StockApi\StockApi.csproj", "{9D8B23F3-BE64-4ECA-A05B-0C7E683D5B5C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockManager.AppHost", "StockManager.AppHost\StockManager.AppHost.csproj", "{33192D43-D3A5-4B4E-43AE-DADFBF767058}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -55,6 +57,10 @@ Global
 		{9D8B23F3-BE64-4ECA-A05B-0C7E683D5B5C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D8B23F3-BE64-4ECA-A05B-0C7E683D5B5C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D8B23F3-BE64-4ECA-A05B-0C7E683D5B5C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
