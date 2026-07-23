@@ -25,6 +25,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StockApi", "StockApi\StockA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockManager.AppHost", "StockManager.AppHost\StockManager.AppHost.csproj", "{33192D43-D3A5-4B4E-43AE-DADFBF767058}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockManager.ServiceDefaults", "StockManager.ServiceDefaults\StockManager.ServiceDefaults.csproj", "{DECCD958-3837-AAA6-2D21-EB16C1A71DF8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,6 +63,10 @@ Global
 		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{33192D43-D3A5-4B4E-43AE-DADFBF767058}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DECCD958-3837-AAA6-2D21-EB16C1A71DF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DECCD958-3837-AAA6-2D21-EB16C1A71DF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DECCD958-3837-AAA6-2D21-EB16C1A71DF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DECCD958-3837-AAA6-2D21-EB16C1A71DF8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

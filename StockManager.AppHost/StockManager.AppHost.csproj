@@ -8,4 +8,13 @@
     <UserSecretsId>f2718572-14eb-4c66-b29b-7d3a59611451</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.4.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StockApi\StockApi.csproj" />
+    <ProjectReference Include="..\SMPortal\SMPortal.csproj" />
+  </ItemGroup>
+
 </Project>
