@@ -39,7 +39,7 @@ namespace StockApi.Controllers
         {
             var user = await _userManager.FindByEmailAsync(username);
 
-            return await _userManager.CheckPasswordAsync(user, password);
+            return user is not null && await _userManager.CheckPasswordAsync(user, password);
         }
 
         private async Task<dynamic> GenerateToken(string username)

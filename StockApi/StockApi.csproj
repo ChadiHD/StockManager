@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SMDataManager.Library\SMDataManager.Library.csproj" />
+    <ProjectReference Include="..\StockManager.ServiceDefaults\StockManager.ServiceDefaults.csproj" />
   </ItemGroup>
 
   <ItemGroup>

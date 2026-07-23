@@ -13,7 +13,6 @@
 	  <PackageReference Include="System.Data.SqlClient" Version="4.9.1" />
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\SMDatabase\SMDatabase.sqlproj" />
 	  <ProjectReference Include="..\SMDesktopUI.Library\SMDesktopUI.Library.csproj" />
 	</ItemGroup>
 	<ItemGroup>

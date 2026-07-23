@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "StockManager.AppHost.csproj"
+  }
+}
