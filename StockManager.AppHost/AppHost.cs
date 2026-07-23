@@ -1,8 +1,11 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sql = builder.AddSqlServer("sql")
-	.WithDataVolume("stockmanager-sql-data")
-	.WithLifetime(ContainerLifetime.Persistent);
+builder.AddAzureContainerAppEnvironment("aca-env");
+
+var sql = builder.AddAzureSqlServer("sql")
+	.RunAsContainer(container => container
+		.WithDataVolume("stockmanager-sql-data")
+		.WithLifetime(ContainerLifetime.Persistent));
 
 var identityDatabase = sql.AddDatabase("DefaultConnection", "ApiAuthDb");
 var stockDatabase = sql.AddDatabase("SMDatabase", "SMDatabase");
@@ -14,12 +17,14 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WaitFor(stockDatabase)
 	.WithEndpoint("https", endpoint => endpoint.Port = 7042)
 	.WithHttpHealthCheck("/health")
-	.WithExternalHttpEndpoints();
+	.WithExternalHttpEndpoints()
+	.PublishAsAzureContainerApp((_, _) => { });
 
 builder.AddProject<Projects.SMPortal>("sm-portal")
 	.WithReference(api)
 	.WaitFor(api)
-	.WithExternalHttpEndpoints();
+	.WithExternalHttpEndpoints()
+	.PublishAsAzureContainerApp((_, _) => { });
 
 builder.AddProject(
 		"sm-desktop",
