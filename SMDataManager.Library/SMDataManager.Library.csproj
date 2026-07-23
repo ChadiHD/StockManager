@@ -1,16 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFramework>net6.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<!--Stops generating AssemblyInfo.cs automatically and uses our own made-->
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 	</PropertyGroup>
 	<ItemGroup>
-	  <PackageReference Include="Dapper" Version="1.60.6" />
-	  <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.9" />
-	  <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="7.0.0" />
-	  <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
-	  <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
-	  <PackageReference Include="System.Data.SqlClient" Version="4.8.5" />
+	  <PackageReference Include="Dapper" Version="2.1.79" />
+	  <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+	  <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
+	  <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+	  <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.10" />
+	  <PackageReference Include="System.Data.SqlClient" Version="4.9.1" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\SMDatabase\SMDatabase.sqlproj" />

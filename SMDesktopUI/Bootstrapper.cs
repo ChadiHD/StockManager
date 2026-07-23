@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Caliburn.Micro;
 using SMDesktopUI.Helpers;
 using SMDesktopUI.Library.Api;
@@ -9,11 +10,8 @@ using SMDesktopUI.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Markup;
 using System.IO;
 
 namespace SMDesktopUI
@@ -39,7 +37,7 @@ namespace SMDesktopUI
             {
                 cfg.CreateMap<ProductModel, ProductDisplayModel>();
                 cfg.CreateMap<CartItemModel, CartItemDisplayModel>();
-            });
+            }, NullLoggerFactory.Instance);
 
             var output = config.CreateMapper();
 

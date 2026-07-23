@@ -1,15 +1,12 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using Microsoft.IdentityModel.Tokens;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Internal.DataAccess;
 using StockApi.Data;
-using System.Configuration;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Builder;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 

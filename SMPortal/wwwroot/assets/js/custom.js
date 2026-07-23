@@ -1,3 +1,19 @@
+window.hidePreloader = function () {
+    var $preloader = jQuery("#preloader");
+
+    if (!$preloader.length) {
+        return;
+    }
+
+    $preloader.stop(true).animate({
+        'opacity': '0'
+    }, 600, function () {
+        setTimeout(function () {
+            $preloader.css("visibility", "hidden").fadeOut();
+        }, 300);
+    });
+};
+
 jQuery( document ).ready(function( $ ) {
 
 
@@ -12,13 +28,11 @@ jQuery( document ).ready(function( $ ) {
 
         // Page loading animation
 
-        $("#preloader").animate({
-            'opacity': '0'
-        }, 600, function(){
-            setTimeout(function(){
-                $("#preloader").css("visibility", "hidden").fadeOut();
-            }, 300);
-        });
+        new MutationObserver(function () {
+            window.hidePreloader();
+        }).observe(document.body, { childList: true, subtree: true });
+
+        window.hidePreloader();
         
 
         $(window).scroll(function() {
