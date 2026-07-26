@@ -1,22 +1,99 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="main">
-        <div class="top-row px-4">
-            <AuthorizeView>
-                <Authorized>
-                    Welcome, @context.User.FindFirst(ClaimTypes.Name).Value
-                    <NavLink class="nav-link" href="logout">
-                        <span class="oi oi-account-logout"></span> Log Out
+<AuthorizeView>
+    <Authorized Context="auth">
+        <div class="app-shell @(navOpen ? "nav-open" : null)">
+            <button class="nav-backdrop" aria-label="Close navigation" @onclick="CloseNavigation"></button>
+            <aside class="sidebar" aria-label="Primary navigation">
+                <a class="brand" href="/" @onclick="CloseNavigation">
+                    <span class="brand-mark" aria-hidden="true">SM</span>
+                    <span>
+                        <strong>StockManager</strong>
+                        <small>Operations platform</small>
+                    </span>
+                </a>
+
+                <nav class="navigation">
+                    <span class="nav-heading">Workspace</span>
+                    <NavLink href="/" Match="NavLinkMatch.All" @onclick="CloseNavigation">
+                        <span class="nav-icon" aria-hidden="true">D</span>Dashboard
                     </NavLink>
-                </Authorized>
-                <NotAuthorized>
-                    <Login />
-                </NotAuthorized>
-            </AuthorizeView>
-</div>
-    </div>
-    <div class="content">
-        @Body
-    </div>
-</div>
+                    <AuthorizeView Roles="Staff">
+                        <NavLink href="/products" @onclick="CloseNavigation">
+                            <span class="nav-icon" aria-hidden="true">P</span>Products
+                        </NavLink>
+                    </AuthorizeView>
+                    <AuthorizeView Roles="Admin,Manager">
+                        <NavLink href="/inventory" @onclick="CloseNavigation">
+                            <span class="nav-icon" aria-hidden="true">I</span>Inventory
+                        </NavLink>
+                        <NavLink href="/reports" @onclick="CloseNavigation">
+                            <span class="nav-icon" aria-hidden="true">R</span>Sales reports
+                        </NavLink>
+                    </AuthorizeView>
+                    <AuthorizeView Roles="Admin">
+                        <span class="nav-heading section">Administration</span>
+                        <NavLink href="/users" @onclick="CloseNavigation">
+                            <span class="nav-icon" aria-hidden="true">U</span>Users &amp; roles
+                        </NavLink>
+                    </AuthorizeView>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    <span><strong>API connected</strong><small>Secure workspace</small></span>
+                </div>
+            </aside>
+
+            <div class="workspace">
+                <header class="topbar">
+                    <button class="icon-button menu-button" aria-label="Open navigation" aria-expanded="@navOpen" @onclick="ToggleNavigation">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <div class="topbar-context">
+                        <strong>Administration</strong>
+                        <span>Manage stock, sales and access</span>
+                    </div>
+                    <div class="account">
+                        <span class="avatar" aria-hidden="true">@GetInitial(auth.User)</span>
+                        <span class="account-copy">
+                            <strong>@GetDisplayName(auth.User)</strong>
+                            <small>@GetRoleSummary(auth.User)</small>
+                        </span>
+                        <NavLink class="button ghost compact" href="/logout">Sign out</NavLink>
+                    </div>
+                </header>
+                <main class="main-content">
+                    @Body
+                </main>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <main class="auth-layout">
+            @Body
+        </main>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool navOpen;
+
+    private void ToggleNavigation() => navOpen = !navOpen;
+    private void CloseNavigation() => navOpen = false;
+
+    private static string GetDisplayName(ClaimsPrincipal user) =>
+        user.FindFirst(ClaimTypes.Name)?.Value ?? "Signed-in user";
+
+    private static string GetInitial(ClaimsPrincipal user)
+    {
+        var value = GetDisplayName(user);
+        return value.Length > 0 ? value[..1].ToUpperInvariant() : "U";
+    }
+
+    private static string GetRoleSummary(ClaimsPrincipal user)
+    {
+        var roles = user.FindAll(ClaimTypes.Role).Select(claim => claim.Value).Distinct().ToArray();
+        return roles.Length == 0 ? "Authenticated" : string.Join(" / ", roles);
+    }
+}

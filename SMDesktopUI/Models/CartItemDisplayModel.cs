@@ -21,6 +21,8 @@ namespace SMDesktopUI.Models
                 _quantityInCart = value;
                 CallPropertyChanged(nameof(QuantityInCart));
                 CallPropertyChanged(nameof(DisplayText));
+                CallPropertyChanged(nameof(LineTotal));
+                CallPropertyChanged(nameof(LabelContent));
             }
         }
 
@@ -31,6 +33,11 @@ namespace SMDesktopUI.Models
                 return $"{Product.ProductName} ({QuantityInCart})";
             }
         }
+
+        public decimal LineTotal => Product.RetailPrice * QuantityInCart;
+
+        public string LabelContent =>
+            $"{Product.ProductName}\nProduct ID: {Product.Id}\nUnit price: {Product.RetailPrice:C}\nQuantity: {QuantityInCart}";
 
         public event PropertyChangedEventHandler PropertyChanged;
 

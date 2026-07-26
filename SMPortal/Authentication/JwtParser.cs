@@ -13,33 +13,31 @@ namespace SMPortal.Authentication
 
             var jsonBytes = ParseBase64WithoutPadding(payload);
 
-            var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+            var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes) ?? new();
 
             ExtractRolesFromJWT(claims, keyValuePairs);
 
-            claims.AddRange(keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString())));
+            claims.AddRange(keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value?.ToString() ?? string.Empty)));
              
             return claims;
         }
 
         private static void ExtractRolesFromJWT(List<Claim> claims, Dictionary<string, object> keyValuePairs) 
         { 
-            keyValuePairs.TryGetValue(ClaimTypes.Role, out object roles);
+            keyValuePairs.TryGetValue(ClaimTypes.Role, out object? roles);
 
             if (roles is not null)
             {
-                var parsedRoles = roles.ToString().Trim().TrimStart('[').TrimEnd(']').Split(',');
+                var parsedRoles = roles.ToString()?
+                    .Trim()
+                    .TrimStart('[')
+                    .TrimEnd(']')
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    ?? Array.Empty<string>();
 
-                if (parsedRoles.Length > 0)
+                foreach (var parsedRole in parsedRoles)
                 {
-                    foreach(var parsedRole in parsedRoles)
-                    {
-                        claims.Add(new Claim(ClaimTypes.Role, parsedRole.Trim('"')));
-                    }
-                }
-                else
-                {
-                    claims.Add(new Claim(ClaimTypes.Role, parsedRoles[0]));
+                    claims.Add(new Claim(ClaimTypes.Role, parsedRole.Trim('"')));
                 }
 
                 keyValuePairs.Remove(ClaimTypes.Role);

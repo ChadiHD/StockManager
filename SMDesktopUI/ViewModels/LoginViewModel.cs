@@ -16,8 +16,8 @@ namespace SMDesktopUI.ViewModels
 {
 	public class LoginViewModel : Screen
 	{
-		private string _userName = "chadi.hammoud@gmail.com";
-		private string _password = "Pwd12345.";
+		private string _userName = string.Empty;
+		private string _password = string.Empty;
 		private readonly IAPIHelper _apiHelper;
 		private readonly IEventAggregator _events;
 
@@ -90,7 +90,6 @@ namespace SMDesktopUI.ViewModels
             }
 		}
 
-		// TODO - call the method from IAPIHelper
 		public async Task LogIn()
 		{
 			try
@@ -104,7 +103,7 @@ namespace SMDesktopUI.ViewModels
 				// Publish the UI on an empty class to differentiate it from other events
 				await _events.PublishOnUIThreadAsync(new LogOnEvent(), new CancellationToken());
 			}
-			catch (Exception ex)
+			catch (InvalidOperationException ex)
 			{
 				ErrorMessage = ex.Message;
 			}

@@ -1,53 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-	<meta name="description" content="" />
-	<meta name="author" content="" />
-	<title>Sixteen Clothing HTML Template</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="description" content="StockManager operations and administration portal" />
+	<meta name="theme-color" content="#0b1f3a" />
+	<title>StockManager</title>
     <base href="/" />
-	<link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet" />
-	<link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
-	<link href="assets/css/fontawesome.css" rel="stylesheet" />
-	<link href="assets/css/templatemo-sixteen.css" rel="stylesheet" />
-	<link href="assets/css/owl.css" rel="stylesheet" />
     <link href="css/app.css" rel="stylesheet" />
     <link href="manifest.json" rel="manifest" />
     <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
 </head>
-
 <body>
-    <div id="app">Loading...</div>
+	<div id="app">
+		<div class="route-state" role="status">
+			<span class="spinner" aria-hidden="true"></span>
+			<strong>Loading StockManager</strong>
+			<span>Preparing your secure workspace.</span>
+		</div>
+	</div>
 
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
+		<a class="dismiss" aria-label="Dismiss">×</a>
     </div>
-    <script src="_content/Microsoft.Authentication.WebAssembly.Msal/AuthenticationService.js"></script>
-	<script src="vendor/jquery/jquery.min.js"></script>
-	<script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-	<script src="assets/js/custom.js"></script>
-	<script src="assets/js/owl.js"></script>
-	<script src="assets/js/slick.js"></script>
-	<script src="assets/js/isotope.js"></script>
-	<script src="assets/js/accordions.js"></script>
-	<script>
-    const cleared = [0, 0, 0];
-
-    function clearField(t) {
-        if (!cleared[t.id]) {
-            cleared[t.id] = 1;
-            t.value = '';
-            t.style.color = '#fff';
-        }
-    }
-    </script>
     <script src="_framework/blazor.webassembly.js"></script>
-    <!--<script>navigator.serviceWorker.register('service-worker.js');</script>-->
 </body>
-
 </html>

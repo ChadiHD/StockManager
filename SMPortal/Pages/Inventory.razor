@@ -1,0 +1,112 @@
+@page "/inventory"
+@attribute [Authorize(Roles = "Admin,Manager")]
+@inject IInventoryEndpoint InventoryEndpoint
+
+<PageTitle>Inventory | StockManager</PageTitle>
+
+<header class="page-header">
+	<div>
+		<span class="eyebrow">Stock control</span>
+		<h1>Inventory</h1>
+		<p>Review stock receipts and record new inventory acquisitions.</p>
+	</div>
+	<button class="button secondary" @onclick="LoadInventory" disabled="@isLoading">Refresh inventory</button>
+</header>
+
+<AuthorizeView Roles="Admin" Context="inventoryAuthorization">
+	<section class="panel form-panel">
+		<div class="panel-heading"><div><span class="eyebrow">Administrator action</span><h2>Record inventory</h2></div></div>
+		@if (!string.IsNullOrWhiteSpace(saveMessage))
+		{
+			<div class="alert @saveMessageClass" role="status"><span>@saveMessage</span></div>
+		}
+		<EditForm Model="newInventory" OnValidSubmit="SaveInventory">
+			<DataAnnotationsValidator />
+			<div class="form-grid">
+				<div class="field"><label for="product-id">Product ID</label><InputNumber id="product-id" @bind-Value="newInventory.ProductId" min="1" /><ValidationMessage For="@(() => newInventory.ProductId)" /></div>
+				<div class="field"><label for="quantity">Quantity received</label><InputNumber id="quantity" @bind-Value="newInventory.Quantity" min="1" /><ValidationMessage For="@(() => newInventory.Quantity)" /></div>
+				<div class="field"><label for="purchase-price">Unit purchase price</label><InputNumber id="purchase-price" @bind-Value="newInventory.PurchasePrice" min="0.01" step="0.01" /><ValidationMessage For="@(() => newInventory.PurchasePrice)" /></div>
+				<div class="field"><label for="purchase-date">Purchase date</label><InputDate id="purchase-date" @bind-Value="newInventory.PurchaseDate" /></div>
+			</div>
+			<button class="button primary" type="submit" disabled="@isSaving">@(isSaving ? "Saving..." : "Record inventory")</button>
+		</EditForm>
+	</section>
+</AuthorizeView>
+
+<section class="metric-grid compact-metrics" aria-label="Inventory summary">
+	<article class="metric-card"><span class="metric-icon blue">I</span><div><span>Receipts</span><strong>@inventory.Count</strong><small>Inventory entries</small></div></article>
+	<article class="metric-card"><span class="metric-icon teal">Q</span><div><span>Units received</span><strong>@inventory.Sum(item => item.Quantity).ToString("N0")</strong><small>Across all records</small></div></article>
+	<article class="metric-card"><span class="metric-icon purple">$</span><div><span>Purchase value</span><strong>@inventory.Sum(item => item.Quantity * item.PurchasePrice).ToString("C0")</strong><small>Recorded cost</small></div></article>
+</section>
+
+<section class="panel">
+	<div class="panel-heading"><div><span class="eyebrow">History</span><h2>Inventory receipts</h2></div></div>
+	@if (isLoading)
+	{
+		<div class="route-state" role="status"><span class="spinner"></span><strong>Loading inventory</strong></div>
+	}
+	else if (!string.IsNullOrWhiteSpace(errorMessage))
+	{
+		<div class="alert error" role="alert"><strong>Inventory could not be loaded.</strong><span>@errorMessage</span></div>
+	}
+	else if (inventory.Count == 0)
+	{
+		<div class="empty-state"><strong>No inventory receipts</strong><span>New stock receipts will appear here.</span></div>
+	}
+	else
+	{
+		<div class="table-wrap"><table>
+			<thead><tr><th>Date</th><th>Product ID</th><th>Quantity</th><th>Unit cost</th><th>Total cost</th></tr></thead>
+			<tbody>@foreach (var item in inventory.OrderByDescending(item => item.PurchaseDate))
+			{
+				<tr><td data-label="Date">@item.PurchaseDate.ToString("dd MMM yyyy")</td><td data-label="Product ID">@item.ProductId</td><td data-label="Quantity">@item.Quantity.ToString("N0")</td><td data-label="Unit cost">@item.PurchasePrice.ToString("C")</td><td data-label="Total cost">@((item.Quantity * item.PurchasePrice).ToString("C"))</td></tr>
+			}</tbody>
+		</table></div>
+	}
+</section>
+
+@code {
+	private readonly List<InventoryModel> inventory = new();
+	private InventoryModel newInventory = CreateInventoryModel();
+	private bool isLoading = true;
+	private bool isSaving;
+	private string errorMessage = string.Empty;
+	private string saveMessage = string.Empty;
+	private string saveMessageClass = "success";
+
+	protected override Task OnInitializedAsync() => LoadInventory();
+
+	private async Task LoadInventory()
+	{
+		isLoading = true;
+		errorMessage = string.Empty;
+		try { inventory.Clear(); inventory.AddRange(await InventoryEndpoint.GetAll()); }
+		catch (Exception ex) { errorMessage = ex.Message; }
+		finally { isLoading = false; }
+	}
+
+	private async Task SaveInventory()
+	{
+		saveMessage = string.Empty;
+		if (newInventory.ProductId <= 0 || newInventory.Quantity <= 0 || newInventory.PurchasePrice <= 0)
+		{
+			saveMessageClass = "error";
+			saveMessage = "Enter a valid product ID, quantity, and purchase price.";
+			return;
+		}
+
+		isSaving = true;
+		try
+		{
+			await InventoryEndpoint.Save(newInventory);
+			newInventory = CreateInventoryModel();
+			saveMessageClass = "success";
+			saveMessage = "Inventory was recorded successfully.";
+			await LoadInventory();
+		}
+		catch (Exception ex) { saveMessageClass = "error"; saveMessage = $"Inventory could not be recorded. {ex.Message}"; }
+		finally { isSaving = false; }
+	}
+
+	private static InventoryModel CreateInventoryModel() => new() { PurchaseDate = DateTime.Today };
+}

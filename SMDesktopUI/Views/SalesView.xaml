@@ -1,95 +1,196 @@
-﻿<UserControl x:Class="SMDesktopUI.Views.SalesView"
+<UserControl x:Class="SMDesktopUI.Views.SalesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:SMDesktopUI.Views"
-             mc:Ignorable="d" Background="White" FontSize="24"
-             d:DesignHeight="550" d:DesignWidth="800" Language="en-GB">
-    <Grid>
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignHeight="720" d:DesignWidth="1200"
+             Language="en-GB">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="auto"/>
-            <ColumnDefinition Width="auto"/>
-            <ColumnDefinition Width="auto"/>
-            <ColumnDefinition Width="auto"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-            <!-- Header -->
-        <TextBlock Text="Sales Page" FontSize="48" Grid.Row="0"
-                   Grid.Column="0" Grid.ColumnSpan="3" Margin="0 0 0 30"/>
-        <!-- Column 0 -->
-        <TextBlock Text="Products" Grid.Row="1" Grid.Column="0"/>
-        <ListBox x:Name="Products" Grid.Row="2" Grid.Column="0" 
-                 MinHeight="200" MinWidth="150" SelectedItem="{Binding SelectedProduct}">
-            <!--Display objects in a listbox-->
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Orientation="Vertical">
-                        <TextBlock Text="{Binding ProductName}"/>
-                        <StackPanel Orientation="Horizontal">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Price: " FontSize="14"/>
-                                <TextBlock Text="{Binding RetailPrice, StringFormat='{}{0:C}'}" FontSize="14"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="5 0 0 0">
-                                <TextBlock Text="Qty: " FontSize="14"/>
-                                <TextBlock Text="{Binding QuantityInStock}" FontSize="14"/>
-                            </StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Sales workspace" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="Scan products, manage quantities, and complete checkout."
+                           Style="{StaticResource CaptionText}" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Border Grid.Column="1" Background="#E7F8F5" CornerRadius="14" Padding="12,6">
+                <TextBlock Text="REGISTER READY" Foreground="{StaticResource SuccessBrush}"
+                           FontWeight="SemiBold" FontSize="11"/>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,20,0,16" Padding="16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="_Scan barcode / SKU" Style="{StaticResource SectionTitle}"/>
+                    <TextBox x:Name="ScanInput" Margin="0,8,12,0" FontSize="18"
+                             KeyDown="ScannerInput_OnKeyDown"
+                             AutomationProperties.HelpText="Keyboard-wedge scanner input. Press Enter to add a match."
+                             ToolTip="Accepts keyboard-wedge scanner text, product ID, exact product name, or exact description."/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                    <TextBlock Text="Press Enter to commit. Focus returns here after every scan."
+                               Style="{StaticResource CaptionText}" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="ScanFeedback" Margin="0,6,0,7" FontWeight="SemiBold"
+                               Foreground="{StaticResource TealBrush}" TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Polite"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*" MinWidth="280"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="1.5*" MinWidth="330"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="320"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource Card}" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Product catalogue" Style="{StaticResource SectionTitle}" Margin="16"/>
+                    <ListBox x:Name="Products" Grid.Row="1" BorderThickness="0"
+                             SelectedItem="{Binding SelectedProduct}" TabIndex="1">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding ProductName}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Description}" Style="{StaticResource CaptionText}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Style="{StaticResource CaptionText}">
+                                            <Run Text="ID "/><Run Text="{Binding Id}"/>
+                                            <Run Text="  •  Stock "/><Run Text="{Binding QuantityInStock}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding RetailPrice, StringFormat={}{0:C}}"
+                                               FontWeight="SemiBold" Margin="12,0,0,0"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Grid Grid.Row="2" Margin="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="_Quantity" Style="{StaticResource CaptionText}"/>
+                            <TextBox x:Name="ItemQuantity" Margin="0,5,8,0" TextAlignment="Center"
+                                     AutomationProperties.HelpText="Positive whole number"/>
                         </StackPanel>
+                        <Button x:Name="AddToCart" Grid.Column="1" Content="_Add to cart"
+                                VerticalAlignment="Bottom"/>
+                        <TextBlock Grid.ColumnSpan="2" Text="{Binding QuantityMessage}" Foreground="{StaticResource ErrorBrush}"
+                                   Margin="0,62,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding HasQuantityMessage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid Margin="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Current cart" Style="{StaticResource SectionTitle}"/>
+                        <Button x:Name="RemoveFromCart" Grid.Column="1" Content="Remove _one"
+                                Style="{StaticResource SecondaryButton}" Padding="10,5" MinHeight="30"/>
+                    </Grid>
+                    <ListBox x:Name="Cart" Grid.Row="1" BorderThickness="0"
+                             SelectedItem="{Binding SelectedCartItem}" TabIndex="3">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Product.ProductName}" FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="1" Margin="12,0" Foreground="{StaticResource MutedTextBrush}">
+                                        <Run Text="× "/><Run Text="{Binding QuantityInCart}"/>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="2" Text="{Binding LineTotal, StringFormat={}{0:C}}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Button x:Name="PrintSelectedLabel" Grid.Row="2" Content="Print selected _label…"
+                            Style="{StaticResource SecondaryButton}" Margin="16"/>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="4">
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Order summary" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/><RowDefinition/><RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Subtotal"/>
+                            <TextBlock x:Name="SubTotal" Grid.Column="1" Text="£0.00"/>
+                            <TextBlock Grid.Row="1" Text="VAT" Margin="0,8"/>
+                            <TextBlock x:Name="VAT" Grid.Row="1" Grid.Column="1" Text="£0.00" Margin="0,8"/>
+                            <TextBlock Grid.Row="2" Text="Total" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="FinalPrice" Grid.Row="2" Grid.Column="1" Text="£0.00"
+                                       FontSize="18" FontWeight="Bold" Foreground="{StaticResource NavyBrush}"/>
+                        </Grid>
+                        <Button x:Name="CheckOut" Content="_Complete checkout" Margin="0,20,0,0"
+                                MinHeight="46" FontWeight="SemiBold"/>
                     </StackPanel>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+                </Border>
 
-
-        <!-- Column 1 -->
-        <StackPanel Orientation="Vertical" Grid.Row="2" Grid.Column="1"
-                    Margin="20 0">
-            <TextBlock Text="Quantity" />
-            <TextBox x:Name="ItemQuantity" MinWidth="100" Margin="0 0 0 10"/>
-            <Button x:Name="AddToCart" Content="Add to Cart" Margin="0 0 0 30"
-                    Padding="5" />
-            <Button x:Name="RemoveFromCart" Content="Remove from Cart"
-                    Padding="5" />
-        </StackPanel>
-            <!-- Column 2 -->
-        <TextBlock Text="Cart" Grid.Row="1" Grid.Column="2"/>
-        <ListBox x:Name="Cart" Grid.Row="2" Grid.Column="2" 
-                 MinHeight="200" MinWidth="150" SelectedItem="{Binding SelectedCartItem}">
-            <!--Display objects in a listbox-->
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding DisplayText}"/>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-
-        <DockPanel Grid.Row="3" Grid.Column="2">
-            <TextBlock Text="SubTotal: "/>
-            <TextBlock x:Name="SubTotal" Text="£0.00" TextAlignment="Right"/>
-        </DockPanel>
-
-        <DockPanel Grid.Row="4" Grid.Column="2">
-            <TextBlock Text="VAT: "/>
-            <TextBlock x:Name="VAT" Text="£0.00" TextAlignment="Right"/>
-        </DockPanel>
-
-        <DockPanel Grid.Row="5" Grid.Column="2">
-            <TextBlock Text="Final Price: "  Margin="0 0 15 0"/>
-            <TextBlock x:Name="FinalPrice" Text="£0.00" TextAlignment="Right"/>
-        </DockPanel>
-
-        <Button x:Name="CheckOut" Grid.Row="6" Grid.Column="2" 
-                Content="Check Out" Margin="0 20 0 0" Padding="5"/>
+                <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Label preview" Style="{StaticResource SectionTitle}"/>
+                        <Border Background="{StaticResource Slate100}" CornerRadius="4" Padding="12" Margin="0,10,0,0">
+                            <TextBlock x:Name="LabelPreview" FontFamily="Consolas" FontSize="12"
+                                       TextWrapping="Wrap" MaxHeight="128"/>
+                        </Border>
+                        <Button x:Name="PrintLastSaleLabels" Content="Print sale _labels…"
+                                Style="{StaticResource SecondaryButton}" Margin="0,10,0,0"/>
+                        <TextBlock Text="{Binding PrintFeedback}" Style="{StaticResource CaptionText}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding HasPrintFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                   AutomationProperties.LiveSetting="Polite"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

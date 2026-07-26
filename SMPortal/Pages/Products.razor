@@ -1,167 +1,105 @@
-﻿@page "/products"
-@inject IProductEndpoint ProductEndpoint
-@inject IConfiguration Config
+@page "/products"
 @attribute [Authorize(Roles = "Staff")]
+@inject IProductEndpoint ProductEndpoint
 
-<head>
+<PageTitle>Products | StockManager</PageTitle>
 
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="">
-  <meta name="author" content="">
-  <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap"
-    rel="stylesheet">
+<header class="page-header">
+	<div>
+		<span class="eyebrow">Sales catalogue</span>
+		<h1>Products</h1>
+		<p>Find product identifiers, prices, tax status, and current stock availability.</p>
+	</div>
+	<button class="button secondary" @onclick="LoadProducts" disabled="@isLoading">Refresh products</button>
+</header>
 
-  <title>Sixteen Clothing Products</title>
+<section class="panel">
+	<div class="toolbar">
+		<div class="field search-field">
+			<label for="product-search">Search products</label>
+			<InputText id="product-search" @bind-Value="searchText" @bind-Value:event="oninput"
+					   placeholder="Name, description, or product ID" />
+		</div>
+		<div class="toolbar-summary" aria-live="polite">
+			<strong>@FilteredProducts.Count</strong>
+			<span>products shown</span>
+		</div>
+	</div>
 
-  <!-- Bootstrap core CSS -->
-  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <!--
-
-TemplateMo 546 Sixteen Clothing
-
-https://templatemo.com/tm-546-sixteen-clothing
-
--->
-
-  <!-- Additional CSS Files -->
-  <link rel="stylesheet" href="assets/css/fontawesome.css">
-  <link rel="stylesheet" href="assets/css/templatemo-sixteen.css">
-  <link rel="stylesheet" href="assets/css/owl.css">
-
-</head>
-
-<body>
-
-  <!-- ***** Preloader Start ***** -->
-  <div id="preloader">
-    <div class="jumper">
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
-  </div>
-  <!-- ***** Preloader End ***** -->
-
-  <!-- Header -->
-  <header class="">
-    <nav class="navbar navbar-expand-lg">
-      <div class="container">
-        <a class="navbar-brand" href="/index">
-          <h2>Sixteen <em>Clothing</em></h2>
-        </a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive"
-          aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarResponsive">
-          <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="/index">Home
-                <span class="sr-only">(current)</span>
-              </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/products">Our Products</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/about">About Us</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/contact">Contact Us</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/checkout">Checkout</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </nav>
-  </header>
-
-  <!-- Page Content -->
-  <div class="page-heading products-heading header-text">
-    <div class="container">
-      <div class="row">
-        <div class="col-md-12">
-          <div class="text-content">
-            <h4>new arrivals</h4>
-            <h2>sixteen products</h2>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <div class="products">
-    <div class="container">
-      <div class="row">
-        <div class="col-md-12 products-list">
-          <div class="filters-content">
-            <div id="products-list" class="row grid">
-                @foreach (ProductModel product in products)
-                {
-                    <div class="col-lg-4 col-md-4 all des">
-                        <div class="product-item">
-                                        <a href="#"><img class="decrease-height" src="@( $"{api}{product.ProductImage}" )" alt=""></a>
-                            <div class="down-content">
-                                <a href="#">
-                                    <h4>@product.ProductName</h4>
-                                </a>
-                                <h6>£@product.RetailPrice</h6>
-                                <p class="my-2 text-justify">@product.Description</p>
-                                <strong>Quantity: </strong>@product.QuantityInStock
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="" style="padding-bottom: 40px;"></div>
-
-
-  <!-- Bootstrap core JavaScript -->
-    <script src="vendor/jquery/jquery.min.js" suppress-error="BL9992"></script>
-    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js" suppress-error="BL9992"></script>
-
-
-  <!-- Additional Scripts -->
-    <script src="assets/js/custom.js" suppress-error="BL9992"></script>
-    <script src="assets/js/owl.js" suppress-error="BL9992"></script>
-    <script src="assets/js/slick.js" suppress-error="BL9992"></script>
-    <script src="assets/js/isotope.js" suppress-error="BL9992"></script>
-  <script src="assets/js/accordions.js"suppress-error="BL9992"></script>
-
-
-    <script language="text/Javascript" suppress-error="BL9992">
-    cleared[0] = cleared[1] = cleared[2] = 0; //set a cleared flag for each field
-    function clearField(t) {                   //declaring the array outside of the
-      if (!cleared[t.id]) {                      // function makes it static and global
-        cleared[t.id] = 1;  // you could use true and false, but that's more typing
-        t.value = '';         // with more chance of typos
-        t.style.color = '#fff';
-      }
-    }
-  </script>
-
-    <script src="./assets/js/products.js" suppress-error="BL9992"></script>
-
-
-</body>
+	@if (isLoading)
+	{
+		<div class="route-state" role="status"><span class="spinner"></span><strong>Loading products</strong></div>
+	}
+	else if (!string.IsNullOrWhiteSpace(errorMessage))
+	{
+		<div class="alert error" role="alert"><strong>Products could not be loaded.</strong><span>@errorMessage</span></div>
+	}
+	else if (FilteredProducts.Count == 0)
+	{
+		<div class="empty-state"><strong>No products found</strong><span>Try another search or refresh the catalogue.</span></div>
+	}
+	else
+	{
+		<div class="table-wrap">
+			<table>
+				<thead><tr><th>Product</th><th>Identifier</th><th>Retail price</th><th>Tax</th><th>Availability</th></tr></thead>
+				<tbody>
+					@foreach (var product in FilteredProducts)
+					{
+						<tr>
+							<td data-label="Product">
+								<span class="table-primary">@product.ProductName</span>
+								<small>@product.Description</small>
+							</td>
+							<td data-label="Identifier">@product.Id</td>
+							<td data-label="Retail price">@product.RetailPrice.ToString("C")</td>
+							<td data-label="Tax">@(product.IsTaxable ? "Taxable" : "Not taxable")</td>
+							<td data-label="Availability">
+								<span class="status-badge @GetStockClass(product.QuantityInStock)">@GetStockLabel(product.QuantityInStock)</span>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+</section>
 
 @code {
-    private List<ProductModel> products;
-    private string api;
+	private readonly List<ProductModel> products = new();
+	private string searchText = string.Empty;
+	private string errorMessage = string.Empty;
+	private bool isLoading = true;
 
-    protected override async Task OnInitializedAsync()
+	private List<ProductModel> FilteredProducts => products
+		.Where(product => string.IsNullOrWhiteSpace(searchText)
+			|| product.Id.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+			|| (product.ProductName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+			|| (product.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+		.OrderBy(product => product.ProductName)
+		.ToList();
+
+	protected override Task OnInitializedAsync() => LoadProducts();
+
+	private async Task LoadProducts()
 	{
-        api = Config.GetValue<string>("api");
-        products = await ProductEndpoint.GetAll();
+		isLoading = true;
+		errorMessage = string.Empty;
+		try
+		{
+			products.Clear();
+			products.AddRange(await ProductEndpoint.GetAll());
+		}
+		catch (Exception ex)
+		{
+			errorMessage = ex.Message;
+		}
+		finally
+		{
+			isLoading = false;
+		}
 	}
+
+	private static string GetStockClass(int quantity) => quantity switch { <= 0 => "danger", <= 5 => "warning", _ => "success" };
+	private static string GetStockLabel(int quantity) => quantity switch { <= 0 => "Out of stock", <= 5 => $"Low · {quantity}", _ => $"{quantity} in stock" };
 }
