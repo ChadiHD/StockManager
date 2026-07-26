@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using SMDesktopUI.Library.Api;
 using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
 using System.Security.Claims;
 
 namespace SMPortal.Authentication
@@ -29,7 +28,7 @@ namespace SMPortal.Authentication
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
-            string authTokenStorageKey = _config["authTokenStorageKey"];
+            string authTokenStorageKey = GetAuthTokenStorageKey();
             var token = await _localStorge.GetItemAsync<string>(authTokenStorageKey);
 
             if (string.IsNullOrWhiteSpace(token))
@@ -80,12 +79,15 @@ namespace SMPortal.Authentication
         public async Task MarkUserAsLoggedOut()
         {
 			// Grab the token information
-			string authTokenStorageKey = _config["authTokenStorageKey"];
+            string authTokenStorageKey = GetAuthTokenStorageKey();
 			await _localStorge.RemoveItemAsync(authTokenStorageKey);
 			var authState = Task.FromResult(_anonymous);
             _apiHelper.LogOff();
 			_httpClient.DefaultRequestHeaders.Authorization = null;
 			NotifyAuthenticationStateChanged(authState);
         }
+
+        private string GetAuthTokenStorageKey() => _config["authTokenStorageKey"]
+            ?? throw new InvalidOperationException("The authTokenStorageKey configuration value is required.");
     }
 }

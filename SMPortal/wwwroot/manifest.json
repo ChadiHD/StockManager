@@ -1,10 +1,10 @@
 {
-  "name": "BlazorApp-empty1",
-  "short_name": "BlazorApp-empty1",
+  "name": "StockManager Operations Portal",
+  "short_name": "StockManager",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#03173d",
+  "background_color": "#f8fafc",
+  "theme_color": "#0b1f3a",
   "prefer_related_applications": false,
   "icons": [
     {

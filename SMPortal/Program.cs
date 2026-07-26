@@ -19,6 +19,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, AuthStateProvider>();
 builder.Services.AddSingleton<IAPIHelper, APIHelper>();
 builder.Services.AddSingleton<ILoggedInUserModel, LoggedInUserModel>();
 builder.Services.AddTransient<IProductEndpoint, ProductEndpoint>();
+builder.Services.AddTransient<IInventoryEndpoint, InventoryEndpoint>();
 builder.Services.AddTransient<IPurchaseEndpoint, PurchaseEndpoint>();
 builder.Services.AddTransient<IUserEndpoint, UserEndpoint>();
 

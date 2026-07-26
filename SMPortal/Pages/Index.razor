@@ -1,229 +1,205 @@
-﻿@page "/index"
+﻿@page "/"
+@page "/index"
+@attribute [Authorize]
+@inject IProductEndpoint ProductEndpoint
+@inject IInventoryEndpoint InventoryEndpoint
+@inject IPurchaseEndpoint PurchaseEndpoint
 
-    <!-- ***** Preloader Start ***** -->
-    <div id="preloader">
-        <div class="jumper">
-            <div></div>
-            <div></div>
-            <div></div>
-        </div>
+<PageTitle>Dashboard | StockManager</PageTitle>
+
+<header class="page-header">
+    <div>
+        <span class="eyebrow">Operational overview</span>
+        <h1>Dashboard</h1>
+        <p>Live information available to your account from the StockManager API.</p>
     </div>
-    <!-- ***** Preloader End ***** -->
-    <!-- Header -->
-    <header class="">
-        <nav class="navbar navbar-expand-lg">
-            <div class="container">
-                <a class="navbar-brand" href="/index"><h2>Sixteen <em>Clothing</em></h2></a>
-                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarResponsive">
-                    <ul class="navbar-nav ml-auto">
-                        <li class="nav-item active">
-                            <a class="nav-link" href="/index">
-                                Home
-                                <span class="sr-only">(current)</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/products">Our Products</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/about">About Us</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/contact">Contact Us</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/checkout">Checkout</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/login">Log In</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
+    <button class="button secondary" @onclick="LoadData" disabled="@isLoading">Refresh data</button>
+</header>
 
-    <!-- Page Content -->
-    <!-- Banner Starts Here -->
-    <div class="banner header-text">
-        <div class="owl-banner owl-carousel">
-            <div class="banner-item-01">
-                <div class="text-content">
-                    <h4>Best Offer</h4>
-                    <h2>New Arrivals On Sale</h2>
-                </div>
-            </div>
-            <div class="banner-item-02">
-                <div class="text-content">
-                    <h4>Flash Deals</h4>
-                    <h2>Get your best products</h2>
-                </div>
-            </div>
-            <div class="banner-item-03">
-                <div class="text-content">
-                    <h4>Last Minute</h4>
-                    <h2>Grab last minute deals</h2>
-                </div>
-            </div>
-        </div>
+@if (isLoading)
+{
+    <div class="loading-grid" role="status" aria-label="Loading dashboard">
+        @for (var index = 0; index < 4; index++)
+        {
+            <div class="skeleton metric-skeleton"></div>
+        }
     </div>
-    <!-- Banner Ends Here -->
-
-    <div class="latest-products">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="section-heading">
-                        <h2>Latest Products</h2>
-                        <a href="products.html">view all products <i class="fa fa-angle-right"></i></a>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="product-item">
-                        <a href="#"><img class="decrease-height" src="../assets/images/products/jackets/4.webp" alt=""></a>
-                        <div class="down-content">
-                            <a href="#"><h4>Light Grey Regular</h4></a>
-                            <h6>$50.25</h6>
-                            <p class="latest">Light Grey Regular- fit jacket- windbreaker in windproof. Lined hood with an elastic drawstring, a zip down the front and long sleeves. Diagonal side pockets with a zip and an inner pocket with a press-stud. Covered elastication and an adjustable hook.</p>
-                            <ul class="stars">
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                            </ul>
-                            <span>Reviews (48)</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="product-item">
-                        <a href="#"><img class="decrease-height" src="../assets/images/products/jackets/6.webp" alt=""></a>
-                        <div class="down-content">
-                            <a href="#"><h4>White Track jacket</h4></a>
-                            <h6>$59.00</h6>
-                            <p class="latest">White Track jacket- jacquard-weave terry with an embroidered motif on the chest and narrow piping in a contrasting colour over the chest and down the sleeves. Relaxed fit with a stand-up collar, zip down the front, long sleeves and side pockets.</p>
-                            <ul class="stars">
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                            </ul>
-                            <span>Reviews (72)</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="product-item">
-                        <a href="#"><img class="decrease-height" src="../assets/images/products/t_shirts/1.webp" alt=""></a>
-                        <div class="down-content">
-                            <a href="#"><h4>Black Relaxed-fit T-shirt</h4></a>
-                            <h6>$11.25</h6>
-                            <p class="latest">Black Relaxed-fit T-shirt- soft printed cotton jersey with a rib-trimmed neckline, dropped shoulders and a straight-cut hem.</p>
-                            <ul class="stars">
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                            </ul>
-                            <span>Reviews (12)</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="product-item">
-                        <a href="#"><img class="decrease-height" src="../assets/images/products/hoodies/4.webp" alt=""></a>
-                        <div class="down-content">
-                            <a href="#"><h4>Light beige Hoodie</h4></a>
-                            <h6>$28.25</h6>
-                            <p class="latest">Light beige Hoodie- sweatshirt fabric made from a cotton blend with a print motif. Relaxed fit with a double-layered, drawstring hood, long sleeves, kangaroo pocket and ribbing at the cuffs and hem. Soft brushed inside.</p>
-                            <ul class="stars">
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                            </ul>
-                            <span>Reviews (48)</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="product-item">
-                        <a href="#"><img class="scale-down decrease-height" src="../assets/images/products/jeans/2.webp" alt=""></a>
-                        <div class="down-content">
-                            <a href="#"><h4>Dark Grey Jeans</h4></a>
-                            <h6>$39.75</h6>
-                            <p class="latest">Dark Grey Jeans- 5-pocket jeans in cotton denim with a premium stretch for excellent comfort. Skinny fit from the waist to the hem, a regular waist and a zip fly. Designed for everyday wear.</p>
-                            <ul class="stars">
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                            </ul>
-                            <span>Reviews (24)</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="product-item">
-                        <a href="#"><img class="scale-down decrease-height" src="../assets/images/products/cargo/1.webp" alt=""></a>
-                        <div class="down-content">
-                            <a href="#"><h4>Beige Trousers</h4></a>
-                            <h6>$22.75</h6>
-                            <p class="latest">
-                                Beige Trousers in cotton twill with covered elastication and a concealed drawstring at the waist.
-                                Regular fit with a zip fly and button, side pockets, welt back pockets and flap leg pockets with
-                                concealed press-studs.
-                            </p>
-                            <ul class="stars">
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                                <li><i class="fa fa-star"></i></li>
-                            </ul>
-                            <span>Reviews (12)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert warning" role="alert">
+            <strong>Some dashboard data is unavailable.</strong>
+            <span>@errorMessage</span>
         </div>
-    </div>
+    }
 
-    <div class="best-features">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="section-heading">
-                        <h2>About Sixteen Clothing</h2>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="left-content">
-                        <h4>Looking for the best products? Look no further than Sixteen Clothing! Here are a few reasons why:</h4>
-                        <ul class="featured-list">
-                            <li><a href="#">Trendy and Fashionable</a></li>
-                            <li><a href="#">High-Quality</a></li>
-                            <li><a href="#">Wide Variety</a></li>
-                            <li><a href="#">Excellent Customer Service</a></li>
-                            <li><a href="#">Fast and Reliable Shipping</a></li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="right-image">
-                        <img src="assets/images/feature-image.jpg" alt="">
-                    </div>
-                </div>
+    <section class="metric-grid" aria-label="Key metrics">
+        @if (canViewProducts)
+        {
+            <article class="metric-card">
+                <span class="metric-icon teal" aria-hidden="true">P</span>
+                <div><span>Active products</span><strong>@products.Count</strong><small>Available to sales staff</small></div>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon amber" aria-hidden="true">!</span>
+                <div><span>Low stock products</span><strong>@products.Count(product => product.QuantityInStock <= 5)</strong><small>Five units or fewer</small></div>
+            </article>
+        }
+        @if (canViewInventory)
+        {
+            <article class="metric-card">
+                <span class="metric-icon blue" aria-hidden="true">I</span>
+                <div><span>Inventory records</span><strong>@inventory.Count</strong><small>@inventory.Sum(item => item.Quantity).ToString("N0") units received</small></div>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon teal" aria-hidden="true">$</span>
+                <div><span>Purchase value</span><strong>@inventory.Sum(item => item.PurchasePrice * item.Quantity).ToString("C0")</strong><small>Recorded acquisition cost</small></div>
+            </article>
+        }
+        @if (canViewReports)
+        {
+            <article class="metric-card">
+                <span class="metric-icon purple" aria-hidden="true">R</span>
+                <div><span>Recorded sales</span><strong>@reports.Count</strong><small>@reports.Sum(report => report.FinalPrice).ToString("C0") total revenue</small></div>
+            </article>
+        }
+    </section>
+
+    <section class="dashboard-grid">
+        <article class="panel">
+            <div class="panel-heading">
+                <div><span class="eyebrow">Attention</span><h2>Operational focus</h2></div>
             </div>
-        </div>
-    </div>
+            @if (canViewProducts)
+            {
+                var lowStock = products.OrderBy(product => product.QuantityInStock).Take(5).ToList();
+                @if (lowStock.Count == 0)
+                {
+                    <div class="empty-state compact"><strong>No product data</strong><span>No products were returned by the API.</span></div>
+                }
+                else
+                {
+                    <div class="compact-list">
+                        @foreach (var product in lowStock)
+                        {
+                            <div>
+                                <span class="product-avatar" aria-hidden="true">@product.ProductName.FirstOrDefault()</span>
+                                <span><strong>@product.ProductName</strong><small>Product @product.Id</small></span>
+                                <span class="status-badge @(product.QuantityInStock <= 5 ? "danger" : "success")">
+                                    @product.QuantityInStock in stock
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="empty-state compact">
+                    <strong>Role-specific workspace</strong>
+                    <span>Use the navigation to access the inventory, reporting, or administration tools available to you.</span>
+                </div>
+            }
+        </article>
 
-    <div class="" style="padding-bottom: 40px;"></div>
+        <article class="panel">
+            <div class="panel-heading">
+                <div><span class="eyebrow">Recent activity</span><h2>Latest sales</h2></div>
+                @if (canViewReports)
+                {
+                    <a href="/reports">View report</a>
+                }
+            </div>
+            @if (!canViewReports)
+            {
+                <div class="empty-state compact"><strong>Reporting access required</strong><span>Sales activity is available to managers and administrators.</span></div>
+            }
+            else if (reports.Count == 0)
+            {
+                <div class="empty-state compact"><strong>No sales recorded</strong><span>Completed purchases will appear here.</span></div>
+            }
+            else
+            {
+                <div class="compact-list">
+                    @foreach (var report in reports.OrderByDescending(report => report.PurchaseDate).Take(5))
+                    {
+                        <div>
+                            <span class="product-avatar neutral" aria-hidden="true">S</span>
+                            <span><strong>@report.PurchaseDate.ToString("dd MMM yyyy, HH:mm")</strong><small>@GetOperator(report)</small></span>
+                            <strong>@report.FinalPrice.ToString("C")</strong>
+                        </div>
+                    }
+                </div>
+            }
+        </article>
+    </section>
+}
+
+@code {
+    [CascadingParameter] public Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    private readonly List<ProductModel> products = new();
+    private readonly List<InventoryModel> inventory = new();
+    private readonly List<PurchaseReportModel> reports = new();
+    private bool isLoading = true;
+    private bool canViewProducts;
+    private bool canViewInventory;
+    private bool canViewReports;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateTask).User;
+        canViewProducts = user.IsInRole("Staff");
+        canViewInventory = user.IsInRole("Admin") || user.IsInRole("Manager");
+        canViewReports = canViewInventory;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+        products.Clear();
+        inventory.Clear();
+        reports.Clear();
+
+        try
+        {
+            var requests = new List<Task>();
+            if (canViewProducts)
+            {
+                requests.Add(LoadProducts());
+            }
+            if (canViewInventory)
+            {
+                requests.Add(LoadInventory());
+            }
+            if (canViewReports)
+            {
+                requests.Add(LoadReports());
+            }
+            await Task.WhenAll(requests);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadProducts() => products.AddRange(await ProductEndpoint.GetAll());
+    private async Task LoadInventory() => inventory.AddRange(await InventoryEndpoint.GetAll());
+    private async Task LoadReports() => reports.AddRange(await PurchaseEndpoint.GetPurchaseReport());
+
+    private static string GetOperator(PurchaseReportModel report)
+    {
+        var name = $"{report.FirstName} {report.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(name) ? report.EmailAddress : name;
+    }
+}

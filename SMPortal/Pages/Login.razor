@@ -1,59 +1,108 @@
-﻿@inject IAuthenticationService AuthService
+﻿@page "/login"
+@attribute [AllowAnonymous]
+@inject IAuthenticationService AuthService
 @inject NavigationManager NavManager
 
-<EditForm Model="model" OnInvalidSubmit="ExecuteLogin" class="">
+<PageTitle>Sign in | StockManager</PageTitle>
 
-	<div class="form-row">
-		<div class="col-auto">
-			<label for="email" class="sr-only">Email</label>
-			<InputText id="email" class="form-control" @bind-Value="model.Email" placeholder="Email Address"/>
-		</div>
-		<div class="col-auto">
-			<label for="password" class="sr-only">Password</label>
-			<InputText type="password" id="password" class="form-control" @bind-Value="model.Password" placeholder="Password"/>
-		</div>
-		<div class="col-auto">
-			<button type="submit" class="btn btn-success" @onclick=ExecuteLogin> Log In </button>
-		</div>
-		<div class="col-auto">
-			<button type="button" class="btn btn-primary" @onclick=RegisterUser> Register </button>
-		</div>
-		@if (ShowAuthenticationError)
-		{
-			<div class="alert alert-danger" role="alert">
-				@AuthenticationErrorText
-			</div>
-		}
-	</div>
-</EditForm>
+<section class="auth-page">
+    <div class="auth-brand-panel">
+        <a class="brand large" href="/">
+            <span class="brand-mark" aria-hidden="true">SM</span>
+            <span><strong>StockManager</strong><small>Operations platform</small></span>
+        </a>
+        <div class="auth-message">
+            <span class="eyebrow light">One operational view</span>
+            <h1>Keep stock moving with confidence.</h1>
+            <p>Monitor inventory, understand sales, and control team access from a focused administration workspace.</p>
+        </div>
+        <div class="auth-points" aria-label="Platform capabilities">
+            <span><b aria-hidden="true">01</b> Live inventory visibility</span>
+            <span><b aria-hidden="true">02</b> Role-based administration</span>
+            <span><b aria-hidden="true">03</b> Clear sales reporting</span>
+        </div>
+    </div>
 
+    <div class="auth-form-panel">
+        <EditForm Model="model" OnValidSubmit="ExecuteLogin" class="auth-card">
+            <DataAnnotationsValidator />
+            <div class="auth-card-heading">
+                <span class="eyebrow">Secure access</span>
+                <h2>Welcome back</h2>
+                <p>Sign in with your StockManager account.</p>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(authenticationError))
+            {
+                <div class="alert error" role="alert">
+                    <strong>We could not sign you in.</strong>
+                    <span>@authenticationError</span>
+                </div>
+            }
+
+            <div class="field">
+                <label for="email">Email address</label>
+                <InputText id="email" type="email" autocomplete="username" @bind-Value="model.Email"
+                           placeholder="name@company.com" disabled="@isSubmitting" />
+                <ValidationMessage For="@(() => model.Email)" />
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" autocomplete="current-password" @bind-Value="model.Password"
+                           placeholder="Enter your password" disabled="@isSubmitting" />
+                <ValidationMessage For="@(() => model.Password)" />
+            </div>
+            <button type="submit" class="button primary wide" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner small" aria-hidden="true"></span>
+                    <span>Signing in...</span>
+                }
+                else
+                {
+                    <span>Sign in securely</span>
+                }
+            </button>
+            <p class="auth-help">Accounts are managed by a StockManager administrator.</p>
+        </EditForm>
+    </div>
+</section>
 
 @code {
-    private AuthenticationUserModel model = new();
+    private readonly AuthenticationUserModel model = new();
+    private string authenticationError = string.Empty;
+    private bool isSubmitting;
 
-    private bool ShowAuthenticationError = false;
-    private string AuthenticationErrorText = string.Empty;
-
-	private void RegisterUser()
-	{
-		NavManager.NavigateTo("/register");
-	}
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
 
     private async Task ExecuteLogin()
     {
-        ShowAuthenticationError = false;
+        authenticationError = string.Empty;
+        isSubmitting = true;
 
-        var result = await AuthService.Login(model);
-
-        if (result is not null)
+        try
         {
-            NavManager.NavigateTo("/index");
+            var result = await AuthService.Login(model);
+            if (result is null)
+            {
+                authenticationError = "Check your email and password, then try again.";
+                return;
+            }
+
+            var destination = !string.IsNullOrWhiteSpace(ReturnUrl) &&
+                              Uri.IsWellFormedUriString(ReturnUrl, UriKind.Relative)
+                ? ReturnUrl
+                : "/";
+            NavManager.NavigateTo(destination);
         }
-        else
+        catch (HttpRequestException)
         {
-            ShowAuthenticationError = true;
-            AuthenticationErrorText = "Invalid username or password";
+            authenticationError = "The StockManager service is unavailable. Try again shortly.";
+        }
+        finally
+        {
+            isSubmitting = false;
         }
     }
-
 }

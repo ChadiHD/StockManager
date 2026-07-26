@@ -39,11 +39,18 @@ namespace SMDesktopUI.ViewModels
             set
             {
                 _selectedUser = value;
-                SelectedUserName = value.Email;
+                SelectedUserName = value?.Email ?? string.Empty;
                 // Create a new binding list of the roles containing only the Name of the Role
-                UserRoles = new BindingList<string>(value.Roles.Select(x => x.Value).ToList());
-				LoadRoles();
+                UserRoles = new BindingList<string>(
+                    value?.Roles?.Select(x => x.Value).ToList() ?? new List<string>());
+                AvailableRoles = new BindingList<string>();
+                if (value != null)
+                {
+				    _ = LoadRoles();
+                }
                 NotifyOfPropertyChange(() => SelectedUser);
+                NotifyOfPropertyChange(() => CanAddSelectedRole);
+                NotifyOfPropertyChange(() => CanRemoveSelectedRole);
             }
         }
 
@@ -56,6 +63,7 @@ namespace SMDesktopUI.ViewModels
             {
                 _selectedUserRole = value;
                 NotifyOfPropertyChange(() => SelectedUserRole);
+                NotifyOfPropertyChange(() => CanRemoveSelectedRole);
             }
         }
 
@@ -68,6 +76,7 @@ namespace SMDesktopUI.ViewModels
             {
                 _selectedAvailableRole = value;
                 NotifyOfPropertyChange(() => SelectedAvailableRole);
+                NotifyOfPropertyChange(() => CanAddSelectedRole);
             }
         }
 
@@ -163,16 +172,30 @@ namespace SMDesktopUI.ViewModels
 
         public async Task AddSelectedRole()
         {
-            await _userEndpoint.AddUserToRole(SelectedUser.Id, SelectedAvailableRole);
+            if (!CanAddSelectedRole)
+            {
+                return;
+            }
+            await _userEndpoint.AddUserToRole(SelectedUser.EffectiveUserId, SelectedAvailableRole);
             UserRoles.Add(SelectedAvailableRole);
             AvailableRoles.Remove(SelectedAvailableRole);
         }
 
         public async Task RemoveSelectedRole()
         {
-            await _userEndpoint.RemoveUserFromRole(SelectedUser.Id, SelectedUserRole);
+            if (!CanRemoveSelectedRole)
+            {
+                return;
+            }
+            await _userEndpoint.RemoveUserFromRole(SelectedUser.EffectiveUserId, SelectedUserRole);
             UserRoles.Remove(SelectedUserRole);
             AvailableRoles.Add(SelectedUserRole);
         }
+
+        public bool CanAddSelectedRole =>
+            SelectedUser != null && !string.IsNullOrWhiteSpace(SelectedAvailableRole);
+
+        public bool CanRemoveSelectedRole =>
+            SelectedUser != null && !string.IsNullOrWhiteSpace(SelectedUserRole);
     }
 }

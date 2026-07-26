@@ -9,8 +9,11 @@ namespace SMDesktopUI.Library.Models
     public class UserModel
     {
         public string Id { get; set; }
+        public string UserId { get; set; }
         public string Email { get; set; }
         public Dictionary<string, string> Roles { get; set; } = new Dictionary<string, string>();
+
+        public string EffectiveUserId => string.IsNullOrWhiteSpace(UserId) ? Id : UserId;
         
         // Get all dictionary roles list and join them by comma
         public string RoleList

@@ -3,21 +3,38 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <Authorizing>
-                    <p role="alert">Please wait while we check your credentials.</p>
+                    <div class="route-state" role="status">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <strong>Checking your session</strong>
+                        <span>Securely connecting to StockManager.</span>
+                    </div>
                 </Authorizing>
                 <NotAuthorized>
-					<p role="alert">Sorry, you're not authorized to see this.</p>
-                    </NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        <div class="route-state" role="alert">
+                            <strong>Access restricted</strong>
+                            <span>Your account does not have permission to open this area.</span>
+                            <a class="button secondary" href="/">Return to dashboard</a>
+                        </div>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
         <NotFound>
             <PageTitle>Not found</PageTitle>
-            <CascadingAuthenticationState>
-                <LayoutView Layout="@typeof(MainLayout)">
-                    <p role="alert">Sorry, there's nothing at this address.</p>
-                </LayoutView>
-            </CascadingAuthenticationState>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <div class="route-state" role="alert">
+                    <strong>Page not found</strong>
+                    <span>The address may be outdated or incomplete.</span>
+                    <a class="button secondary" href="/">Return to dashboard</a>
+                </div>
+            </LayoutView>
         </NotFound>
     </Router>
 </CascadingAuthenticationState>

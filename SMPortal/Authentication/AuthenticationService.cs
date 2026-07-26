@@ -23,19 +23,21 @@ namespace SMPortal.Authentication
             _authStateProvider = authStateProvider;
             _localStorage = localStorage;
             _config = config;
-            authTokenStorageKey = _config["authTokenStorageKey"];
+            authTokenStorageKey = _config["authTokenStorageKey"]
+                ?? throw new InvalidOperationException("The authTokenStorageKey configuration value is required.");
         }
 
-        public async Task<AuthenticatedUserModel> Login(AuthenticationUserModel userForAuthentication)
+        public async Task<AuthenticatedUserModel?> Login(AuthenticationUserModel userForAuthentication)
         {
             var data = new FormUrlEncodedContent(new[]
             {
                 new KeyValuePair<string, string>("grant_type", "password"),
-                new KeyValuePair<string, string>("username", userForAuthentication.Email),
-                new KeyValuePair<string, string>("password", userForAuthentication.Password)
+                new KeyValuePair<string, string>("username", userForAuthentication.Email ?? string.Empty),
+                new KeyValuePair<string, string>("password", userForAuthentication.Password ?? string.Empty)
             });
 
-            string api = _config["api"] + _config["tokenEndPoint"];
+            string api = (_config["api"] ?? throw new InvalidOperationException("The api configuration value is required."))
+                + (_config["tokenEndPoint"] ?? throw new InvalidOperationException("The tokenEndPoint configuration value is required."));
             var authResult = await _client.PostAsync(api, data);
             var authContent = await authResult.Content.ReadAsStringAsync();
 
@@ -44,15 +46,22 @@ namespace SMPortal.Authentication
                 return null;
             }
 
-            var result = JsonSerializer.Deserialize<AuthenticatedUserModel>
-                (
+            var result = JsonSerializer.Deserialize<AuthenticatedUserModel>(
                 authContent,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-                );
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (string.IsNullOrWhiteSpace(result?.Access_Token))
+            {
+                return null;
+            }
 
             await _localStorage.SetItemAsync(authTokenStorageKey, result.Access_Token);
 
-            await ((AuthStateProvider)_authStateProvider).MarkUserAsAuthenticated(result.Access_Token);
+            var isAuthenticated = await ((AuthStateProvider)_authStateProvider).MarkUserAsAuthenticated(result.Access_Token);
+            if (!isAuthenticated)
+            {
+                return null;
+            }
 
             _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", result.Access_Token);
 

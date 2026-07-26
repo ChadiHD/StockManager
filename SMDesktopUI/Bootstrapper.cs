@@ -7,6 +7,7 @@ using SMDesktopUI.Library.Api;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
 using SMDesktopUI.ViewModels;
+using SMDesktopUI.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -73,7 +74,8 @@ namespace SMDesktopUI
                 .Singleton<IWindowManager, WindowManager>()
                 .Singleton<IEventAggregator, EventAggregator>()
                 .Singleton<ILoggedInUserModel, LoggedInUserModel>()
-                .Singleton<IAPIHelper, APIHelper>();
+                .Singleton<IAPIHelper, APIHelper>()
+                .Singleton<ILabelPrintService, WindowsLabelPrintService>();
 
             _container.RegisterInstance(typeof(IConfiguration), "IConfiguration", AddConfiguration());
 

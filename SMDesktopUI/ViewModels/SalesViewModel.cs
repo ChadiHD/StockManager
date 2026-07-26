@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using SMDesktopUI.Library.Api;
 using SMDesktopUI.Library.Models;
 using SMDesktopUI.Models;
+using SMDesktopUI.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -23,6 +24,7 @@ namespace SMDesktopUI.ViewModels
         readonly IMapper _mapper;
         private readonly StatusInfoViewModel _status;
         private readonly IWindowManager _window;
+        private readonly ILabelPrintService _labelPrintService;
 
         public SalesViewModel
             (IProductEndpoint productEndpoint, 
@@ -30,7 +32,8 @@ namespace SMDesktopUI.ViewModels
             IConfiguration config,
             IMapper mapper,
             StatusInfoViewModel status,
-            IWindowManager window)
+            IWindowManager window,
+            ILabelPrintService labelPrintService)
         {
             _productEndpoint = productEndpoint;
             _purchaseEndpoint = purchaseEndpoint;
@@ -38,6 +41,7 @@ namespace SMDesktopUI.ViewModels
             _mapper = mapper;
             _status = status;
             _window = window;
+            _labelPrintService = labelPrintService;
         }
 
         protected override async void OnViewLoaded(object view)
@@ -100,12 +104,15 @@ namespace SMDesktopUI.ViewModels
                 _selectedProduct = value;
                 NotifyOfPropertyChange(() => SelectedProduct);
                 NotifyOfPropertyChange(() => CanAddToCart);
+                QuantityMessage = string.Empty;
             }
         }
 
         private async Task ResetSalesViewModel()
         {
             Cart = new BindingList<CartItemDisplayModel>();
+            SelectedCartItem = null;
+            SelectedProduct = null;
             await LoadProducts();
 
             NotifyOfPropertyChange(() => SubTotal);
@@ -124,6 +131,8 @@ namespace SMDesktopUI.ViewModels
                 _selectedCartItem = value;
                 NotifyOfPropertyChange(() => SelectedCartItem);
                 NotifyOfPropertyChange(() => CanRemoveFromCart);
+                NotifyOfPropertyChange(() => CanPrintSelectedLabel);
+                LabelPreview = value?.LabelContent ?? LastCompletedLabelContent;
             }
         }
 
@@ -150,8 +159,111 @@ namespace SMDesktopUI.ViewModels
                 _itemQuantity = value;
                 NotifyOfPropertyChange(() => ItemQuantity);
                 NotifyOfPropertyChange(() => CanAddToCart);
+                QuantityMessage = value <= 0 ? "Enter a quantity of one or more." :
+                    SelectedProduct != null && value > SelectedProduct.QuantityInStock
+                        ? $"Only {SelectedProduct.QuantityInStock} units are available."
+                        : string.Empty;
             }
         }
+
+        private string _quantityMessage = string.Empty;
+            public string QuantityMessage
+            {
+                get => _quantityMessage;
+                private set
+                {
+                    _quantityMessage = value;
+                    NotifyOfPropertyChange(() => QuantityMessage);
+                    NotifyOfPropertyChange(() => HasQuantityMessage);
+                }
+            }
+
+            public bool HasQuantityMessage => !string.IsNullOrWhiteSpace(QuantityMessage);
+
+            private string _scanInput = string.Empty;
+            public string ScanInput
+            {
+                get => _scanInput;
+                set
+                {
+                    _scanInput = value;
+                    NotifyOfPropertyChange(() => ScanInput);
+                }
+            }
+
+            private string _scanFeedback = "Ready for a barcode, SKU, product ID, or exact product name.";
+            public string ScanFeedback
+            {
+                get => _scanFeedback;
+                private set
+                {
+                    _scanFeedback = value;
+                    NotifyOfPropertyChange(() => ScanFeedback);
+                }
+            }
+
+            private string _labelPreview = "Select a cart item to preview its label.";
+            public string LabelPreview
+            {
+                get => _labelPreview;
+                private set
+                {
+                    _labelPreview = value;
+                    NotifyOfPropertyChange(() => LabelPreview);
+                    NotifyOfPropertyChange(() => CanPrintLastSaleLabels);
+                }
+            }
+
+            private string LastCompletedLabelContent { get; set; } = string.Empty;
+
+            private string _printFeedback = string.Empty;
+            public string PrintFeedback
+            {
+                get => _printFeedback;
+                private set
+                {
+                    _printFeedback = value;
+                    NotifyOfPropertyChange(() => PrintFeedback);
+                    NotifyOfPropertyChange(() => HasPrintFeedback);
+                }
+            }
+
+            public bool HasPrintFeedback => !string.IsNullOrWhiteSpace(PrintFeedback);
+
+            public void CommitScan()
+            {
+                var value = ScanInput?.Trim();
+                ScanInput = string.Empty;
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    ScanFeedback = "Not found — enter or scan a product identifier.";
+                    return;
+                }
+
+                var match = Products?.FirstOrDefault(product =>
+                    product.Id.ToString() == value ||
+                    string.Equals(product.ProductName, value, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(product.Description, value, StringComparison.OrdinalIgnoreCase));
+
+                if (match == null)
+                {
+                    SelectedProduct = null;
+                    ScanFeedback = $"Not found — “{value}” does not match an available product.";
+                    return;
+                }
+
+                SelectedProduct = match;
+                ItemQuantity = 1;
+                if (!CanAddToCart)
+                {
+                    ScanFeedback = $"Found {match.ProductName}, but it is out of stock.";
+                    return;
+                }
+
+                AddToCart();
+                ScanFeedback = $"Added 1 × {match.ProductName}. Ready for the next scan.";
+            }
 
         public string SubTotal
         {
@@ -219,10 +331,24 @@ namespace SMDesktopUI.ViewModels
 
         public void AddToCart()
         {
+            if (!CanAddToCart || SelectedProduct == null)
+            {
+                QuantityMessage = SelectedProduct == null
+                    ? "Select a product before adding it to the cart."
+                    : ItemQuantity <= 0
+                        ? "Enter a quantity of one or more."
+                        : $"Only {SelectedProduct.QuantityInStock} units are available.";
+                return;
+            }
+
             CartItemDisplayModel existingItem = Cart.FirstOrDefault(x => x.Product == SelectedProduct);
             if (existingItem != null)
             {
                 existingItem.QuantityInCart += ItemQuantity;
+                if (ReferenceEquals(SelectedCartItem, existingItem))
+                {
+                    LabelPreview = existingItem.LabelContent;
+                }
             }
             else
             {
@@ -236,10 +362,12 @@ namespace SMDesktopUI.ViewModels
             
             SelectedProduct.QuantityInStock -= ItemQuantity;
             ItemQuantity = 1;
+            QuantityMessage = string.Empty;
             NotifyOfPropertyChange(() => SubTotal);
             NotifyOfPropertyChange(() => VAT);
             NotifyOfPropertyChange(() => FinalPrice);
             NotifyOfPropertyChange(() => CanCheckOut);
+            NotifyOfPropertyChange(() => CanPrintSelectedLabel);
         }
 
         public bool CanRemoveFromCart
@@ -260,15 +388,22 @@ namespace SMDesktopUI.ViewModels
 
         public void RemoveFromCart()
         {
-            SelectedCartItem.Product.QuantityInStock += 1;
-
-            if (SelectedCartItem.QuantityInCart > 1)
+            if (!CanRemoveFromCart || SelectedCartItem?.Product == null)
             {
-                SelectedCartItem.QuantityInCart -= 1;
+                return;
+            }
+
+            var item = SelectedCartItem;
+            item.Product.QuantityInStock += 1;
+
+            if (item.QuantityInCart > 1)
+            {
+                item.QuantityInCart -= 1;
             }
             else
             {
-                Cart.Remove(SelectedCartItem);
+                Cart.Remove(item);
+                SelectedCartItem = null;
             }
             NotifyOfPropertyChange(() => SubTotal);
             NotifyOfPropertyChange(() => VAT);
@@ -295,6 +430,11 @@ namespace SMDesktopUI.ViewModels
 
         public async Task CheckOut()
         {
+            if (!CanCheckOut)
+            {
+                return;
+            }
+
             // Create a SaleModel that is connected to the API
             PurchaseModel sale = new();
 
@@ -307,9 +447,49 @@ namespace SMDesktopUI.ViewModels
                 });
             }
             
+            var completedLabelContent = string.Join(
+                "\n\n————————————\n\n",
+                Cart.Select(item => item.LabelContent));
+
             await _purchaseEndpoint.PostPurchase(sale);
 
             await ResetSalesViewModel();
+            LastCompletedLabelContent = completedLabelContent;
+            LabelPreview = completedLabelContent;
+            PrintFeedback = "Checkout complete. Review the label preview, then choose Print sale labels.";
+            NotifyOfPropertyChange(() => CanPrintLastSaleLabels);
+        }
+
+        public bool CanPrintSelectedLabel => SelectedCartItem?.QuantityInCart > 0;
+
+        public void PrintSelectedLabel()
+        {
+            if (!CanPrintSelectedLabel)
+            {
+                PrintFeedback = "Select a valid cart item before printing a label.";
+                return;
+            }
+
+            LabelPreview = SelectedCartItem.LabelContent;
+            var result = _labelPrintService.Print(
+                $"StockManager label - {SelectedCartItem.Product.ProductName}",
+                LabelPreview);
+            PrintFeedback = result.Message;
+        }
+
+        public bool CanPrintLastSaleLabels => !string.IsNullOrWhiteSpace(LastCompletedLabelContent);
+
+        public void PrintLastSaleLabels()
+        {
+            if (!CanPrintLastSaleLabels)
+            {
+                PrintFeedback = "Complete a checkout before printing sale labels.";
+                return;
+            }
+
+            LabelPreview = LastCompletedLabelContent;
+            var result = _labelPrintService.Print("StockManager completed sale labels", LastCompletedLabelContent);
+            PrintFeedback = result.Message;
         }
     }
 }

@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using SMDesktopUI.ViewModels;
 
 namespace SMDesktopUI.Views
 {
@@ -23,6 +24,28 @@ namespace SMDesktopUI.Views
         public SalesView()
         {
             InitializeComponent();
+            Loaded += (_, _) => FocusScanner();
+        }
+
+        private void ScannerInput_OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+            {
+                return;
+            }
+
+            e.Handled = true;
+            if (DataContext is SalesViewModel viewModel)
+            {
+                viewModel.CommitScan();
+            }
+            Dispatcher.BeginInvoke(FocusScanner);
+        }
+
+        private void FocusScanner()
+        {
+            ScanInput.Focus();
+            ScanInput.SelectAll();
         }
     }
 }

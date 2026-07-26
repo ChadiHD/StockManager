@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -42,7 +43,7 @@ namespace SMDesktopUI.Library.Api
             { 
                 model.FirstName,
                 model.LastName,
-                model.EmailAddress,
+                Email = model.EmailAddress,
                 model.Password 
             };
 
@@ -86,13 +87,14 @@ namespace SMDesktopUI.Library.Api
         public async Task RemoveUserFromRole(string userId, string roleName)
         {
             var data = new { UserId = userId, RoleName = roleName };
-
-            using (HttpResponseMessage response = await _apiHelper.ApiClient.PostAsJsonAsync("/api/User/Admin/RemoveRole", data))
+            using var request = new HttpRequestMessage(HttpMethod.Delete, "/api/User/Admin/RemoveRole")
+            {
+                Content = JsonContent.Create(data)
+            };
+            using (HttpResponseMessage response = await _apiHelper.ApiClient.SendAsync(request))
             {
                 if (response.IsSuccessStatusCode == false)
-                {
                     throw new Exception(response.ReasonPhrase);
-                }
             }
         }
     }
