@@ -13,11 +13,16 @@ namespace StockApi.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly IConfiguration _configuration;
 
-        public TokenController(ApplicationDbContext context, UserManager<IdentityUser> userManager)
+        public TokenController(
+            ApplicationDbContext context,
+            UserManager<IdentityUser> userManager,
+            IConfiguration configuration)
         {
             _context = context;
             _userManager = userManager;
+            _configuration = configuration;
         }
 
         [Route("/token")]
@@ -53,8 +58,8 @@ namespace StockApi.Controllers
             {
                 new Claim(ClaimTypes.Name, username),
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
-                new Claim(JwtRegisteredClaimNames.Nbf, new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds().ToString()), // Before this time, the token is not valid
-                new Claim(JwtRegisteredClaimNames.Exp, new DateTimeOffset(DateTime.Now.AddDays(1)).ToUnixTimeSeconds().ToString()) // After this time, the token is not valid
+                new Claim(JwtRegisteredClaimNames.Nbf, new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds().ToString()),
+                new Claim(JwtRegisteredClaimNames.Exp, new DateTimeOffset(DateTime.Now.AddDays(1)).ToUnixTimeSeconds().ToString())
             };
 
             foreach (var role in roles)
@@ -62,11 +67,20 @@ namespace StockApi.Controllers
                 claims.Add(new Claim(ClaimTypes.Role, role.Name));
             }
 
+            var signingKey = _configuration["Jwt:SigningKey"]
+                ?? throw new InvalidOperationException("JWT signing key configuration 'Jwt:SigningKey' is missing.");
+            var signingKeyBytes = Encoding.UTF8.GetBytes(signingKey);
+
+            if (signingKeyBytes.Length < 32)
+            {
+                throw new InvalidOperationException("JWT signing key configuration 'Jwt:SigningKey' must contain at least 32 UTF-8 bytes.");
+            }
+
             var token = new JwtSecurityToken(
                 new JwtHeader(
                     new SigningCredentials(
-                        new SymmetricSecurityKey(Encoding.UTF8.GetBytes("IloveSpeedingCars")),
-                            SecurityAlgorithms.HmacSha256)),
+                        new SymmetricSecurityKey(signingKeyBytes),
+                        SecurityAlgorithms.HmacSha256)),
                 new JwtPayload(claims));
 
             var output = new

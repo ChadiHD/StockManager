@@ -7,10 +7,10 @@
 	<ItemGroup>
 	  <PackageReference Include="Dapper" Version="2.1.79" />
 	  <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+	  <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
 	  <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
 	  <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
 	  <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.10" />
-	  <PackageReference Include="System.Data.SqlClient" Version="4.9.1" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\SMDesktopUI.Library\SMDesktopUI.Library.csproj" />

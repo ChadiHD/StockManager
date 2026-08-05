@@ -166,9 +166,24 @@
     <Style TargetType="Menu">
         <Setter Property="Background" Value="{StaticResource NavyDarkBrush}"/>
         <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontSize" Value="14"/>
         <Setter Property="Padding" Value="8,4"/>
     </Style>
     <Style TargetType="MenuItem">
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontSize" Value="14"/>
         <Setter Property="Padding" Value="12,8"/>
+        <!-- Dark text so submenu items are readable on the light dropdown popup -->
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Style.Triggers>
+            <!-- Top-level headers/items sit on the dark navy bar, so use white text -->
+            <Trigger Property="Role" Value="TopLevelHeader">
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+            <Trigger Property="Role" Value="TopLevelItem">
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

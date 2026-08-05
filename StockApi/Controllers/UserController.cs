@@ -34,12 +34,19 @@ namespace StockApi.Controllers
 
         [HttpGet]
 		// GET: User/Details/First user
-		public UserModel GetById()
+		public ActionResult<UserModel> GetById()
         {
             // request the userId from the API directly
             string userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Outdated - RequestContext.Principal.Identity.GetUserId();
 
-            return _userData.GetUserById(userId).First();
+            var user = _userData.GetUserById(userId).FirstOrDefault();
+            if (user is null)
+            {
+                // Authenticated (valid token) but no matching SMDatabase profile row.
+                return NotFound();
+            }
+
+            return user;
         }
 
         public record UserRegistrationModel(
@@ -54,42 +61,51 @@ namespace StockApi.Controllers
         // POST: User/Register
         public async Task<IActionResult> Register(UserRegistrationModel user)
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                var existingUser = await _userManager.FindByEmailAsync(user.Email);
-                if (existingUser is null)
-                {
-                    IdentityUser newUser = new()
-                    {
-                        Email = user.Email,
-                        EmailConfirmed = true,
-                        UserName = user.Email
-                    };
-
-                    IdentityResult result = await _userManager.CreateAsync(newUser, user.Password);
-
-                    if (result.Succeeded)
-                    {
-                        existingUser = await _userManager.FindByEmailAsync(user.Email);
-
-                        if (existingUser is null)
-                        {
-                            return BadRequest();
-                        }
-
-                        _userData.CreateUser(new UserModel
-                        {
-                            UserId = existingUser.Id,
-                            FirstName = user.FirstName,
-                            LastName = user.LastName,
-                            EmailAddress = user.Email
-                        });
-                        return Ok();
-                    }
-                }
+                return BadRequest(ModelState);
             }
 
-            return BadRequest();
+            var existingUser = await _userManager.FindByEmailAsync(user.Email);
+            if (existingUser is not null)
+            {
+                return Conflict("A user with this email address already exists.");
+            }
+
+            IdentityUser newUser = new()
+            {
+                Email = user.Email,
+                EmailConfirmed = true,
+                UserName = user.Email
+            };
+
+            IdentityResult result = await _userManager.CreateAsync(newUser, user.Password);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
+
+            try
+            {
+                // The profile row lives in SMDatabase, a *different* database than Identity
+                // (ApiAuthDb), so a single transaction cannot span both writes. If this write
+                // fails, compensate by deleting the Identity user we just created — otherwise
+                // an orphaned account is left that can authenticate but has no profile row.
+                _userData.CreateUser(new UserModel
+                {
+                    UserId = newUser.Id,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    EmailAddress = user.Email
+                });
+            }
+            catch
+            {
+                await _userManager.DeleteAsync(newUser);
+                throw;
+            }
+
+            return Ok();
         }
 
         [Authorize(Roles = "Admin")]

@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
+﻿using Dapper;
 using Microsoft.Extensions.Configuration;
-using Dapper;
-using System.Data;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Globalization;
-using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using Microsoft.Data.SqlClient;
+using System.Linq;
 
 namespace SMDataManager.Library.Internal.DataAccess
 {

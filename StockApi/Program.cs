@@ -38,22 +38,46 @@ builder.Services.AddTransient<IProductData, ProductData>();
 builder.Services.AddTransient<IPurchaseData, PurchaseData>();
 builder.Services.AddTransient<IUserData, UserData>();
 
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
+    ?? throw new InvalidOperationException("Missing configuration value: Jwt:SigningKey");
+var jwtSigningKeyBytes = Encoding.UTF8.GetBytes(jwtSigningKey);
+
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    // The interactive Razor UI signs in with the Identity application cookie, while API
+    // clients (desktop / Blazor) send a JWT bearer token. Selecting one scheme as the global
+    // default breaks the other, so route per-request via a policy scheme (see below).
+    options.DefaultScheme = "SmartScheme";
+    options.DefaultChallengeScheme = "SmartScheme";
 })
 .AddJwtBearer(jwtBearerOptions =>
 {
     jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("IloveSpeedingCars")),
+        IssuerSigningKey = new SymmetricSecurityKey(jwtSigningKeyBytes),
         ValidateIssuer = false,
         ValidateAudience = false,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(5)
+    };
+})
+// Null display name keeps this internal routing scheme out of the Identity UI's
+// external-login provider list.
+.AddPolicyScheme("SmartScheme", displayName: null, options =>
+{
+    options.ForwardDefaultSelector = context =>
+    {
+        string authorization = context.Request.Headers.Authorization.ToString();
+        if (!string.IsNullOrEmpty(authorization) &&
+            authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            return JwtBearerDefaults.AuthenticationScheme;
+        }
+
+        // No bearer token -> browser request -> use the Identity cookie so the Razor UI
+        // stays signed in after login.
+        return IdentityConstants.ApplicationScheme;
     };
 });
 
@@ -61,10 +85,16 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "SixTeenClothingAPI", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "StockManager API", Version = "v1" });
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+	var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+	db.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -91,7 +121,7 @@ app.UseAuthorization();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "SixTeenClothing API v1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "StockManager API v1");
 });
 
 app.MapControllerRoute(
