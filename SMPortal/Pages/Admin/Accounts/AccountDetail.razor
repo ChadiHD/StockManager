@@ -1,0 +1,206 @@
+@page "/admin/accounts/{Id}"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<PageTitle>Account @Id · StockManager</PageTitle>
+
+<button class="back-btn" @onclick='() => Nav.NavigateTo("admin/accounts")'>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back to accounts
+</button>
+
+@if (_a is null)
+{
+    <div class="panel panel-pad">Account <strong>@Id</strong> was not found.</div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">@_a.Id</span>
+            <div class="detail-title"><h1>@_a.Company</h1><span class="badge @AdminUi.StatusClass(_a.Status)">@_a.Status</span></div>
+            <p class="detail-sub">@_a.Country · Registered @_a.Since · Trades in @_a.Currency</p>
+        </div>
+        <div class="head-actions">
+            <button class="btn btn-secondary" @onclick="() => _showTerms = true">Edit account</button>
+        </div>
+    </div>
+
+    @if (_a.Status == "Pending")
+    {
+        <div class="approve-banner">
+            <span class="approve-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <div class="approve-copy"><strong>Awaiting approval</strong><span>Review the company documents and trading terms, then approve or reject this application.</span></div>
+            <div class="approve-actions">
+                <button class="btn btn-danger-outline" @onclick="Reject">Reject</button>
+                <button class="btn btn-accent" @onclick="Approve">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve account
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="detail-grid">
+        <div class="stack">
+            <div class="panel panel-pad">
+                <span class="card-kicker">Company profile</span>
+                <div class="facts">
+                    <div class="fact"><span class="fact-k">Legal name</span><strong>@_a.Company</strong></div>
+                    <div class="fact"><span class="fact-k">Account ID</span><strong>@_a.Id</strong></div>
+                    <div class="fact"><span class="fact-k">Country</span><strong>@_a.Country</strong></div>
+                    <div class="fact"><span class="fact-k">Registered</span><strong>@_a.Since</strong></div>
+                </div>
+                <div class="divider"></div>
+                <span class="mini-kicker">Primary contacts</span>
+                @foreach (var c in _contacts)
+                {
+                    <div class="contact">
+                        <span class="contact-ini">@AdminUi.Initials(c.Name)</span>
+                        <div class="contact-body"><strong>@c.Name</strong><small>@c.Role · @c.Email</small></div>
+                        <span class="contact-phone">@c.Phone</span>
+                    </div>
+                }
+            </div>
+
+            <div class="panel panel-pad">
+                <span class="card-kicker">Trading terms</span>
+                <div class="facts">
+                    <div class="fact"><span class="fact-k">Customer group</span><strong>@_a.Group <span class="disc">@GroupDisc</span></strong></div>
+                    <div class="fact"><span class="fact-k">Payment mode</span><strong>@_a.Payment</strong></div>
+                    <div class="fact"><span class="fact-k">Payment terms</span><strong>@_a.Terms</strong></div>
+                    <div class="fact"><span class="fact-k">Credit limit</span><strong>@AdminUi.Money(_a.Credit, _a.Currency)</strong></div>
+                </div>
+                @if (_a.Credit > 0)
+                {
+                    <div class="credit">
+                        <div class="credit-row"><span>Credit used <strong>@AdminUi.Money(_used, _a.Currency)</strong></span><span class="muted">@AdminUi.Money(_a.Credit - _used, _a.Currency) available</span></div>
+                        <div class="credit-bar"><div class="credit-fill"></div></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="note-dashed">Prepaid / card account — no credit facility until approved and credit-checked.</div>
+                }
+            </div>
+
+            <div class="panel panel-pad">
+                <span class="card-kicker">Documents</span>
+                @foreach (var d in _docs)
+                {
+                    <div class="doc">
+                        <span class="doc-ico">PDF</span>
+                        <div class="doc-body"><strong>@d.Name</strong><small>@d.Type</small></div>
+                        <span class="badge @AdminUi.StatusClass(d.Status)">@d.Status</span>
+                        <a class="doc-view" href="#" @onclick:preventDefault>View</a>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="panel panel-pad">
+                <span class="card-kicker">Account status</span>
+                <div class="status-line"><span class="badge @AdminUi.StatusClass(_a.Status)">@_a.Status</span><span class="muted">since @_a.Since</span></div>
+                <button class="btn btn-secondary btn-block mt" @onclick="() => _showTerms = true">Edit trading terms</button>
+                <button class="btn btn-danger-outline btn-block mt" @onclick="Suspend">@(_a.Status == "Suspended" ? "Reactivate account" : "Suspend account")</button>
+            </div>
+            <div class="panel panel-pad">
+                <span class="card-kicker">Approval history</span>
+                @foreach (var h in _history)
+                {
+                    <div class="hist">
+                        <div class="hist-rail"><span class="hist-dot"></span><span class="hist-line"></span></div>
+                        <div class="hist-body"><strong>@h.Text</strong><small>@h.When · @h.Who</small></div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <Modal Visible="_showTerms" Title="Edit trading terms" OnClose="() => _showTerms = false">
+        <EditForm Model="_termsDraft" OnValidSubmit="SaveTerms">
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="field"><label>Customer group</label><InputSelect class="input" @bind-Value="_termsDraft.Group">@foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }</InputSelect></div>
+                    <div class="field"><label>Payment mode</label><InputSelect class="input" @bind-Value="_termsDraft.Payment"><option>Card</option><option>Credit terms</option></InputSelect></div>
+                    <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_termsDraft.Terms" /></div>
+                    <div class="field"><label>Credit limit (EUR)</label><InputNumber class="input" @bind-Value="_termsDraft.Credit" /></div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-secondary" @onclick="() => _showTerms = false">Close</button>
+                <button type="submit" class="btn btn-primary">Save terms</button>
+            </div>
+        </EditForm>
+    </Modal>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private Account? _a;
+    private bool _showTerms;
+    private decimal _used;
+    private List<Contact> _contacts = new();
+    private List<DocItem> _docs = new();
+    private List<HistoryItem> _history = new();
+
+    private sealed class TermsDraft { public string Group = ""; public string Payment = ""; public string Terms = ""; public decimal Credit; }
+    private TermsDraft _termsDraft = new();
+
+    private string GroupDisc => "-" + Data.DiscountFor(_a?.Group ?? "Reseller") + "%";
+
+    protected override void OnParametersSet()
+    {
+        _a = Data.GetAccount(Id);
+        Layout?.SetPage("Account", "Company profile and approval");
+        if (_a is null) return;
+        Build();
+    }
+
+    private void Build()
+    {
+        // Re-read from the snapshot: a mutation replaces the cached objects, so the instance
+        // captured when the page loaded is stale after an API round trip.
+        _a = Data.GetAccount(Id);
+
+        if (_a is null) return;
+        _used = Math.Round(_a.Credit * 0.62m);
+        var domain = _a.Email.Contains('@') ? _a.Email.Split('@')[1] : "company.com";
+        _contacts = new()
+        {
+            new() { Name = _a.Contact, Role = "Procurement lead", Email = _a.Email, Phone = "+353 1 555 0142" },
+            new() { Name = "Accounts payable", Role = "Finance", Email = "ap@" + domain, Phone = "+353 1 555 0148" },
+        };
+        var docStatus = _a.Status == "Pending" ? "Awaiting review" : "Verified";
+        _docs = new()
+        {
+            new() { Name = "Certificate of incorporation", Type = "PDF · 240 KB", Status = docStatus },
+            new() { Name = "VAT registration", Type = "PDF · 118 KB", Status = docStatus },
+            new() { Name = "Tax clearance certificate", Type = "PDF · 96 KB", Status = docStatus },
+        };
+        var last = _a.Status switch { "Approved" => ("29 Jul 2026", "Approved · " + _a.Group + " group assigned", "Órla Doyle"),
+            "Suspended" => ("Yesterday", "Suspended — payment overdue", "Órla Doyle"),
+            _ => ("\u2014", "Awaiting credit review", "\u2014") };
+        _history = new()
+        {
+            new() { When = _a.Since, Text = "Account registered via trade portal", Who = "Self-service" },
+            new() { When = _a.Since, Text = "Onboarding documents uploaded (3 files)", Who = _a.Contact },
+            new() { When = last.Item1, Text = last.Item2, Who = last.Item3 },
+        };
+        _termsDraft = new() { Group = _a.Group, Payment = _a.Payment, Terms = _a.Terms, Credit = _a.Credit };
+    }
+
+    private async Task Approve() { await Data.ApproveAccount(Id); Build(); Toast.Show("Account approved"); }
+    private async Task Reject() { await Data.RejectAccount(Id); Build(); Toast.Show("Application rejected"); }
+    private async Task Suspend() { await Data.ToggleSuspend(Id); Build(); Toast.Show(_a!.Status == "Suspended" ? "Account suspended" : "Account reactivated"); }
+
+    private async Task SaveTerms()
+    {
+        await Data.UpdateTerms(Id, _termsDraft.Group, _termsDraft.Payment, _termsDraft.Terms, _termsDraft.Credit);
+        _showTerms = false;
+        Build();
+        Toast.Show("Trading terms updated");
+    }
+}

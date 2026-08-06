@@ -1,0 +1,81 @@
+@page "/admin/groups"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<PageTitle>Customer groups · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Pricing</span><h1>Customer groups</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-primary" @onclick="() => _showNew = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New group
+        </button>
+    </div>
+</div>
+
+<div class="explainer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#0b8b93" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <p>Each group applies a <strong>base discount</strong> off list price to every product. <strong>Per-product overrides</strong> pin specific SKUs to a fixed price or a different margin — these win over the base rate when a quote is priced.</p>
+</div>
+
+<div class="panel panel-clip">
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <thead><tr><th class="lead">Group</th><th class="ctr">Base discount</th><th class="ctr">Accounts</th><th class="ctr">Price overrides</th><th>Terms</th><th class="trail"></th></tr></thead>
+            <tbody>
+                @foreach (var g in Data.Groups)
+                {
+                    <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/groups/{Slug(g.Name)}")'>
+                        <td class="lead"><span class="cell-primary">@g.Name</span><span class="cell-sub">@g.Note</span></td>
+                        <td class="ctr"><span class="disc-big">-@(g.Discount)<span class="pct">%</span></span></td>
+                        <td class="ctr">@g.Accounts</td>
+                        <td class="ctr"><span class="ov-chip">@g.Overrides SKUs</span></td>
+                        <td>@g.Terms</td>
+                        <td class="trail"><button class="btn btn-secondary btn-sm" @onclick:stopPropagation="true" @onclick='() => Nav.NavigateTo($"admin/groups/{Slug(g.Name)}")'>Edit rules</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<Modal Visible="_showNew" Title="New customer group" OnClose="() => _showNew = false">
+    <EditForm Model="_draft" OnValidSubmit="CreateGroup">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2"><label>Group name</label><InputText class="input" @bind-Value="_draft.Name" /></div>
+                <div class="field"><label>Base discount (%)</label><InputNumber class="input" @bind-Value="_draft.Discount" /></div>
+                <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_draft.Terms" /></div>
+                <div class="field span2"><label>Description</label><InputText class="input" @bind-Value="_draft.Note" /></div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
+            <button type="submit" class="btn btn-primary">Create group</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+    private bool _showNew;
+    private Group _draft = new() { Terms = "Net 30" };
+
+    protected override void OnParametersSet() => Layout?.SetPage("Customer groups", "Pricing tiers and discount rules");
+
+    // Slug keeps group names route-safe (e.g. "Government / Education" -> "government-education").
+    public static string Slug(string name) =>
+        new string(name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray())
+            .Trim('-').Replace("--", "-").Replace("--", "-");
+
+    private async Task CreateGroup()
+    {
+        await Data.AddGroup(_draft);
+        var slug = Slug(_draft.Name);
+        _showNew = false;
+        _draft = new() { Terms = "Net 30" };
+        Toast.Show("Customer group created");
+        Nav.NavigateTo($"admin/groups/{slug}");
+    }
+}

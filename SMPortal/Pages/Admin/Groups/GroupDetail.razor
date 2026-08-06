@@ -1,0 +1,123 @@
+@page "/admin/groups/{Slug}"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<PageTitle>@(_g?.Name ?? "Group") · StockManager</PageTitle>
+
+<button class="back-btn" @onclick='() => Nav.NavigateTo("admin/groups")'>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back to groups
+</button>
+
+@if (_g is null)
+{
+    <div class="panel panel-pad">Group <strong>@Slug</strong> was not found.</div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Pricing group</span>
+            <div class="detail-title"><h1>@_g.Name</h1><span class="badge badge--ok">-@(_g.Discount)% base</span></div>
+            <p class="detail-sub">@_g.Note</p>
+        </div>
+    </div>
+
+    <div class="detail-grid">
+        <div class="stack">
+            <EditForm Model="_edit" OnValidSubmit="Save" class="panel panel-pad">
+                <span class="card-kicker">Pricing rules</span>
+                <div class="form-grid">
+                    <div class="field"><label>Base discount (%)</label><InputNumber class="input" @bind-Value="_edit.Discount" /></div>
+                    <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_edit.Terms" /></div>
+                    <div class="field span2"><label>Description</label><InputText class="input" @bind-Value="_edit.Note" /></div>
+                </div>
+                <button type="submit" class="btn btn-primary mt">Save rules</button>
+            </EditForm>
+
+            <div class="panel panel-clip">
+                <div class="lines-head"><span class="card-kicker">Per-product overrides</span><h2>@_g.Overrides pinned SKUs</h2></div>
+                @if (_overrides.Count > 0)
+                {
+                    <div class="tbl-wrap">
+                        <table class="tbl">
+                            <thead><tr><th class="lead">Product</th><th class="num">List</th><th class="ctr">Override</th><th class="num trail">Group price</th></tr></thead>
+                            <tbody>
+                                @foreach (var o in _overrides)
+                                {
+                                    <tr>
+                                        <td class="lead"><span class="cell-strong">@o.Name</span><span class="cell-sub mono">@o.Sku</span></td>
+                                        <td class="num strike">@AdminUi.Money(o.List, "EUR")</td>
+                                        <td class="ctr"><span class="disc-chip">-@(_g.Discount)%</span></td>
+                                        <td class="num trail"><strong>@AdminUi.Money(o.Net, "EUR")</strong></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty">No per-product overrides — every SKU uses the -@(_g.Discount)% base rate.</div>
+                }
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="panel panel-pad">
+                <span class="card-kicker">Pricing summary</span>
+                <div class="summary-row"><span class="k">Base discount</span><strong class="big">-@(_g.Discount)%</strong></div>
+                <div class="kv mt"><span class="k">Payment terms</span><span class="v-strong">@_g.Terms</span></div>
+            </div>
+            <div class="panel panel-pad">
+                <div class="members-head"><span class="card-kicker nomargin">Accounts in group</span><span class="badge badge--neutral">@_members.Count</span></div>
+                @if (_members.Count > 0)
+                {
+                    @foreach (var m in _members)
+                    {
+                        <button class="member" @onclick='() => Nav.NavigateTo($"admin/accounts/{m.Id}")'>
+                            <span class="member-name">@m.Company</span>
+                            <span class="badge @AdminUi.StatusClass(m.Status)">@m.Status</span>
+                        </button>
+                    }
+                }
+                else
+                {
+                    <div class="empty small">No accounts assigned to this group yet.</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private Group? _g;
+    private Group _edit = new();
+    private List<Account> _members = new();
+    private List<OverrideRow> _overrides = new();
+
+    private record OverrideRow(string Name, string Sku, decimal List, decimal Net);
+
+    protected override void OnParametersSet()
+    {
+        _g = Data.Groups.FirstOrDefault(g => Groups.Slug(g.Name) == Slug);
+        Layout?.SetPage("Customer group", "Pricing rules and members");
+        if (_g is null) return;
+
+        _edit = new() { Name = _g.Name, Discount = _g.Discount, Terms = _g.Terms, Note = _g.Note };
+        _members = Data.Accounts.Where(a => a.Group == _g.Name).ToList();
+        _overrides = Data.Products.Take(Math.Min(_g.Overrides, 6))
+            .Select(p => new OverrideRow(p.Name, p.Sku, p.Price, Math.Round(p.Price * (1 - _g.Discount / 100m))))
+            .ToList();
+    }
+
+    private async Task Save()
+    {
+        await Data.UpdateGroup(_g!.Name, _edit.Discount, _edit.Terms, _edit.Note);
+        _g = Data.GetGroup(_g.Name);
+        Toast.Show("Group rules saved");
+    }
+}

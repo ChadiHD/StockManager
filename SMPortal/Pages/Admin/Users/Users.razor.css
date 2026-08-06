@@ -1,0 +1,14 @@
+.tbl-title { font-size:1.02rem; font-weight:750; }
+.user-cell { display:flex; align-items:center; gap:11px; }
+.user-ini { display:grid; place-items:center; flex:0 0 auto; width:36px; height:36px; border-radius:50%; background:var(--turq-tint); color:var(--ok-fg); font-weight:800; font-size:.8rem; }
+.user-cell strong { display:block; font-size:.87rem; }
+.user-cell small { color:var(--faint); font-size:.73rem; }
+.role-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.role-chip { display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; background:var(--neutral-bg); color:var(--slate); font-size:.74rem; font-weight:700; }
+
+.manage-user { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding:12px 14px; border:1px solid var(--line-2); border-radius:11px; background:var(--surface-3); }
+.manage-user strong { display:block; font-size:.88rem; }
+.manage-user small { color:var(--muted-3); font-size:.74rem; }
+.mb { margin-bottom:10px; }
+.role-check { display:flex; align-items:center; gap:10px; padding:11px 13px; margin-bottom:8px; border:1px solid var(--line); border-radius:10px; cursor:pointer; font-size:.86rem; font-weight:600; }
+.role-check input { width:17px; height:17px; accent-color:var(--turq-600); }

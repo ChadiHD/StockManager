@@ -137,6 +137,16 @@ namespace StockApi.Controllers
             return output;
         }
 
+        // Staff profiles from SMDatabase (display names). Identity holds the logins and roles;
+        // the portal joins the two so the users page can show a name next to each account.
+        [Authorize(Roles = "Admin")]
+        [HttpGet]
+        [Route("Admin/Staff")]
+        public List<UserModel> GetAllStaff()
+        {
+            return _userData.GetAllUsers();
+        }
+
         [Authorize(Roles = "Admin")]
         [HttpGet]
         [Route("Admin/GetAllRoles")]

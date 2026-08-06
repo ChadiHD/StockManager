@@ -1,0 +1,7 @@
+@* Applies the admin shell to every page in Pages/Admin and its subfolders. *@
+@layout AdminLayout
+@* Gates the whole /admin area behind the existing JWT auth + Admin role claim.
+   Unauthenticated users hit RedirectToLogin via App.razor; authenticated
+   non-admins get the "Access restricted" NotAuthorized panel. *@
+@attribute [Authorize(Roles = "Admin")]
+@using SMPortal.Pages.Admin.Groups

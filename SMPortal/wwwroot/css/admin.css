@@ -1,0 +1,226 @@
+/* ---- SMPortal Admin · global design tokens + shared UI classes --------------
+   Link this once from wwwroot/index.html:
+     <link href="css/admin.css" rel="stylesheet" />
+   Component-specific layout lives in each component's scoped .razor.css.
+   These shared classes are the design system (buttons, badges, pills, tables,
+   fields, tiles); status/category COLOURS are class modifiers chosen in C#
+   (AdminUi.StatusClass / SourceClass / CatClass) — never inline styles.       */
+
+/* Tokens are scoped to the admin shell (AdminLayout's root element) rather than :root.
+   app.css also defines --navy-800/900/950, --radius, --shadow-sm and --shadow-lg with
+   DIFFERENT values; leaving these at :root would override them globally and restyle the
+   public storefront/workspace pages. */
+.shell {
+  --navy-950:#12102a; --navy-900:#1c1836; --navy-800:#29244d; --navy-700:#2a2350;
+  --turq:#1bfbf9; --turq-600:#0b8b93; --turq-700:#0b7d84; --turq-800:#0a7d84;
+  --turq-tint:#d6faf9; --turq-tint-2:#eafcfb; --turq-line:#bfeeee;
+  --ink:#1a2032; --ink-2:#2a3345; --slate:#41516c; --muted:#5b6577;
+  --muted-2:#6b7688; --muted-3:#8a94a6; --faint:#9aa4b6;
+  --line:#e7eaf0; --line-2:#eef1f5; --line-3:#f0f2f6;
+  --field-line:#e2e6ee; --btn-line:#d7dce6;
+  --bg:#f5f7fa; --surface:#fff; --surface-2:#f8fafc; --surface-3:#fafbfd;
+  --ok-bg:#d6faf9; --ok-fg:#0a7d84;
+  --info-bg:#dde9fd; --info-fg:#1e56c9;
+  --warn-bg:#fdefd2; --warn-fg:#a76a12;
+  --danger-bg:#fde3e3; --danger-fg:#c22b2b;
+  --neutral-bg:#eef1f5; --neutral-fg:#5b6577;
+  --purple-bg:#ede9fe; --purple-fg:#6d28d9;
+  --radius:14px; --radius-sm:10px;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.06);
+  --shadow-md:0 8px 22px rgba(16,24,40,.09);
+  --shadow-lg:0 30px 70px rgba(16,24,40,.32);
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+/* Element-level rules are confined to the admin subtree. Unscoped `body`, `a`, `button`
+   and `h1,h2` rules here would win over app.css (this sheet loads second) and change the
+   public pages' background, link colour and heading spacing.
+   `* { box-sizing }` and `body { margin:0 }` are omitted — app.css already sets both. */
+.shell {
+  box-sizing:border-box;
+  background:var(--bg); color:var(--ink);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.shell a { color:var(--turq-700); text-decoration:none; }
+.shell a:hover { text-decoration:underline; }
+.shell button { font-family:inherit; }
+.shell ::selection { background:rgba(27,251,249,.3); }
+.shell h1, .shell h2 { margin:0; }
+
+/* ---- Buttons --------------------------------------------------------------- */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:42px; padding:9px 16px; border:1px solid transparent;
+  border-radius:var(--radius-sm); cursor:pointer; font-weight:750; font-size:.85rem;
+  transition:background .15s, border-color .15s, box-shadow .15s;
+}
+.btn svg { width:16px; height:16px; }
+.btn-primary { background:var(--navy-900); color:#fff; }
+.btn-primary:hover { background:var(--navy-700); }
+.btn-secondary { background:var(--surface); color:var(--ink-2); border-color:var(--btn-line); font-weight:700; }
+.btn-secondary:hover { background:#f4f7fa; }
+.btn-accent { background:var(--turq-600); color:#fff; }
+.btn-accent:hover { background:#0a767d; }
+.btn-danger-outline { background:var(--surface); color:var(--danger-fg); border-color:#e6b0b0; font-weight:700; }
+.btn-danger-outline:hover { background:#fdeeee; }
+.btn-sm { min-height:0; padding:6px 12px; font-size:.79rem; font-weight:700; border-radius:8px; }
+.btn-block { width:100%; }
+.btn-link { border:0; background:transparent; color:var(--turq-700); font-weight:700; font-size:.82rem; cursor:pointer; padding:0; }
+.btn-link:hover { text-decoration:underline; }
+.back-btn {
+  display:inline-flex; align-items:center; gap:7px; margin-bottom:14px;
+  padding:6px 10px 6px 6px; border:0; border-radius:8px; background:transparent;
+  color:var(--muted); font-size:.82rem; font-weight:650; cursor:pointer;
+}
+.back-btn:hover { background:var(--neutral-bg); color:var(--ink); }
+.back-btn svg { width:16px; height:16px; }
+
+/* ---- Filter pills ---------------------------------------------------------- */
+.pill {
+  padding:7px 14px; border-radius:999px; border:1px solid var(--btn-line);
+  background:var(--surface); color:var(--slate); font-size:.78rem; font-weight:700; cursor:pointer;
+}
+.pill:hover { background:#f4f7fa; }
+.pill.pill--active { border-color:var(--navy-900); background:var(--navy-900); color:#fff; }
+.pill-row { display:flex; flex-wrap:wrap; gap:8px; }
+
+/* ---- Badges (status colours picked by AdminUi.StatusClass) ----------------- */
+.badge {
+  display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px;
+  font-size:.72rem; font-weight:800; white-space:nowrap;
+}
+.badge--ok { background:var(--ok-bg); color:var(--ok-fg); }
+.badge--info { background:var(--info-bg); color:var(--info-fg); }
+.badge--warn { background:var(--warn-bg); color:var(--warn-fg); }
+.badge--danger { background:var(--danger-bg); color:var(--danger-fg); }
+.badge--neutral { background:var(--neutral-bg); color:var(--neutral-fg); }
+
+/* ---- Source tags + sync state --------------------------------------------- */
+.src { display:inline-flex; align-items:center; padding:3px 9px; border-radius:6px; font-size:.72rem; font-weight:800; }
+.src--own { background:#eafaf6; color:#127a63; }
+.src--dist { background:#eef2ff; color:#4457c4; }
+.sync { font-size:.71rem; }
+.sync--stale { color:var(--warn-fg); }
+.sync--muted { color:var(--faint); }
+
+/* ---- Category monogram tiles ---------------------------------------------- */
+.tile {
+  display:grid; place-items:center; border-radius:9px; font-weight:800;
+  width:38px; height:38px; font-size:.72rem; flex:0 0 auto; overflow:hidden;
+}
+.tile--lg { width:104px; height:104px; font-size:1.9rem; border-radius:14px; }
+.tile--servers { background:#e7edff; color:#3a52c6; }
+.tile--networking { background:#e2f6ef; color:#0f8a67; }
+.tile--laptops { background:#efeafe; color:#6d28d9; }
+.tile--components { background:#e6f3fb; color:#1f6fb0; }
+.tile--security { background:#fdece9; color:#c2472b; }
+.tile--power { background:#fef1d6; color:#a76a12; }
+.tile--peripherals { background:#eef1f5; color:#51607a; }
+
+/* ---- Panels / cards ------------------------------------------------------- */
+.panel {
+  border:1px solid var(--line); border-radius:var(--radius);
+  background:var(--surface); box-shadow:var(--shadow-sm);
+}
+.panel-pad { padding:20px; }
+.panel-clip { overflow:hidden; }
+.eyebrow {
+  display:block; font-size:.7rem; font-weight:800; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--turq-600); margin-bottom:6px;
+}
+.card-kicker {
+  display:block; font-size:.66rem; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--turq-600); margin-bottom:14px;
+}
+
+/* ---- Page header ---------------------------------------------------------- */
+.page-head {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:20px; flex-wrap:wrap; margin-bottom:20px;
+}
+.page-head h1 { font-size:1.55rem; font-weight:800; letter-spacing:-.02em; }
+.head-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.detail-title { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.detail-sub { margin:8px 0 0; color:var(--muted-3); font-size:.85rem; }
+
+/* ---- Toolbar (pills + count) ---------------------------------------------- */
+.toolbar {
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  flex-wrap:wrap; padding:16px 18px; border-bottom:1px solid var(--line-2);
+}
+.toolbar-count { color:var(--muted-3); font-size:.82rem; }
+.toolbar-count strong { color:var(--ink); font-size:1.05rem; }
+
+/* ---- Tables --------------------------------------------------------------- */
+.tbl-wrap { overflow-x:auto; }
+.tbl { width:100%; border-collapse:collapse; }
+.tbl thead th {
+  padding:11px 14px; color:var(--muted-3); background:var(--surface-2);
+  border-bottom:1px solid var(--line); font-size:.64rem; font-weight:800;
+  letter-spacing:.07em; text-align:left; text-transform:uppercase;
+}
+.tbl tbody td {
+  padding:14px; border-bottom:1px solid var(--line-2);
+  color:var(--slate); font-size:.86rem; vertical-align:middle;
+}
+.tbl .num { text-align:right; }
+.tbl .ctr { text-align:center; }
+.tbl .lead { padding-left:18px; }
+.tbl .trail { padding-right:18px; }
+.tbl tbody tr.clickable { cursor:pointer; }
+.tbl tbody tr.clickable:hover { background:#f7fbfb; }
+.cell-primary { display:block; color:var(--ink); font-weight:750; font-size:.88rem; }
+.cell-strong { display:block; color:var(--ink); font-weight:650; }
+.cell-sub { color:var(--faint); font-size:.72rem; }
+.mono { font-family:var(--mono); }
+.strike { text-decoration:line-through; color:var(--faint); }
+
+/* ---- Form fields ---------------------------------------------------------- */
+.field label, .field-label {
+  display:block; color:var(--muted); font-size:.74rem; font-weight:700; margin-bottom:5px;
+}
+.input, .field input, .field select, .field textarea {
+  width:100%; min-height:40px; padding:8px 11px; color:var(--ink);
+  border:1px solid var(--field-line); border-radius:9px; background:var(--surface); font-size:.85rem;
+}
+.input:focus, .field input:focus, .field select:focus {
+  border-color:#1bc7ce; outline:none; box-shadow:0 0 0 3px rgba(27,199,206,.14);
+}
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; }
+.form-grid .span2 { grid-column:1 / -1; }
+
+/* ---- Detail two-column layout --------------------------------------------- */
+.detail-grid { display:grid; grid-template-columns:1.62fr 1fr; gap:20px; align-items:start; }
+.stack { display:flex; flex-direction:column; gap:20px; }
+.kv { display:flex; justify-content:space-between; gap:12px; font-size:.85rem; }
+.kv .k { color:var(--muted-3); }
+.kv .v { color:var(--slate); text-align:right; }
+.kv .v-strong { color:var(--ink); font-weight:700; text-align:right; }
+.divider { height:1px; background:var(--line-2); margin:16px 0; }
+
+@media (max-width:1000px){
+  .detail-grid { grid-template-columns:1fr; }
+  .form-grid { grid-template-columns:1fr; }
+}
+
+/* ---- Guard against app.css bleeding into the admin area ---------------------
+   app.css is the public/workspace sheet and loads first. It defines several of
+   the same class names used here (.panel, .toolbar, .form-grid, .sidebar,
+   .workspace, small/.muted). Same-specificity properties are already won by
+   this sheet (it loads second), but properties app.css sets that the admin
+   design does NOT set would otherwise leak through. The `.shell` prefix raises
+   specificity to (0,2,0) so these beat app.css's plain (0,1,0) rules.
+   Scoped component styles (SMPortal.styles.css) load last and still win, so
+   this only fills gaps — it never overrides the components' own layout.       */
+.shell .panel { margin:0; padding:0; }          /* app.css: margin-bottom 22px + clamp padding (admin uses .panel-pad) */
+.shell .panel-pad { padding:20px; }             /* restore after the reset above */
+.shell .toolbar { margin-bottom:0; }            /* app.css: margin-bottom 22px */
+.shell .form-grid { margin-bottom:0; }          /* app.css: margin-bottom 18px */
+/* .sidebar / .workspace are intentionally NOT reset: the admin shell now reuses the
+   operations-portal chrome from app.css, so those rules are the ones we want. */
+.shell small, .shell .muted { color:inherit; }  /* app.css: small/.muted forced to --slate-500 */
+.shell .cell-sub { color:var(--faint); }        /* re-assert admin's own muted cell colour */
+.shell .detail-sub { color:var(--muted-3); }
+.shell .toolbar-count { color:var(--muted-3); }
+.shell .brand-text small { color:#7d8bb0; }

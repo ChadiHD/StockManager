@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using System;
@@ -22,6 +22,11 @@ namespace SMDataManager.Library.DataAccess
             var output = _sqlDataAccess.LoadData<UserModel, dynamic>("dbo.spUserLookup", new { UserId }, "SMDatabase");
 
             return output;
+        }
+
+        public List<UserModel> GetAllUsers()
+        {
+            return _sqlDataAccess.LoadData<UserModel, dynamic>("dbo.spUser_GetAll", new { }, "SMDatabase");
         }
 
         public void CreateUser(UserModel user)

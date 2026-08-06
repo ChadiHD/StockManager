@@ -1,0 +1,22 @@
+@* Reusable modal shell. Put a form (and its action buttons) inside as child content. *@
+@if (Visible)
+{
+    <div class="modal-backdrop" @onclick="OnClose">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <strong>@Title</strong>
+                <button class="modal-x" type="button" @onclick="OnClose" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            @ChildContent
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}

@@ -1,0 +1,158 @@
+@page "/admin/orders/{Id}"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<PageTitle>Order @Id · StockManager</PageTitle>
+
+<button class="back-btn" @onclick='() => Nav.NavigateTo("admin/orders")'>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back to orders
+</button>
+
+@if (_o is null)
+{
+    <div class="panel panel-pad">Order <strong>@Id</strong> was not found.</div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Order @_o.Id</span>
+            <div class="detail-title"><h1>@_o.Account</h1><span class="badge @AdminUi.StatusClass(_o.Status)">@_o.Status</span></div>
+            <p class="detail-sub">Placed @_o.Placed · @_o.Items items · Sourced from @_o.From</p>
+        </div>
+        <div class="head-actions">
+            <button class="btn btn-secondary" @onclick="() => _showSlip = true">Packing slip</button>
+            <button class="btn btn-primary" @onclick="MarkFulfilled">Mark fulfilled</button>
+        </div>
+    </div>
+
+    <div class="detail-grid">
+        <div class="stack">
+            <div class="panel panel-clip">
+                <div class="lines-head"><span class="card-kicker">Order lines</span><h2>Items</h2></div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th class="lead">Item</th><th class="ctr">Qty</th><th class="num">Unit price</th><th class="num trail">Line total</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in _o.LineItems)
+                            {
+                                <tr>
+                                    <td class="lead"><span class="cell-strong">@l.Name</span><span class="cell-sub mono">@l.Sku</span></td>
+                                    <td class="ctr">@l.Qty</td>
+                                    <td class="num">@AdminUi.Money(l.Price, _o.Currency, 2)</td>
+                                    <td class="num trail"><strong>@AdminUi.Money(l.LineTotal, _o.Currency, 2)</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="totals">
+                    <div class="kv"><span class="k">Subtotal (net)</span><span class="v-strong">@AdminUi.Money(_sub, _o.Currency, 2)</span></div>
+                    <div class="kv mt"><span class="k">VAT (23%)</span><span class="v-strong">@AdminUi.Money(_vat, _o.Currency, 2)</span></div>
+                    <div class="divider"></div>
+                    <div class="total-row"><span>Total</span><strong>@AdminUi.Money(_total, _o.Currency, 2)</strong></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="panel panel-pad">
+                <span class="card-kicker">Fulfilment</span>
+                @foreach (var s in _steps)
+                {
+                    <div class="step">
+                        <span class="step-dot @(s.Done ? "step-dot--done" : s.Active ? "step-dot--active" : "step-dot--todo")">@s.Mark</span>
+                        <span class="step-label @(s.Done || s.Active ? "on" : null)">@s.Label</span>
+                    </div>
+                }
+            </div>
+            <div class="panel panel-pad">
+                <span class="card-kicker">Order details</span>
+                <div class="kv"><span class="k">Account</span><a class="v" href="admin/accounts">@_o.Account</a></div>
+                <div class="kv mt"><span class="k">Source quote</span><span class="v">@_o.From</span></div>
+                <div class="kv mt"><span class="k">Currency</span><span class="v">@_o.Currency</span></div>
+                <div class="kv mt"><span class="k">Placed</span><span class="v">@_o.Placed</span></div>
+                <div class="divider"></div>
+                <span class="card-kicker">Ship to</span>
+                <p class="ship">@_o.Account<br />Unit 4, Eastgate Business Park<br />Little Island, Co. Cork<br />Ireland</p>
+            </div>
+        </div>
+    </div>
+
+    <Modal Visible="_showSlip" Title="Packing slip" OnClose="() => _showSlip = false">
+        <div class="modal-body">
+            <div class="slip-head"><strong>@_o.Id</strong><span>@_o.Placed</span></div>
+            <p class="slip-acc">@_o.Account</p>
+            <table class="tbl slip-tbl">
+                <thead><tr><th>Item</th><th class="num">Qty</th></tr></thead>
+                <tbody>
+                    @foreach (var l in _o.LineItems)
+                    {
+                        <tr><td><span class="cell-strong">@l.Name</span><span class="cell-sub mono">@l.Sku</span></td><td class="num"><strong>@l.Qty</strong></td></tr>
+                    }
+                </tbody>
+            </table>
+            <p class="hint">Ship to @_o.Account · Unit 4, Eastgate Business Park, Little Island, Co. Cork, Ireland</p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showSlip = false">Close</button>
+        </div>
+    </Modal>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private Order? _o;
+    private bool _showSlip;
+    private decimal _sub, _vat, _total;
+    private List<Step> _steps = new();
+
+    private record Step(string Label, bool Done, bool Active, string Mark);
+
+    protected override void OnParametersSet()
+    {
+        _o = Data.GetOrder(Id);
+        Layout?.SetPage("Order", "Order detail and fulfilment");
+        if (_o is null) return;
+        Recalc();
+    }
+
+    private void Recalc()
+    {
+        // Re-read from the snapshot: a mutation replaces the cached objects, so the instance
+        // captured when the page loaded is stale after an API round trip.
+        _o = Data.GetOrder(Id);
+
+        if (_o is null) return;
+        _sub = _o.LineItems.Sum(l => l.LineTotal);
+        _vat = Math.Round(_sub * 0.23m, 2);
+        _total = _sub + _vat;
+
+        var cancelled = _o.Status == "Cancelled";
+        var raw = new (string Label, bool Done)[]
+        {
+            ("Order placed", true),
+            ("Payment confirmed", _o.Status is not ("Awaiting payment" or "Cancelled")),
+            ("Picking & packing", _o.Status == "Fulfilled"),
+            ("Shipped & invoiced", _o.Status == "Fulfilled"),
+        };
+        var active = Array.FindIndex(raw, r => !r.Done);
+        if (active < 0) active = raw.Length - 1;
+        _steps = raw.Select((r, i) => new Step(
+            r.Label,
+            r.Done,
+            !cancelled && i == active && !r.Done,
+            r.Done ? "\u2713" : (i + 1).ToString())).ToList();
+    }
+
+    private async Task MarkFulfilled()
+    {
+        if (_o is null) return;
+        await Data.MarkOrderFulfilled(_o.Id);
+        Recalc();
+        Toast.Show($"Order {_o.Id} marked fulfilled");
+    }
+}

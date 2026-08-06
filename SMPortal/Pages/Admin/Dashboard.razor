@@ -1,0 +1,118 @@
+@page "/"
+@page "/admin"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard · StockManager</PageTitle>
+
+<div class="page-head">
+    <div>
+        <span class="eyebrow">Good morning, Órla</span>
+        <h1>Trading overview</h1>
+    </div>
+    <div class="head-actions">
+        <button class="btn btn-secondary" @onclick='() => Nav.NavigateTo("admin/accounts")'>Review approvals</button>
+        <button class="btn btn-primary" @onclick='() => Nav.NavigateTo("admin/quotes")'>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New quote
+        </button>
+    </div>
+</div>
+
+<section class="kpis">
+    <button class="kpi" @onclick='() => Nav.NavigateTo("admin/accounts")'>
+        <span class="kpi-ico kpi-ico--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <span class="kpi-txt"><span class="kpi-label">Pending approvals</span><strong class="kpi-num">@PendingCount</strong><span class="kpi-sub warn">Needs review</span></span>
+    </button>
+    <button class="kpi" @onclick='() => Nav.NavigateTo("admin/quotes")'>
+        <span class="kpi-ico kpi-ico--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>
+        <span class="kpi-txt"><span class="kpi-label">Open quotes</span><strong class="kpi-num">@OpenQuotes</strong><span class="kpi-sub">Requested &amp; priced</span></span>
+    </button>
+    <button class="kpi" @onclick='() => Nav.NavigateTo("admin/orders")'>
+        <span class="kpi-ico kpi-ico--info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.2 12.2a1.5 1.5 0 0 0 1.5 1.2h8.2a1.5 1.5 0 0 0 1.5-1.2L21 7H6"/></svg></span>
+        <span class="kpi-txt"><span class="kpi-label">Orders this month</span><strong class="kpi-num">@Data.Orders.Count</strong><span class="kpi-sub">@OrdersGross gross</span></span>
+    </button>
+    <button class="kpi" @onclick='() => Nav.NavigateTo("admin/products")'>
+        <span class="kpi-ico kpi-ico--danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span>
+        <span class="kpi-txt"><span class="kpi-label">Low-stock alerts</span><strong class="kpi-num">@LowStock.Count</strong><span class="kpi-sub danger">At or below reorder</span></span>
+    </button>
+</section>
+
+<section class="dash-grid">
+    <div class="panel panel-clip">
+        <div class="rail-head">
+            <div><span class="eyebrow">Recent activity</span><h2>Latest across the platform</h2></div>
+            <button class="btn-link" @onclick="ViewLog">View log</button>
+        </div>
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead><tr><th class="lead">When</th><th>Account</th><th>Activity</th><th class="num trail">Status</th></tr></thead>
+                <tbody>
+                    @foreach (var a in Data.Activity)
+                    {
+                        <tr class="clickable" @onclick="() => Nav.NavigateTo(RouteFor(a.Screen))">
+                            <td class="lead nowrap"><span class="cell-sub">@a.When</span></td>
+                            <td><span class="cell-strong">@a.Who</span></td>
+                            <td>@a.What</td>
+                            <td class="num trail"><span class="badge @AdminUi.StatusClass(a.Status)">@a.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="stack">
+        <div class="panel panel-pad">
+            <div class="rail-head tight">
+                <h2>Pending approvals</h2>
+                <span class="badge badge--warn">@PendingCount</span>
+            </div>
+            @foreach (var a in Pending)
+            {
+                <button class="att-row" @onclick='() => Nav.NavigateTo($"admin/accounts/{a.Id}")'>
+                    <span class="att-cur">@a.Currency</span>
+                    <span class="att-body"><strong>@a.Company</strong><small>Applied @a.Since · @a.Country</small></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#c0c8d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </button>
+            }
+        </div>
+
+        <div class="panel panel-pad">
+            <div class="rail-head tight">
+                <h2>Low stock</h2>
+                <button class="btn-link" @onclick='() => Nav.NavigateTo("admin/products")'>View all</button>
+            </div>
+            @foreach (var p in LowStock)
+            {
+                <div class="low-row">
+                    <span class="low-body"><strong>@p.Name</strong><small>@p.Sku · @p.Source</small></span>
+                    <span class="badge @AdminUi.StockClass(p.Avail)">@p.Avail left</span>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private IEnumerable<Account> Pending => Data.Accounts.Where(a => a.Status == "Pending");
+    private int PendingCount => Pending.Count();
+    private int OpenQuotes => Data.Quotes.Count(q => q.Status is "Requested" or "Priced");
+    private List<Product> LowStock => Data.Products.Where(p => p.Avail <= 6).ToList();
+    private string OrdersGross => AdminUi.Money(Data.Orders.Where(o => o.Currency == "EUR").Sum(o => o.Value), "EUR");
+
+    protected override void OnParametersSet() =>
+        Layout?.SetPage("Dashboard", "Operational overview across trading, accounts and stock");
+
+    private void ViewLog() => Nav.NavigateTo("admin/reports");
+
+    private static string RouteFor(string screen) => screen switch
+    {
+        "quotes" => "admin/quotes",
+        "orders" => "admin/orders",
+        "accounts" => "admin/accounts",
+        "products" => "admin/products",
+        _ => "admin"
+    };
+}

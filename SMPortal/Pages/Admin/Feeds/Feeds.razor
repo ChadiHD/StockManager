@@ -1,0 +1,331 @@
+@page "/admin/feeds"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Distributor feeds · StockManager</PageTitle>
+
+<div class="page-head">
+    <div>
+        <span class="eyebrow">Catalog sources</span>
+        <h1>Distributor feeds</h1>
+    </div>
+    <div class="head-actions">
+        <button class="btn btn-secondary" @onclick="SyncAll" disabled="@_busy">Sync all</button>
+        <button class="btn btn-primary" @onclick="OpenNew" disabled="@_busy">Add feed</button>
+    </div>
+</div>
+
+<div class="panel panel-clip">
+    <div class="toolbar">
+        <span class="toolbar-count"><strong>@Data.Feeds.Count</strong> configured</span>
+    </div>
+
+    @if (Data.Feeds.Count == 0)
+    {
+        <div class="empty-state">
+            <strong>No distributor feeds yet</strong>
+            <span>Add a feed to pull stock automatically, or keep adding products from your own warehouse.</span>
+        </div>
+    }
+    else
+    {
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th class="lead">Feed</th>
+                        <th>Host</th>
+                        <th>Credential</th>
+                        <th>Host key</th>
+                        <th>Last sync</th>
+                        <th class="ctr">Enabled</th>
+                        <th class="trail num">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var feed in Data.Feeds)
+                    {
+                        <tr>
+                            <td class="lead">
+                                <span class="cell-primary">@feed.Name</span>
+                                <span class="cell-sub">@feed.Username</span>
+                            </td>
+                            <td><span class="mono">@feed.Host:@feed.Port</span></td>
+                            <td>
+                                @if (feed.HasCredential)
+                                {
+                                    <span class="badge badge--ok">Stored (@feed.SecretProvider)</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge--danger">Missing</span>
+                                }
+                            </td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(feed.HostKeySha256))
+                                {
+                                    <span class="badge badge--warn" title="The SFTP host is not verified">Unverified</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge--ok">Pinned</span>
+                                }
+                            </td>
+                            <td>
+                                @if (feed.LastSyncedUtc is null)
+                                {
+                                    <span class="cell-sub">Never</span>
+                                }
+                                else
+                                {
+                                    <span class="cell-strong">@feed.LastSyncedUtc.Value.ToString("dd MMM yyyy HH:mm")</span>
+                                    <span class="cell-sub">@feed.LastSyncStatus</span>
+                                }
+                            </td>
+                            <td class="ctr">
+                                @if (feed.Enabled)
+                                {
+                                    <span class="badge badge--ok">On</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge--neutral">Off</span>
+                                }
+                            </td>
+                            <td class="trail num">
+                                <button class="btn btn-sm btn-secondary" @onclick="() => OpenEdit(feed)" disabled="@_busy">Edit</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => Sync(feed)" disabled="@_busy">Sync</button>
+                                <button class="btn btn-sm btn-danger-outline" @onclick="() => Delete(feed)" disabled="@_busy">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<Modal Visible="_showEdit" Title="@(_draft.Id == 0 ? "Add distributor feed" : "Edit distributor feed")" OnClose="Close">
+    <EditForm Model="_draft" OnValidSubmit="Save">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2">
+                    <label>Name</label>
+                    <InputText class="input" @bind-Value="_draft.Name" placeholder="Flexit Distribution" />
+                </div>
+                <div class="field">
+                    <label>Host</label>
+                    <InputText class="input" @bind-Value="_draft.Host" placeholder="sftp.example.com" />
+                </div>
+                <div class="field">
+                    <label>Port</label>
+                    <InputNumber class="input" @bind-Value="_draft.Port" />
+                </div>
+                <div class="field">
+                    <label>Username</label>
+                    <InputText class="input" @bind-Value="_draft.Username" autocomplete="off" />
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <InputText class="input" type="password" @bind-Value="_draft.Password" autocomplete="new-password"
+                               placeholder="@(_draft.HasCredential ? "Leave blank to keep current" : "Required")" />
+                </div>
+                <div class="field span2">
+                    <label>Remote directory</label>
+                    <InputText class="input" @bind-Value="_draft.RemoteDirectory" />
+                </div>
+                <div class="field span2">
+                    <label>Host key SHA-256 (recommended)</label>
+                    <InputText class="input" @bind-Value="_draft.HostKeySha256" placeholder="Base64 fingerprint" />
+                </div>
+            </div>
+
+            <p class="hint">
+                Without a host key fingerprint the SFTP server is not verified. Ask the distributor
+                for it, or take it from a first connection you trust.
+            </p>
+
+            <span class="card-kicker">Field mapping</span>
+            <div class="form-grid">
+                <div class="field"><label>SKU</label><InputText class="input" @bind-Value="_draft.FieldSku" /></div>
+                <div class="field"><label>Name</label><InputText class="input" @bind-Value="_draft.FieldName" /></div>
+                <div class="field"><label>Description</label><InputText class="input" @bind-Value="_draft.FieldDescription" /></div>
+                <div class="field"><label>Category</label><InputText class="input" @bind-Value="_draft.FieldCategory" /></div>
+                <div class="field"><label>Cost</label><InputText class="input" @bind-Value="_draft.FieldCost" /></div>
+                <div class="field"><label>SRP</label><InputText class="input" @bind-Value="_draft.FieldSrp" /></div>
+                <div class="field"><label>Quantity</label><InputText class="input" @bind-Value="_draft.FieldQuantity" /></div>
+                <div class="field">
+                    <label>Enabled</label>
+                    <InputCheckbox @bind-Value="_draft.Enabled" />
+                </div>
+            </div>
+
+            @if (_testResult is not null)
+            {
+                <div class="alert @(_testResult.Succeeded ? "success" : "error")" role="status">
+                    <strong>@(_testResult.Succeeded ? "Connection succeeded" : "Connection failed")</strong>
+                    <span>
+                        @(_testResult.Succeeded
+                            ? $"Read {_testResult.RecordCount} records from the newest file. Nothing was imported."
+                            : _testResult.Error)
+                    </span>
+                </div>
+            }
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+            <button type="button" class="btn btn-secondary" @onclick="Test" disabled="@_busy">Test connection</button>
+            <button type="submit" class="btn btn-primary" disabled="@_busy">Save feed</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private bool _showEdit;
+    private bool _busy;
+    private DistributorFeedView _draft = new();
+    private FeedSyncOutcome? _testResult;
+
+    protected override void OnParametersSet() =>
+        Layout?.SetPage("Distributor feeds", "Stock sources and import credentials");
+
+    private void OpenNew()
+    {
+        _draft = new DistributorFeedView();
+        _testResult = null;
+        _showEdit = true;
+    }
+
+    private void OpenEdit(DistributorFeedView feed)
+    {
+        // Copied so cancelling an edit does not mutate the row shown in the table. Password is
+        // never populated — the API does not return it.
+        _draft = new DistributorFeedView
+        {
+            Id = feed.Id,
+            Name = feed.Name,
+            Host = feed.Host,
+            Port = feed.Port,
+            Username = feed.Username,
+            RemoteDirectory = feed.RemoteDirectory,
+            HostKeySha256 = feed.HostKeySha256,
+            Enabled = feed.Enabled,
+            HasCredential = feed.HasCredential,
+            SecretProvider = feed.SecretProvider,
+            FieldSku = feed.FieldSku,
+            FieldName = feed.FieldName,
+            FieldDescription = feed.FieldDescription,
+            FieldCategory = feed.FieldCategory,
+            FieldCost = feed.FieldCost,
+            FieldSrp = feed.FieldSrp,
+            FieldQuantity = feed.FieldQuantity
+        };
+        _testResult = null;
+        _showEdit = true;
+    }
+
+    private void Close()
+    {
+        _showEdit = false;
+        _draft.Password = null;
+        _testResult = null;
+    }
+
+    private async Task Test()
+    {
+        _busy = true;
+        try
+        {
+            _testResult = await Data.TestFeed(_draft);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_draft.Id == 0 && string.IsNullOrWhiteSpace(_draft.Password))
+        {
+            _testResult = new FeedSyncOutcome { Succeeded = false, Error = "A password is required for a new feed." };
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            // Verify before storing, so a bad credential is caught now rather than at the next sync.
+            var check = await Data.TestFeed(_draft);
+            if (!check.Succeeded)
+            {
+                _testResult = check;
+                Toast.Show("Feed not saved — the connection test failed.");
+                return;
+            }
+
+            await Data.SaveFeed(_draft);
+            _draft.Password = null;
+            _showEdit = false;
+            Toast.Show("Feed saved");
+        }
+        catch (Exception exception)
+        {
+            _testResult = new FeedSyncOutcome { Succeeded = false, Error = exception.Message };
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Sync(DistributorFeedView feed)
+    {
+        _busy = true;
+        try
+        {
+            var result = await Data.SyncFeed(feed.Id);
+            Toast.Show(result.Succeeded
+                ? $"{feed.Name}: imported {result.Imported} of {result.RecordCount}, {result.Delisted} delisted"
+                : $"{feed.Name} failed: {result.Error}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SyncAll()
+    {
+        _busy = true;
+        try
+        {
+            await Data.SyncFeeds();
+            Toast.Show("Distributor feeds synced");
+        }
+        catch (Exception exception)
+        {
+            Toast.Show($"Sync failed: {exception.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Delete(DistributorFeedView feed)
+    {
+        _busy = true;
+        try
+        {
+            await Data.DeleteFeed(feed.Id);
+            Toast.Show($"{feed.Name} removed. Products it imported were kept.");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

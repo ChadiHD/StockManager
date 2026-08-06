@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SMDataManager.Library.Models
+﻿namespace SMDataManager.Library.Models
 {
     public class ProductModel
     {

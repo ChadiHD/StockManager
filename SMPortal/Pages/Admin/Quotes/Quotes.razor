@@ -1,0 +1,119 @@
+@page "/admin/quotes"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Quotes · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Sales pipeline</span><h1>Quotes</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-secondary" @onclick="ExportCsv">Export CSV</button>
+        <button class="btn btn-primary" @onclick="() => _showNew = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New quote
+        </button>
+    </div>
+</div>
+
+<div class="panel panel-clip">
+    <div class="toolbar">
+        <div class="pill-row">
+            @foreach (var f in _filters)
+            {
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+            }
+        </div>
+        <div class="toolbar-count"><strong>@Filtered.Count</strong> quotes</div>
+    </div>
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <thead><tr><th class="lead">Reference</th><th>Account</th><th>Created</th><th>Valid until</th><th>Status</th><th class="num trail">Value</th></tr></thead>
+            <tbody>
+                @foreach (var q in Filtered)
+                {
+                    <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/quotes/{q.Id}")'>
+                        <td class="lead"><span class="cell-primary">@q.Id</span><span class="cell-sub">@q.Lines line items</span></td>
+                        <td><span class="cell-strong">@q.Account</span></td>
+                        <td class="cell-sub">@q.Created</td>
+                        <td class="cell-sub">@q.Expires</td>
+                        <td><span class="badge @AdminUi.StatusClass(q.Status)">@q.Status</span></td>
+                        <td class="num trail"><strong>@AdminUi.Money(q.Value, q.Currency)</strong></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<Modal Visible="_showNew" Title="New quote" OnClose="() => _showNew = false">
+    <EditForm Model="_draft" OnValidSubmit="CreateQuote">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2">
+                    <label>Account</label>
+                    <InputSelect class="input" @bind-Value="_draft.Account">
+                        @foreach (var a in Data.Accounts) { <option value="@a.Company">@a.Company</option> }
+                    </InputSelect>
+                </div>
+                <div class="field">
+                    <label>Currency</label>
+                    <InputSelect class="input" @bind-Value="_draft.Currency">
+                        <option>EUR</option><option>GBP</option><option>USD</option>
+                    </InputSelect>
+                </div>
+            </div>
+            <p class="hint">Three sample line items will be added at the account's group price. You can edit or add lines on the quote afterwards.</p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
+            <button type="submit" class="btn btn-primary">Create quote</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private readonly string[] _filters = { "All", "Requested", "Priced", "Accepted", "Rejected" };
+    private string _filter = "All";
+    private bool _showNew;
+
+    private sealed class Draft { public string Account { get; set; } = ""; public string Currency { get; set; } = "EUR"; }
+    private Draft _draft = new();
+
+    private List<Quote> Filtered =>
+        Data.Quotes.Where(q => _filter == "All" || q.Status == _filter).ToList();
+
+    protected override void OnParametersSet()
+    {
+        Layout?.SetPage("Quotes", "Requests, pricing and approvals");
+        if (string.IsNullOrEmpty(_draft.Account) && Data.Accounts.Count > 0)
+            _draft.Account = Data.Accounts[0].Company;
+    }
+
+    private async Task CreateQuote()
+    {
+        var q = await Data.AddQuote(_draft.Account, _draft.Currency);
+        _showNew = false;
+        _draft = new() { Account = Data.Accounts.FirstOrDefault()?.Company ?? string.Empty };
+
+        if (q is null)
+        {
+            Toast.Show("Could not create the quote — check the account exists.");
+            return;
+        }
+
+        Toast.Show($"Quote {q.Id} created");
+        Nav.NavigateTo($"admin/quotes/{q.Id}");
+    }
+
+    private async Task ExportCsv()
+    {
+        var csv = Csv.Build(
+            new[] { "Reference", "Account", "Created", "Valid until", "Status", "Value" },
+            Data.Quotes.Select(q => new[] { q.Id, q.Account, q.Created, q.Expires, q.Status, q.Value.ToString("0") }));
+        await JS.InvokeVoidAsync("smportal.downloadCsv", "smportal-quotes.csv", csv);
+        Toast.Show("Quotes exported (CSV)");
+    }
+}

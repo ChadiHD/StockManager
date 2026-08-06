@@ -1,0 +1,17 @@
+.lines-head { padding:16px 20px 12px; }
+.lines-head h2 { font-size:1.04rem; font-weight:750; }
+.disc-chip { display:inline-flex; padding:2px 8px; border-radius:6px; background:var(--turq-tint-2); color:var(--turq-700); font-size:.74rem; font-weight:800; }
+.empty { padding:22px; color:var(--muted-3); font-size:.85rem; text-align:center; }
+.empty.small { padding:14px 0; text-align:left; }
+.mt { margin-top:16px; }
+.kv.mt { margin-top:12px; }
+
+.summary-row { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px; }
+.summary-row .k { color:var(--muted-3); font-size:.85rem; }
+.summary-row .big { color:var(--turq-700); font-size:1.6rem; font-weight:800; }
+
+.members-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.card-kicker.nomargin { margin-bottom:0; }
+.member { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:10px 0; text-align:left; cursor:pointer; border:0; border-bottom:1px solid var(--line-3); background:transparent; }
+.member:hover { background:#fafcfc; }
+.member-name { flex:1; min-width:0; color:var(--ink); font-size:.85rem; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

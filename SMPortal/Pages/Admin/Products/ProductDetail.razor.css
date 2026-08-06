@@ -1,0 +1,11 @@
+.overview { display:flex; gap:20px; align-items:center; }
+.prod-img { width:104px; height:104px; flex:0 0 auto; object-fit:cover; border-radius:14px; border:1px solid var(--line); }
+.overview-body { min-width:0; }
+.overview-body h2 { margin:0 0 4px; font-size:1.12rem; font-weight:750; }
+.overview-body p { margin:0; color:var(--muted-3); font-size:.83rem; }
+.overview-body .src { margin-bottom:8px; }
+
+.kv.mt { margin-top:11px; }
+.kv .accent { color:var(--turq-700); font-weight:800; }
+.mt { margin-top:16px; }
+.eyebrow.mono { text-transform:none; letter-spacing:.02em; }

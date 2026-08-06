@@ -1,0 +1,137 @@
+@page "/admin/products"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Products &amp; stock · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Inventory</span><h1>Products &amp; stock</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-secondary" @onclick="SyncFeeds">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>Sync feeds
+        </button>
+        <button class="btn btn-primary" @onclick="() => _showNew = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add product
+        </button>
+    </div>
+</div>
+
+<div class="feed-strip">
+    <span class="feed-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span>
+    <div class="feed-body"><strong>Distributor feeds</strong><span>@_distCount sources · last synced @_lastSync</span></div>
+    @if (_staleCount > 0)
+    {
+        <span class="feed-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>@_staleCount feeds out of date
+        </span>
+    }
+</div>
+
+<div class="panel panel-clip">
+    <div class="toolbar">
+        <div class="pill-row">
+            @foreach (var f in _filters)
+            {
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+            }
+        </div>
+        <div class="toolbar-count"><strong>@Filtered.Count</strong> products</div>
+    </div>
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <thead><tr><th class="thumb-col"></th><th>Product</th><th>Category</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
+            <tbody>
+                @foreach (var p in Filtered)
+                {
+                    <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/products/{p.Sku}")'>
+                        <td class="thumb-cell"><span class="tile @AdminUi.CatClass(p.Cat)">@AdminUi.Initials(p.Name)</span></td>
+                        <td><span class="cell-strong">@p.Name</span><span class="cell-sub mono">@p.Sku</span></td>
+                        <td>@p.Cat</td>
+                        <td>
+                            <span class="src @AdminUi.SourceClass(p.Source)">@p.Source</span>
+                            <span class="cell-sub src-sub">@(p.IsDistributor ? $"{p.Dist} · {p.DistSku}" : "In-house stock")</span>
+                        </td>
+                        <td class="num cell-sub">@AdminUi.Money(p.Cost, "EUR")</td>
+                        <td class="num"><strong>@AdminUi.Money(p.Price, "EUR")</strong></td>
+                        <td class="trail">
+                            <span class="badge @AdminUi.StockClass(p.Avail)">@p.Avail · @p.StockKind</span>
+                            <span class="sync @(p.Stale ? "sync--stale" : "sync--muted")">@SyncLabel(p)</span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<Modal Visible="_showNew" Title="Add product" OnClose="() => _showNew = false">
+    <EditForm Model="_draft" OnValidSubmit="CreateProduct">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2"><label>Product name</label><InputText class="input" @bind-Value="_draft.Name" /></div>
+                <div class="field"><label>SKU</label><InputText class="input" @bind-Value="_draft.Sku" /></div>
+                <div class="field"><label>Category</label><InputSelect class="input" @bind-Value="_draft.Cat">@foreach (var c in _cats) { <option>@c</option> }</InputSelect></div>
+                <div class="field"><label>Stock source</label><InputSelect class="input" @bind-Value="_draft.Source"><option>Own</option><option>Distributor</option></InputSelect></div>
+                <div class="field"><label>Available units</label><InputNumber class="input" @bind-Value="_draft.Avail" /></div>
+                <div class="field"><label>Feed cost (EUR)</label><InputNumber class="input" @bind-Value="_draft.Cost" /></div>
+                <div class="field"><label>Sell price (EUR)</label><InputNumber class="input" @bind-Value="_draft.Price" /></div>
+                <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_draft.Dist" /></div>
+                <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_draft.DistSku" /></div>
+                <div class="field span2"><label>Image URL (optional)</label><InputText class="input" @bind-Value="_draft.Image" /></div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
+            <button type="submit" class="btn btn-primary">Add product</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private readonly string[] _filters = { "All", "Own warehouse", "Distributor", "Low stock" };
+    private readonly string[] _cats = { "Servers", "Networking", "Laptops", "Components", "Security", "Power", "Peripherals" };
+    private string _filter = "All";
+    private bool _showNew;
+    private Product _draft = new();
+
+    private int _distCount, _staleCount;
+    private string _lastSync = "6 min ago";
+
+    private List<Product> Filtered => Data.Products.Where(p => _filter switch
+    {
+        "Own warehouse" => p.Source == "Own",
+        "Distributor" => p.Source == "Distributor",
+        "Low stock" => p.Avail <= 6,
+        _ => true
+    }).ToList();
+
+    protected override void OnParametersSet()
+    {
+        Layout?.SetPage("Products & stock", "Own warehouse and distributor-fed inventory");
+        _distCount = Data.Products.Where(p => p.IsDistributor).Select(p => p.Dist).Distinct().Count();
+        _staleCount = Data.Products.Count(p => p.Stale);
+    }
+
+    private static string SyncLabel(Product p) =>
+        p.IsDistributor ? (p.Stale ? "Feed out of date" : "Synced " + p.Synced) : "Own warehouse";
+
+    private async Task CreateProduct()
+    {
+        await Data.AddProduct(_draft);
+        _showNew = false;
+        _draft = new();
+        Toast.Show("Product added to catalogue");
+    }
+
+    private async Task SyncFeeds()
+    {
+        await Data.SyncFeeds();
+        _staleCount = Data.Products.Count(p => p.Stale);
+        _lastSync = "just now";
+        Toast.Show("Distributor feeds synced");
+    }
+}

@@ -1,0 +1,111 @@
+@page "/admin/products/{Sku}"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<PageTitle>@(_p?.Name ?? Sku) · StockManager</PageTitle>
+
+<button class="back-btn" @onclick='() => Nav.NavigateTo("admin/products")'>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back to products
+</button>
+
+@if (_p is null)
+{
+    <div class="panel panel-pad">Product <strong>@Sku</strong> was not found.</div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <span class="eyebrow mono">@_p.Sku</span>
+            <div class="detail-title"><h1>@_p.Name</h1><span class="badge @AdminUi.StockClass(_p.Avail)">@_p.Avail · @_p.StockKind</span></div>
+            <p class="detail-sub">@_p.Cat · @SyncLabel</p>
+        </div>
+    </div>
+
+    <div class="detail-grid">
+        <div class="stack">
+            <div class="panel panel-pad overview">
+                @if (!string.IsNullOrWhiteSpace(_p.Image))
+                {
+                    <img class="prod-img" src="@_p.Image" alt="@_p.Name" />
+                }
+                else
+                {
+                    <span class="tile tile--lg @AdminUi.CatClass(_p.Cat)">@AdminUi.Initials(_p.Name)</span>
+                }
+                <div class="overview-body">
+                    <span class="src @AdminUi.SourceClass(_p.Source)">@_p.Source</span>
+                    <h2>@_p.Name</h2>
+                    <p>@_p.Cat · SKU @_p.Sku</p>
+                </div>
+            </div>
+
+            <EditForm Model="_edit" OnValidSubmit="Save" class="panel panel-pad">
+                <span class="card-kicker">Edit product</span>
+                <div class="form-grid">
+                    <div class="field span2"><label>Product name</label><InputText class="input" @bind-Value="_edit.Name" /></div>
+                    <div class="field"><label>Category</label><InputSelect class="input" @bind-Value="_edit.Cat">@foreach (var c in _cats) { <option>@c</option> }</InputSelect></div>
+                    <div class="field"><label>Stock source</label><InputSelect class="input" @bind-Value="_edit.Source"><option>Own</option><option>Distributor</option></InputSelect></div>
+                    <div class="field"><label>Feed cost (EUR)</label><InputNumber class="input" @bind-Value="_edit.Cost" /></div>
+                    <div class="field"><label>Sell price (EUR)</label><InputNumber class="input" @bind-Value="_edit.Price" /></div>
+                    <div class="field"><label>Available units</label><InputNumber class="input" @bind-Value="_edit.Avail" /></div>
+                    <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_edit.Dist" /></div>
+                    <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_edit.DistSku" /></div>
+                    <div class="field span2"><label>Image URL (optional)</label><InputText class="input" @bind-Value="_edit.Image" /></div>
+                </div>
+                <button type="submit" class="btn btn-primary mt">Save changes</button>
+            </EditForm>
+        </div>
+
+        <div class="stack">
+            <div class="panel panel-pad">
+                <span class="card-kicker">Pricing</span>
+                <div class="kv"><span class="k">Feed cost</span><span class="v-strong">@AdminUi.Money(_p.Cost, "EUR")</span></div>
+                <div class="kv mt"><span class="k">Sell price</span><span class="v-strong">@AdminUi.Money(_p.Price, "EUR")</span></div>
+                <div class="kv mt"><span class="k">Gross margin</span><span class="v accent">@_p.MarginPct%</span></div>
+                <div class="divider"></div>
+                <div class="kv"><span class="k">Availability</span><span class="badge @AdminUi.StockClass(_p.Avail)">@_p.Avail · @_p.StockKind</span></div>
+            </div>
+            <div class="panel panel-pad">
+                <span class="card-kicker">Stock source</span>
+                <div class="kv"><span class="k">Source</span><span class="src @AdminUi.SourceClass(_p.Source)">@_p.Source</span></div>
+                <div class="kv mt"><span class="k">Distributor</span><span class="v">@(_p.IsDistributor ? _p.Dist : "\u2014")</span></div>
+                <div class="kv mt"><span class="k">Their SKU</span><span class="v mono">@(_p.IsDistributor ? _p.DistSku : "\u2014")</span></div>
+                <div class="kv mt"><span class="k">Feed status</span><span class="v">@SyncLabel</span></div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Sku { get; set; } = "";
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private readonly string[] _cats = { "Servers", "Networking", "Laptops", "Components", "Security", "Power", "Peripherals" };
+    private Product? _p;
+    private Product _edit = new();
+
+    private string SyncLabel => _p is null ? "" :
+        (_p.IsDistributor ? (_p.Stale ? "Feed out of date" : "Synced " + _p.Synced) : "Own warehouse");
+
+    protected override void OnParametersSet()
+    {
+        _p = Data.GetProduct(Sku);
+        Layout?.SetPage("Product", "Catalogue item detail and pricing");
+        if (_p is null) return;
+        _edit = new()
+        {
+            Sku = _p.Sku, Name = _p.Name, Cat = _p.Cat, Source = _p.Source,
+            Cost = _p.Cost, Price = _p.Price, Avail = _p.Avail,
+            Dist = _p.Dist, DistSku = _p.DistSku, Image = _p.Image
+        };
+    }
+
+    private async Task Save()
+    {
+        await Data.UpdateProduct(_edit);
+        _p = Data.GetProduct(Sku);
+        Toast.Show("Product saved");
+    }
+}

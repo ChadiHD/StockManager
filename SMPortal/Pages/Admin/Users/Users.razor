@@ -1,0 +1,134 @@
+@page "/admin/users"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Users &amp; roles · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Administration</span><h1>Users &amp; roles</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-primary" @onclick="() => _showInvite = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Invite user
+        </button>
+    </div>
+</div>
+
+<div class="panel panel-clip">
+    <div class="toolbar"><h2 class="tbl-title">Team accounts</h2><div class="toolbar-count"><strong>@Data.Users.Count</strong> members</div></div>
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <thead><tr><th class="lead">User</th><th>Roles</th><th>Last active</th><th class="trail"></th></tr></thead>
+            <tbody>
+                @foreach (var u in Data.Users)
+                {
+                    <tr>
+                        <td class="lead">
+                            <div class="user-cell">
+                                <span class="user-ini">@AdminUi.Initials(u.Name)</span>
+                                <div><strong>@u.Name</strong><small>@u.Email</small></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="role-chips">
+                                @foreach (var r in u.RoleList) { <span class="role-chip">@r</span> }
+                            </div>
+                        </td>
+                        <td class="cell-sub">@LastActive(u.Email)</td>
+                        <td class="trail"><button class="btn btn-secondary btn-sm" @onclick="() => OpenManage(u)">Manage</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<Modal Visible="_showInvite" Title="Invite user" OnClose="() => _showInvite = false">
+    <EditForm Model="_invite" OnValidSubmit="SendInvite">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2"><label>Full name</label><InputText class="input" @bind-Value="_invite.Name" /></div>
+                <div class="field"><label>Email</label><InputText class="input" @bind-Value="_invite.Email" /></div>
+                <div class="field"><label>Role</label><InputSelect class="input" @bind-Value="_invite.Role"><option>Staff</option><option>Manager</option><option>Admin</option></InputSelect></div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showInvite = false">Close</button>
+            <button type="submit" class="btn btn-primary">Send invite</button>
+        </div>
+    </EditForm>
+</Modal>
+
+<Modal Visible="_showManage" Title="Manage roles" OnClose="() => _showManage = false">
+    <div class="modal-body">
+        @if (_sel is not null)
+        {
+            <div class="manage-user">
+                <span class="user-ini">@AdminUi.Initials(_sel.Name)</span>
+                <div><strong>@_sel.Name</strong><small>@_sel.Email</small></div>
+            </div>
+            <span class="field-label mb">Assigned roles</span>
+            <label class="role-check"><input type="checkbox" @bind="_rAdmin" /> Admin — full access</label>
+            <label class="role-check"><input type="checkbox" @bind="_rManager" /> Manager — inventory, reports</label>
+            <label class="role-check"><input type="checkbox" @bind="_rStaff" /> Staff — products &amp; quotes</label>
+        }
+    </div>
+    <div class="modal-foot">
+        <button type="button" class="btn btn-secondary" @onclick="() => _showManage = false">Close</button>
+        <button type="button" class="btn btn-primary" @onclick="SaveRoles">Save roles</button>
+    </div>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private bool _showInvite, _showManage;
+    private User? _sel;
+    private bool _rAdmin, _rManager, _rStaff;
+
+    private sealed class Invite { public string Name { get; set; } = ""; public string Email { get; set; } = ""; public string Role { get; set; } = "Staff"; }
+    private Invite _invite = new();
+
+    private static readonly Dictionary<string, string> LastSeen = new()
+    {
+        ["orla.doyle@aclitrade.ie"] = "Active now",
+        ["mark.f@aclitrade.ie"] = "2 h ago",
+        ["priya.nair@aclitrade.ie"] = "Today, 08:40",
+        ["david.byrne@aclitrade.ie"] = "Yesterday",
+        ["lena.novak@aclitrade.ie"] = "3 days ago",
+        ["api@aclitrade.ie"] = "Continuous",
+    };
+
+    protected override void OnParametersSet() => Layout?.SetPage("Users & roles", "Internal team access control");
+
+    private string LastActive(string email) => LastSeen.TryGetValue(email, out var v) ? v : "\u2014";
+
+    private void OpenManage(User u)
+    {
+        _sel = u;
+        var roles = u.RoleList.ToHashSet();
+        _rAdmin = roles.Contains("Admin");
+        _rManager = roles.Contains("Manager");
+        _rStaff = roles.Contains("Staff");
+        _showManage = true;
+    }
+
+    private async Task SaveRoles()
+    {
+        if (_sel is null) return;
+        var roles = new List<string>();
+        if (_rAdmin) roles.Add("Admin");
+        if (_rManager) roles.Add("Manager");
+        if (_rStaff) roles.Add("Staff");
+        await Data.UpdateUserRoles(_sel.Email, roles);
+        _showManage = false;
+        Toast.Show("Roles updated");
+    }
+
+    private async Task SendInvite()
+    {
+        await Data.AddUser(_invite.Name, _invite.Email, _invite.Role);
+        _showInvite = false;
+        _invite = new();
+        Toast.Show("Invitation sent");
+    }
+}

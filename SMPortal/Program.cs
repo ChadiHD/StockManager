@@ -6,6 +6,7 @@ using SMDesktopUI.Library.Api;
 using SMDesktopUI.Library.Models;
 using SMPortal;
 using SMPortal.Authentication;
+using SMPortal.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -15,6 +16,11 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, AuthStateProvider>();
+
+// Admin area data seam. AdminDataService is the in-memory mock from the conversion —
+// swap for an HTTP-backed IAdminDataService when the real endpoints exist.
+builder.Services.AddScoped<IAdminDataService, AdminDataService>();
+builder.Services.AddScoped<IToastService, ToastService>();
 
 builder.Services.AddSingleton<IAPIHelper, APIHelper>();
 builder.Services.AddSingleton<ILoggedInUserModel, LoggedInUserModel>();

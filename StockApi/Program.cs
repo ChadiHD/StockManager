@@ -1,8 +1,12 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Internal.DataAccess;
+using SMDataManager.Library.Models;
+using StockApi.Security;
 using StockApi.Data;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -37,6 +41,39 @@ builder.Services.AddTransient<ISqlDataAccess, SqlDataAccess>();
 builder.Services.AddTransient<IProductData, ProductData>();
 builder.Services.AddTransient<IPurchaseData, PurchaseData>();
 builder.Services.AddTransient<IUserData, UserData>();
+// Distributor stock feeds are defined in the database and managed from the admin portal.
+// Credentials never live in appsettings or in the feed table — an IFeedSecretStore holds them
+// and the row keeps only a reference. FeedSecrets:Provider selects the store per environment.
+builder.Services.AddTransient<IDistributorFeedClient, SftpDistributorFeedClient>();
+builder.Services.AddTransient<IDistributorFeedSyncService, DistributorFeedSyncService>();
+builder.Services.AddTransient<IDistributorFeedData, DistributorFeedData>();
+
+// Data Protection store (default; used for local development).
+// The keyring MUST outlive the container: with the default provider the keys sit on the
+// container filesystem, so a redeployed container can no longer decrypt credentials written
+// by the previous one. Set FeedSecrets:KeyRingPath to a mounted volume, or move to the
+// KeyVault provider, before running this in production.
+var keyRingPath = builder.Configuration["FeedSecrets:KeyRingPath"];
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("StockManager");
+if (!string.IsNullOrWhiteSpace(keyRingPath))
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
+}
+
+builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
+
+// Key Vault store, registered only when configured so local development needs no Azure.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["FeedSecrets:KeyVaultUri"]))
+{
+    builder.Services.AddSingleton<IFeedSecretStore, KeyVaultFeedSecretStore>();
+}
+
+builder.Services.AddSingleton<IFeedSecretStoreResolver, FeedSecretStoreResolver>();
+
+builder.Services.AddTransient<IAccountData, AccountData>();
+builder.Services.AddTransient<ICustomerGroupData, CustomerGroupData>();
+builder.Services.AddTransient<IQuoteData, QuoteData>();
+builder.Services.AddTransient<IOrderData, OrderData>();
 
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException("Missing configuration value: Jwt:SigningKey");

@@ -1,0 +1,232 @@
+@page "/admin/quotes/{Id}"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<PageTitle>Quote @Id · StockManager</PageTitle>
+
+<button class="back-btn" @onclick='() => Nav.NavigateTo("admin/quotes")'>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back to quotes
+</button>
+
+@if (_q is null)
+{
+    <div class="panel panel-pad">Quote <strong>@Id</strong> was not found.</div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Quote @_q.Id</span>
+            <div class="detail-title"><h1>@_q.Account</h1><span class="badge @AdminUi.StatusClass(_q.Status)">@_q.Status</span></div>
+            <p class="detail-sub">Created @_q.Created · Valid until @_q.Expires · Priced in @_q.Currency</p>
+        </div>
+        <div class="head-actions">
+            <button class="btn btn-secondary" @onclick='() => Toast.Show("Draft saved")'>Save draft</button>
+            <button class="btn btn-secondary" @onclick="SendQuote">Send to customer</button>
+            <button class="btn btn-primary" @onclick="ConvertToOrder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>Convert to order
+            </button>
+        </div>
+    </div>
+
+    <div class="detail-grid">
+        <div class="stack">
+            <div class="panel panel-clip">
+                <div class="lines-head"><span class="card-kicker">Line items</span><h2>@_q.LineItems.Count products</h2></div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th class="lead">Item</th><th class="ctr">Qty</th><th class="num">List</th><th class="ctr">Disc</th><th class="num">Unit net</th><th class="num trail">Line total</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in _q.LineItems)
+                            {
+                                <tr>
+                                    <td class="lead"><span class="cell-strong">@l.Name</span><span class="cell-sub mono">@l.Sku</span></td>
+                                    <td class="ctr">@l.Qty</td>
+                                    <td class="num strike">@AdminUi.Money(l.List, _q.Currency, 2)</td>
+                                    <td class="ctr"><span class="disc-chip">-@(l.Disc)%</span></td>
+                                    <td class="num">@AdminUi.Money(l.Net, _q.Currency, 2)</td>
+                                    <td class="num trail"><strong>@AdminUi.Money(l.LineTotal, _q.Currency, 2)</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <button class="add-line" @onclick="OpenAddLine">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add line item
+                </button>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="panel panel-pad">
+                <div class="kv"><span class="k">Subtotal (net)</span><span class="v-strong">@AdminUi.Money(_sub, _q.Currency, 2)</span></div>
+                <div class="kv mt"><span class="k">VAT (23%)</span><span class="v-strong">@AdminUi.Money(_vat, _q.Currency, 2)</span></div>
+                <div class="divider"></div>
+                <div class="total-row"><span>Total</span><strong>@AdminUi.Money(_total, _q.Currency, 2)</strong></div>
+                <div class="autoprice">
+                    <span class="autoprice-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4"/></svg>Auto-priced
+                    </span>
+                    <span>Prices reflect the <strong>@_group</strong> group base of -@(_disc)% with per-product overrides. Estimated margin @_marginStr.</span>
+                </div>
+            </div>
+
+            <div class="panel panel-pad">
+                <span class="card-kicker">Quote details</span>
+                <div class="kv"><span class="k">Account</span><a class="v" href="admin/accounts">@_q.Account</a></div>
+                <div class="kv mt"><span class="k">Customer group</span><span class="v-strong">@_group</span></div>
+                <div class="kv mt"><span class="k">Payment</span><span class="v">@_payment · @_terms</span></div>
+                <div class="kv mt"><span class="k">Currency</span><span class="v">@_q.Currency</span></div>
+                <div class="kv mt"><span class="k">Prepared by</span><span class="v">Órla Doyle</span></div>
+                <div class="divider"></div>
+                <span class="card-kicker">Status</span>
+                @foreach (var s in _steps)
+                {
+                    <div class="step">
+                        <span class="step-dot @(s.Active ? "step-dot--active" : s.Done ? "step-dot--done" : "step-dot--todo")">@s.Mark</span>
+                        <span class="step-label @(s.Done ? "on" : null)">@s.Label</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<Modal Visible="_showAddLine" Title="Add line item" OnClose="() => _showAddLine = false">
+    <EditForm Model="_lineDraft" OnValidSubmit="AddLine">
+        <div class="modal-body">
+            @if (!SelectableProducts.Any())
+            {
+                <p class="hint">
+                    There is no sellable stock in the catalogue yet. Add a product from your own
+                    warehouse, or sync a distributor feed, then come back.
+                </p>
+            }
+            else
+            {
+                <div class="form-grid">
+                    <div class="field span2">
+                        <label>Product</label>
+                        <InputSelect class="input" @bind-Value="_lineDraft.Sku">
+                            @foreach (var p in SelectableProducts)
+                            {
+                                <option value="@p.Sku">@p.Sku — @p.Name (@p.Avail in stock)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="field">
+                        <label>Quantity</label>
+                        <InputNumber class="input" @bind-Value="_lineDraft.Qty" min="1" />
+                    </div>
+                    <div class="field">
+                        <label>Discount %</label>
+                        <InputNumber class="input" @bind-Value="_lineDraft.Disc" min="0" max="100" />
+                    </div>
+                </div>
+                <p class="hint">Discount defaults to the account's customer-group rate.</p>
+            }
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showAddLine = false">Close</button>
+            <button type="submit" class="btn btn-primary" disabled="@(!SelectableProducts.Any())">Add line</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private Quote? _q;
+    private string _group = "Reseller", _payment = "Card", _terms = "Prepaid", _marginStr = "0%";
+    private int _disc;
+    private decimal _sub, _vat, _total;
+    private List<Step> _steps = new();
+
+    private record Step(string Label, bool Done, bool Active, string Mark);
+
+    protected override void OnParametersSet()
+    {
+        _q = Data.GetQuote(Id);
+        Layout?.SetPage("Quote", "Build and price a customer quote");
+        if (_q is null) return;
+
+        var acc = Data.Accounts.FirstOrDefault(a => a.Company == _q.Account);
+        _group = acc?.Group ?? "Reseller";
+        _payment = acc?.Payment ?? "Card";
+        _terms = acc?.Terms ?? "Prepaid";
+        _disc = Data.DiscountFor(_group);
+        Recalc();
+
+        var cur = _q.Status switch { "Requested" => 0, "Priced" => 1, "Accepted" => 2, "Rejected" => 1, _ => 0 };
+        var labels = new[] { "Requested", "Priced", "Accepted" };
+        _steps = labels.Select((l, i) => new Step(l, i <= cur, i == cur, i < cur ? "\u2713" : (i + 1).ToString())).ToList();
+    }
+
+    private void Recalc()
+    {
+        // Re-read from the snapshot: a mutation replaces the cached objects, so the instance
+        // captured when the page loaded is stale after an API round trip.
+        _q = Data.GetQuote(Id);
+
+        if (_q is null) return;
+        _sub = _q.LineItems.Sum(l => l.LineTotal);
+        _vat = Math.Round(_sub * 0.23m, 2);
+        _total = _sub + _vat;
+        var cost = _q.LineItems.Sum(l => (Data.GetProduct(l.Sku)?.Cost ?? 0) * l.Qty);
+        var margin = _sub > 0 ? (1 - cost / _sub) * 100 : 0;
+        _marginStr = margin.ToString("0.0") + "%";
+    }
+
+    private bool _showAddLine;
+    private LineDraft _lineDraft = new();
+
+    private sealed class LineDraft
+    {
+        public string Sku { get; set; } = "";
+        public int Qty { get; set; } = 1;
+        public int Disc { get; set; }
+    }
+
+    // Only sellable stock can be added: delisted feed products and anything the catalog no
+    // longer carries are filtered out.
+    private IEnumerable<SMPortal.Models.Product> SelectableProducts =>
+        Data.Products.Where(p => p.Avail > 0 || p.Source == "Own");
+
+    private void OpenAddLine()
+    {
+        _lineDraft = new LineDraft
+        {
+            Sku = SelectableProducts.FirstOrDefault()?.Sku ?? string.Empty,
+            Disc = _disc
+        };
+        _showAddLine = true;
+    }
+
+    private async Task AddLine()
+    {
+        bool added = await Data.AddQuoteLine(Id, _lineDraft.Sku, _lineDraft.Qty, _lineDraft.Disc);
+        _showAddLine = false;
+        Recalc();
+
+        // Report what actually happened rather than assuming success.
+        Toast.Show(added ? "Line item added" : "Could not add the line — pick a product that is in the catalogue.");
+    }
+    private void SendQuote() => Toast.Show($"Quote sent to {_q?.Account}");
+
+    private async Task ConvertToOrder()
+    {
+        if (_q is null) return;
+        var o = await Data.ConvertQuoteToOrder(_q.Id);
+
+        if (o is null)
+        {
+            Toast.Show("Could not convert the quote to an order.");
+            return;
+        }
+
+        Toast.Show($"Order {o.Id} created from {_q.Id}");
+        Nav.NavigateTo($"admin/orders/{o.Id}");
+    }
+}

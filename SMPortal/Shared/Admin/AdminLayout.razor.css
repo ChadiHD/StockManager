@@ -1,0 +1,29 @@
+/* The admin shell now reuses the operations-portal chrome from app.css (.app-shell, .sidebar,
+   .brand, .navigation, .nav-icon, .topbar, .workspace, .main-content, .account, .avatar), so
+   the sidebar matches the rest of the product. Only the pieces app.css has no equivalent for
+   live here. */
+
+/* Toast notifications raised by IToastService. */
+.toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(420px, calc(100vw - 48px));
+    padding: 13px 18px;
+    border-radius: 12px;
+    color: #eaf7f7;
+    background: #12102a;
+    box-shadow: 0 30px 70px rgba(16, 24, 40, .32);
+    font-size: .87rem;
+    font-weight: 650;
+}
+
+.toast svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}

@@ -1,4 +1,12 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Classic SSDT project format.
+     This was briefly converted to the Microsoft.Build.Sql SDK so the DACPAC could be produced
+     by `dotnet build`. That broke the Visual Studio build: the SDK's targets and the SSDT
+     targets bundled with VS 18 both define SqlBuildTask inputs, and whichever task assembly
+     wins is missing a parameter the other side passes (MSB4064 / MSB4063 on
+     AutomaticIndexCompaction or AcceleratedDatabaseRecovery). Reverted deliberately — build
+     this project in Visual Studio, which regenerates bin\Debug\SMDatabase.dacpac. The Aspire
+     AppHost deploys that file and now fails fast if it is older than the .sql sources. -->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -60,27 +68,74 @@
     <Folder Include="dbo\Tables" />
     <Folder Include="dbo\Views" />
     <Folder Include="dbo\Store Procedures" />
+    <Folder Include="dbo\Sequences" />
+    <Folder Include="dbo\User Defined Types" />
     <Folder Include="PublishLocations" />
   </ItemGroup>
   <ItemGroup>
     <None Include="PublishLocations\SMDatabase.publish.xml" />
   </ItemGroup>
   <ItemGroup>
-    <Build Include="dbo\Tables\User.sql" />
-    <Build Include="dbo\Tables\Purchase.sql" />
-    <Build Include="dbo\Tables\PurchaseDetail.sql" />
-    <Build Include="dbo\Tables\Product.sql" />
-    <Build Include="dbo\Tables\Inventory.sql" />
-    <Build Include="dbo\Store Procedures\spUserLookup.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_GetById.sql" />
-    <Build Include="dbo\Store Procedures\spPurchase_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spPurchaseDetails_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spPurchase_LookUp.sql" />
+    <Build Include="dbo\Sequences\AccountReferenceSequence.sql" />
+    <Build Include="dbo\Sequences\OrderReferenceSequence.sql" />
+    <Build Include="dbo\Sequences\QuoteReferenceSequence.sql" />
+    <Build Include="dbo\Store Procedures\spAccount_GetAll.sql" />
+    <Build Include="dbo\Store Procedures\spAccount_GetById.sql" />
+    <Build Include="dbo\Store Procedures\spAccount_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spAccount_UpdateStatus.sql" />
+    <Build Include="dbo\Store Procedures\spAccount_UpdateTerms.sql" />
+    <Build Include="dbo\Store Procedures\spActivity_GetRecent.sql" />
+    <Build Include="dbo\Store Procedures\spCustomerGroup_GetAll.sql" />
+    <Build Include="dbo\Store Procedures\spCustomerGroup_GetBySlug.sql" />
+    <Build Include="dbo\Store Procedures\spCustomerGroup_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spCustomerGroup_Update.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_Delete.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_GetAll.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_GetById.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_RecordSync.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_Update.sql" />
+    <Build Include="dbo\Store Procedures\spDistributorFeed_UpdateSecret.sql" />
     <Build Include="dbo\Store Procedures\spInventory_GetAll.sql" />
     <Build Include="dbo\Store Procedures\spInventory_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spOrder_ConvertFromQuote.sql" />
+    <Build Include="dbo\Store Procedures\spOrder_GetAll.sql" />
+    <Build Include="dbo\Store Procedures\spOrder_GetByReference.sql" />
+    <Build Include="dbo\Store Procedures\spOrder_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spOrder_UpdateStatus.sql" />
+    <Build Include="dbo\Store Procedures\spOrderLine_GetByOrder.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_BulkUpsertFromFeed.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_GetAll.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_GetById.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_GetBySku.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_SyncFeeds.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_Update.sql" />
+    <Build Include="dbo\Store Procedures\spPurchase_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spPurchase_LookUp.sql" />
     <Build Include="dbo\Store Procedures\spPurchase_PurchaseReport.sql" />
+    <Build Include="dbo\Store Procedures\spPurchaseDetails_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spQuote_GetAll.sql" />
+    <Build Include="dbo\Store Procedures\spQuote_GetByReference.sql" />
+    <Build Include="dbo\Store Procedures\spQuote_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spQuote_UpdateStatus.sql" />
+    <Build Include="dbo\Store Procedures\spQuoteLine_GetByQuote.sql" />
+    <Build Include="dbo\Store Procedures\spQuoteLine_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spReport_GetSales.sql" />
+    <Build Include="dbo\Store Procedures\spUser_GetAll.sql" />
     <Build Include="dbo\Store Procedures\spUser_Insert.sql" />
+    <Build Include="dbo\Store Procedures\spUserLookup.sql" />
+    <Build Include="dbo\Tables\Account.sql" />
+    <Build Include="dbo\Tables\CustomerGroup.sql" />
+    <Build Include="dbo\Tables\DistributorFeed.sql" />
+    <Build Include="dbo\Tables\Inventory.sql" />
+    <Build Include="dbo\Tables\Product.sql" />
+    <Build Include="dbo\Tables\Purchase.sql" />
+    <Build Include="dbo\Tables\PurchaseDetail.sql" />
+    <Build Include="dbo\Tables\Quote.sql" />
+    <Build Include="dbo\Tables\QuoteLine.sql" />
+    <Build Include="dbo\Tables\User.sql" />
+    <Build Include="dbo\User Defined Types\DistributorFeedItem.sql" />
   </ItemGroup>
   <ItemGroup>
     <RefactorLog Include="SMDatabase.refactorlog" />

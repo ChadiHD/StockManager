@@ -1,0 +1,26 @@
+.modal-backdrop {
+  position:fixed; inset:0; z-index:50; display:flex; align-items:flex-start; justify-content:center;
+  padding:6vh 20px 40px; background:rgba(15,18,30,.5); overflow:auto;
+}
+.modal {
+  width:min(560px,100%); background:#fff; border:1px solid var(--line);
+  border-radius:16px; box-shadow:var(--shadow-lg); overflow:hidden;
+}
+.modal-head {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:18px 22px; border-bottom:1px solid var(--line-2);
+}
+.modal-head strong { font-size:1.05rem; font-weight:800; letter-spacing:-.01em; }
+.modal-x {
+  display:grid; place-items:center; width:32px; height:32px; border:0; border-radius:8px;
+  background:#f2f5f9; color:var(--muted); cursor:pointer;
+}
+.modal-x:hover { background:var(--line); color:var(--ink); }
+.modal-x svg { width:16px; height:16px; }
+
+/* structural helpers usable by the form placed inside the modal */
+::deep .modal-body { padding:20px 22px; max-height:62vh; overflow:auto; }
+::deep .modal-foot {
+  display:flex; justify-content:flex-end; gap:10px; padding:16px 22px;
+  border-top:1px solid var(--line-2); background:var(--surface-3);
+}

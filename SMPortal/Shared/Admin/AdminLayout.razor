@@ -1,0 +1,176 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IToastService Toast
+@inject IAdminDataService Data
+
+@* Chrome deliberately reuses the operations-portal class names (.app-shell/.sidebar/.topbar/
+   .navigation/.nav-icon/.main-content) so app.css styles it exactly like the rest of the
+   product. The extra .shell class carries the admin design tokens from admin.css. *@
+<CascadingValue Value="this">
+  <div class="app-shell shell @(navOpen ? "nav-open" : null)">
+    <button class="nav-backdrop" aria-label="Close navigation" @onclick="CloseNav"></button>
+
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="admin" @onclick="CloseNav">
+        <span class="brand-mark" aria-hidden="true">SM</span>
+        <span>
+          <strong>StockManager</strong>
+          <small>Administration</small>
+        </span>
+      </a>
+
+      <nav class="navigation">
+        <span class="nav-heading">Overview</span>
+        <NavLink href="admin" Match="NavLinkMatch.All" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">D</span>Dashboard
+        </NavLink>
+
+        <span class="nav-heading section">Sales</span>
+        <NavLink href="admin/quotes" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">Q</span>Quotes
+        </NavLink>
+        <NavLink href="admin/orders" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">O</span>Orders
+        </NavLink>
+
+        <span class="nav-heading section">Customers</span>
+        <NavLink href="admin/accounts" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">A</span>Accounts
+        </NavLink>
+        <NavLink href="admin/groups" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">G</span>Customer groups
+        </NavLink>
+
+        <span class="nav-heading section">Catalog</span>
+        <NavLink href="admin/products" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">P</span>Products &amp; stock
+        </NavLink>
+        <NavLink href="admin/feeds" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">F</span>Distributor feeds
+        </NavLink>
+
+        <span class="nav-heading section">Administration</span>
+        <NavLink href="admin/users" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">U</span>Users &amp; roles
+        </NavLink>
+        <NavLink href="admin/reports" @onclick="CloseNav">
+          <span class="nav-icon" aria-hidden="true">R</span>Reports
+        </NavLink>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span><strong>API connected</strong><small>Secure workspace</small></span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-button menu-button" aria-label="Open navigation" aria-expanded="@navOpen" @onclick="ToggleNav">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="topbar-context">
+          <strong>@Title</strong>
+          <span>@Subtitle</span>
+        </div>
+        <AuthorizeView>
+          <Authorized Context="auth">
+            <div class="account">
+              <span class="avatar" aria-hidden="true">@Initial(auth.User)</span>
+              <span class="account-copy">
+                <strong>@DisplayName(auth.User)</strong>
+                <small>@RoleSummary(auth.User)</small>
+              </span>
+              <NavLink class="button ghost compact" href="logout">Sign out</NavLink>
+            </div>
+          </Authorized>
+        </AuthorizeView>
+      </header>
+
+      <main class="main-content">
+        @if (loadError is not null)
+        {
+          <div class="alert error" role="alert">
+            <strong>The StockManager API could not be reached.</strong>
+            <span>@loadError</span>
+          </div>
+        }
+        else if (!loaded)
+        {
+          @* Pages read the snapshot in OnInitialized, so nothing renders until it is filled. *@
+          <div class="route-state" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            <strong>Loading workspace</strong>
+            <span>Fetching accounts, quotes and stock.</span>
+          </div>
+        }
+        else
+        {
+          @Body
+        }
+      </main>
+    </div>
+
+    @if (Toast.Current is not null)
+    {
+      <div class="toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#1bfbf9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>@Toast.Current</span>
+      </div>
+    }
+  </div>
+</CascadingValue>
+
+@code {
+    private bool navOpen;
+    private bool loaded;
+    private string? loadError;
+
+    public string Title { get; private set; } = "Dashboard";
+    public string Subtitle { get; private set; } = "";
+
+    // Pages call this from OnParametersSet to drive the top bar.
+    public void SetPage(string title, string subtitle)
+    {
+        if (Title == title && Subtitle == subtitle) return;
+        Title = title;
+        Subtitle = subtitle;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleNav() => navOpen = !navOpen;
+    private void CloseNav() => navOpen = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Toast.OnChange += OnToastChanged;
+
+        try
+        {
+            await Data.EnsureLoadedAsync();
+            loaded = true;
+        }
+        catch (Exception exception)
+        {
+            loadError = exception.Message;
+        }
+    }
+
+    private void OnToastChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Toast.OnChange -= OnToastChanged;
+
+    private static string DisplayName(ClaimsPrincipal user) =>
+        user.FindFirst(ClaimTypes.Name)?.Value ?? "Signed-in user";
+
+    private static string Initial(ClaimsPrincipal user)
+    {
+        var value = DisplayName(user);
+        return value.Length > 0 ? value[..1].ToUpperInvariant() : "U";
+    }
+
+    private static string RoleSummary(ClaimsPrincipal user)
+    {
+        var roles = user.FindAll(ClaimTypes.Role).Select(claim => claim.Value).Distinct().ToArray();
+        return roles.Length == 0 ? "Authenticated" : string.Join(" / ", roles);
+    }
+}

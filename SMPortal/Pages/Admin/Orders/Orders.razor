@@ -1,0 +1,116 @@
+@page "/admin/orders"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Orders · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Fulfilment</span><h1>Orders</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-secondary" @onclick="ExportCsv">Export CSV</button>
+        <button class="btn btn-primary" @onclick="() => _showNew = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New order
+        </button>
+    </div>
+</div>
+
+<div class="panel panel-clip">
+    <div class="toolbar">
+        <div class="pill-row">
+            @foreach (var f in _filters)
+            {
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+            }
+        </div>
+        <div class="toolbar-count"><strong>@Filtered.Count</strong> orders</div>
+    </div>
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <thead><tr><th class="lead">Reference</th><th>Account</th><th>Placed</th><th class="ctr">Items</th><th>Status</th><th class="num trail">Total</th></tr></thead>
+            <tbody>
+                @foreach (var o in Filtered)
+                {
+                    <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/orders/{o.Id}")'>
+                        <td class="lead"><span class="cell-primary">@o.Id</span><span class="cell-sub">from @o.From</span></td>
+                        <td><span class="cell-strong">@o.Account</span></td>
+                        <td class="cell-sub">@o.Placed</td>
+                        <td class="ctr">@o.Items</td>
+                        <td><span class="badge @AdminUi.StatusClass(o.Status)">@o.Status</span></td>
+                        <td class="num trail"><strong>@AdminUi.Money(o.Value, o.Currency)</strong></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<Modal Visible="_showNew" Title="New order" OnClose="() => _showNew = false">
+    <EditForm Model="_draft" OnValidSubmit="CreateOrder">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2">
+                    <label>Account</label>
+                    <InputSelect class="input" @bind-Value="_draft.Account">
+                        @foreach (var a in Data.Accounts) { <option value="@a.Company">@a.Company</option> }
+                    </InputSelect>
+                </div>
+                <div class="field">
+                    <label>Currency</label>
+                    <InputSelect class="input" @bind-Value="_draft.Currency"><option>EUR</option><option>GBP</option><option>USD</option></InputSelect>
+                </div>
+            </div>
+            <p class="hint">A draft order will be created as Awaiting payment with two sample lines.</p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
+            <button type="submit" class="btn btn-primary">Create order</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private readonly string[] _filters = { "All", "Awaiting payment", "Processing", "Fulfilled" };
+    private string _filter = "All";
+    private bool _showNew;
+
+    private sealed class Draft { public string Account { get; set; } = ""; public string Currency { get; set; } = "EUR"; }
+    private Draft _draft = new();
+
+    private List<Order> Filtered => Data.Orders.Where(o => _filter == "All" || o.Status == _filter).ToList();
+
+    protected override void OnParametersSet()
+    {
+        Layout?.SetPage("Orders", "Sales orders and fulfilment");
+        if (string.IsNullOrEmpty(_draft.Account) && Data.Accounts.Count > 0)
+            _draft.Account = Data.Accounts[0].Company;
+    }
+
+    private async Task CreateOrder()
+    {
+        var o = await Data.AddOrder(_draft.Account, _draft.Currency);
+        _showNew = false;
+        _draft = new() { Account = Data.Accounts.FirstOrDefault()?.Company ?? string.Empty };
+
+        if (o is null)
+        {
+            Toast.Show("Could not create the order — check the account exists.");
+            return;
+        }
+
+        Toast.Show($"Order {o.Id} created");
+        Nav.NavigateTo($"admin/orders/{o.Id}");
+    }
+
+    private async Task ExportCsv()
+    {
+        var csv = Csv.Build(
+            new[] { "Reference", "Account", "Placed", "Items", "Status", "Total" },
+            Data.Orders.Select(o => new[] { o.Id, o.Account, o.Placed, o.Items.ToString(), o.Status, o.Value.ToString("0") }));
+        await JS.InvokeVoidAsync("smportal.downloadCsv", "smportal-orders.csv", csv);
+        Toast.Show("Orders exported (CSV)");
+    }
+}

@@ -1,0 +1,104 @@
+@page "/admin/accounts"
+@inject IAdminDataService Data
+@inject NavigationManager Nav
+@inject IToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Accounts · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">B2B customers</span><h1>Accounts</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-secondary" @onclick="ExportCsv">Export CSV</button>
+        <button class="btn btn-primary" @onclick="() => _showNew = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add account
+        </button>
+    </div>
+</div>
+
+<div class="panel panel-clip">
+    <div class="toolbar">
+        <div class="pill-row">
+            @foreach (var f in _filters)
+            {
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+            }
+        </div>
+        <div class="toolbar-count"><strong>@Filtered.Count</strong> accounts</div>
+    </div>
+    <div class="tbl-wrap">
+        <table class="tbl">
+            <thead><tr><th class="lead">Company</th><th>Contact</th><th>Group</th><th>Payment</th><th class="num">Credit limit</th><th class="trail">Status</th></tr></thead>
+            <tbody>
+                @foreach (var a in Filtered)
+                {
+                    <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/accounts/{a.Id}")'>
+                        <td class="lead"><span class="cell-primary">@a.Company</span><span class="cell-sub">@a.Id · @a.Country</span></td>
+                        <td><span class="cell-strong">@a.Contact</span><span class="cell-sub">@a.Email</span></td>
+                        <td>@a.Group</td>
+                        <td>@a.Payment</td>
+                        <td class="num">@(a.Credit > 0 ? AdminUi.Money(a.Credit, a.Currency) : "\u2014")</td>
+                        <td class="trail"><span class="badge @AdminUi.StatusClass(a.Status)">@a.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<Modal Visible="_showNew" Title="Add account" OnClose="() => _showNew = false">
+    <EditForm Model="_draft" OnValidSubmit="CreateAccount">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2"><label>Company name</label><InputText class="input" @bind-Value="_draft.Company" /></div>
+                <div class="field"><label>Primary contact</label><InputText class="input" @bind-Value="_draft.Contact" /></div>
+                <div class="field"><label>Email</label><InputText class="input" @bind-Value="_draft.Email" /></div>
+                <div class="field"><label>Country</label><InputText class="input" @bind-Value="_draft.Country" /></div>
+                <div class="field"><label>Currency</label><InputSelect class="input" @bind-Value="_draft.Currency"><option>EUR</option><option>GBP</option><option>USD</option></InputSelect></div>
+                <div class="field"><label>Customer group</label><InputSelect class="input" @bind-Value="_draft.Group">@foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }</InputSelect></div>
+                <div class="field"><label>Payment mode</label><InputSelect class="input" @bind-Value="_draft.Payment"><option>Card</option><option>Credit terms</option></InputSelect></div>
+                <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_draft.Terms" /></div>
+                <div class="field span2"><label>Credit limit (EUR)</label><InputNumber class="input" @bind-Value="_draft.Credit" /></div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
+            <button type="submit" class="btn btn-primary">Create account</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private readonly string[] _filters = { "All", "Pending", "Approved", "Suspended" };
+    private string _filter = "All";
+    private bool _showNew;
+    private Account _draft = new() { Country = "Ireland", Currency = "EUR", Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
+
+    private List<Account> Filtered => Data.Accounts.Where(a => _filter == "All" || a.Status == _filter).ToList();
+
+    protected override void OnParametersSet() => Layout?.SetPage("Accounts", "B2B company accounts and onboarding");
+
+    private async Task CreateAccount()
+    {
+        var a = await Data.AddAccount(_draft);
+        _showNew = false;
+        _draft = new() { Country = "Ireland", Currency = "EUR", Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
+        Toast.Show("Account created (pending approval)");
+
+        if (a is not null)
+        {
+            Nav.NavigateTo($"admin/accounts/{a.Id}");
+        }
+    }
+
+    private async Task ExportCsv()
+    {
+        var csv = Csv.Build(
+            new[] { "ID", "Company", "Contact", "Group", "Payment", "Credit", "Status" },
+            Data.Accounts.Select(a => new[] { a.Id, a.Company, a.Contact, a.Group, a.Payment, a.Credit.ToString("0"), a.Status }));
+        await JS.InvokeVoidAsync("smportal.downloadCsv", "smportal-accounts.csv", csv);
+        Toast.Show("Accounts exported (CSV)");
+    }
+}
