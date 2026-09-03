@@ -64,6 +64,10 @@ namespace SMDataManager.Library.Feeds
                 Cost = ParseDecimal(Find(values, fields.Cost)),
                 Srp = ParseDecimal(Find(values, fields.Srp)),
                 Quantity = ParseInt(Find(values, fields.Quantity)),
+                Manufacturer = Find(values, fields.Manufacturer),
+                Mpn = Find(values, fields.Mpn),
+                Ean = Find(values, fields.Ean),
+                IcecatAvailable = ParseFlag(Find(values, fields.IcecatFlag)),
                 Raw = values
             };
         }
@@ -87,6 +91,18 @@ namespace SMDataManager.Library.Feeds
             decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : (decimal?)null;
+
+        // The column is a flag rather than an identifier, and distributors spell it differently.
+        private static bool? ParseFlag(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+
+            var trimmed = value.Trim();
+
+            return trimmed.Equals("yes", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || trimmed == "1";
+        }
 
         private static int ParseInt(string value) =>
             int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0;

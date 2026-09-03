@@ -1,0 +1,70 @@
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line-2);
+}
+
+.pager-size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted-2);
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+/* Narrow, auto-width control — the shared .input rule stretches to 100% by default. */
+.pager-size select {
+    width: auto;
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: .8rem;
+}
+
+.pager-range {
+    color: var(--muted-3);
+    font-size: .78rem;
+}
+
+.pager-pages {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pager-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--btn-line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--slate);
+    font-size: .8rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) {
+    background: #f4f7fa;
+}
+
+.pager-btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.pager-btn--active {
+    border-color: var(--navy-900);
+    background: var(--navy-900);
+    color: #fff;
+}
+
+.pager-gap {
+    padding: 0 2px;
+    color: var(--faint);
+}

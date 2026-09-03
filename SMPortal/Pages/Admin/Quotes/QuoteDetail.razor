@@ -108,28 +108,47 @@ else
                 <div class="form-grid">
                     <div class="field span2">
                         <label>Product</label>
-                        <InputSelect class="input" @bind-Value="_lineDraft.Sku">
-                            @foreach (var p in SelectableProducts)
-                            {
-                                <option value="@p.Sku">@p.Sku — @p.Name (@p.Avail in stock)</option>
-                            }
-                        </InputSelect>
+                        <Combo Options="ProductOptions" Value="@_lineDraft.Sku" ValueChanged="PickProduct"
+                               Placeholder="Search by name, SKU or manufacturer"
+                               EmptyText="No sellable stock matches that." />
                     </div>
+
                     <div class="field">
                         <label>Quantity</label>
-                        <InputNumber class="input" @bind-Value="_lineDraft.Qty" min="1" />
+                        <input class="input" type="number" min="1" max="@StockCeiling"
+                               value="@_lineDraft.Qty" @onchange="SetQty" />
+                        <span class="field-note @(OverStock ? "field-note--warn" : null)">
+                            @QuantityNote
+                        </span>
                     </div>
+
                     <div class="field">
                         <label>Discount %</label>
-                        <InputNumber class="input" @bind-Value="_lineDraft.Disc" min="0" max="100" />
+                        <input class="input" type="number" min="0" max="100"
+                               value="@_lineDraft.Disc" @onchange="SetDisc" />
+                        <span class="field-note">Defaults to the account's group rate (-@(_disc)%).</span>
                     </div>
                 </div>
-                <p class="hint">Discount defaults to the account's customer-group rate.</p>
+
+                @if (PickedProduct is { } picked)
+                {
+                    <div class="pick-summary">
+                        <span class="pick-name">@(string.IsNullOrWhiteSpace(picked.Desc) ? picked.Name : picked.Desc)</span>
+                        <span class="pick-facts">
+                            <span>@picked.Sku</span>
+                            <span>@AdminUi.Money(picked.Price, Cur, 2) each</span>
+                            <span class="@(picked.Avail <= 6 ? "pick-low" : null)">
+                                @(picked.Source == "Own" ? $"{picked.Avail} in warehouse" : $"{picked.Avail} at {picked.Dist}")
+                            </span>
+                        </span>
+                        <strong class="pick-total">@AdminUi.Money(LineTotal, Cur, 2)</strong>
+                    </div>
+                }
             }
         </div>
         <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @onclick="() => _showAddLine = false">Close</button>
-            <button type="submit" class="btn btn-primary" disabled="@(!SelectableProducts.Any())">Add line</button>
+            <button type="submit" class="btn btn-primary" disabled="@(!CanAddLine)">Add line</button>
         </div>
     </EditForm>
 </Modal>
@@ -194,13 +213,79 @@ else
     private IEnumerable<SMPortal.Models.Product> SelectableProducts =>
         Data.Products.Where(p => p.Avail > 0 || p.Source == "Own");
 
+    // Desc carries the brand and model, Name the spec string, so the brand goes on the primary
+    // line where it is scannable and searchable.
+    private List<ComboOption> ProductOptions => SelectableProducts
+        .Select(p => new ComboOption(
+            p.Sku,
+            string.IsNullOrWhiteSpace(p.Desc) ? p.Name : p.Desc,
+            $"{p.Sku} · {p.Name}",
+            p.Avail > 0 ? $"{p.Avail} in stock" : "Backorder"))
+        .ToList();
+
+    private SMPortal.Models.Product? PickedProduct =>
+        SelectableProducts.FirstOrDefault(p => p.Sku == _lineDraft.Sku);
+
+    /// <summary>
+    /// Own-warehouse stock can be back-ordered, so it is not capped. Distributor stock is
+    /// somebody else's shelf: quoting more than the feed reports is a promise that cannot be met.
+    /// </summary>
+    private int StockCeiling =>
+        PickedProduct is { Source: not "Own" } p && p.Avail > 0 ? p.Avail : int.MaxValue;
+
+    private bool OverStock => _lineDraft.Qty > StockCeiling;
+
+    private decimal LineTotal => PickedProduct is null
+        ? 0m
+        : PickedProduct.Price * _lineDraft.Qty * (100 - _lineDraft.Disc) / 100m;
+
+    private string QuantityNote
+    {
+        get
+        {
+            if (PickedProduct is null) return "Pick a product first.";
+            if (OverStock) return $"Only {StockCeiling} available at {PickedProduct.Dist}.";
+
+            return StockCeiling == int.MaxValue
+                ? "Own warehouse — no feed limit."
+                : $"{StockCeiling - _lineDraft.Qty} would remain.";
+        }
+    }
+
+    private string Cur => _q?.Currency ?? "EUR";
+
+    private bool CanAddLine =>
+        PickedProduct is not null && _lineDraft.Qty > 0 && !OverStock;
+
+    private void PickProduct(string? sku)
+    {
+        _lineDraft.Sku = sku ?? "";
+
+        // A quantity left over from a previous, better-stocked pick would otherwise sit there
+        // invalid against the new one.
+        if (_lineDraft.Qty > StockCeiling)
+        {
+            _lineDraft.Qty = Math.Max(1, StockCeiling);
+        }
+    }
+
+    private void SetQty(ChangeEventArgs args)
+    {
+        var parsed = int.TryParse(args.Value?.ToString(), out var value) ? value : 1;
+        _lineDraft.Qty = Math.Clamp(parsed, 1, StockCeiling);
+    }
+
+    private void SetDisc(ChangeEventArgs args)
+    {
+        var parsed = int.TryParse(args.Value?.ToString(), out var value) ? value : 0;
+        _lineDraft.Disc = Math.Clamp(parsed, 0, 100);
+    }
+
     private void OpenAddLine()
     {
-        _lineDraft = new LineDraft
-        {
-            Sku = SelectableProducts.FirstOrDefault()?.Sku ?? string.Empty,
-            Disc = _disc
-        };
+        // No pre-selection: an operator who misses the picker cannot now add whichever product
+        // happened to sort first, which the old default-to-first select made easy.
+        _lineDraft = new LineDraft { Disc = _disc };
         _showAddLine = true;
     }
 

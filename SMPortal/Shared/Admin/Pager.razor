@@ -1,0 +1,116 @@
+@* Reusable list pager: rows-per-page selector plus numbered pages.
+   The parent owns the collection and does the slicing (Skip/Take); this component only owns
+   the controls, so it works for any list without generics. *@
+
+@if (TotalCount > PageSizeOptions.Min())
+{
+    <div class="pager">
+        <label class="pager-size">
+            Rows
+            <select class="input" value="@PageSize" @onchange="SizeChanged">
+                @foreach (var size in PageSizeOptions)
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+        </label>
+
+        <span class="pager-range">@RangeStart–@RangeEnd of @TotalCount</span>
+
+        <div class="pager-pages">
+            <button type="button" class="pager-btn" disabled="@(Page <= 1)" @onclick="() => GoTo(Page - 1)"
+                    aria-label="Previous page">‹</button>
+
+            @foreach (var number in PageNumbers)
+            {
+                @if (number < 0)
+                {
+                    <span class="pager-gap" aria-hidden="true">…</span>
+                }
+                else
+                {
+                    <button type="button" class="pager-btn @(number == Page ? "pager-btn--active" : null)"
+                            aria-current="@(number == Page ? "page" : null)"
+                            @onclick="() => GoTo(number)">@number</button>
+                }
+            }
+
+            <button type="button" class="pager-btn" disabled="@(Page >= PageCount)" @onclick="() => GoTo(Page + 1)"
+                    aria-label="Next page">›</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+
+    [Parameter] public int PageSize { get; set; } = 25;
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = new[] { 10, 25, 50 };
+
+    private int PageCount => TotalCount == 0 ? 1 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+    private int RangeStart => TotalCount == 0 ? 0 : ((Page - 1) * PageSize) + 1;
+    private int RangeEnd => Math.Min(Page * PageSize, TotalCount);
+
+    // The list can shrink underneath us — a filter change, a delete, or a refresh — which would
+    // otherwise leave the caller showing an empty page. Pull the selection back into range.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Page > PageCount)
+        {
+            await GoTo(PageCount);
+        }
+    }
+
+    private async Task GoTo(int page)
+    {
+        var target = Math.Clamp(page, 1, PageCount);
+        if (target == Page) return;
+
+        Page = target;
+        await PageChanged.InvokeAsync(target);
+    }
+
+    private async Task SizeChanged(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var size)) return;
+
+        PageSize = size;
+        await PageSizeChanged.InvokeAsync(size);
+
+        // A bigger page size can leave the current page beyond the end of the list.
+        if (Page > PageCount)
+        {
+            await GoTo(PageCount);
+        }
+    }
+
+    // Windowed: first, last, and the pages either side of the current one, with gaps marked
+    // as -1 so a long list does not render hundreds of buttons.
+    private IEnumerable<int> PageNumbers
+    {
+        get
+        {
+            const int window = 1;
+            var last = PageCount;
+            var shown = new SortedSet<int> { 1, last };
+
+            for (var offset = -window; offset <= window; offset++)
+            {
+                var candidate = Page + offset;
+                if (candidate >= 1 && candidate <= last) shown.Add(candidate);
+            }
+
+            var previous = 0;
+            foreach (var number in shown)
+            {
+                if (previous > 0 && number - previous > 1) yield return -1;
+                yield return number;
+                previous = number;
+            }
+        }
+    }
+}

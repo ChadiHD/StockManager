@@ -21,16 +21,18 @@
         <div class="pill-row">
             @foreach (var f in _filters)
             {
-                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => SetFilter(f)">@f</button>
             }
         </div>
-        <div class="toolbar-count"><strong>@Filtered.Count</strong> accounts</div>
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search company, contact or country" />
+        <div class="toolbar-count"><strong>@Results.Count</strong> accounts</div>
     </div>
+    <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
             <thead><tr><th class="lead">Company</th><th>Contact</th><th>Group</th><th>Payment</th><th class="num">Credit limit</th><th class="trail">Status</th></tr></thead>
             <tbody>
-                @foreach (var a in Filtered)
+                @foreach (var a in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/accounts/{a.Id}")'>
                         <td class="lead"><span class="cell-primary">@a.Company</span><span class="cell-sub">@a.Id · @a.Country</span></td>
@@ -44,26 +46,85 @@
             </tbody>
         </table>
     </div>
+    </BusyOverlay>
+    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
+           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
 <Modal Visible="_showNew" Title="Add account" OnClose="() => _showNew = false">
     <EditForm Model="_draft" OnValidSubmit="CreateAccount">
         <div class="modal-body">
             <div class="form-grid">
-                <div class="field span2"><label>Company name</label><InputText class="input" @bind-Value="_draft.Company" /></div>
-                <div class="field"><label>Primary contact</label><InputText class="input" @bind-Value="_draft.Contact" /></div>
-                <div class="field"><label>Email</label><InputText class="input" @bind-Value="_draft.Email" /></div>
-                <div class="field"><label>Country</label><InputText class="input" @bind-Value="_draft.Country" /></div>
-                <div class="field"><label>Currency</label><InputSelect class="input" @bind-Value="_draft.Currency"><option>EUR</option><option>GBP</option><option>USD</option></InputSelect></div>
-                <div class="field"><label>Customer group</label><InputSelect class="input" @bind-Value="_draft.Group">@foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }</InputSelect></div>
-                <div class="field"><label>Payment mode</label><InputSelect class="input" @bind-Value="_draft.Payment"><option>Card</option><option>Credit terms</option></InputSelect></div>
-                <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_draft.Terms" /></div>
-                <div class="field span2"><label>Credit limit (EUR)</label><InputNumber class="input" @bind-Value="_draft.Credit" /></div>
+                <div class="field span2">
+                    <label>Company name</label>
+                    <InputText class="input" @bind-Value="_draft.Company" />
+                    <span class="field-note @(CompanyTaken ? "field-note--warn" : null)">
+                        @(CompanyTaken ? "An account with that company name already exists." : "Used as the account's reference on quotes and orders.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Primary contact</label>
+                    <InputText class="input" @bind-Value="_draft.Contact" />
+                </div>
+                <div class="field">
+                    <label>Email</label>
+                    <InputText class="input" type="email" @bind-Value="_draft.Email" />
+                    <span class="field-note @(EmailInvalid ? "field-note--warn" : null)">
+                        @(EmailInvalid ? "Does not look like an email address." : "Where quotes are sent.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Country</label>
+                    <InputText class="input" @bind-Value="_draft.Country" />
+                </div>
+                <div class="field">
+                    <label>Currency</label>
+                    <InputSelect class="input" @bind-Value="_draft.Currency"><option>EUR</option><option>GBP</option><option>USD</option></InputSelect>
+                </div>
+                <div class="field">
+                    <label>Customer group</label>
+                    <InputSelect class="input" @bind-Value="_draft.Group">@foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }</InputSelect>
+                    <span class="field-note">Sets the base discount: -@(Data.DiscountFor(_draft.Group))%.</span>
+                </div>
+                <div class="field">
+                    <label>Payment mode</label>
+                    <InputSelect class="input" Value="@_draft.Payment" ValueExpression="() => _draft.Payment"
+                                 ValueChanged="(string mode) => SetPayment(mode)">
+                        <option>Card</option><option>Credit terms</option>
+                    </InputSelect>
+                </div>
+
+                @* Terms and a credit limit only mean something on credit; on card the account
+                   pays up front, and the old form still collected both. *@
+                @if (_draft.Payment == "Credit terms")
+                {
+                    <div class="field">
+                        <label>Payment terms</label>
+                        <InputSelect class="input" @bind-Value="_draft.Terms">
+                            @foreach (var t in _creditTerms) { <option>@t</option> }
+                        </InputSelect>
+                    </div>
+                    <div class="field span2">
+                        <label>Credit limit (@_draft.Currency)</label>
+                        <input class="input" type="number" min="0" step="100" value="@_draft.Credit" @onchange="SetCredit" />
+                        <span class="field-note @(_draft.Credit <= 0 ? "field-note--warn" : null)">
+                            @(_draft.Credit <= 0 ? "A credit account needs a limit above zero." : "Orders beyond this need approval.")
+                        </span>
+                    </div>
+                }
+                else
+                {
+                    <div class="field">
+                        <label>Payment terms</label>
+                        <input class="input" value="Prepaid" disabled />
+                        <span class="field-note">Card accounts pay before dispatch.</span>
+                    </div>
+                }
             </div>
         </div>
         <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
-            <button type="submit" class="btn btn-primary">Create account</button>
+            <button type="submit" class="btn btn-primary" disabled="@(!CanCreateAccount)">Create account</button>
         </div>
     </EditForm>
 </Modal>
@@ -76,7 +137,96 @@
     private bool _showNew;
     private Account _draft = new() { Country = "Ireland", Currency = "EUR", Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
 
+    private readonly string[] _creditTerms = { "Net 14", "Net 30", "Net 45", "Net 60" };
+
+    private bool CompanyTaken =>
+        !string.IsNullOrWhiteSpace(_draft.Company) &&
+        Data.Accounts.Any(a => string.Equals(a.Company, _draft.Company, StringComparison.OrdinalIgnoreCase));
+
+    private bool EmailInvalid =>
+        !string.IsNullOrWhiteSpace(_draft.Email) &&
+        (!_draft.Email.Contains('@') || _draft.Email.EndsWith('@'));
+
+    private bool CanCreateAccount =>
+        !string.IsNullOrWhiteSpace(_draft.Company) &&
+        !CompanyTaken &&
+        !string.IsNullOrWhiteSpace(_draft.Email) &&
+        !EmailInvalid &&
+        (_draft.Payment != "Credit terms" || _draft.Credit > 0);
+
+    // Terms follow the payment mode, so switching to card cannot leave "Net 30" behind and
+    // switching to credit cannot leave "Prepaid".
+    private void SetPayment(string mode)
+    {
+        _draft.Payment = mode;
+
+        if (mode == "Card")
+        {
+            _draft.Terms = "Prepaid";
+            _draft.Credit = 0m;
+        }
+        else if (_draft.Terms is "Prepaid" or "")
+        {
+            _draft.Terms = "Net 30";
+        }
+    }
+
+    private void SetCredit(ChangeEventArgs args) =>
+        _draft.Credit = decimal.TryParse(args.Value?.ToString(), out var value) ? Math.Max(0m, value) : 0m;
+
+    private int _page = 1;
+    private int _pageSize = 25;
+
     private List<Account> Filtered => Data.Accounts.Where(a => _filter == "All" || a.Status == _filter).ToList();
+
+    private string _search = "";
+    private readonly SearchCache<Account> _cache = new();
+
+    private List<Account> Results => _cache.Get(
+        $"{_filter}|{_search}|{Data.Accounts.Count}",
+        () => FuzzySearch.Rank(Filtered, _search,
+            a => new[] { a.Company, a.Contact, a.Country, a.Group },
+            a => new[] { a.Id, a.Email }));
+
+    private IEnumerable<Account> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+
+    private bool _searching;
+
+    // Scoring runs on the single WebAssembly UI thread. Yield once first so the browser can
+    // paint the busy overlay before the work starts, rather than the page appearing frozen.
+    private async Task OnSearch(string term)
+    {
+        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // returns the old results, so this render is cheap and the browser can paint it.
+        // Applying the new term first made this very render run the scoring synchronously,
+        // which is why the spinner never appeared.
+        _searching = true;
+        StateHasChanged();
+
+        // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
+        await Task.Delay(80);
+
+        _search = term;
+        _page = 1;
+
+        // Now do the work, with the overlay already on screen.
+        _ = Results.Count;
+
+        _searching = false;
+    }
+
+    // Changing the filter or page size can leave the current page past the end of the list.
+    private void SetFilter(string filter)
+    {
+        _filter = filter;
+        _page = 1;
+    }
+
+    private void OnPageSizeChanged(int size)
+    {
+        _pageSize = size;
+        _page = 1;
+    }
 
     protected override void OnParametersSet() => Layout?.SetPage("Accounts", "B2B company accounts and onboarding");
 

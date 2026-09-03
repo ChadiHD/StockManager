@@ -5,24 +5,8 @@
 
 <PageTitle>Sign in | StockManager</PageTitle>
 
-<section class="auth-page">
-    <div class="auth-brand-panel">
-        <a class="brand large" href="/">
-            <span class="brand-mark" aria-hidden="true">SM</span>
-            <span><strong>StockManager</strong><small>Operations platform</small></span>
-        </a>
-        <div class="auth-message">
-            <span class="eyebrow light">One operational view</span>
-            <h1>Keep stock moving with confidence.</h1>
-            <p>Monitor inventory, understand sales, and control team access from a focused administration workspace.</p>
-        </div>
-        <div class="auth-points" aria-label="Platform capabilities">
-            <span><b aria-hidden="true">01</b> Live inventory visibility</span>
-            <span><b aria-hidden="true">02</b> Role-based administration</span>
-            <span><b aria-hidden="true">03</b> Clear sales reporting</span>
-        </div>
-    </div>
-
+@* Single centred column — the marketing panel that used to sit on the left has been removed. *@
+<section class="auth-page auth-page--single">
     <div class="auth-form-panel">
         <EditForm Model="model" OnValidSubmit="ExecuteLogin" class="auth-card">
             <DataAnnotationsValidator />
@@ -48,8 +32,29 @@
             </div>
             <div class="field">
                 <label for="password">Password</label>
-                <InputText id="password" type="password" autocomplete="current-password" @bind-Value="model.Password"
-                           placeholder="Enter your password" disabled="@isSubmitting" />
+                <div class="password-field">
+                    <InputText id="password" type="@(showPassword ? "text" : "password")"
+                               autocomplete="current-password" @bind-Value="model.Password"
+                               placeholder="Enter your password" disabled="@isSubmitting" />
+                    <button type="button" class="password-toggle" @onclick="() => showPassword = !showPassword"
+                            disabled="@isSubmitting" aria-pressed="@showPassword"
+                            aria-label="@(showPassword ? "Hide password" : "Show password")"
+                            title="@(showPassword ? "Hide password" : "Show password")">
+                        @if (showPassword)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 10 8 10 8a18 18 0 0 1-2.16 3.19M6.6 6.6A18 18 0 0 0 2 12s3 8 10 8a9.1 9.1 0 0 0 5.4-1.6" />
+                                <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M2 2l20 20" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3-8 10-8 10 8 10 8-3 8-10 8-10-8-10-8z" /><circle cx="12" cy="12" r="3" />
+                            </svg>
+                        }
+                    </button>
+                </div>
                 <ValidationMessage For="@(() => model.Password)" />
             </div>
             <button type="submit" class="button primary wide" disabled="@isSubmitting">
@@ -72,6 +77,7 @@
     private readonly AuthenticationUserModel model = new();
     private string authenticationError = string.Empty;
     private bool isSubmitting;
+    private bool showPassword;
 
     [SupplyParameterFromQuery]
     public string? ReturnUrl { get; set; }

@@ -23,5 +23,11 @@ namespace SMDataManager.Library.Models
         public string DistributorSku { get; set; }
         public DateTime? LastSynced { get; set; }
         public bool Delisted { get; set; }
+
+        public string Manufacturer { get; set; }
+        public string ManufacturerPartNumber { get; set; }
+        public string Ean { get; set; }
+        public bool? IcecatAvailable { get; set; }
+        public DateTime? ImageSourcedUtc { get; set; }
     }
 }

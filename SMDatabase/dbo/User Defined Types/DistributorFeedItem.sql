@@ -10,5 +10,9 @@ CREATE TYPE [dbo].[DistributorFeedItem] AS TABLE
 	[Cost] MONEY NULL,
 	[Srp] MONEY NULL,
 	[QuantityInStock] INT NOT NULL,
+	[Manufacturer] NVARCHAR(100) NULL,
+	[ManufacturerPartNumber] NVARCHAR(100) NULL,
+	[Ean] NVARCHAR(20) NULL,
+	[IcecatAvailable] BIT NULL,
 	PRIMARY KEY ([DistributorSku])
 )

@@ -46,7 +46,11 @@ namespace SMDataManager.Library.DataAccess
                 feed.FieldCategory,
                 feed.FieldCost,
                 feed.FieldSrp,
-                feed.FieldQuantity
+                feed.FieldQuantity,
+                feed.FieldManufacturer,
+                feed.FieldMpn,
+                feed.FieldEan,
+                feed.FieldIcecat
             }, "SMDatabase");
 
             return GetFeeds().FirstOrDefault(candidate => candidate.Name == feed.Name);
@@ -70,7 +74,11 @@ namespace SMDataManager.Library.DataAccess
                 feed.FieldCategory,
                 feed.FieldCost,
                 feed.FieldSrp,
-                feed.FieldQuantity
+                feed.FieldQuantity,
+                feed.FieldManufacturer,
+                feed.FieldMpn,
+                feed.FieldEan,
+                feed.FieldIcecat
             }, "SMDatabase");
         }
 

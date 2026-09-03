@@ -16,7 +16,11 @@ CREATE PROCEDURE [dbo].[spDistributorFeed_Update]
 	@FieldCategory nvarchar(100),
 	@FieldCost nvarchar(100),
 	@FieldSrp nvarchar(100),
-	@FieldQuantity nvarchar(100)
+	@FieldQuantity nvarchar(100),
+	@FieldManufacturer nvarchar(100),
+	@FieldMpn nvarchar(100),
+	@FieldEan nvarchar(100),
+	@FieldIcecat nvarchar(100)
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -36,6 +40,10 @@ BEGIN
 	    [FieldCost] = @FieldCost,
 	    [FieldSrp] = @FieldSrp,
 	    [FieldQuantity] = @FieldQuantity,
+	    [FieldManufacturer] = @FieldManufacturer,
+	    [FieldMpn] = @FieldMpn,
+	    [FieldEan] = @FieldEan,
+	    [FieldIcecat] = @FieldIcecat,
 	    [LastModified] = SYSUTCDATETIME()
 	WHERE [Id] = @Id;
 END

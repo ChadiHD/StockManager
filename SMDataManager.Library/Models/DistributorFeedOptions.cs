@@ -53,5 +53,21 @@ namespace SMDataManager.Library.Models
         public string Srp { get; set; } = "SRP";
 
         public string Quantity { get; set; } = "StockQuantity";
+
+        // ---- Identity, used to resolve product content (images) from Icecat ----
+
+        public string Manufacturer { get; set; } = "Manufacturer";
+
+        /// <summary>Manufacturer part number. Present on every row of the FlexIT feed.</summary>
+        public string Mpn { get; set; } = "ManufacturerPartNumber";
+
+        /// <summary>GTIN/EAN. Only a minority of rows carry one, so it is the fallback key.</summary>
+        public string Ean { get; set; } = "EAN";
+
+        /// <summary>
+        /// The feed's "IceCatID" column, which despite the name contains Yes/empty rather than an
+        /// identifier. Kept as a hint for which products to try first.
+        /// </summary>
+        public string IcecatFlag { get; set; } = "IceCatID";
     }
 }

@@ -1,0 +1,80 @@
+@* Search input that only submits on Enter or the magnifier button.
+   Fuzzy scoring runs over the whole in-memory list on the single WebAssembly UI thread, so
+   searching on every keystroke made the page feel stuck. Nothing happens until the operator
+   asks for it. *@
+<div class="searchbox-row">
+    <label class="searchbox">
+        <input type="search" value="@_text" @oninput="OnInput" @onkeydown="OnKeyDown"
+               placeholder="@Placeholder" aria-label="@Placeholder" autocomplete="off"
+               disabled="@Busy" />
+        @if (!string.IsNullOrEmpty(_text))
+        {
+            <button type="button" class="searchbox-clear" @onclick="Clear" disabled="@Busy"
+                    aria-label="Clear search">×</button>
+        }
+    </label>
+
+    <button type="button" class="searchbox-go" @onclick="Submit" disabled="@Busy"
+            title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m21 21-3.6-3.6" />
+        </svg>
+    </button>
+</div>
+
+@code {
+    /// <summary>The term currently applied by the parent.</summary>
+    [Parameter] public string Value { get; set; } = "";
+
+    /// <summary>Raised only when the operator submits, never while typing.</summary>
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter] public string Placeholder { get; set; } = "Search";
+
+    /// <summary>Disables the control while the parent is running a search.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    private string _text = "";
+
+    // True when the box no longer matches what has actually been searched for.
+    private bool _dirty => _text != (Value ?? "");
+
+    protected override void OnParametersSet()
+    {
+        // Only adopt the parent's value when the box is clean, so it cannot overwrite a term
+        // the operator is still typing.
+        if (!_dirty && _text != (Value ?? ""))
+        {
+            _text = Value ?? "";
+        }
+    }
+
+    private void OnInput(ChangeEventArgs args) => _text = args.Value?.ToString() ?? "";
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or "NumpadEnter")
+        {
+            await Submit();
+        }
+        else if (args.Key == "Escape")
+        {
+            await Clear();
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (!_dirty) return;
+        await ValueChanged.InvokeAsync(_text);
+    }
+
+    private async Task Clear()
+    {
+        _text = "";
+        if (!string.IsNullOrEmpty(Value))
+        {
+            await ValueChanged.InvokeAsync("");
+        }
+    }
+}

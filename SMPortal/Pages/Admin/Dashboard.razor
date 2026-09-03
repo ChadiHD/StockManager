@@ -67,12 +67,22 @@
                 <h2>Pending approvals</h2>
                 <span class="badge badge--warn">@PendingCount</span>
             </div>
-            @foreach (var a in Pending)
+            @foreach (var a in Pending.Take(RailLimit))
             {
                 <button class="att-row" @onclick='() => Nav.NavigateTo($"admin/accounts/{a.Id}")'>
                     <span class="att-cur">@a.Currency</span>
                     <span class="att-body"><strong>@a.Company</strong><small>Applied @a.Since · @a.Country</small></span>
                     <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#c0c8d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </button>
+            }
+            @if (PendingCount == 0)
+            {
+                <p class="rail-empty">Nothing awaiting review.</p>
+            }
+            else if (PendingCount > RailLimit)
+            {
+                <button class="btn-link rail-more" @onclick='() => Nav.NavigateTo("admin/accounts")'>
+                    View all @PendingCount pending
                 </button>
             }
         </div>
@@ -82,12 +92,22 @@
                 <h2>Low stock</h2>
                 <button class="btn-link" @onclick='() => Nav.NavigateTo("admin/products")'>View all</button>
             </div>
-            @foreach (var p in LowStock)
+            @foreach (var p in LowStock.Take(RailLimit))
             {
                 <div class="low-row">
                     <span class="low-body"><strong>@p.Name</strong><small>@p.Sku · @p.Source</small></span>
                     <span class="badge @AdminUi.StockClass(p.Avail)">@p.Avail left</span>
                 </div>
+            }
+            @if (LowStock.Count == 0)
+            {
+                <p class="rail-empty">All stock is above the reorder point.</p>
+            }
+            else if (LowStock.Count > RailLimit)
+            {
+                <button class="btn-link rail-more" @onclick='() => Nav.NavigateTo("admin/products")'>
+                    View all @LowStock.Count low-stock lines
+                </button>
             }
         </div>
     </div>
@@ -95,6 +115,10 @@
 
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    // The side rails are a summary, not a list. Without a cap a synced catalogue can put
+    // hundreds of low-stock rows here and push Recent activity out of view.
+    private const int RailLimit = 5;
 
     private IEnumerable<Account> Pending => Data.Accounts.Where(a => a.Status == "Pending");
     private int PendingCount => Pending.Count();

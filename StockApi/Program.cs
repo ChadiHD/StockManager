@@ -6,6 +6,7 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
+using StockApi.Feeds;
 using StockApi.Security;
 using StockApi.Data;
 using System.Text;
@@ -47,6 +48,15 @@ builder.Services.AddTransient<IUserData, UserData>();
 builder.Services.AddTransient<IDistributorFeedClient, SftpDistributorFeedClient>();
 builder.Services.AddTransient<IDistributorFeedSyncService, DistributorFeedSyncService>();
 builder.Services.AddTransient<IDistributorFeedData, DistributorFeedData>();
+
+// Icecat product-content lookups, used to fill in missing product images. Inert until an
+// Icecat account is configured; the client reports IsConfigured = false and callers no-op.
+builder.Services.AddHttpClient<IIcecatClient, IcecatClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+});
+builder.Services.AddTransient<IProductImageEnricher, ProductImageEnricher>();
+builder.Services.AddHostedService<ProductImageBackgroundService>();
 
 // Data Protection store (default; used for local development).
 // The keyring MUST outlive the container: with the default provider the keys sit on the

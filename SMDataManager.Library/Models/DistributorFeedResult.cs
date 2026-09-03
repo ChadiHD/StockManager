@@ -33,6 +33,13 @@ namespace SMDataManager.Library.Models
         public decimal? Srp { get; set; }
         public int Quantity { get; set; }
 
+        public string Manufacturer { get; set; }
+        public string Mpn { get; set; }
+        public string Ean { get; set; }
+
+        /// <summary>True when the feed indicates Icecat content exists for this product.</summary>
+        public bool? IcecatAvailable { get; set; }
+
         /// <summary>Every flattened key/value from the source record, for diagnostics.</summary>
         public Dictionary<string, string> Raw { get; set; } = new();
     }

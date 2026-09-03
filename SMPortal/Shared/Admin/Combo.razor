@@ -1,0 +1,241 @@
+@* Searchable single-select.
+
+   A native <select> is the right control for a handful of options, and the short lists in these
+   modals (currency, role, payment mode) keep theirs. It is the wrong control for the product
+   catalogue: 2381 options that cannot be typed into or filtered, only scrolled. This keeps a
+   select's keyboard contract — arrows to move, Enter to choose, Escape to cancel — and adds
+   filtering, a secondary line, and a trailing note for stock. *@
+
+<div class="combo" @onfocusout="OnFocusOut">
+    <div class="combo-field @(_open ? "combo-field--open" : null)">
+        @* @key forces this element to be recreated whenever the text is set in code rather than
+           typed. Once a user has typed, the input's DOM value property is dirty and no longer
+           follows the value attribute Blazor writes — so picking a row updated the binding but
+           left the box showing the old query, or nothing at all. A fresh element has a clean
+           property and picks the new value up. *@
+        <input @key="_textStamp" class="combo-input" type="text" role="combobox" autocomplete="off"
+               aria-expanded="@_open" aria-autocomplete="list" aria-controls="@_listId"
+               value="@_text" @oninput="OnInput" @onkeydown="OnKeyDown" @onfocusin="OnFocusIn"
+               placeholder="@Placeholder" disabled="@Disabled" />
+
+        @if (_open && _text.Length > 0)
+        {
+            <button type="button" class="combo-clear" aria-label="Clear"
+                    @onmousedown:preventDefault="true" @onclick="ClearQuery">&times;</button>
+        }
+
+        <span class="combo-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </span>
+    </div>
+
+    @if (_open)
+    {
+        <div class="combo-list" id="@_listId" role="listbox">
+            @if (_matches.Count == 0)
+            {
+                <p class="combo-empty">@EmptyText</p>
+            }
+            else
+            {
+                @for (var index = 0; index < _matches.Count; index++)
+                {
+                    var option = _matches[index];
+                    var position = index;
+
+                    <button type="button" role="option" disabled="@option.Disabled"
+                            aria-selected="@(option.Value == Value)"
+                            class="combo-option @(position == _highlight ? "combo-option--on" : null) @(option.Value == Value ? "combo-option--picked" : null)"
+                            @onmousedown:preventDefault="true"
+                            @onclick="() => Pick(option)">
+                        <span class="combo-lines">
+                            <span class="combo-label">@option.Label</span>
+                            @if (!string.IsNullOrWhiteSpace(option.Sub))
+                            {
+                                <span class="combo-sub">@option.Sub</span>
+                            }
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(option.Meta))
+                        {
+                            <span class="combo-meta">@option.Meta</span>
+                        }
+                    </button>
+                }
+
+                @if (_hidden > 0)
+                {
+                    @* Rendering thousands of rows would stall the WebAssembly thread, so the
+                       list is capped and the rest is reported rather than silently dropped. *@
+                    <p class="combo-more">@_hidden more match — keep typing to narrow</p>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<ComboOption> Options { get; set; } = Array.Empty<ComboOption>();
+
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter] public string Placeholder { get; set; } = "Search…";
+    [Parameter] public string EmptyText { get; set; } = "No matches.";
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>How many rows to render at once. The remainder is counted, not dropped.</summary>
+    [Parameter] public int MaxVisible { get; set; } = 50;
+
+    private readonly string _listId = $"combo-{Guid.NewGuid():N}";
+
+    private bool _open;
+    private string _text = "";
+
+    // Bumped whenever _text is assigned by code rather than typed, to re-key the input.
+    private int _textStamp;
+    private int _highlight;
+    private int _hidden;
+    private List<ComboOption> _matches = new();
+
+    private ComboOption? Selected =>
+        Value is null ? null : Options.FirstOrDefault(option => option.Value == Value);
+
+    private string? _shownValue;
+
+    protected override void OnParametersSet()
+    {
+        // Adopt the bound value only while closed, so it cannot overwrite a query being typed.
+        if (_open) return;
+
+        // And only when it actually changed underneath us. Re-deriving on every parameter set
+        // meant a missed lookup blanked a selection Pick had just made correctly — the label
+        // Pick already wrote is the authority for its own choice.
+        if (Value == _shownValue) return;
+
+        _shownValue = Value;
+        SetText(Selected?.Label ?? "");
+    }
+
+    // Focusing shows the whole list rather than the one selected label, which is what makes the
+    // control feel like a search box. The selection is restored on cancel.
+    private void OnFocusIn()
+    {
+        if (Disabled) return;
+
+        _open = true;
+        SetText("");
+        Filter();
+    }
+
+    // The only place _text follows the DOM rather than driving it, so no re-key here.
+    private void OnInput(ChangeEventArgs args)
+    {
+        _text = args.Value?.ToString() ?? "";
+        _open = true;
+        Filter();
+    }
+
+    private void ClearQuery()
+    {
+        SetText("");
+        Filter();
+    }
+
+    private void Filter()
+    {
+        var tokens = _text.Split(default(char[]), StringSplitOptions.RemoveEmptyEntries);
+
+        var hits = tokens.Length == 0
+            ? Options
+            : Options.Where(option => tokens.All(token =>
+                  Contains(option.Label, token) ||
+                  Contains(option.Sub, token) ||
+                  Contains(option.Meta, token)))
+              .ToList();
+
+        _hidden = Math.Max(0, hits.Count - MaxVisible);
+        _matches = hits.Take(MaxVisible).ToList();
+
+        // Start on the current selection when it survived the filter, otherwise the first row.
+        var current = _matches.FindIndex(option => option.Value == Value);
+        _highlight = current >= 0 ? current : FirstSelectable();
+    }
+
+    private static bool Contains(string? value, string token) =>
+        !string.IsNullOrEmpty(value) && value.Contains(token, StringComparison.OrdinalIgnoreCase);
+
+    private int FirstSelectable() => _matches.FindIndex(option => !option.Disabled);
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "ArrowDown":
+                if (!_open) { OnFocusIn(); return; }
+                Move(1);
+                return;
+
+            case "ArrowUp":
+                Move(-1);
+                return;
+
+            case "Enter":
+            case "NumpadEnter":
+                if (_open && _highlight >= 0 && _highlight < _matches.Count)
+                {
+                    await Pick(_matches[_highlight]);
+                }
+                return;
+
+            case "Escape":
+            case "Tab":
+                Close();
+                return;
+        }
+    }
+
+    // Steps over disabled rows so the highlight never lands somewhere Enter would do nothing.
+    private void Move(int direction)
+    {
+        if (_matches.Count == 0) return;
+
+        var next = _highlight;
+        for (var step = 0; step < _matches.Count; step++)
+        {
+            next = (next + direction + _matches.Count) % _matches.Count;
+            if (!_matches[next].Disabled) break;
+        }
+
+        _highlight = next;
+    }
+
+    private async Task Pick(ComboOption option)
+    {
+        if (option.Disabled) return;
+
+        _open = false;
+        SetText(option.Label);
+
+        // Claim the value before raising the callback, so the parameter set that follows sees
+        // it as already displayed and leaves the label alone.
+        _shownValue = option.Value;
+
+        await ValueChanged.InvokeAsync(option.Value);
+    }
+
+    private void OnFocusOut() => Close();
+
+    private void Close()
+    {
+        _open = false;
+        SetText(Selected?.Label ?? "");
+    }
+
+    private void SetText(string text)
+    {
+        if (_text == text) return;
+
+        _text = text;
+        _textStamp++;
+    }
+}

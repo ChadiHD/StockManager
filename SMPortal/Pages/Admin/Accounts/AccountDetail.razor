@@ -121,15 +121,51 @@ else
         <EditForm Model="_termsDraft" OnValidSubmit="SaveTerms">
             <div class="modal-body">
                 <div class="form-grid">
-                    <div class="field"><label>Customer group</label><InputSelect class="input" @bind-Value="_termsDraft.Group">@foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }</InputSelect></div>
-                    <div class="field"><label>Payment mode</label><InputSelect class="input" @bind-Value="_termsDraft.Payment"><option>Card</option><option>Credit terms</option></InputSelect></div>
-                    <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_termsDraft.Terms" /></div>
-                    <div class="field"><label>Credit limit (EUR)</label><InputNumber class="input" @bind-Value="_termsDraft.Credit" /></div>
+                    <div class="field">
+                        <label>Customer group</label>
+                        <InputSelect class="input" @bind-Value="_termsDraft.Group">@foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }</InputSelect>
+                        <span class="field-note">
+                            Base discount -@(Data.DiscountFor(_termsDraft.Group))%@(_termsDraft.Group == _a!.Group ? "" : " — changes pricing on new quotes.")
+                        </span>
+                    </div>
+                    <div class="field">
+                        <label>Payment mode</label>
+                        <InputSelect class="input" Value="@_termsDraft.Payment" ValueExpression="() => _termsDraft.Payment"
+                                     ValueChanged="(string mode) => SetTermsPayment(mode)">
+                            <option>Card</option><option>Credit terms</option>
+                        </InputSelect>
+                    </div>
+
+                    @* Terms and a limit only apply on credit — on card the account pays up front. *@
+                    @if (_termsDraft.Payment == "Credit terms")
+                    {
+                        <div class="field">
+                            <label>Payment terms</label>
+                            <InputSelect class="input" @bind-Value="_termsDraft.Terms">
+                                @foreach (var t in _creditTerms) { <option>@t</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="field">
+                            <label>Credit limit (@(_a!.Currency))</label>
+                            <input class="input" type="number" min="0" step="100" value="@_termsDraft.Credit" @onchange="SetTermsCredit" />
+                            <span class="field-note @(_termsDraft.Credit <= 0 ? "field-note--warn" : null)">
+                                @(_termsDraft.Credit <= 0 ? "A credit account needs a limit above zero." : "Orders beyond this need approval.")
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="field span2">
+                            <label>Payment terms</label>
+                            <input class="input" value="Prepaid" disabled />
+                            <span class="field-note">Card accounts pay before dispatch; any credit limit is cleared.</span>
+                        </div>
+                    }
                 </div>
             </div>
             <div class="modal-foot">
                 <button type="button" class="btn btn-secondary" @onclick="() => _showTerms = false">Close</button>
-                <button type="submit" class="btn btn-primary">Save terms</button>
+                <button type="submit" class="btn btn-primary" disabled="@(!CanSaveTerms)">Save terms</button>
             </div>
         </EditForm>
     </Modal>
@@ -148,6 +184,31 @@ else
 
     private sealed class TermsDraft { public string Group = ""; public string Payment = ""; public string Terms = ""; public decimal Credit; }
     private TermsDraft _termsDraft = new();
+
+    private readonly string[] _creditTerms = { "Net 14", "Net 30", "Net 45", "Net 60" };
+
+    private bool CanSaveTerms =>
+        _termsDraft.Payment != "Credit terms" || _termsDraft.Credit > 0;
+
+    // Terms follow the payment mode, so switching to card cannot leave "Net 30" and a live
+    // credit limit behind on an account that now pays up front.
+    private void SetTermsPayment(string mode)
+    {
+        _termsDraft.Payment = mode;
+
+        if (mode == "Card")
+        {
+            _termsDraft.Terms = "Prepaid";
+            _termsDraft.Credit = 0m;
+        }
+        else if (_termsDraft.Terms is "Prepaid" or "")
+        {
+            _termsDraft.Terms = "Net 30";
+        }
+    }
+
+    private void SetTermsCredit(ChangeEventArgs args) =>
+        _termsDraft.Credit = decimal.TryParse(args.Value?.ToString(), out var value) ? Math.Max(0m, value) : 0m;
 
     private string GroupDisc => "-" + Data.DiscountFor(_a?.Group ?? "Reseller") + "%";
 

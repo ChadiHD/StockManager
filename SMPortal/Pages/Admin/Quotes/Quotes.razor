@@ -21,16 +21,18 @@
         <div class="pill-row">
             @foreach (var f in _filters)
             {
-                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => SetFilter(f)">@f</button>
             }
         </div>
-        <div class="toolbar-count"><strong>@Filtered.Count</strong> quotes</div>
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search reference or account" />
+        <div class="toolbar-count"><strong>@Results.Count</strong> quotes</div>
     </div>
+    <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
             <thead><tr><th class="lead">Reference</th><th>Account</th><th>Created</th><th>Valid until</th><th>Status</th><th class="num trail">Value</th></tr></thead>
             <tbody>
-                @foreach (var q in Filtered)
+                @foreach (var q in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/quotes/{q.Id}")'>
                         <td class="lead"><span class="cell-primary">@q.Id</span><span class="cell-sub">@q.Lines line items</span></td>
@@ -44,6 +46,9 @@
             </tbody>
         </table>
     </div>
+    </BusyOverlay>
+    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
+           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
 <Modal Visible="_showNew" Title="New quote" OnClose="() => _showNew = false">
@@ -52,15 +57,21 @@
             <div class="form-grid">
                 <div class="field span2">
                     <label>Account</label>
-                    <InputSelect class="input" @bind-Value="_draft.Account">
-                        @foreach (var a in Data.Accounts) { <option value="@a.Company">@a.Company</option> }
-                    </InputSelect>
+                    <Combo Options="AccountOptions" Value="@_draft.Account" ValueChanged="PickAccount"
+                           Placeholder="Search company, contact or email"
+                           EmptyText="No account matches that." />
+                    <span class="field-note">
+                        @(PickedAccount is null
+                            ? "Pricing follows the account's customer group."
+                            : Join(PickedAccount.Group, PickedAccount.Payment, PickedAccount.Terms))
+                    </span>
                 </div>
                 <div class="field">
                     <label>Currency</label>
                     <InputSelect class="input" @bind-Value="_draft.Currency">
                         <option>EUR</option><option>GBP</option><option>USD</option>
                     </InputSelect>
+                    <span class="field-note">Defaults to the account's own currency.</span>
                 </div>
             </div>
             <p class="hint">Three sample line items will be added at the account's group price. You can edit or add lines on the quote afterwards.</p>
@@ -82,8 +93,84 @@
     private sealed class Draft { public string Account { get; set; } = ""; public string Currency { get; set; } = "EUR"; }
     private Draft _draft = new();
 
+    private List<ComboOption> AccountOptions => Data.Accounts
+        .Select(a => new ComboOption(a.Company, a.Company, Join(a.Contact, a.Email), a.Group))
+        .ToList();
+
+    // Accounts imported without a contact, email or group would otherwise render a bare
+    // separator with nothing either side of it.
+    private static string Join(params string?[] parts) =>
+        string.Join(" · ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    private Account? PickedAccount =>
+        Data.Accounts.FirstOrDefault(a => a.Company == _draft.Account);
+
+    // Quoting in a currency the account does not trade in is the common slip, so picking the
+    // account carries its currency across rather than leaving the previous draft's value.
+    private void PickAccount(string? company)
+    {
+        _draft.Account = company ?? "";
+
+        if (PickedAccount is { } account)
+        {
+            _draft.Currency = account.Currency;
+        }
+    }
+
+    private int _page = 1;
+    private int _pageSize = 25;
+
     private List<Quote> Filtered =>
         Data.Quotes.Where(q => _filter == "All" || q.Status == _filter).ToList();
+
+    private string _search = "";
+    private readonly SearchCache<Quote> _cache = new();
+
+    private List<Quote> Results => _cache.Get(
+        $"{_filter}|{_search}|{Data.Quotes.Count}",
+        () => FuzzySearch.Rank(Filtered, _search,
+            q => new[] { q.Account },
+            q => new[] { q.Id }));
+
+    private IEnumerable<Quote> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+
+    private bool _searching;
+
+    // Scoring runs on the single WebAssembly UI thread. Yield once first so the browser can
+    // paint the busy overlay before the work starts, rather than the page appearing frozen.
+    private async Task OnSearch(string term)
+    {
+        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // returns the old results, so this render is cheap and the browser can paint it.
+        // Applying the new term first made this very render run the scoring synchronously,
+        // which is why the spinner never appeared.
+        _searching = true;
+        StateHasChanged();
+
+        // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
+        await Task.Delay(80);
+
+        _search = term;
+        _page = 1;
+
+        // Now do the work, with the overlay already on screen.
+        _ = Results.Count;
+
+        _searching = false;
+    }
+
+    // Changing the filter or page size can leave the current page past the end of the list.
+    private void SetFilter(string filter)
+    {
+        _filter = filter;
+        _page = 1;
+    }
+
+    private void OnPageSizeChanged(int size)
+    {
+        _pageSize = size;
+        _page = 1;
+    }
 
     protected override void OnParametersSet()
     {

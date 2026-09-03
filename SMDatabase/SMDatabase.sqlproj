@@ -108,6 +108,8 @@
     <Build Include="dbo\Store Procedures\spProduct_GetAll.sql" />
     <Build Include="dbo\Store Procedures\spProduct_GetById.sql" />
     <Build Include="dbo\Store Procedures\spProduct_GetBySku.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_GetImageCandidates.sql" />
+    <Build Include="dbo\Store Procedures\spProduct_SetImage.sql" />
     <Build Include="dbo\Store Procedures\spProduct_Insert.sql" />
     <Build Include="dbo\Store Procedures\spProduct_SyncFeeds.sql" />
     <Build Include="dbo\Store Procedures\spProduct_Update.sql" />

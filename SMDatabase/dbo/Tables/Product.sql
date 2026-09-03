@@ -21,5 +21,17 @@ CREATE TABLE [dbo].[Product]
     [LastSynced] DATETIME2 NULL,
     -- Set when a distributor product stops appearing in its feed. Kept rather than deleted so
     -- historical quote and order lines still resolve to a product.
-    [Delisted] BIT NOT NULL DEFAULT 0
+    [Delisted] BIT NOT NULL DEFAULT 0,
+    -- Identity keys used to look product content up with Icecat. Brand + part number is present
+    -- on every row of the FlexIT feed; EAN only on a minority, so it is the fallback.
+    [Manufacturer] NVARCHAR(100) NULL,
+    [ManufacturerPartNumber] NVARCHAR(100) NULL,
+    [Ean] NVARCHAR(20) NULL,
+    -- The feed's "IceCatID" column is a Yes/empty availability flag, not an identifier, so it
+    -- is stored as a hint for which products to try first rather than as a lookup key.
+    [IcecatAvailable] BIT NULL,
+    -- When an image was last resolved, so enrichment can skip what it already has and retry
+    -- what it could not find.
+    [ImageSourcedUtc] DATETIME2 NULL,
+    [ImageLookupUtc] DATETIME2 NULL
 )

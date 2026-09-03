@@ -1,0 +1,23 @@
+@* Blurs and disables its content while work is in progress, with a spinner over the top.
+   WebAssembly is single-threaded, so the work still occupies the UI thread — this makes the
+   wait visible and stops the rows being clicked while they are stale, rather than leaving the
+   page looking frozen. *@
+<div class="busy-wrap">
+    <div class="busy-content @(Busy ? "busy-content--waiting" : null)" aria-busy="@Busy">
+        @ChildContent
+    </div>
+
+    @if (Busy)
+    {
+        <div class="busy-veil" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="busy-label">@Label</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string Label { get; set; } = "Searching…";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

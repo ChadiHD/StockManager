@@ -81,6 +81,17 @@ public class Product
     public bool Stale { get; set; }
     public string Image { get; set; } = "";
 
+    // The feed splits a part across two columns: Name carries the spec string
+    // ("E14 G2 i7-1165G7/16GB/..."), Desc the brand and model ("LENOVO ThinkPad E14 G2").
+    // Searching only Name therefore finds nothing by brand, which is how buyers search.
+    public string Desc { get; set; } = "";
+
+    // Carried through from the distributor feed so operators can search on the manufacturer's
+    // own identifiers, which is how the trade actually refers to a part.
+    public string Manufacturer { get; set; } = "";
+    public string Mpn { get; set; } = "";
+    public string Ean { get; set; } = "";
+
     public bool IsDistributor => Source == "Distributor";
     public int MarginPct => Price > 0 ? (int)Math.Round((1 - Cost / Price) * 100) : 0;
     public string StockKind => Avail <= 0 ? "Out of stock" : (Avail <= 6 ? "Low" : "In stock");

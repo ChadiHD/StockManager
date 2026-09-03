@@ -36,12 +36,17 @@
 </section>
 
 <div class="panel panel-clip">
-    <div class="toolbar"><h2 class="tbl-title">Settled sales</h2></div>
+    <div class="toolbar">
+        <h2 class="tbl-title">Settled sales</h2>
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search account or reference" />
+        <div class="toolbar-count"><strong>@Results.Count</strong> rows</div>
+    </div>
+    <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
             <thead><tr><th class="lead">Date</th><th>Account</th><th>Reference</th><th class="num">Net</th><th class="num">VAT</th><th class="num trail">Total</th></tr></thead>
             <tbody>
-                @foreach (var r in Data.Reports)
+                @foreach (var r in Paged)
                 {
                     <tr>
                         <td class="lead cell-sub nowrap">@r.Date</td>
@@ -55,10 +60,58 @@
             </tbody>
         </table>
     </div>
+    </BusyOverlay>
+    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
+           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    private string _search = "";
+    private readonly SearchCache<ReportRow> _cache = new();
+
+    private List<ReportRow> Results => _cache.Get(
+        $"{_search}|{Data.Reports.Count}",
+        () => FuzzySearch.Rank(Data.Reports, _search,
+            r => new[] { r.Account },
+            r => new[] { r.Ref }));
+
+    private IEnumerable<ReportRow> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+
+    private bool _searching;
+
+    // Scoring runs on the single WebAssembly UI thread. Yield once first so the browser can
+    // paint the busy overlay before the work starts, rather than the page appearing frozen.
+    private async Task OnSearch(string term)
+    {
+        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // returns the old results, so this render is cheap and the browser can paint it.
+        // Applying the new term first made this very render run the scoring synchronously,
+        // which is why the spinner never appeared.
+        _searching = true;
+        StateHasChanged();
+
+        // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
+        await Task.Delay(80);
+
+        _search = term;
+        _page = 1;
+
+        // Now do the work, with the overlay already on screen.
+        _ = Results.Count;
+
+        _searching = false;
+    }
+
+    private void OnPageSizeChanged(int size)
+    {
+        _pageSize = size;
+        _page = 1;
+    }
 
     private decimal _revenue, _vat;
 

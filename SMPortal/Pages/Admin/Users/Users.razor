@@ -14,12 +14,17 @@
 </div>
 
 <div class="panel panel-clip">
-    <div class="toolbar"><h2 class="tbl-title">Team accounts</h2><div class="toolbar-count"><strong>@Data.Users.Count</strong> members</div></div>
+    <div class="toolbar">
+        <h2 class="tbl-title">Team accounts</h2>
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, email or role" />
+        <div class="toolbar-count"><strong>@Results.Count</strong> members</div>
+    </div>
+    <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
             <thead><tr><th class="lead">User</th><th>Roles</th><th>Last active</th><th class="trail"></th></tr></thead>
             <tbody>
-                @foreach (var u in Data.Users)
+                @foreach (var u in Paged)
                 {
                     <tr>
                         <td class="lead">
@@ -40,20 +45,36 @@
             </tbody>
         </table>
     </div>
+    </BusyOverlay>
+    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
+           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
 <Modal Visible="_showInvite" Title="Invite user" OnClose="() => _showInvite = false">
     <EditForm Model="_invite" OnValidSubmit="SendInvite">
         <div class="modal-body">
             <div class="form-grid">
-                <div class="field span2"><label>Full name</label><InputText class="input" @bind-Value="_invite.Name" /></div>
-                <div class="field"><label>Email</label><InputText class="input" @bind-Value="_invite.Email" /></div>
-                <div class="field"><label>Role</label><InputSelect class="input" @bind-Value="_invite.Role"><option>Staff</option><option>Manager</option><option>Admin</option></InputSelect></div>
+                <div class="field span2">
+                    <label>Full name</label>
+                    <InputText class="input" @bind-Value="_invite.Name" />
+                </div>
+                <div class="field">
+                    <label>Email</label>
+                    <InputText class="input" type="email" @bind-Value="_invite.Email" />
+                    <span class="field-note @(InviteProblem is not null ? "field-note--warn" : null)">
+                        @(InviteProblem ?? "Their sign-in address.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Role</label>
+                    <InputSelect class="input" @bind-Value="_invite.Role"><option>Staff</option><option>Manager</option><option>Admin</option></InputSelect>
+                    <span class="field-note">@RoleBlurb(_invite.Role)</span>
+                </div>
             </div>
         </div>
         <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @onclick="() => _showInvite = false">Close</button>
-            <button type="submit" class="btn btn-primary">Send invite</button>
+            <button type="submit" class="btn btn-primary" disabled="@(!CanInvite)">Send invite</button>
         </div>
     </EditForm>
 </Modal>
@@ -70,6 +91,16 @@
             <label class="role-check"><input type="checkbox" @bind="_rAdmin" /> Admin — full access</label>
             <label class="role-check"><input type="checkbox" @bind="_rManager" /> Manager — inventory, reports</label>
             <label class="role-check"><input type="checkbox" @bind="_rStaff" /> Staff — products &amp; quotes</label>
+
+            @* Saving no roles silently locked the user out of every page, which read as a bug
+               rather than a choice. *@
+            <span class="field-note @(NoRoles ? "field-note--warn" : null)">
+                @(NoRoles
+                    ? "With no role assigned they can sign in but reach nothing."
+                    : _rAdmin
+                        ? "Admin already covers everything the other two grant."
+                        : "Roles add up — assign more than one where needed.")
+            </span>
         }
     </div>
     <div class="modal-foot">
@@ -81,12 +112,88 @@
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
 
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    private string _search = "";
+    private readonly SearchCache<User> _cache = new();
+
+    private List<User> Results => _cache.Get(
+        $"{_search}|{Data.Users.Count}",
+        () => FuzzySearch.Rank(Data.Users, _search,
+            u => new[] { u.Name, u.Roles },
+            u => new[] { u.Email }));
+
+    private IEnumerable<User> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+
+    private bool _searching;
+
+    // Scoring runs on the single WebAssembly UI thread. Yield once first so the browser can
+    // paint the busy overlay before the work starts, rather than the page appearing frozen.
+    private async Task OnSearch(string term)
+    {
+        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // returns the old results, so this render is cheap and the browser can paint it.
+        // Applying the new term first made this very render run the scoring synchronously,
+        // which is why the spinner never appeared.
+        _searching = true;
+        StateHasChanged();
+
+        // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
+        await Task.Delay(80);
+
+        _search = term;
+        _page = 1;
+
+        // Now do the work, with the overlay already on screen.
+        _ = Results.Count;
+
+        _searching = false;
+    }
+
+    private void OnPageSizeChanged(int size)
+    {
+        _pageSize = size;
+        _page = 1;
+    }
+
     private bool _showInvite, _showManage;
     private User? _sel;
     private bool _rAdmin, _rManager, _rStaff;
 
     private sealed class Invite { public string Name { get; set; } = ""; public string Email { get; set; } = ""; public string Role { get; set; } = "Staff"; }
     private Invite _invite = new();
+
+    private bool NoRoles => !_rAdmin && !_rManager && !_rStaff;
+
+    private string? InviteProblem
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_invite.Email)) return null;
+
+            if (!_invite.Email.Contains('@') || _invite.Email.EndsWith('@'))
+            {
+                return "Does not look like an email address.";
+            }
+
+            return Data.Users.Any(u => string.Equals(u.Email, _invite.Email, StringComparison.OrdinalIgnoreCase))
+                ? "That address already has an account."
+                : null;
+        }
+    }
+
+    private bool CanInvite =>
+        !string.IsNullOrWhiteSpace(_invite.Name) &&
+        !string.IsNullOrWhiteSpace(_invite.Email) &&
+        InviteProblem is null;
+
+    private static string RoleBlurb(string role) => role switch
+    {
+        "Admin" => "Everything, including users and feeds.",
+        "Manager" => "Inventory, quotes, orders and reports.",
+        _ => "Products and quotes only."
+    };
 
     private static readonly Dictionary<string, string> LastSeen = new()
     {

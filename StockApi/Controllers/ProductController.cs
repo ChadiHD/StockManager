@@ -10,7 +10,10 @@ namespace StockApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Staff")]
+    // Authenticated at the class level only. A controller-level Roles filter would be ANDed
+    // with the action-level one, so "Staff" here plus "Admin" on the catalog actions would
+    // demand BOTH roles and reject an administrator with 403.
+    [Authorize]
     public class ProductController : ControllerBase
     {
         private readonly IProductData _productData;
@@ -19,6 +22,9 @@ namespace StockApi.Controllers
         {
             _productData = productData;
         }
+
+        // Used by the desktop POS.
+        [Authorize(Roles = "Staff")]
         [HttpGet]
         public List<ProductModel> Get()
         {
@@ -84,6 +90,18 @@ namespace StockApi.Controllers
         // never touched by a feed sync (it matches on Distributor + DistributorSku).
         // Convenience entry point for the catalogue page's "sync feeds" action. Feed management
         // itself lives on DistributorFeedController.
+        // Manual trigger for image enrichment. The background service works through the backlog
+        // on its own; this lets an operator kick a batch off immediately.
+        [Authorize(Roles = "Admin")]
+        [HttpPost("Catalog/EnrichImages")]
+        public async Task<ActionResult<ImageEnrichmentResult>> EnrichImages(
+            [FromServices] IProductImageEnricher enricher,
+            [FromQuery] int take = 50,
+            CancellationToken cancellationToken = default)
+        {
+            return await enricher.EnrichAsync(Math.Clamp(take, 1, 500), cancellationToken);
+        }
+
         [Authorize(Roles = "Admin")]
         [HttpPost("Catalog/Sync")]
         public async Task<ActionResult<List<DistributorFeedResult>>> SyncFeeds(

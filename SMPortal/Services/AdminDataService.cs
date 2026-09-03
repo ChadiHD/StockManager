@@ -1,4 +1,6 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Blazored.LocalStorage;
 using SMPortal.Models;
 
 namespace SMPortal.Services;
@@ -28,11 +30,31 @@ public class AdminDataService : IAdminDataService
 
     private bool _loaded;
 
-    public AdminDataService(HttpClient client, IConfiguration config)
+    private readonly ILocalStorageService _localStorage;
+    private readonly string _tokenKey;
+
+    public AdminDataService(HttpClient client, IConfiguration config, ILocalStorageService localStorage)
     {
         _client = client;
+        _localStorage = localStorage;
         _api = (config["api"] ?? throw new InvalidOperationException("The api configuration value is required."))
             .TrimEnd('/');
+        _tokenKey = config["authTokenStorageKey"]
+            ?? throw new InvalidOperationException("The authTokenStorageKey configuration value is required.");
+    }
+
+    // On a full page reload this service can run before AuthStateProvider has put the bearer
+    // token on the shared HttpClient, which made every call 401 and emptied the whole admin
+    // area. Read the token straight from storage instead of depending on that ordering.
+    private async Task EnsureAuthHeaderAsync()
+    {
+        if (_client.DefaultRequestHeaders.Authorization is not null) return;
+
+        var token = await _localStorage.GetItemAsync<string>(_tokenKey);
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", token);
+        }
     }
 
     public IReadOnlyList<Account> Accounts => _accounts;
@@ -52,6 +74,8 @@ public class AdminDataService : IAdminDataService
 
     public async Task RefreshAsync()
     {
+        await EnsureAuthHeaderAsync();
+
         var accountsTask = GetListAsync<AccountDto>("api/Account");
         var groupsTask = GetListAsync<GroupDto>("api/CustomerGroup");
         var quotesTask = GetListAsync<QuoteDto>("api/Quote");
@@ -378,12 +402,32 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
     }
 
+    public async Task<string> FetchProductImages(int take)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsync($"{_api}/api/Product/Catalog/EnrichImages?take={take}", content: null);
+        response.EnsureSuccessStatusCode();
+
+        var outcome = await response.Content.ReadFromJsonAsync<ImageEnrichmentOutcome>();
+
+        // Refresh so any images that were found show up in the table straight away.
+        await RefreshAsync();
+
+        return outcome?.Message ?? "Image lookup finished.";
+    }
+
+    private sealed record ImageEnrichmentOutcome(int Considered, int Matched, int NotFound,
+        int Failed, bool Enabled, string? Message);
+
     // ---- Distributor feed management -------------------------------------------------------
 
     public IReadOnlyList<DistributorFeedView> Feeds => _feeds;
 
     public async Task<DistributorFeedView?> SaveFeed(DistributorFeedView feed)
     {
+        await EnsureAuthHeaderAsync();
+
         // Password is write-only: it is sent when the operator typed one, and simply omitted
         // otherwise so an edit cannot blank the stored credential.
         var body = ToFeedPayload(feed);
@@ -410,6 +454,8 @@ public class AdminDataService : IAdminDataService
 
     public async Task<FeedSyncOutcome> TestFeed(DistributorFeedView feed)
     {
+        await EnsureAuthHeaderAsync();
+
         var url = feed.Id == 0
             ? $"{_api}/api/DistributorFeed/Test"
             : $"{_api}/api/DistributorFeed/Test?id={feed.Id}";
@@ -421,6 +467,8 @@ public class AdminDataService : IAdminDataService
 
     public async Task<FeedSyncOutcome> SyncFeed(int id)
     {
+        await EnsureAuthHeaderAsync();
+
         var response = await _client.PostAsync($"{_api}/api/DistributorFeed/{id}/Sync", content: null);
         var outcome = await ReadOutcome(response, null);
 
@@ -446,7 +494,11 @@ public class AdminDataService : IAdminDataService
         feed.FieldCategory,
         feed.FieldCost,
         feed.FieldSrp,
-        feed.FieldQuantity
+        feed.FieldQuantity,
+        feed.FieldManufacturer,
+        feed.FieldMpn,
+        feed.FieldEan,
+        feed.FieldIcecat
     };
 
     private static async Task<FeedSyncOutcome> ReadOutcome(HttpResponseMessage response, string? name)
@@ -572,16 +624,19 @@ public class AdminDataService : IAdminDataService
 
     private async Task<List<T>> GetListAsync<T>(string path)
     {
-        try
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.GetAsync($"{_api}/{path}");
+
+        // Failures used to be swallowed into an empty list, which made a 401 look like "there
+        // is simply no data". Surface them so AdminLayout can show what actually went wrong.
+        if (!response.IsSuccessStatusCode)
         {
-            return await _client.GetFromJsonAsync<List<T>>($"{_api}/{path}") ?? new List<T>();
+            throw new InvalidOperationException(
+                $"GET {path} failed with {(int)response.StatusCode} {response.ReasonPhrase}.");
         }
-        catch (HttpRequestException)
-        {
-            // One unavailable endpoint should leave that section empty rather than take the
-            // whole admin area down.
-            return new List<T>();
-        }
+
+        return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
     }
 
     private static void Replace<T>(List<T> target, IEnumerable<T> items)
@@ -677,7 +732,11 @@ public class AdminDataService : IAdminDataService
             // A distributor line that has not synced within a day is flagged stale.
             Stale = isDistributor &&
                     (!dto.LastSynced.HasValue || dto.LastSynced.Value < DateTime.UtcNow.AddDays(-1)),
-            Image = dto.ProductImage ?? string.Empty
+            Image = dto.ProductImage ?? string.Empty,
+            Desc = dto.Description ?? string.Empty,
+            Manufacturer = dto.Manufacturer ?? string.Empty,
+            Mpn = dto.ManufacturerPartNumber ?? string.Empty,
+            Ean = dto.Ean ?? string.Empty
         };
     }
 
@@ -748,7 +807,8 @@ public class AdminDataService : IAdminDataService
 
     private sealed record ProductDto(int Id, string? ProductName, string? Description, decimal RetailPrice,
         int QuantityInStock, bool IsTaxable, string? ProductImage, string? Sku, string? Category,
-        decimal? Cost, string? Source, string? Distributor, string? DistributorSku, DateTime? LastSynced);
+        decimal? Cost, string? Source, string? Distributor, string? DistributorSku, DateTime? LastSynced,
+        string? Manufacturer, string? ManufacturerPartNumber, string? Ean);
 
     private sealed record ReportDto(DateTime Date, string? Account, string? Ref, string? Currency,
         decimal Net, decimal Vat, decimal Total);

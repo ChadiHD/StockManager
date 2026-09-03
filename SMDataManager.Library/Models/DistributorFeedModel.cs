@@ -26,6 +26,10 @@ namespace SMDataManager.Library.Models
         public string FieldCost { get; set; }
         public string FieldSrp { get; set; }
         public string FieldQuantity { get; set; }
+        public string FieldManufacturer { get; set; }
+        public string FieldMpn { get; set; }
+        public string FieldEan { get; set; }
+        public string FieldIcecat { get; set; }
 
         public DateTime? LastSyncedUtc { get; set; }
         public string LastSyncStatus { get; set; }
@@ -52,7 +56,11 @@ namespace SMDataManager.Library.Models
                 Category = FieldCategory,
                 Cost = FieldCost,
                 Srp = FieldSrp,
-                Quantity = FieldQuantity
+                Quantity = FieldQuantity,
+                Manufacturer = FieldManufacturer,
+                Mpn = FieldMpn,
+                Ean = FieldEan,
+                IcecatFlag = FieldIcecat
             }
         };
     }

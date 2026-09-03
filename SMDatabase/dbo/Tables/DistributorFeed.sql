@@ -28,6 +28,11 @@ CREATE TABLE [dbo].[DistributorFeed]
 	[FieldCost] NVARCHAR(100) NULL,
 	[FieldSrp] NVARCHAR(100) NULL,
 	[FieldQuantity] NVARCHAR(100) NULL,
+	-- Identity columns, used to resolve product content (images) from Icecat.
+	[FieldManufacturer] NVARCHAR(100) NULL,
+	[FieldMpn] NVARCHAR(100) NULL,
+	[FieldEan] NVARCHAR(100) NULL,
+	[FieldIcecat] NVARCHAR(100) NULL,
 
 	[LastSyncedUtc] DATETIME2 NULL,
 	[LastSyncStatus] NVARCHAR(400) NULL,

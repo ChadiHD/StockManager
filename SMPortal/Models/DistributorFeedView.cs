@@ -25,6 +25,12 @@ public class DistributorFeedView
     public string? FieldSrp { get; set; } = "SRP";
     public string? FieldQuantity { get; set; } = "StockQuantity";
 
+    // Identity columns, used to resolve product images from Icecat.
+    public string? FieldManufacturer { get; set; } = "Manufacturer";
+    public string? FieldMpn { get; set; } = "ManufacturerPartNumber";
+    public string? FieldEan { get; set; } = "EAN";
+    public string? FieldIcecat { get; set; } = "IceCatID";
+
     /// <summary>Only ever sent to the server; blank on edit means "keep the stored password".</summary>
     public string? Password { get; set; }
 }

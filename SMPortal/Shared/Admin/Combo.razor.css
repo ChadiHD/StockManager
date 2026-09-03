@@ -1,0 +1,154 @@
+.combo {
+    position: relative;
+}
+
+/* Mirrors admin.css's .input so the control is indistinguishable from the other fields in a
+   form grid — the border lives on the wrapper because the caret and clear button sit inside. */
+.combo-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--field-line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.combo-field--open,
+.combo-field:focus-within {
+    border-color: #1bc7ce;
+    box-shadow: 0 0 0 3px rgba(27, 199, 206, .14);
+}
+
+.combo-input {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-size: .88rem;
+    outline: none;
+}
+
+.combo-input:disabled {
+    color: var(--muted-3);
+    cursor: not-allowed;
+}
+
+.combo-clear,
+.combo-caret {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted-3);
+}
+
+.combo-clear {
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.combo-clear:hover { color: var(--ink); }
+
+.combo-caret svg { display: block; width: 15px; height: 15px; }
+.combo-field--open .combo-caret { transform: rotate(180deg); }
+
+/* ---- Dropdown ---------------------------------------------------------------------------- */
+
+.combo-list {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    max-height: 264px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 5px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: 0 18px 40px rgba(16, 24, 40, .16);
+}
+
+.combo-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+/* Hover and keyboard highlight are the same state, so the two never disagree about which row
+   Enter would choose. */
+.combo-option:hover:not(:disabled),
+.combo-option--on:not(:disabled) {
+    background: var(--surface-2);
+}
+
+.combo-option--picked .combo-label { color: var(--turq-700); }
+
+.combo-option:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.combo-lines {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 1px;
+}
+
+.combo-label {
+    color: var(--ink);
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+/* One line only: product names run to 100 characters and would otherwise reflow the row. */
+.combo-sub,
+.combo-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.combo-sub {
+    color: var(--muted-3);
+    font-size: .76rem;
+}
+
+.combo-meta {
+    flex: 0 0 auto;
+    color: var(--muted-2);
+    font-size: .74rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.combo-empty,
+.combo-more {
+    margin: 0;
+    padding: 9px 10px;
+    color: var(--muted-3);
+    font-size: .78rem;
+}
+
+.combo-more {
+    margin-top: 3px;
+    border-top: 1px solid var(--line-2);
+}

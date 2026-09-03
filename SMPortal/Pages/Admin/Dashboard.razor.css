@@ -18,7 +18,12 @@
 .kpi-sub.warn { color:var(--warn-fg); font-weight:700; }
 .kpi-sub.danger { color:var(--danger-fg); font-weight:700; }
 
-.dash-grid { display:grid; grid-template-columns:1.62fr 1fr; gap:20px; align-items:start; }
+/* Recent activity is the primary panel, so give it the room and cap the side rail rather than
+   letting it grow to match. */
+.dash-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,340px); gap:20px; align-items:start; }
+
+.rail-empty { margin:8px 0 0; color:var(--muted-3); font-size:.8rem; }
+.rail-more { margin-top:12px; }
 
 .rail-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px 14px; }
 .rail-head.tight { padding:0 0 12px; }

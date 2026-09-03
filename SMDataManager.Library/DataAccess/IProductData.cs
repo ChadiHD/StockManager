@@ -21,5 +21,14 @@ namespace SMDataManager.Library.DataAccess
         /// distributor no longer supplies.
         /// </summary>
         FeedUpsertResult BulkUpsertFromFeed(string distributor, IEnumerable<DistributorFeedRecord> records);
+
+        /// <summary>Products still missing an image that have something Icecat can be queried with.</summary>
+        List<ProductImageCandidate> GetImageCandidates(int take);
+
+        /// <summary>
+        /// Records an image lookup. Pass null or empty to note that nothing was found, which
+        /// still stamps the attempt so it is not retried immediately.
+        /// </summary>
+        void SetImage(int productId, string imageUrl);
     }
 }

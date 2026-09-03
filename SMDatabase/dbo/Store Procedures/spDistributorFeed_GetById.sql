@@ -8,6 +8,7 @@ BEGIN
 	       [RemoteDirectory], [HostKeySha256], [Enabled],
 	       [FieldSku], [FieldName], [FieldDescription], [FieldCategory],
 	       [FieldCost], [FieldSrp], [FieldQuantity],
+	       [FieldManufacturer], [FieldMpn], [FieldEan], [FieldIcecat],
 	       [LastSyncedUtc], [LastSyncStatus], [CreatedDate]
 	FROM [dbo].[DistributorFeed]
 	WHERE [Id] = @Id;

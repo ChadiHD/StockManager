@@ -20,11 +20,16 @@
 </div>
 
 <div class="panel panel-clip">
+    <div class="toolbar">
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search group, terms or note" />
+        <div class="toolbar-count"><strong>@Results.Count</strong> groups</div>
+    </div>
+    <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
             <thead><tr><th class="lead">Group</th><th class="ctr">Base discount</th><th class="ctr">Accounts</th><th class="ctr">Price overrides</th><th>Terms</th><th class="trail"></th></tr></thead>
             <tbody>
-                @foreach (var g in Data.Groups)
+                @foreach (var g in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/groups/{Slug(g.Name)}")'>
                         <td class="lead"><span class="cell-primary">@g.Name</span><span class="cell-sub">@g.Note</span></td>
@@ -38,21 +43,47 @@
             </tbody>
         </table>
     </div>
+    </BusyOverlay>
+    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
+           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
 <Modal Visible="_showNew" Title="New customer group" OnClose="() => _showNew = false">
     <EditForm Model="_draft" OnValidSubmit="CreateGroup">
         <div class="modal-body">
             <div class="form-grid">
-                <div class="field span2"><label>Group name</label><InputText class="input" @bind-Value="_draft.Name" /></div>
-                <div class="field"><label>Base discount (%)</label><InputNumber class="input" @bind-Value="_draft.Discount" /></div>
-                <div class="field"><label>Payment terms</label><InputText class="input" @bind-Value="_draft.Terms" /></div>
-                <div class="field span2"><label>Description</label><InputText class="input" @bind-Value="_draft.Note" /></div>
+                <div class="field span2">
+                    <label>Group name</label>
+                    <InputText class="input" @bind-Value="_draft.Name" />
+                    <span class="field-note @(NameTaken ? "field-note--warn" : null)">
+                        @(NameTaken ? "A group with that name already exists." : "Appears on quotes and account records.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Base discount (%)</label>
+                    <input class="input" type="number" min="0" max="100" value="@_draft.Discount" @onchange="SetDiscount" />
+                    <span class="field-note">
+                        @(_draft.Discount == 0
+                            ? "List price — no reduction."
+                            : $"€100 list becomes €{100 - _draft.Discount}.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Payment terms</label>
+                    @* Free text previously, so "Net 30", "net30" and "30 days" all coexisted. *@
+                    <InputSelect class="input" @bind-Value="_draft.Terms">
+                        @foreach (var t in _termsOptions) { <option>@t</option> }
+                    </InputSelect>
+                </div>
+                <div class="field span2">
+                    <label>Description <span class="label-optional">optional</span></label>
+                    <InputText class="input" @bind-Value="_draft.Note" />
+                </div>
             </div>
         </div>
         <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
-            <button type="submit" class="btn btn-primary">Create group</button>
+            <button type="submit" class="btn btn-primary" disabled="@(!CanCreateGroup)">Create group</button>
         </div>
     </EditForm>
 </Modal>
@@ -61,6 +92,63 @@
     [CascadingParameter] public AdminLayout? Layout { get; set; }
     private bool _showNew;
     private Group _draft = new() { Terms = "Net 30" };
+
+    private readonly string[] _termsOptions = { "Prepaid", "Net 14", "Net 30", "Net 45", "Net 60" };
+
+    private bool NameTaken =>
+        !string.IsNullOrWhiteSpace(_draft.Name) &&
+        Data.Groups.Any(g => string.Equals(g.Name, _draft.Name, StringComparison.OrdinalIgnoreCase));
+
+    private bool CanCreateGroup => !string.IsNullOrWhiteSpace(_draft.Name) && !NameTaken;
+
+    private void SetDiscount(ChangeEventArgs args) =>
+        _draft.Discount = int.TryParse(args.Value?.ToString(), out var value)
+            ? Math.Clamp(value, 0, 100)
+            : 0;
+
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    private string _search = "";
+    private readonly SearchCache<Group> _cache = new();
+
+    private List<Group> Results => _cache.Get(
+        $"{_search}|{Data.Groups.Count}",
+        () => FuzzySearch.Rank(Data.Groups, _search,
+            g => new[] { g.Name, g.Terms, g.Note }));
+
+    private IEnumerable<Group> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+
+    private bool _searching;
+
+    // Scoring runs on the single WebAssembly UI thread. Yield once first so the browser can
+    // paint the busy overlay before the work starts, rather than the page appearing frozen.
+    private async Task OnSearch(string term)
+    {
+        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // returns the old results, so this render is cheap and the browser can paint it.
+        // Applying the new term first made this very render run the scoring synchronously,
+        // which is why the spinner never appeared.
+        _searching = true;
+        StateHasChanged();
+
+        // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
+        await Task.Delay(80);
+
+        _search = term;
+        _page = 1;
+
+        // Now do the work, with the overlay already on screen.
+        _ = Results.Count;
+
+        _searching = false;
+    }
+
+    private void OnPageSizeChanged(int size)
+    {
+        _pageSize = size;
+        _page = 1;
+    }
 
     protected override void OnParametersSet() => Layout?.SetPage("Customer groups", "Pricing tiers and discount rules");
 

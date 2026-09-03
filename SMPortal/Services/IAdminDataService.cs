@@ -68,4 +68,10 @@ public interface IAdminDataService
     Task<FeedSyncOutcome> TestFeed(DistributorFeedView feed);
 
     Task<FeedSyncOutcome> SyncFeed(int id);
+
+    /// <summary>
+    /// Runs one batch of Icecat image lookups for products with no image, and returns a
+    /// human-readable summary. Returns the disabled message when no Icecat account is set up.
+    /// </summary>
+    Task<string> FetchProductImages(int take);
 }

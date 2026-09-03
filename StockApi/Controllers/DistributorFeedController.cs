@@ -34,19 +34,22 @@ namespace StockApi.Controllers
             string RemoteDirectory, string HostKeySha256, bool Enabled, bool HasCredential,
             string SecretProvider, DateTime? LastSyncedUtc, string LastSyncStatus,
             string FieldSku, string FieldName, string FieldDescription, string FieldCategory,
-            string FieldCost, string FieldSrp, string FieldQuantity);
+            string FieldCost, string FieldSrp, string FieldQuantity,
+            string FieldManufacturer, string FieldMpn, string FieldEan, string FieldIcecat);
 
         private static FeedView ToView(DistributorFeedModel feed) => new(
             feed.Id, feed.Name, feed.Host, feed.Port, feed.Username,
             feed.RemoteDirectory, feed.HostKeySha256, feed.Enabled, feed.HasCredential,
             feed.SecretProvider, feed.LastSyncedUtc, feed.LastSyncStatus,
             feed.FieldSku, feed.FieldName, feed.FieldDescription, feed.FieldCategory,
-            feed.FieldCost, feed.FieldSrp, feed.FieldQuantity);
+            feed.FieldCost, feed.FieldSrp, feed.FieldQuantity,
+            feed.FieldManufacturer, feed.FieldMpn, feed.FieldEan, feed.FieldIcecat);
 
-        public record FeedInput(string Name, string Host, int Port, string Username,
-            string Password, string RemoteDirectory, string HostKeySha256, bool Enabled,
-            string FieldSku, string FieldName, string FieldDescription, string FieldCategory,
-            string FieldCost, string FieldSrp, string FieldQuantity);
+        public record FeedInput(string? Name, string? Host, int Port, string? Username,
+            string? Password, string? RemoteDirectory, string? HostKeySha256, bool Enabled,
+            string? FieldSku, string? FieldName, string? FieldDescription, string? FieldCategory,
+            string? FieldCost, string? FieldSrp, string? FieldQuantity,
+            string? FieldManufacturer, string? FieldMpn, string? FieldEan, string? FieldIcecat);
 
         [HttpGet]
         public IEnumerable<FeedView> GetAll() => _feedData.GetFeeds().Select(ToView);
@@ -171,6 +174,10 @@ namespace StockApi.Controllers
             model.FieldCost = input.FieldCost;
             model.FieldSrp = input.FieldSrp;
             model.FieldQuantity = input.FieldQuantity;
+            model.FieldManufacturer = input.FieldManufacturer;
+            model.FieldMpn = input.FieldMpn;
+            model.FieldEan = input.FieldEan;
+            model.FieldIcecat = input.FieldIcecat;
 
             return model;
         }

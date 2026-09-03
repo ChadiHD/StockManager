@@ -12,6 +12,9 @@
         <button class="btn btn-secondary" @onclick="SyncFeeds">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>Sync feeds
         </button>
+        <button class="btn btn-secondary" @onclick="FetchImages" disabled="@_fetchingImages">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>@(_fetchingImages ? "Fetching…" : "Fetch images")
+        </button>
         <button class="btn btn-primary" @onclick="() => _showNew = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add product
         </button>
@@ -34,20 +37,31 @@
         <div class="pill-row">
             @foreach (var f in _filters)
             {
-                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => SetFilter(f)">@f</button>
             }
         </div>
-        <div class="toolbar-count"><strong>@Filtered.Count</strong> products</div>
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, SKU, MPN, EAN or manufacturer" />
+        <div class="toolbar-count"><strong>@Results.Count</strong> products</div>
     </div>
+    <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
             <thead><tr><th class="thumb-col"></th><th>Product</th><th>Category</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
             <tbody>
-                @foreach (var p in Filtered)
+                @foreach (var p in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/products/{p.Sku}")'>
                         <td class="thumb-cell"><span class="tile @AdminUi.CatClass(p.Cat)">@AdminUi.Initials(p.Name)</span></td>
-                        <td><span class="cell-strong">@p.Name</span><span class="cell-sub mono">@p.Sku</span></td>
+                        @* Desc is the brand and model, Name the spec string. Both are needed:
+                           two rows can share "LENOVO ThinkPad L14 G2" and differ only in spec. *@
+                        <td>
+                            <span class="cell-strong">@(string.IsNullOrWhiteSpace(p.Desc) ? p.Name : p.Desc)</span>
+                            @if (!string.IsNullOrWhiteSpace(p.Desc))
+                            {
+                                <span class="cell-sub">@p.Name</span>
+                            }
+                            <span class="cell-sub mono">@p.Sku</span>
+                        </td>
                         <td>@p.Cat</td>
                         <td>
                             <span class="src @AdminUi.SourceClass(p.Source)">@p.Source</span>
@@ -64,27 +78,76 @@
             </tbody>
         </table>
     </div>
+    </BusyOverlay>
+    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
+           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
 <Modal Visible="_showNew" Title="Add product" OnClose="() => _showNew = false">
     <EditForm Model="_draft" OnValidSubmit="CreateProduct">
         <div class="modal-body">
             <div class="form-grid">
-                <div class="field span2"><label>Product name</label><InputText class="input" @bind-Value="_draft.Name" /></div>
-                <div class="field"><label>SKU</label><InputText class="input" @bind-Value="_draft.Sku" /></div>
-                <div class="field"><label>Category</label><InputSelect class="input" @bind-Value="_draft.Cat">@foreach (var c in _cats) { <option>@c</option> }</InputSelect></div>
-                <div class="field"><label>Stock source</label><InputSelect class="input" @bind-Value="_draft.Source"><option>Own</option><option>Distributor</option></InputSelect></div>
-                <div class="field"><label>Available units</label><InputNumber class="input" @bind-Value="_draft.Avail" /></div>
-                <div class="field"><label>Feed cost (EUR)</label><InputNumber class="input" @bind-Value="_draft.Cost" /></div>
-                <div class="field"><label>Sell price (EUR)</label><InputNumber class="input" @bind-Value="_draft.Price" /></div>
-                <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_draft.Dist" /></div>
-                <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_draft.DistSku" /></div>
-                <div class="field span2"><label>Image URL (optional)</label><InputText class="input" @bind-Value="_draft.Image" /></div>
+                <div class="field span2">
+                    <label>Product name</label>
+                    <InputText class="input" @bind-Value="_draft.Name" />
+                </div>
+                <div class="field">
+                    <label>SKU</label>
+                    <InputText class="input" @bind-Value="_draft.Sku" />
+                    <span class="field-note @(SkuTaken ? "field-note--warn" : null)">
+                        @(SkuTaken ? "Already in the catalogue — this would overwrite it." : "Your own reference. Must be unique.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Category</label>
+                    <InputSelect class="input" @bind-Value="_draft.Cat">@foreach (var c in _cats) { <option>@c</option> }</InputSelect>
+                </div>
+                <div class="field">
+                    <label>Stock source</label>
+                    <InputSelect class="input" @bind-Value="_draft.Source"><option>Own</option><option>Distributor</option></InputSelect>
+                </div>
+                <div class="field">
+                    <label>Available units</label>
+                    <input class="input" type="number" min="0" value="@_draft.Avail" @onchange="SetAvail" />
+                    <span class="field-note">
+                        @(_draft.Avail <= 0 ? "Zero — will show as out of stock." : _draft.Avail <= 6 ? "Counts as low stock." : "In stock.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label>Cost (EUR)</label>
+                    <input class="input" type="number" min="0" step="0.01" value="@_draft.Cost" @onchange="SetCost" />
+                </div>
+                <div class="field">
+                    <label>Sell price (EUR)</label>
+                    <input class="input" type="number" min="0" step="0.01" value="@_draft.Price" @onchange="SetPrice" />
+                    <span class="field-note @(NegativeMargin ? "field-note--warn" : null)">@MarginNote</span>
+                </div>
+
+                @* Only asked for when they apply: a own-warehouse product has no distributor,
+                   and the old form collected both regardless. *@
+                @if (_draft.Source == "Distributor")
+                {
+                    <div class="field">
+                        <label>Distributor</label>
+                        <InputText class="input" @bind-Value="_draft.Dist" />
+                    </div>
+                    <div class="field">
+                        <label>Distributor SKU</label>
+                        <InputText class="input" @bind-Value="_draft.DistSku" />
+                        <span class="field-note">Their reference, used to match feed rows.</span>
+                    </div>
+                }
+
+                <div class="field span2">
+                    <label>Image URL <span class="label-optional">optional</span></label>
+                    <InputText class="input" @bind-Value="_draft.Image" />
+                    <span class="field-note">Left blank, the Icecat lookup fills it in on the next image fetch.</span>
+                </div>
             </div>
         </div>
         <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @onclick="() => _showNew = false">Close</button>
-            <button type="submit" class="btn btn-primary">Add product</button>
+            <button type="submit" class="btn btn-primary" disabled="@(!CanAddProduct)">Add product</button>
         </div>
     </EditForm>
 </Modal>
@@ -98,8 +161,45 @@
     private bool _showNew;
     private Product _draft = new();
 
+    private bool SkuTaken =>
+        !string.IsNullOrWhiteSpace(_draft.Sku) &&
+        Data.Products.Any(p => string.Equals(p.Sku, _draft.Sku, StringComparison.OrdinalIgnoreCase));
+
+    // Selling under cost is occasionally deliberate (clearing stock) so it warns rather than
+    // blocks; a missing name or SKU does block, because the row would be unusable.
+    private bool NegativeMargin => _draft.Price > 0 && _draft.Cost > _draft.Price;
+
+    private string MarginNote
+    {
+        get
+        {
+            if (_draft.Price <= 0) return "Set a price to see the margin.";
+            if (NegativeMargin) return $"Below cost — margin {_draft.MarginPct}%.";
+
+            return _draft.Cost <= 0 ? "No cost recorded." : $"Margin {_draft.MarginPct}%.";
+        }
+    }
+
+    private bool CanAddProduct =>
+        !string.IsNullOrWhiteSpace(_draft.Name) &&
+        !string.IsNullOrWhiteSpace(_draft.Sku) &&
+        !SkuTaken &&
+        (_draft.Source != "Distributor" || !string.IsNullOrWhiteSpace(_draft.Dist));
+
+    private void SetAvail(ChangeEventArgs args) =>
+        _draft.Avail = int.TryParse(args.Value?.ToString(), out var value) ? Math.Max(0, value) : 0;
+
+    private void SetCost(ChangeEventArgs args) =>
+        _draft.Cost = decimal.TryParse(args.Value?.ToString(), out var value) ? Math.Max(0m, value) : 0m;
+
+    private void SetPrice(ChangeEventArgs args) =>
+        _draft.Price = decimal.TryParse(args.Value?.ToString(), out var value) ? Math.Max(0m, value) : 0m;
+
     private int _distCount, _staleCount;
     private string _lastSync = "6 min ago";
+
+    private int _page = 1;
+    private int _pageSize = 25;
 
     private List<Product> Filtered => Data.Products.Where(p => _filter switch
     {
@@ -108,6 +208,78 @@
         "Low stock" => p.Avail <= 6,
         _ => true
     }).ToList();
+
+    private string _search = "";
+    private readonly SearchCache<Product> _cache = new();
+
+    // Desc leads because it holds the brand and model ("LENOVO ThinkPad E14 G2") while Name
+    // holds only the spec string — a search for a brand matches on Desc alone.
+    private List<Product> Results => _cache.Get(
+        $"{_filter}|{_search}|{Data.Products.Count}",
+        () => FuzzySearch.Rank(Filtered, _search,
+            p => new[] { p.Desc, p.Name, p.Cat, p.Dist, p.Manufacturer },
+            p => new[] { p.Sku, p.DistSku, p.Mpn, p.Ean }));
+
+    private IEnumerable<Product> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+
+    private bool _searching;
+
+    // Scoring runs on the single WebAssembly UI thread. Yield once first so the browser can
+    // paint the busy overlay before the work starts, rather than the page appearing frozen.
+    private async Task OnSearch(string term)
+    {
+        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // returns the old results, so this render is cheap and the browser can paint it.
+        // Applying the new term first made this very render run the scoring synchronously,
+        // which is why the spinner never appeared.
+        _searching = true;
+        StateHasChanged();
+
+        // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
+        await Task.Delay(80);
+
+        _search = term;
+        _page = 1;
+
+        // Now do the work, with the overlay already on screen.
+        _ = Results.Count;
+
+        _searching = false;
+    }
+
+    private bool _fetchingImages;
+
+    // Kicks off one batch now. The background service works through the rest on its own.
+    private async Task FetchImages()
+    {
+        _fetchingImages = true;
+        try
+        {
+            var outcome = await Data.FetchProductImages(100);
+            Toast.Show(outcome);
+        }
+        catch (Exception exception)
+        {
+            Toast.Show($"Image lookup failed: {exception.Message}");
+        }
+        finally
+        {
+            _fetchingImages = false;
+        }
+    }
+
+    // Changing the filter or page size can leave the current page past the end of the list.
+    private void SetFilter(string filter)
+    {
+        _filter = filter;
+        _page = 1;
+    }
+
+    private void OnPageSizeChanged(int size)
+    {
+        _pageSize = size;
+        _page = 1;
+    }
 
     protected override void OnParametersSet()
     {

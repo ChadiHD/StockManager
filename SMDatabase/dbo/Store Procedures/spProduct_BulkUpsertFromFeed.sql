@@ -34,15 +34,22 @@ BEGIN
 				target.[Sku] = ISNULL(target.[Sku], source.[Sku]),
 				target.[Source] = 'Distributor',
 				target.[Delisted] = 0,
+				target.[Manufacturer] = source.[Manufacturer],
+				target.[ManufacturerPartNumber] = source.[ManufacturerPartNumber],
+				target.[Ean] = source.[Ean],
+				target.[IcecatAvailable] = source.[IcecatAvailable],
 				target.[LastSynced] = @Now,
 				target.[LastModified] = @Now
 		WHEN NOT MATCHED BY TARGET THEN
 			INSERT ([ProductName], [Description], [RetailPrice], [QuantityInStock], [IsTaxable],
 			        [Sku], [Category], [Cost], [Source], [Distributor], [DistributorSku],
-			        [LastSynced], [Delisted])
+			        [LastSynced], [Delisted],
+			        [Manufacturer], [ManufacturerPartNumber], [Ean], [IcecatAvailable])
 			VALUES (source.[ProductName], ISNULL(source.[Description], N''), ISNULL(source.[Srp], 0),
 			        source.[QuantityInStock], 1, source.[Sku], source.[Category], source.[Cost],
-			        'Distributor', @Distributor, source.[DistributorSku], @Now, 0);
+			        'Distributor', @Distributor, source.[DistributorSku], @Now, 0,
+			        source.[Manufacturer], source.[ManufacturerPartNumber], source.[Ean],
+			        source.[IcecatAvailable]);
 
 		-- Anything this distributor used to supply but no longer lists: flag it and zero the
 		-- stock so it cannot be sold, without deleting rows that quotes may reference.

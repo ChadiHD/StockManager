@@ -15,7 +15,11 @@ CREATE PROCEDURE [dbo].[spDistributorFeed_Insert]
 	@FieldCategory nvarchar(100),
 	@FieldCost nvarchar(100),
 	@FieldSrp nvarchar(100),
-	@FieldQuantity nvarchar(100)
+	@FieldQuantity nvarchar(100),
+	@FieldManufacturer nvarchar(100),
+	@FieldMpn nvarchar(100),
+	@FieldEan nvarchar(100),
+	@FieldIcecat nvarchar(100)
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -23,11 +27,13 @@ BEGIN
 	INSERT INTO dbo.DistributorFeed([Name], [Host], [Port], [Username], [SecretProvider], [SecretRef],
 	                                [RemoteDirectory], [HostKeySha256], [Enabled],
 	                                [FieldSku], [FieldName], [FieldDescription], [FieldCategory],
-	                                [FieldCost], [FieldSrp], [FieldQuantity])
+	                                [FieldCost], [FieldSrp], [FieldQuantity],
+	                                [FieldManufacturer], [FieldMpn], [FieldEan], [FieldIcecat])
 	VALUES (@Name, @Host, @Port, @Username, @SecretProvider, @SecretRef,
 	        @RemoteDirectory, @HostKeySha256, @Enabled,
 	        @FieldSku, @FieldName, @FieldDescription, @FieldCategory,
-	        @FieldCost, @FieldSrp, @FieldQuantity);
+	        @FieldCost, @FieldSrp, @FieldQuantity,
+	        @FieldManufacturer, @FieldMpn, @FieldEan, @FieldIcecat);
 
 	SELECT @Id = SCOPE_IDENTITY();
 END

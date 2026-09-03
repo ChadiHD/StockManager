@@ -86,6 +86,18 @@ namespace SMDataManager.Library.DataAccess
             }, "SMDatabase");
         }
 
+        public List<ProductImageCandidate> GetImageCandidates(int take)
+        {
+            return _sqlDataAccess.LoadData<ProductImageCandidate, dynamic>(
+                "dbo.spProduct_GetImageCandidates", new { Take = take }, "SMDatabase");
+        }
+
+        public void SetImage(int productId, string imageUrl)
+        {
+            _sqlDataAccess.SaveData("dbo.spProduct_SetImage",
+                new { Id = productId, ProductImage = imageUrl }, "SMDatabase");
+        }
+
         public int SyncDistributorFeeds()
         {
             var output = _sqlDataAccess.LoadData<int, dynamic>(
@@ -123,6 +135,10 @@ namespace SMDataManager.Library.DataAccess
             table.Columns.Add("Cost", typeof(decimal));
             table.Columns.Add("Srp", typeof(decimal));
             table.Columns.Add("QuantityInStock", typeof(int));
+            table.Columns.Add("Manufacturer", typeof(string));
+            table.Columns.Add("ManufacturerPartNumber", typeof(string));
+            table.Columns.Add("Ean", typeof(string));
+            table.Columns.Add("IcecatAvailable", typeof(bool));
 
             // The table type is keyed on DistributorSku, so a feed that repeats a SKU would
             // otherwise fail the whole import. Last occurrence wins.
@@ -141,7 +157,11 @@ namespace SMDataManager.Library.DataAccess
                     (object)Truncate(record.Category, 50) ?? DBNull.Value,
                     record.Cost.HasValue ? record.Cost.Value : (object)DBNull.Value,
                     record.Srp.HasValue ? record.Srp.Value : (object)DBNull.Value,
-                    record.Quantity);
+                    record.Quantity,
+                    (object)Truncate(record.Manufacturer, 100) ?? DBNull.Value,
+                    (object)Truncate(record.Mpn, 100) ?? DBNull.Value,
+                    (object)Truncate(record.Ean, 20) ?? DBNull.Value,
+                    record.IcecatAvailable.HasValue ? record.IcecatAvailable.Value : (object)DBNull.Value);
             }
 
             return table;
