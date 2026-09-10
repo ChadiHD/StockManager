@@ -40,9 +40,10 @@ builder.Services.AddScoped<OrderingModeProvider>();
 // basket entry can follow the ordering mode.
 builder.Services.AddScoped<StoreNavigation>();
 
-// Editorial content is per store. The null source serves nothing, so content pages render an
-// explicit empty state until a real source is registered in its place.
-builder.Services.AddScoped<ISiteContentSource, NullSiteContentSource>();
+// Editorial content is per store, read from dbo.SiteContent. A store that has published
+// nothing under a key still renders an explicit empty state rather than borrowed words.
+builder.Services.AddTransient<ISiteContentData, SiteContentData>();
+builder.Services.AddScoped<ISiteContentSource, DatabaseSiteContentSource>();
 
 var app = builder.Build();
 

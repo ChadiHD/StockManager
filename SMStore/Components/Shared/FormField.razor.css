@@ -1,0 +1,15 @@
+.field { display: block; }
+
+.field__required {
+    color: var(--color-accent);
+    margin-left: 2px;
+}
+
+.field__hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+/* Reaches the caller's own control, which this component only wraps. */
+.field--invalid ::deep .input { border-color: var(--color-danger); }

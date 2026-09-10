@@ -1,0 +1,64 @@
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-divider);
+}
+
+.pager__pages {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pager__page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    text-decoration: none;
+    color: inherit;
+    font-feature-settings: 'tnum' 1;
+    border: 1px solid transparent;
+}
+
+a.pager__page:hover {
+    border-color: var(--color-divider);
+    color: var(--color-accent);
+}
+
+.pager__page--current {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+
+.pager__gap {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 20px;
+    color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+/* aria-disabled keeps the link in the tab order's shape but must look and behave inert. */
+.pager__step[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+@media (max-width: 620px) {
+    .pager {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .pager__pages { order: -1; }
+}

@@ -483,6 +483,15 @@ textarea.input { min-height: 90px; resize: vertical; }
     user-select: none;
 }
 
+/* Tile grid for product listings. Global rather than scoped to the catalog page because the
+   search results, a category page and the design gallery all lay tiles out the same way, and
+   a tile that reflows differently depending on which page it is on is a bug. */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: var(--space-6);
+}
+
 /* Placeholder shown where a page shell exists but its content lands in a later phase. Its
    presence in a render is the signal that the page is not finished, so it is deliberately
    plain rather than styled to look intentional. */

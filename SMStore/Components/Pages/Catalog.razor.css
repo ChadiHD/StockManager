@@ -22,14 +22,6 @@
 
 .catalog__filters-head h6 { margin: 0; }
 
-/* The grid the results section fills in T2. Declared here so the tile sizing is settled with
-   the rest of the layout rather than invented alongside the query. */
-.catalog__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
-    gap: var(--space-6);
-}
-
 @media (max-width: 880px) {
     .catalog {
         grid-template-columns: 1fr;

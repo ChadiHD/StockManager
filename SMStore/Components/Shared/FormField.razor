@@ -1,0 +1,72 @@
+@* Label, control and message as one unit, so every form on the storefront associates its
+   label the same way and no page has to remember the markup. The control is supplied as child
+   content rather than generated here — registration alone needs text, email, select, textarea
+   and file inputs, and wrapping each would be more code than it saves. *@
+
+<div class="field @(HasError ? "field--invalid" : null)">
+    <label for="@FieldId">
+        @Label
+        @if (Required)
+        {
+            <span class="field__required" aria-hidden="true">*</span>
+            <span class="visually-hidden">(required)</span>
+        }
+    </label>
+
+    @* Callers put @bind and the .input class on their own control; ControlId hands them the id
+       that the label points at, and DescribedBy the ids of any hint and error to reference. *@
+    @ChildContent
+
+    @if (!string.IsNullOrWhiteSpace(Hint))
+    {
+        <div id="@HintId" class="field__hint">@Hint</div>
+    }
+
+    @if (HasError)
+    {
+        <div id="@ErrorId" class="validation-message" role="alert">@Error</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The control's id. Generated when not supplied so the label always has something to
+    /// point at — an unlabelled input is unusable with a screen reader and unclickable by
+    /// people who tap the label.
+    /// </summary>
+    [Parameter] public string? FieldId { get; set; }
+
+    [Parameter] public bool Required { get; set; }
+
+    [Parameter] public string? Hint { get; set; }
+
+    [Parameter] public string? Error { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private readonly string _generatedId = $"f{Guid.NewGuid():N}"[..9];
+
+    private bool HasError => !string.IsNullOrWhiteSpace(Error);
+
+    private string HintId => $"{FieldId ?? _generatedId}-hint";
+
+    private string ErrorId => $"{FieldId ?? _generatedId}-error";
+
+    protected override void OnParametersSet() => FieldId ??= _generatedId;
+
+    /// <summary>Pass to the control's <c>aria-describedby</c> so hint and error are announced.</summary>
+    public string? DescribedBy
+    {
+        get
+        {
+            var parts = new List<string>(2);
+
+            if (!string.IsNullOrWhiteSpace(Hint)) parts.Add(HintId);
+            if (HasError) parts.Add(ErrorId);
+
+            return parts.Count == 0 ? null : string.Join(' ', parts);
+        }
+    }
+}
