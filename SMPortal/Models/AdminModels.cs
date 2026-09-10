@@ -22,6 +22,9 @@ public class Account
 
 public class QuoteLine
 {
+    /// <summary>Database id of the QuoteLine row, needed to address it for removal.</summary>
+    public int LineId { get; set; }
+
     public string Sku { get; set; } = "";
     public string Name { get; set; } = "";
     public int Qty { get; set; }

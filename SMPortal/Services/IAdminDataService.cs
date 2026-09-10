@@ -47,6 +47,9 @@ public interface IAdminDataService
     /// <summary>Adds a line for a chosen product. Returns false when nothing was added.</summary>
     Task<bool> AddQuoteLine(string quoteId, string sku, int quantity, int discountPct);
 
+    /// <summary>Removes one line from a quote. Returns false when nothing was removed.</summary>
+    Task<bool> DeleteQuoteLine(string quoteId, int lineId);
+
     Task<Account?> AddAccount(Account draft);
     Task<Product?> AddProduct(Product draft);
     Task UpdateProduct(Product edited);

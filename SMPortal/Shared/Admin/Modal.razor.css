@@ -1,18 +1,10 @@
 .modal-backdrop {
   position:fixed; inset:0; z-index:50; display:flex; align-items:flex-start; justify-content:center;
-  /* Less headroom than before so the taller body below has somewhere to go. */
   padding:4vh 20px 40px; background:rgba(15,18,30,.5); overflow:auto;
 }
-/* 60% of the viewport, with two guards: never narrower than the old 560px (a mid-width screen
-   would otherwise shrink the form), and never wider than the space the backdrop's padding
-   leaves, so it still goes edge-to-edge on a phone. Capped at 1200px because past that a
-   two-column form grid stretches its fields well beyond a comfortable reading width. */
-/* Height gets the same treatment: 60% of the viewport, floored at 420px so a short window does
-   not squeeze the body to nothing, and never taller than the room the backdrop's padding leaves.
-   A column flex box so the body can take whatever the header and footer do not. */
 .modal {
   width:min(100%, max(560px, 60vw)); max-width:1200px;
-  height:min(100%, max(420px, 60vh));
+  height:min(100%, max(620px, 60vh));
   display:flex; flex-direction:column;
   background:#fff; border:1px solid var(--line);
   border-radius:16px; box-shadow:var(--shadow-lg); overflow:hidden;
@@ -29,12 +21,6 @@
 .modal-x:hover { background:var(--line); color:var(--ink); }
 .modal-x svg { width:16px; height:16px; }
 
-/* structural helpers usable by the form placed inside the modal */
-
-/* EditForm renders its own <form> between .modal and .modal-body, so that element has to pass
-   the column layout through — otherwise the form is the flex item and the body inside it has no
-   height to claim. min-height:0 on both, or a flex item refuses to shrink below its content and
-   the body scrolls the whole modal past the viewport instead of scrolling itself. */
 ::deep form { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
 
 ::deep .modal-body { flex:1 1 auto; min-height:0; padding:22px 26px; overflow:auto; }

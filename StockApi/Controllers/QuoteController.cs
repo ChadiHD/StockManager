@@ -63,6 +63,20 @@ namespace StockApi.Controllers
             return NoContent();
         }
 
+        // The quote is resolved from its reference and passed down, so the line id alone is not
+        // enough to remove a line: a guessed id that belongs to another quote deletes nothing.
+        [HttpDelete("{reference}/Lines/{lineId:int}")]
+        public IActionResult DeleteLine(string reference, int lineId)
+        {
+            var quote = _quoteData.GetQuoteByReference(reference);
+            if (quote is null)
+            {
+                return NotFound();
+            }
+
+            return _quoteData.DeleteQuoteLine(quote.Id, lineId) ? NoContent() : NotFound();
+        }
+
         public record QuoteStatusModel(string Status);
 
         [HttpPut("{reference}/Status")]

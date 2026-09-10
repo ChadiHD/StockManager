@@ -121,6 +121,7 @@
     <Build Include="dbo\Store Procedures\spQuote_GetByReference.sql" />
     <Build Include="dbo\Store Procedures\spQuote_Insert.sql" />
     <Build Include="dbo\Store Procedures\spQuote_UpdateStatus.sql" />
+    <Build Include="dbo\Store Procedures\spQuoteLine_Delete.sql" />
     <Build Include="dbo\Store Procedures\spQuoteLine_GetByQuote.sql" />
     <Build Include="dbo\Store Procedures\spQuoteLine_Insert.sql" />
     <Build Include="dbo\Store Procedures\spReport_GetSales.sql" />

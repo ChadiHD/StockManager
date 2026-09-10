@@ -70,5 +70,17 @@ namespace SMDataManager.Library.DataAccess
                 DiscountPct = discountPct
             }, "SMDatabase");
         }
+
+        public bool DeleteQuoteLine(int quoteId, int lineId)
+        {
+            // The procedure returns its row count, and takes the quote id as part of the
+            // predicate, so a line id belonging to another quote deletes nothing and reports
+            // false rather than reading as a success.
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spQuoteLine_Delete", new
+            {
+                Id = lineId,
+                QuoteId = quoteId
+            }, "SMDatabase").FirstOrDefault() > 0;
+        }
     }
 }

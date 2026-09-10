@@ -1,0 +1,33 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sm-portal",
+      "port": 7199,
+      "url": "https://localhost:5000"
+    },
+    {
+      "name": "stock-api",
+      "port": 7042,
+      "url": "https://localhost:7042"
+    },
+    {
+      "name": "aspire-dashboard",
+      "port": 17291,
+      "url": "https://localhost:17291"
+    },
+    {
+      "name": "sm-portal-standalone",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "SMPortal/SMPortal.csproj", "--urls", "https://localhost:7250"],
+      "port": 7250,
+      "url": "https://localhost:7250"
+    },
+    {
+      "name": "aspire-apphost",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "StockManager.AppHost/StockManager.AppHost.csproj"],
+      "port": 17291
+    }
+  ]
+}

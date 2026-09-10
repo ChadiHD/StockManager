@@ -33,10 +33,17 @@ else
     <div class="detail-grid">
         <div class="stack">
             <div class="panel panel-clip">
-                <div class="lines-head"><span class="card-kicker">Line items</span><h2>@_q.LineItems.Count products</h2></div>
+                <div class="lines-head">
+                    <span class="card-kicker">Line items</span>
+                    <h2>@_q.LineItems.Count products</h2>
+                    @if (!CanEditLines)
+                    {
+                        <p class="lines-locked">Accepted and converted to an order — existing lines can no longer be removed.</p>
+                    }
+                </div>
                 <div class="tbl-wrap">
                     <table class="tbl">
-                        <thead><tr><th class="lead">Item</th><th class="ctr">Qty</th><th class="num">List</th><th class="ctr">Disc</th><th class="num">Unit net</th><th class="num trail">Line total</th></tr></thead>
+                        <thead><tr><th class="lead">Item</th><th class="ctr">Qty</th><th class="num">List</th><th class="ctr">Disc</th><th class="num">Unit net</th><th class="num">Line total</th><th class="trail"><span class="vh">Remove</span></th></tr></thead>
                         <tbody>
                             @foreach (var l in _q.LineItems)
                             {
@@ -46,7 +53,33 @@ else
                                     <td class="num strike">@AdminUi.Money(l.List, _q.Currency, 2)</td>
                                     <td class="ctr"><span class="disc-chip">-@(l.Disc)%</span></td>
                                     <td class="num">@AdminUi.Money(l.Net, _q.Currency, 2)</td>
-                                    <td class="num trail"><strong>@AdminUi.Money(l.LineTotal, _q.Currency, 2)</strong></td>
+                                    <td class="num"><strong>@AdminUi.Money(l.LineTotal, _q.Currency, 2)</strong></td>
+                                    <td class="trail">
+                                        @* Two-step in the row rather than a dialog: a single red icon in a dense
+                                           table is a misclick away from silently dropping a priced line, and a
+                                           full-screen modal for one row is heavier than the decision deserves. *@
+                                        @if (!CanEditLines)
+                                        {
+                                            <span class="line-lock" title="Locked by the order this quote became">&mdash;</span>
+                                        }
+                                        else if (_pendingLine == l.LineId)
+                                        {
+                                            <span class="line-confirm">
+                                                <button type="button" class="btn btn-sm btn-danger-outline"
+                                                        disabled="@_removing" @onclick="() => RemoveLine(l)">Remove</button>
+                                                <button type="button" class="btn btn-sm btn-secondary"
+                                                        disabled="@_removing" @onclick="() => _pendingLine = null">Cancel</button>
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="line-del" disabled="@_removing"
+                                                    title="Remove this line" aria-label="@($"Remove {l.Sku}")"
+                                                    @onclick="() => _pendingLine = l.LineId">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>
+                                            </button>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -200,6 +233,37 @@ else
 
     private bool _showAddLine;
     private LineDraft _lineDraft = new();
+
+    // Which row is asking to be confirmed, and whether a removal is in flight. Both live here
+    // rather than on the line so a refreshed snapshot cannot carry a half-finished prompt.
+    private int? _pendingLine;
+    private bool _removing;
+
+    /// <summary>
+    /// An accepted quote is the record behind an order that has already been raised from it.
+    /// Removing a line would leave the two disagreeing about what was sold, so the control is
+    /// withdrawn. Adding is left alone: it is not destructive and was never gated.
+    /// </summary>
+    private bool CanEditLines => _q?.Status != "Accepted";
+
+    private async Task RemoveLine(QuoteLine line)
+    {
+        _removing = true;
+        try
+        {
+            bool removed = await Data.DeleteQuoteLine(Id, line.LineId);
+            _pendingLine = null;
+            Recalc();
+
+            Toast.Show(removed
+                ? $"{line.Sku} removed from {Id}"
+                : "Could not remove the line — reload the quote and try again.");
+        }
+        finally
+        {
+            _removing = false;
+        }
+    }
 
     private sealed class LineDraft
     {

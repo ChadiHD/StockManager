@@ -342,6 +342,22 @@ public class AdminDataService : IAdminDataService
         return true;
     }
 
+    public async Task<bool> DeleteQuoteLine(string quoteId, int lineId)
+    {
+        if (string.IsNullOrWhiteSpace(quoteId) || lineId <= 0) return false;
+
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.DeleteAsync(
+            $"{_api}/api/Quote/{Uri.EscapeDataString(quoteId)}/Lines/{lineId}");
+
+        if (!response.IsSuccessStatusCode) return false;
+
+        await RefreshAsync();
+
+        return true;
+    }
+
     // ---- Catalog mutations ----------------------------------------------------------------
 
     public async Task<Product?> AddProduct(Product draft)
@@ -685,6 +701,7 @@ public class AdminDataService : IAdminDataService
         Lines = dto.Lines,
         LineItems = lines.Select(line => new QuoteLine
         {
+            LineId = line.Id,
             Sku = line.Sku ?? string.Empty,
             Name = line.Name ?? string.Empty,
             Qty = line.Quantity,
