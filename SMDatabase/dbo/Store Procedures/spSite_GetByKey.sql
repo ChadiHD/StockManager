@@ -8,7 +8,7 @@ BEGIN
 	SET NOCOUNT ON;
 
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
-	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [IsActive], [CreatedDate]
+	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct], [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	WHERE [SiteKey] = @SiteKey;
 END

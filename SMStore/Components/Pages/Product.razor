@@ -1,54 +1,145 @@
 @page "/product/{Sku}"
+@using SMStore.Catalog
 @inject ISiteContext SiteContext
+@inject CatalogPresenter Catalog
 @inject OrderingModeProvider Ordering
 
-<PageTitle>@Sku · @SiteContext.Site.Name</PageTitle>
+@if (_item is null)
+{
+    @* A hidden or unmapped product is indistinguishable from a wrong SKU, deliberately: a
+       404 for both means a guessed SKU cannot confirm that a product exists but is withheld. *@
+    <PageTitle>Product not found · @SiteContext.Site.Name</PageTitle>
 
-<Breadcrumb Items="Crumbs" />
-
-<div class="product">
-    <div class="product__media blueprint">
-        <i class="corner tl"></i><i class="corner tr"></i>
-        <i class="corner bl"></i><i class="corner br"></i>
-        <div class="stub">Product imagery lands with T2.</div>
-    </div>
-
-    <div class="product__buy">
-        <h1>SKU @Sku</h1>
-        <p class="page-lede">
-            Title, brand, availability, specifications and documents land with T2, once the
-            catalog query can resolve a SKU.
-        </p>
-
-        <div class="product__actions">
-            <button type="button" class="btn btn-primary blueprint" disabled
-                    title="Available once the basket lands">
-                <i class="corner tl"></i><i class="corner tr"></i>
-                <i class="corner bl"></i><i class="corner br"></i>
-                @Ordering.Current.AddToBasketLabel
-            </button>
-            <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
-                View your @Ordering.Current.BasketLabel.ToLowerInvariant()
-            </a>
+    <div class="page-header">
+        <div>
+            <h1>Product not found</h1>
+            <p class="page-lede">
+                No product with that code is available on this store.
+            </p>
         </div>
     </div>
-</div>
 
-<section class="product__detail">
-    <h2>Specifications</h2>
-    @* The artboard renders a spec table and a document list. Nothing stores either yet, and
-       the Icecat licence that would populate them is deferred, so the empty state below is the
-       common case rather than an edge case — see the plan's risks. *@
-    <div class="stub">No specifications are published for this product.</div>
-</section>
+    <a href="/catalog" class="btn btn-secondary">Back to the catalog</a>
+}
+else
+{
+    <PageTitle>@_item.ProductName · @SiteContext.Site.Name</PageTitle>
+
+    <Breadcrumb Items="Crumbs" />
+
+    <div class="product">
+        <div class="product__media blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            @if (!string.IsNullOrWhiteSpace(_item.ProductImage))
+            {
+                <img src="@_item.ProductImage" alt="@_item.ProductName" />
+            }
+            else
+            {
+                <div class="product__noimage">No image</div>
+            }
+        </div>
+
+        <div class="product__buy">
+            <div class="card-kicker">@Brand</div>
+            <h1>@_item.ProductName</h1>
+
+            <div class="product__ids">
+                <span>SKU @_item.Sku</span>
+                @if (!string.IsNullOrWhiteSpace(_item.ManufacturerPartNumber))
+                {
+                    <span>MPN @_item.ManufacturerPartNumber</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(_item.Ean))
+                {
+                    <span>EAN @_item.Ean</span>
+                }
+            </div>
+
+            <span class="tag @(InStock ? "tag-accent" : "tag-neutral")">@Availability</span>
+
+            @if (Price is not null)
+            {
+                <div class="product__price">
+                    <span class="product__amount">@Price</span>
+                    <span class="text-muted">@PriceNote</span>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">Sign in to see pricing for your account.</p>
+            }
+
+            <div class="product__actions">
+                <button type="button" class="btn btn-primary blueprint" disabled
+                        title="Available once the basket lands">
+                    <i class="corner tl"></i><i class="corner tr"></i>
+                    <i class="corner bl"></i><i class="corner br"></i>
+                    @Ordering.Current.AddToBasketLabel
+                </button>
+                <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
+                    View your @Ordering.Current.BasketLabel.ToLowerInvariant()
+                </a>
+            </div>
+
+            @if (_item.LastSynced is not null)
+            {
+                @* Distributor stock is only as fresh as the last sync, so the page says when
+                   rather than implying the number is live. *@
+                <p class="text-muted product__freshness">
+                    Distributor stock last confirmed @_item.LastSynced.Value.ToString("d MMM yyyy HH:mm") UTC.
+                    Subject to confirmation at quote.
+                </p>
+            }
+        </div>
+    </div>
+
+    <section class="product__detail">
+        <h2>Description</h2>
+        @if (!string.IsNullOrWhiteSpace(_item.Description))
+        {
+            <p class="product__description">@_item.Description</p>
+        }
+        else
+        {
+            <div class="stub">No description is published for this product.</div>
+        }
+
+        <h2>Specifications</h2>
+        @* The artboard renders a spec table and a document list. Nothing stores either, and
+           the Icecat licence that would populate them is deferred, so this empty state is the
+           common case rather than an edge case — see the plan's risks. *@
+        <div class="stub">No specifications are published for this product.</div>
+    </section>
+}
 
 @code {
     [Parameter] public string Sku { get; set; } = string.Empty;
+
+    private SMDataManager.Library.Models.CatalogItemModel? _item;
+
+    private bool InStock => _item is { QuantityInStock: > 0 };
+
+    private string Availability => InStock ? "In stock" : "Lead time on request";
+
+    private string Brand => string.IsNullOrWhiteSpace(_item?.Manufacturer)
+        ? _item?.Distributor ?? string.Empty
+        : _item.Manufacturer;
+
+    private string? Price => _item is null ? null : Catalog.FormatPrice(_item);
+
+    private string PriceNote => Ordering.Current.ShowsPayableTotal
+        ? "excl. tax"
+        : "list, excl. tax — volume pricing on quote";
 
     private NavItem[] Crumbs =>
     [
         new("Home", "/"),
         new("Catalog", "/catalog"),
-        new(Sku, $"/product/{Sku}"),
+        new(_item!.CategoryName, $"/catalog?cat={_item.CategorySlug}"),
+        new(_item.Sku, $"/product/{_item.Sku}")
     ];
+
+    protected override void OnParametersSet() => _item = Catalog.GetBySku(Sku);
 }

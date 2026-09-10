@@ -1,6 +1,8 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Internal.DataAccess;
+using SMDataManager.Library.Pricing;
 using SMStore.Components;
+using SMStore.Catalog;
 using SMStore.Content;
 using SMStore.Navigation;
 using SMStore.Ordering;
@@ -23,6 +25,13 @@ builder.AddSharedDataProtection();
 // see the note on the project reference in SMStore.csproj.
 builder.Services.AddTransient<ISqlDataAccess, SqlDataAccess>();
 builder.Services.AddTransient<ISiteData, SiteData>();
+builder.Services.AddTransient<ICatalogData, CatalogData>();
+
+// One price rule, shared with admin quote pricing. Two implementations would drift, and the
+// first anyone would hear of it is a customer quoted one price on the catalog and another on
+// their quote.
+builder.Services.AddSingleton<IPriceResolver, PriceResolver>();
+builder.Services.AddScoped<CatalogPresenter>();
 
 // Multi-store plumbing. SiteContext is registered as itself and behind the interface so
 // middleware can write to it while everything else only reads.

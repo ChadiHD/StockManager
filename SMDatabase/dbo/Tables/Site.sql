@@ -28,6 +28,11 @@ CREATE TABLE [dbo].[Site]
 	-- Differs per store, so it is not a global setting.
 	[PriceDisplay] NVARCHAR(20) NOT NULL DEFAULT 'Public',
 
+	-- Floor under group discounting: a resolved price never falls below cost plus this margin.
+	-- A commercial policy of the store rather than of a group, because it exists to stop any
+	-- group's discount from selling stock at a loss. Zero disables the floor.
+	[MinMarginPct] DECIMAL(5, 2) NOT NULL DEFAULT 0,
+
 	[IsActive] BIT NOT NULL DEFAULT 1,
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 

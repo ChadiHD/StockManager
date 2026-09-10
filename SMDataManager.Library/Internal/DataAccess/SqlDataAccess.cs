@@ -54,6 +54,32 @@ namespace SMDataManager.Library.Internal.DataAccess
             }
         }
 
+        /// <summary>
+        /// Reads a procedure that returns two grids — catalog facets return categories and
+        /// brands together rather than costing two evaluations of the same visibility
+        /// predicate.
+        /// </summary>
+        /// <remarks>
+        /// Both grids are materialised before returning. Dapper's GridReader does not own the
+        /// connection, so handing one back to a caller would leave the connection's lifetime
+        /// depending on the caller disposing in the right order.
+        /// </remarks>
+        public (List<T1>, List<T2>) LoadTwoResultSets<T1, T2, U>(
+            string storeProcedure, U parameters, string connectionStringName)
+        {
+            string connectionString = GetConnectionString(connectionStringName);
+
+            using (IDbConnection connection = new SqlConnection(connectionString))
+            using (var grids = connection.QueryMultiple(storeProcedure, parameters,
+                       commandType: CommandType.StoredProcedure))
+            {
+                List<T1> first = grids.Read<T1>().ToList();
+                List<T2> second = grids.Read<T2>().ToList();
+
+                return (first, second);
+            }
+        }
+
         // Start transaction method
         private IDbConnection _connection;
         private IDbTransaction _transaction;
