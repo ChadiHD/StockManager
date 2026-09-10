@@ -74,6 +74,7 @@ namespace SMDataManager.Library.Feeds
                 var records = _feedClient.Fetch(feed.ToSettings(secret));
 
                 result.RecordCount = records.Count;
+                result.DiscoveredFields = DescribeFields(records);
                 result.Succeeded = true;
             }
             catch (Exception exception)
@@ -83,6 +84,57 @@ namespace SMDataManager.Library.Feeds
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Summarises which fields a feed actually carries, so its mapping can be chosen by
+        /// looking rather than guessing.
+        /// </summary>
+        /// <remarks>
+        /// Sampled rather than counted over the whole feed: these files run to thousands of
+        /// records and the answer to "is this field on every row" does not change after the
+        /// first few hundred.
+        /// </remarks>
+        private static List<FeedFieldSample> DescribeFields(IReadOnlyList<DistributorFeedRecord> records)
+        {
+            const int sampleSize = 500;
+
+            var sample = records.Take(sampleSize).ToList();
+
+            if (sample.Count == 0)
+            {
+                return new List<FeedFieldSample>();
+            }
+
+            return sample
+                .SelectMany(record => record.Raw.Keys)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(key => new FeedFieldSample
+                {
+                    Name = key,
+                    PopulatedPct = (int)Math.Round(
+                        100.0 * sample.Count(record =>
+                            record.Raw.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                        / sample.Count),
+                    SampleValue = Truncate(
+                        sample
+                            .Select(record => record.Raw.TryGetValue(key, out var value) ? value : null)
+                            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)))
+                })
+                // Best-populated first: the fields worth mapping are the ones that are always
+                // there, and a feed can carry dozens of sparse ones nobody needs.
+                .OrderByDescending(field => field.PopulatedPct)
+                .ThenBy(field => field.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static string Truncate(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+
+            var trimmed = value.Trim();
+
+            return trimmed.Length <= 80 ? trimmed : trimmed.Substring(0, 77) + "...";
         }
 
         // One feed failing must not abort the others, so failures are captured per feed and

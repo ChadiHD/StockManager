@@ -217,6 +217,35 @@
                             : _testResult.Error)
                     </span>
                 </div>
+
+                @* What the feed actually contains. A mapping above that names a field the feed
+                   does not have imports as NULL on every row while the sync still reports
+                   success, so the fix is to copy names from here rather than guess them. *@
+                @if (_testResult.DiscoveredFields.Count > 0)
+                {
+                    <details class="feed-fields" open>
+                        <summary>Fields found in this feed (@_testResult.DiscoveredFields.Count)</summary>
+                        <table class="feed-fields__table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Populated</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var field in _testResult.DiscoveredFields)
+                                {
+                                    <tr>
+                                        <td><code>@field.Name</code></td>
+                                        <td class="feed-fields__pct">@field.PopulatedPct%</td>
+                                        <td class="feed-fields__sample">@field.SampleValue</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </details>
+                }
             }
         </div>
         <div class="modal-foot">

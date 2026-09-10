@@ -66,6 +66,16 @@ Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDa
 persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
 name, or neither can read the other's cookies or the feed credentials in `dbo.DistributorFeed`.
 
+**Moving the key ring orphans everything already encrypted against the old one.** When
+`AddSharedDataProtection` replaced the previous per-machine ring
+(`%LOCALAPPDATA%\ASP.NET\DataProtection-Keys`), the new database-backed ring started empty, so
+the distributor feed password stored months earlier could no longer be decrypted —
+`The key {guid} was not found in the key ring`, surfacing as a 502 on sync. There is no
+recovery but re-entering the password on the feed, which re-encrypts against the current ring;
+`DataProtectionFeedSecretStore.ResolveAsync` now says exactly that instead of surfacing the raw
+cryptographic error. Before changing where keys live again, remember that every `SecretRef` in
+`dbo.DistributorFeed` is ciphertext bound to the ring that wrote it.
+
 ## Build and run
 
 Run everything through the app host:
