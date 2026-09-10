@@ -1,0 +1,49 @@
+@page "/account"
+@inject ISiteContext SiteContext
+@inject OrderingModeProvider Ordering
+
+<PageTitle>Your account · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="_crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>Your account</h1>
+        <p class="page-lede">
+            Company profile, contacts, addresses, and the history of everything you have asked
+            us to price.
+        </p>
+    </div>
+</div>
+
+@* Unauthenticated for now — sign-in lands in T3, and this page becomes authorised then. The
+   section list is the shape the account area takes, so T3 and T5 fill panels rather than
+   inventing an information architecture. *@
+<div class="account">
+    @foreach (var section in Sections)
+    {
+        <section class="card blueprint account__panel">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>@section.Title</h5>
+            <p class="card-body">@section.Blurb</p>
+            <div class="text-muted account__when">@section.Arrives</div>
+        </section>
+    }
+</div>
+
+@code {
+    private readonly NavItem[] _crumbs = [new("Home", "/"), new("Your account", "/account")];
+
+    private record Section(string Title, string Blurb, string Arrives);
+
+    private IReadOnlyList<Section> Sections =>
+    [
+        new("Profile", "Company details, VAT registration and trading status.", "Lands with T3"),
+        new("Contacts", "The people on this account and what each may do.", "Lands with T3"),
+        new("Addresses", "Billing, shipping and registered addresses.", "Lands with T3"),
+        new($"{Ordering.Current.BasketLabel} history",
+            "Everything you have submitted, and what we sent back.", "Lands with T5"),
+        new("Orders", "Confirmed orders, their status and their paperwork.", "Lands with T5"),
+    ];
+}

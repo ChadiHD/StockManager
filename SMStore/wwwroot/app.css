@@ -1,17 +1,25 @@
 /*
-Shared storefront stylesheet. Structure only — every colour, font and radius here is read from
-a custom property that a site theme defines. Hardcoding a value in this file bakes one store's
-brand into the platform, so don't: add the token below and set it in each theme.
+Shared storefront stylesheet — the design system, ported from the Template artboards'
+_ds/styles.css.
 
-Token contract a theme must satisfy (see wwwroot/sites/default/theme.css for the reference
-implementation):
+Structure only. Every colour, font, space and radius here reads a custom property that a site
+theme defines; this file defines none of them. Hardcoding a value bakes one store's brand into
+the platform, so add the token instead and set it in each theme.
 
-  --color-bg, --color-surface, --color-text, --color-text-muted, --color-border
-  --color-accent, --color-accent-strong, --color-accent-contrast
-  --color-danger
-  --font-body, --font-heading
-  --radius, --measure
-*/
+Token contract a theme must satisfy — see wwwroot/sites/default/theme.css for the reference:
+
+  --color-bg --color-surface --color-text --color-divider
+  --color-accent --color-accent-2
+  --color-neutral-100..900  --color-accent-100..900  --color-accent-2-100..900
+  --font-heading --font-heading-weight --font-body
+  --space-1 --space-2 --space-3 --space-4 --space-6 --space-8
+  --radius-sm --radius-md --radius-lg
+  --shadow-sm --shadow-md --shadow-lg
+  --measure   (page content width)
+
+═══════════════════════════════════════════════════════════════════════════════════════════
+Base
+═══════════════════════════════════════════════════════════════════════════════════════════ */
 
 *,
 *::before,
@@ -24,104 +32,463 @@ body {
     background: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-body);
+    font-size: 15px;
     line-height: 1.55;
+    font-weight: 400;
 }
 
-h1,
-h2,
-h3 {
+h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
-    line-height: 1.2;
-    margin: 0 0 0.5em;
+    font-weight: var(--font-heading-weight);
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    margin: 0 0 var(--space-2);
 }
 
-h1:focus {
-    outline: none;
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+
+h6 {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
+
+h1:focus { outline: none; }
+
+p { margin: 0 0 var(--space-3); }
 
 a {
-    color: var(--color-accent-strong);
+    color: var(--color-accent);
+    text-underline-offset: 3px;
 }
 
-.site-header,
-.site-footer {
-    padding: 16px clamp(16px, 4vw, 48px);
-    background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
+img {
+    display: block;
+    max-width: 100%;
 }
 
-.site-footer {
-    border-bottom: 0;
-    border-top: 1px solid var(--color-border);
-    color: var(--color-text-muted);
+figure { margin: 0; }
+
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+
+:focus { outline: none; }
+
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
 }
 
-.site-header__brand {
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+.hr {
+    height: 1px;
+    border: 0;
+    margin: var(--space-4) 0;
+    background: var(--color-divider);
+}
+
+/* Screen-reader-only, for labels a sighted user gets from context. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Blueprint frame
+
+   The design language treats components as wireframe objects: square, transparent, hairline
+   bordered, with registration marks at the corners. The marks are drawn outside the box, so
+   anything that clips its own overlay has to let the frame win.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.blueprint {
+    position: relative;
+    border: 1px solid var(--color-divider);
+    border-radius: 0;
+}
+
+.blueprint > .corner {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+.blueprint > .corner::before,
+.blueprint > .corner::after {
+    content: "";
+    position: absolute;
+    background: currentColor;
+}
+
+.blueprint > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.blueprint > .corner::after { top: 5px; left: 0; width: 100%; height: 1px; }
+.blueprint > .corner.tl { top: -6px; left: -6px; }
+.blueprint > .corner.tr { top: -6px; right: -6px; }
+.blueprint > .corner.bl { bottom: -6px; left: -6px; }
+.blueprint > .corner.br { bottom: -6px; right: -6px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Buttons
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    /* Matches .input's 14px — the pair sits side by side in sign-up and filter rows. */
+    font-size: 14px;
+    line-height: 1.2;
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid var(--color-divider);
+    border-radius: 0;
+    padding: var(--space-2) calc(var(--space-3) * 1.2);
 }
 
-.site-main {
-    max-width: var(--measure);
-    margin: 0 auto;
-    padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px);
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
 }
 
-.lede {
-    color: var(--color-text-muted);
-    max-width: 60ch;
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
+
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+
+.btn-ghost {
+    color: var(--color-accent);
+    border-color: transparent;
+    padding-inline: var(--space-1);
 }
 
-/* T0 proof page. Removed with Home.razor when the designed home page lands in T1. */
-.site-facts {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 8px 24px;
-    margin: 32px 0 0;
-    padding: 20px 24px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Forms
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.field > label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: color-mix(in srgb, var(--color-text) 70%, transparent);
 }
 
-.site-facts dt {
-    color: var(--color-text-muted);
+.input {
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--color-text);
+    caret-color: var(--color-accent);
+    /* Inputs sit on the page ground rather than a raised surface — the design keeps a single
+       flat plane and separates with a hairline only. */
+    background: transparent;
+    border: 1px solid var(--color-divider);
+    border-radius: 0;
 }
 
-.site-facts dd {
-    margin: 0;
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+
+.radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
 }
 
-@media (max-width: 560px) {
-    .site-facts {
-        grid-template-columns: 1fr;
-        gap: 2px 0;
-    }
-
-    .site-facts dd {
-        margin-bottom: 12px;
-    }
+.radio input,
+.seg-opt input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
 }
 
-/* Framework-rendered states. Blazor emits these class names, so the selectors are fixed. */
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid var(--color-accent);
+.radio .dot {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-divider);
 }
 
-.invalid {
-    outline: 1px solid var(--color-danger);
+.radio:hover .dot { border-color: var(--color-accent); }
+
+.radio input:checked + .dot {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    box-shadow: inset 0 0 0 4px var(--color-bg);
 }
+
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+.seg {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--color-divider);
+    border-radius: 0;
+}
+
+.seg-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
 .validation-message {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
     color: var(--color-danger);
 }
 
-.blazor-error-boundary {
-    background: var(--color-danger);
-    padding: 1rem;
-    color: #fff;
+.input.invalid,
+.invalid > .input { border-color: var(--color-danger); }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Cards
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: 0;
+    background: transparent;
+    border: 1px solid var(--color-divider);
 }
 
-.blazor-error-boundary::after {
-    content: "An error has occurred."
+.card-kicker {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.card-title {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 17px;
+    line-height: 1.2;
+}
+
+.card-body {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.8;
+    flex: 1;
+}
+
+.card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Tags
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    padding: 3px 10px;
+    border-radius: 0;
+}
+
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Tables
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.table th {
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--color-text) 60%, transparent);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-divider);
+}
+
+.table td {
+    padding: var(--space-2);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+
+/* Wide tables scroll inside their own box rather than pushing the page sideways. */
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Dialog
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+
+.dialog {
+    width: min(440px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: 0;
+    background: var(--color-bg);
+    border: 1px solid var(--color-divider);
+    box-shadow: var(--shadow-lg);
+}
+
+.dialog-title {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 20px;
+}
+
+.dialog-body { font-size: 14px; opacity: 0.85; }
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Page layout
+
+   One measure and one gutter, shared by the header, the footer and every page, so the chrome
+   and the content line up at every width.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+
+.container {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding-inline: clamp(16px, 4vw, 72px);
+}
+
+.page {
+    flex: 1;
+    padding-block: clamp(24px, 4vw, 48px);
+}
+
+.page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.page-lede {
+    color: color-mix(in srgb, var(--color-text) 65%, transparent);
+    max-width: 62ch;
+}
+
+.breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: var(--space-4);
+    font-size: 12px;
+    color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+.breadcrumb a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.breadcrumb a:hover { color: var(--color-accent); }
+.breadcrumb [aria-current="page"] { color: var(--color-text); }
+
+.breadcrumb__sep {
+    opacity: 0.5;
+    user-select: none;
+}
+
+/* Placeholder shown where a page shell exists but its content lands in a later phase. Its
+   presence in a render is the signal that the page is not finished, so it is deliberately
+   plain rather than styled to look intentional. */
+.stub {
+    padding: var(--space-8) var(--space-4);
+    border: 1px dashed var(--color-divider);
+    color: color-mix(in srgb, var(--color-text) 55%, transparent);
+    text-align: center;
 }

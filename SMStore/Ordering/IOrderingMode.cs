@@ -20,6 +20,12 @@ public interface IOrderingMode
     /// <summary>Where the basket lives, e.g. "/quote" or "/cart".</summary>
     string BasketRoute { get; }
 
+    /// <summary>
+    /// Short noun for the basket itself — "Quote", "Cart". Names the header button and the
+    /// basket page, where <see cref="AddToBasketLabel"/> would read as an instruction.
+    /// </summary>
+    string BasketLabel { get; }
+
     /// <summary>Text on the control that submits the basket.</summary>
     string SubmitBasketLabel { get; }
 

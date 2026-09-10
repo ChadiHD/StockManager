@@ -1,6 +1,8 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Internal.DataAccess;
 using SMStore.Components;
+using SMStore.Content;
+using SMStore.Navigation;
 using SMStore.Ordering;
 using SMStore.Sites;
 
@@ -33,6 +35,14 @@ builder.Services.AddScoped<ISiteContext>(services => services.GetRequiredService
 // Ordering behaviour is per site. Register every implementation; OrderingModeProvider picks.
 builder.Services.AddSingleton<IOrderingMode, RfqOrderingMode>();
 builder.Services.AddScoped<OrderingModeProvider>();
+
+// Navigation is assembled rather than written into markup, so a site can vary it and the
+// basket entry can follow the ordering mode.
+builder.Services.AddScoped<StoreNavigation>();
+
+// Editorial content is per store. The null source serves nothing, so content pages render an
+// explicit empty state until a real source is registered in its place.
+builder.Services.AddScoped<ISiteContentSource, NullSiteContentSource>();
 
 var app = builder.Build();
 

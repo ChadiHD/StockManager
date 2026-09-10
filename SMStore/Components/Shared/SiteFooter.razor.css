@@ -1,0 +1,87 @@
+.site-footer {
+    background: var(--color-accent-900);
+    color: var(--color-bg);
+}
+
+.site-footer__inner { padding-block: 44px 28px; }
+
+.site-footer__columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 24px 28px;
+    padding-bottom: 32px;
+}
+
+/* The brand column carries prose, so it needs more room than an auto-fit track would give it
+   once three link columns compete for the same minimum. */
+.site-footer__about { min-width: 0; }
+
+.site-footer__brand {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.site-footer__blurb {
+    margin: 14px 0 0;
+    font-size: 13px;
+    opacity: 0.72;
+    max-width: 34ch;
+}
+
+.site-footer__contact {
+    margin-top: 16px;
+    font-size: 13px;
+    opacity: 0.72;
+    line-height: 1.7;
+}
+
+.site-footer__heading {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.6;
+    margin-bottom: 14px;
+}
+
+.site-footer__links {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.site-footer__links a,
+.site-footer__legal a {
+    color: var(--color-bg);
+    text-decoration: none;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.site-footer__links a:hover,
+.site-footer__legal a:hover {
+    opacity: 1;
+    color: var(--color-accent-300);
+}
+
+.site-footer__legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 24px;
+    border-top: 1px solid color-mix(in srgb, var(--color-bg) 22%, transparent);
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.site-footer__legal-links {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.site-footer__legal-links a { font-size: 12px; }

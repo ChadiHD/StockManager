@@ -1,0 +1,26 @@
+.product {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+    gap: clamp(24px, 4vw, 56px);
+    align-items: start;
+}
+
+.product__media {
+    aspect-ratio: 4 / 3;
+    display: grid;
+    place-items: center;
+    background: var(--color-surface);
+}
+
+.product__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.product__detail { margin-top: var(--space-8); }
+
+@media (max-width: 900px) {
+    .product { grid-template-columns: 1fr; }
+}

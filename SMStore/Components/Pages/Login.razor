@@ -1,0 +1,22 @@
+@page "/login"
+@inject ISiteContext SiteContext
+
+<PageTitle>Sign in · @SiteContext.Site.Name</PageTitle>
+
+<div class="signin">
+    <div class="signin__panel card blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i>
+        <i class="corner bl"></i><i class="corner br"></i>
+
+        <h1 class="signin__title">Sign in</h1>
+        <p class="text-muted signin__lede">
+            Trade accounts only. Prices and stock shown after sign-in reflect your account's terms.
+        </p>
+
+        <div class="stub">Sign-in lands with T3.</div>
+
+        <p class="signin__alt">
+            No account yet? <a href="/register">Apply for one</a>.
+        </p>
+    </div>
+</div>

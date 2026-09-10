@@ -1,0 +1,54 @@
+@page "/product/{Sku}"
+@inject ISiteContext SiteContext
+@inject OrderingModeProvider Ordering
+
+<PageTitle>@Sku · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+<div class="product">
+    <div class="product__media blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i>
+        <i class="corner bl"></i><i class="corner br"></i>
+        <div class="stub">Product imagery lands with T2.</div>
+    </div>
+
+    <div class="product__buy">
+        <h1>SKU @Sku</h1>
+        <p class="page-lede">
+            Title, brand, availability, specifications and documents land with T2, once the
+            catalog query can resolve a SKU.
+        </p>
+
+        <div class="product__actions">
+            <button type="button" class="btn btn-primary blueprint" disabled
+                    title="Available once the basket lands">
+                <i class="corner tl"></i><i class="corner tr"></i>
+                <i class="corner bl"></i><i class="corner br"></i>
+                @Ordering.Current.AddToBasketLabel
+            </button>
+            <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
+                View your @Ordering.Current.BasketLabel.ToLowerInvariant()
+            </a>
+        </div>
+    </div>
+</div>
+
+<section class="product__detail">
+    <h2>Specifications</h2>
+    @* The artboard renders a spec table and a document list. Nothing stores either yet, and
+       the Icecat licence that would populate them is deferred, so the empty state below is the
+       common case rather than an edge case — see the plan's risks. *@
+    <div class="stub">No specifications are published for this product.</div>
+</section>
+
+@code {
+    [Parameter] public string Sku { get; set; } = string.Empty;
+
+    private NavItem[] Crumbs =>
+    [
+        new("Home", "/"),
+        new("Catalog", "/catalog"),
+        new(Sku, $"/product/{Sku}"),
+    ];
+}

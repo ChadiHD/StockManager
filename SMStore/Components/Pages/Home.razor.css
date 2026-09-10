@@ -1,0 +1,13 @@
+.home-hero {
+    max-width: 62ch;
+    margin-bottom: var(--space-8);
+}
+
+.home-hero h1 { margin-bottom: var(--space-3); }
+
+.home-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}

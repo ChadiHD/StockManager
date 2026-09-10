@@ -1,0 +1,58 @@
+@* Both routes reach the same page. Which one a store actually links to comes from its
+   ordering mode, so an RFQ store's customers only ever see /quote and a checkout store's only
+   /cart — but neither route 404s if someone types or bookmarks the other. *@
+@page "/quote"
+@page "/cart"
+
+@inject ISiteContext SiteContext
+@inject OrderingModeProvider Ordering
+
+<PageTitle>@Ordering.Current.BasketLabel · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>Your @Ordering.Current.BasketLabel.ToLowerInvariant()</h1>
+        <p class="page-lede">@Lede</p>
+    </div>
+</div>
+
+<div class="basket">
+    <section class="basket__lines">
+        <div class="stub">Basket lines land with T5.</div>
+    </section>
+
+    <aside class="basket__summary card blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i>
+        <i class="corner bl"></i><i class="corner br"></i>
+        <h5>Summary</h5>
+        <dl class="basket__totals">
+            <dt>Line items</dt>
+            <dd>0</dd>
+            <dt>Total units</dt>
+            <dd>0</dd>
+        </dl>
+        <p class="text-muted basket__note">@SummaryNote</p>
+        <button type="button" class="btn btn-primary btn-block" disabled
+                title="Available once the basket lands">
+            @Ordering.Current.SubmitBasketLabel
+        </button>
+    </aside>
+</div>
+
+@code {
+    private NavItem[] Crumbs =>
+    [
+        new("Home", "/"),
+        new(Ordering.Current.BasketLabel, Ordering.Current.BasketRoute),
+    ];
+
+    private string Lede => Ordering.Current.ShowsPayableTotal
+        ? "Review your items, then continue to checkout."
+        : "Adjust quantities, add your details, and submit. We reply with firm pricing and lead times.";
+
+    private string SummaryNote => Ordering.Current.ShowsPayableTotal
+        ? "Tax and freight are calculated at checkout."
+        : "Prices are list, excluding tax and freight. Final pricing is returned with your quote.";
+}

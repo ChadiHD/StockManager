@@ -5,7 +5,17 @@ namespace SMStore.Sites;
 /// properties only; a theme supplies the values. Nothing about a store's appearance belongs in
 /// app.css.
 /// </summary>
-public sealed record SiteTheme(string StylesheetPath, string LogoPath, string FaviconPath);
+/// <param name="LogoInversePath">
+/// For the footer and any other panel painted in the dark accent. A single logo cannot serve
+/// both grounds — the default mark is dark ink, which vanishes on the footer — so a theme
+/// supplies a light variant. Falls back to <paramref name="LogoPath"/> when it does not, which
+/// is visibly wrong rather than silently missing, and so gets noticed.
+/// </param>
+public sealed record SiteTheme(
+    string StylesheetPath,
+    string LogoPath,
+    string LogoInversePath,
+    string FaviconPath);
 
 /// <summary>
 /// Resolves theme asset paths under wwwroot/sites/{SiteKey}/, falling back to the shipped
@@ -28,6 +38,7 @@ public sealed class SiteThemeResolver
     public SiteTheme Resolve(string siteKey) => new(
         Asset(siteKey, "theme.css"),
         Asset(siteKey, "logo.svg"),
+        Asset(siteKey, "logo-inverse.svg"),
         Asset(siteKey, "favicon.svg"));
 
     private string Asset(string siteKey, string fileName)

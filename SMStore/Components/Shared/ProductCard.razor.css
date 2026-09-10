@@ -1,0 +1,122 @@
+/* The card is a fixed-chrome tile in a grid: media on top at a constant ratio, body below with
+   the price row pinned to the bottom so tiles in a row line up whatever their title length. */
+
+.product-card {
+    padding: 0;
+    gap: 0;
+    overflow: visible;
+    height: 100%;
+}
+
+.product-card__media {
+    position: relative;
+    border-bottom: 1px solid var(--color-divider);
+}
+
+.product-card__media img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: var(--color-surface);
+}
+
+.product-card__noimage {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: var(--color-surface);
+    color: color-mix(in srgb, var(--color-text) 40%, transparent);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.product-card__badge {
+    position: absolute;
+    top: 9px;
+    left: 9px;
+    z-index: 2;
+}
+
+.product-card__avail {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.product-card__dot {
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+    display: inline-block;
+}
+
+.product-card__body {
+    padding: var(--space-3) var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+}
+
+.product-card__title {
+    text-decoration: none;
+    color: inherit;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 18px;
+    line-height: 1.14;
+    letter-spacing: 0.01em;
+}
+
+.product-card__title:hover { color: var(--color-accent-700); }
+
+.product-card__sku {
+    font-size: 12px;
+    font-feature-settings: 'tnum' 1;
+}
+
+.product-card__foot {
+    margin-top: auto;
+    padding-top: 12px;
+}
+
+.product-card__price {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-divider);
+}
+
+.product-card__amount {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 23px;
+    font-feature-settings: 'tnum' 1;
+}
+
+.product-card__note { font-size: 11px; }
+
+.product-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.product-card__add {
+    flex: 1;
+    min-height: 40px;
+}
+
+.product-card__view {
+    min-height: 40px;
+    width: 46px;
+    padding: 0;
+}

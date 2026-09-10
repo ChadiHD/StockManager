@@ -1,22 +1,19 @@
 @inherits LayoutComponentBase
-@inject ISiteContext SiteContext
-@inject SiteThemeResolver Themes
 
-@* Placeholder frame. The real SiteHeader / SiteFooter components, ported from the design
-   artboards, land in T1 — this exists so T0 can prove that theming resolves per site. *@
-<header class="site-header">
-    <a class="site-header__brand" href="/">
-        <img src="@_theme.LogoPath" alt="@SiteContext.Site.Name" height="28" />
-    </a>
-</header>
+@* Chrome for every storefront page. Header and footer take their branding from the resolved
+   site, so this layout is the same for every store. *@
 
-<main class="site-main">
-    @Body
-</main>
+<div class="layout">
+    <SiteHeader ContactEmail="@ContactEmail" ContactPhone="@ContactPhone" />
 
-<footer class="site-footer">
-    <span>@SiteContext.Site.Name</span>
-</footer>
+    <main class="page">
+        <div class="container">
+            @Body
+        </div>
+    </main>
+
+    <SiteFooter Blurb="@Blurb" ContactEmail="@ContactEmail" ContactPhone="@ContactPhone" />
+</div>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
@@ -25,7 +22,10 @@
 </div>
 
 @code {
-    private SiteTheme _theme = default!;
-
-    protected override void OnInitialized() => _theme = Themes.Resolve(SiteContext.Site.SiteKey);
+    // Placeholders until the per-site content mechanism lands later in T1. Left null rather
+    // than filled with sample text, so an unconfigured store shows nothing instead of showing
+    // another store's details.
+    private string? ContactEmail => null;
+    private string? ContactPhone => null;
+    private string? Blurb => null;
 }

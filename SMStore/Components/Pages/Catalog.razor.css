@@ -1,0 +1,43 @@
+/* Breakpoint from the artboard: the filter rail folds above the results at 880px, where a
+   240px sidebar leaves too little for a product grid. */
+
+.catalog {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: clamp(24px, 3vw, 48px);
+    align-items: start;
+}
+
+.catalog__filters {
+    position: sticky;
+    top: 104px;
+}
+
+.catalog__filters-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+}
+
+.catalog__filters-head h6 { margin: 0; }
+
+/* The grid the results section fills in T2. Declared here so the tile sizing is settled with
+   the rest of the layout rather than invented alongside the query. */
+.catalog__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: var(--space-6);
+}
+
+@media (max-width: 880px) {
+    .catalog {
+        grid-template-columns: 1fr;
+        gap: 28px;
+    }
+
+    .catalog__filters {
+        position: static;
+        top: auto;
+    }
+}

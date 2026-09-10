@@ -1,0 +1,35 @@
+@page "/catalog"
+@inject ISiteContext SiteContext
+
+<PageTitle>Catalog · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="_crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>Catalog</h1>
+        <p class="page-lede">
+            Everything the store carries, from own stock and distributor feeds alike.
+        </p>
+    </div>
+</div>
+
+<div class="catalog">
+    <aside class="catalog__filters">
+        <div class="catalog__filters-head">
+            <h6>Filters</h6>
+        </div>
+        <div class="stub">Category, brand and availability facets land with T2.</div>
+    </aside>
+
+    <section class="catalog__results">
+        <div class="stub">
+            Paged, faceted results land with T2. Tiles render through
+            <code>ProductCard</code>, which is finished.
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly NavItem[] _crumbs = [new("Home", "/"), new("Catalog", "/catalog")];
+}

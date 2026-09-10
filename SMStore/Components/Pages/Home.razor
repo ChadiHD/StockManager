@@ -4,40 +4,26 @@
 
 <PageTitle>@SiteContext.Site.Name</PageTitle>
 
-@* T0 proof page: shows that the request resolved to a store and that the per-site seams —
-   theme, ordering mode, price display — are wired end to end. Replaced by the real home page
-   in T1. *@
-<h1>@SiteContext.Site.Name</h1>
+<section class="home-hero">
+    <p class="card-kicker">@SiteContext.Site.Country · @SiteContext.Site.CurrencyCode</p>
+    <h1>@SiteContext.Site.Name</h1>
+    <p class="page-lede">
+        Storefront chrome and the design system are in place. The hero copy, category grid and
+        featured products arrive with the content mechanism and the catalog.
+    </p>
 
-<p class="lede">
-    Storefront foundations are in place. This page is replaced by the designed home page in T1.
-</p>
+    <div class="home-hero__actions">
+        <a href="/catalog" class="btn btn-primary blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            Browse the catalog
+        </a>
+        <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
+            @Ordering.Current.SubmitBasketLabel
+        </a>
+    </div>
+</section>
 
-<dl class="site-facts">
-    <dt>Site key</dt>
-    <dd>@SiteContext.Site.SiteKey</dd>
-
-    <dt>Domain</dt>
-    <dd>@SiteContext.Site.Domain</dd>
-
-    <dt>Country / currency</dt>
-    <dd>@SiteContext.Site.Country · @SiteContext.Site.CurrencyCode</dd>
-
-    <dt>Locale</dt>
-    <dd>@SiteContext.Site.Locale</dd>
-
-    <dt>Ordering mode</dt>
-    <dd>@_ordering.Key — "@_ordering.AddToBasketLabel", basket at @_ordering.BasketRoute</dd>
-
-    <dt>Registration field set</dt>
-    <dd>@SiteContext.Site.RegistrationFieldSet</dd>
-
-    <dt>Price display</dt>
-    <dd>@SiteContext.Site.PriceDisplay</dd>
-</dl>
-
-@code {
-    private IOrderingMode _ordering = default!;
-
-    protected override void OnInitialized() => _ordering = Ordering.Current;
-}
+<div class="stub">
+    Category grid, featured products and supply-performance panels land with T2.
+</div>

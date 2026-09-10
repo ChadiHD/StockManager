@@ -12,6 +12,7 @@ public sealed class RfqOrderingMode : IOrderingMode
     public string Key => ModeKey;
     public string AddToBasketLabel => "Add to quote";
     public string BasketRoute => "/quote";
+    public string BasketLabel => "Quote";
     public string SubmitBasketLabel => "Submit quote request";
 
     // An RFQ is a conversation opener, so anyone may send one; qualification happens when the

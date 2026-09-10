@@ -1,0 +1,48 @@
+@page "/register"
+@inject ISiteContext SiteContext
+
+<PageTitle>Open an account · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="_crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>Customer application</h1>
+        <p class="page-lede">
+            Apply for a trading account. Our team reviews applications and emails you once the
+            account is open.
+        </p>
+    </div>
+</div>
+
+@* Which fields this form asks for is jurisdictional — a VAT number and a Chamber of Commerce
+   document are an EU expectation, not a universal one — so the form is driven by the site's
+   RegistrationFieldSet rather than written out here. The engine that reads it lands in T3;
+   the sections below are the shape it renders into. *@
+<form class="register">
+    <section class="register__section">
+        <div class="register__legend"><span class="register__num">01</span><h4>Company</h4></div>
+        <div class="stub">Fields for field set "@SiteContext.Site.RegistrationFieldSet" land with T3.</div>
+    </section>
+
+    <section class="register__section">
+        <div class="register__legend"><span class="register__num">02</span><h4>Contact details</h4></div>
+        <div class="stub">Contact fields land with T3.</div>
+    </section>
+
+    <section class="register__section">
+        <div class="register__legend"><span class="register__num">03</span><h4>Authorised representative</h4></div>
+        <div class="stub">Representative fields and document upload land with T3.</div>
+    </section>
+
+    <button type="button" class="btn btn-primary blueprint" disabled
+            title="Available once registration lands">
+        <i class="corner tl"></i><i class="corner tr"></i>
+        <i class="corner bl"></i><i class="corner br"></i>
+        Submit application
+    </button>
+</form>
+
+@code {
+    private readonly NavItem[] _crumbs = [new("Home", "/"), new("Open an account", "/register")];
+}
