@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The storefront renders on the server, so it queries the data layer directly rather than
+         going through StockApi over HTTP. An in-process call costs no token exchange and no
+         serialisation on anonymous catalog pages, which are the hot path. -->
+    <ProjectReference Include="..\SMDataManager.Library\SMDataManager.Library.csproj" />
+    <ProjectReference Include="..\StockManager.ServiceDefaults\StockManager.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

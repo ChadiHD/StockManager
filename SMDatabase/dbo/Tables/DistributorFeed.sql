@@ -39,5 +39,12 @@ CREATE TABLE [dbo].[DistributorFeed]
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 	[LastModified] DATETIME2 NOT NULL DEFAULT getutcdate(),
 
-	CONSTRAINT [UQ_DistributorFeed_Name] UNIQUE ([Name])
+	-- Different stores buy from different distributors, so a feed belongs to a site and the
+	-- sync worker loops over active sites. Nullable for rows predating multi-site; backfilled
+	-- by Scripts/PostDeployment/Seed.sql.
+	[SiteId] INT NULL,
+
+	-- Scoped by site: two stores may each have a feed called "Main".
+	CONSTRAINT [UQ_DistributorFeed_Name] UNIQUE ([SiteId], [Name]),
+	CONSTRAINT [FK_DistributorFeed_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

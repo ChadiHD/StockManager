@@ -7,7 +7,12 @@ CREATE TABLE [dbo].[CustomerGroup]
     [Terms] NVARCHAR(50) NOT NULL DEFAULT 'Net 30',
     [Note] NVARCHAR(500) NULL,
     [CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
-    CONSTRAINT [UQ_CustomerGroup_Name] UNIQUE ([Name]),
-    -- The admin UI routes to /admin/groups/{slug}, so the slug must resolve to exactly one group.
-    CONSTRAINT [UQ_CustomerGroup_Slug] UNIQUE ([Slug])
+    -- Pricing groups are per store. Nullable for rows predating multi-site; backfilled by
+    -- Scripts/PostDeployment/Seed.sql.
+    [SiteId] INT NULL,
+    -- Scoped by site, not global: two stores may each want a "Reseller" group. The admin UI
+    -- routes to /admin/groups/{slug}, so the slug must resolve to exactly one group per site.
+    CONSTRAINT [UQ_CustomerGroup_Name] UNIQUE ([SiteId], [Name]),
+    CONSTRAINT [UQ_CustomerGroup_Slug] UNIQUE ([SiteId], [Slug]),
+    CONSTRAINT [FK_CustomerGroup_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

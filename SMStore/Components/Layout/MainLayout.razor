@@ -1,0 +1,31 @@
+@inherits LayoutComponentBase
+@inject ISiteContext SiteContext
+@inject SiteThemeResolver Themes
+
+@* Placeholder frame. The real SiteHeader / SiteFooter components, ported from the design
+   artboards, land in T1 — this exists so T0 can prove that theming resolves per site. *@
+<header class="site-header">
+    <a class="site-header__brand" href="/">
+        <img src="@_theme.LogoPath" alt="@SiteContext.Site.Name" height="28" />
+    </a>
+</header>
+
+<main class="site-main">
+    @Body
+</main>
+
+<footer class="site-footer">
+    <span>@SiteContext.Site.Name</span>
+</footer>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private SiteTheme _theme = default!;
+
+    protected override void OnInitialized() => _theme = Themes.Resolve(SiteContext.Site.SiteKey);
+}

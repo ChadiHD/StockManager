@@ -1,146 +1,45 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Classic SSDT project format.
-     This was briefly converted to the Microsoft.Build.Sql SDK so the DACPAC could be produced
-     by `dotnet build`. That broke the Visual Studio build: the SDK's targets and the SSDT
-     targets bundled with VS 18 both define SqlBuildTask inputs, and whichever task assembly
-     wins is missing a parameter the other side passes (MSB4064 / MSB4063 on
-     AutomaticIndexCompaction or AcceleratedDatabaseRecovery). Reverted deliberately — build
-     this project in Visual Studio, which regenerates bin\Debug\SMDatabase.dacpac. The Aspire
-     AppHost deploys that file and now fails fast if it is older than the .sql sources. -->
-<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+<!-- SDK-style SQL project, so `dotnet build` produces the DACPAC and CI needs no Visual Studio.
+
+     This was attempted once before on Microsoft.Build.Sql 1.x and reverted: VS 18 ships SSDT
+     targets that pass SqlBuildTask parameters (AutomaticIndexCompaction,
+     AcceleratedDatabaseRecovery) which the 1.x task did not declare, so the build failed with
+     MSB4064 / MSB4063 depending on which task assembly won. The 2.x SDK declares them, which is
+     what makes the conversion viable now — if a build in Visual Studio ever reports MSB4064 on a
+     property name again, that is this same collision and the SDK version is the thing to look
+     at, not the project layout. -->
+<Project Sdk="Microsoft.Build.Sql/2.2.0">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <Name>SMDatabase</Name>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectVersion>4.1</ProjectVersion>
     <ProjectGuid>{d1a3d78b-7c53-46d6-9079-20ff94a9b15d}</ProjectGuid>
     <DSP>Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider</DSP>
-    <OutputType>Database</OutputType>
-    <RootPath>
-    </RootPath>
-    <RootNamespace>SMDatabase</RootNamespace>
-    <AssemblyName>SMDatabase</AssemblyName>
     <ModelCollation>1033, CI</ModelCollation>
-    <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
-    <DeployToDatabase>True</DeployToDatabase>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <TargetLanguage>CS</TargetLanguage>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <SqlServerVerification>False</SqlServerVerification>
-    <IncludeCompositeObjects>True</IncludeCompositeObjects>
     <TargetDatabaseSet>True</TargetDatabaseSet>
+    <DeployToDatabase>True</DeployToDatabase>
+
+    <!-- Full-framework Visual Studio MSBuild preloads its installed SQL task assembly. Use the
+         matching SSDT targets so task parameters and the loaded assembly stay compatible. -->
+    <BuildFromSSDT>true</BuildFromSSDT>
+
+    <!-- Pinned explicitly. Left unset, `dotnet build` restores netstandard2.0 while a build
+         through Visual Studio's MSBuild evaluates net472 (VS still supplies the legacy SSDT
+         TargetFrameworkVersion of v4.7.2), and the two disagree:
+         "error NETSDK1005: Assets file ... doesn't have a target for 'net472'". -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- The Aspire app host reads SMDatabase/bin/Debug/SMDatabase.dacpac and fails fast when it
+         is missing. Without this the SDK would nest the output under a target-framework folder
+         and the app host would refuse to start. -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <OutputPath>bin\Release\</OutputPath>
-    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
-    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <DefineDebug>false</DefineDebug>
-    <DefineTrace>true</DefineTrace>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <OutputPath>bin\Debug\</OutputPath>
-    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <DefineDebug>true</DefineDebug>
-    <DefineTrace>true</DefineTrace>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup>
-    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">11.0</VisualStudioVersion>
-    <!-- Default to the v11.0 targets path if the targets file for the current VS version is not found -->
-    <SSDTExists Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets')">True</SSDTExists>
-    <VisualStudioVersion Condition="'$(SSDTExists)' == ''">11.0</VisualStudioVersion>
-  </PropertyGroup>
-  <Import Condition="'$(SQLDBExtensionsRefPath)' != ''" Project="$(SQLDBExtensionsRefPath)\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
-  <Import Condition="'$(SQLDBExtensionsRefPath)' == ''" Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
   <ItemGroup>
-    <Folder Include="Properties" />
-    <Folder Include="dbo" />
-    <Folder Include="dbo\Tables" />
-    <Folder Include="dbo\Views" />
-    <Folder Include="dbo\Store Procedures" />
-    <Folder Include="dbo\Sequences" />
-    <Folder Include="dbo\User Defined Types" />
-    <Folder Include="PublishLocations" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="PublishLocations\SMDatabase.publish.xml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Build Include="dbo\Sequences\AccountReferenceSequence.sql" />
-    <Build Include="dbo\Sequences\OrderReferenceSequence.sql" />
-    <Build Include="dbo\Sequences\QuoteReferenceSequence.sql" />
-    <Build Include="dbo\Store Procedures\spAccount_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spAccount_GetById.sql" />
-    <Build Include="dbo\Store Procedures\spAccount_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spAccount_UpdateStatus.sql" />
-    <Build Include="dbo\Store Procedures\spAccount_UpdateTerms.sql" />
-    <Build Include="dbo\Store Procedures\spActivity_GetRecent.sql" />
-    <Build Include="dbo\Store Procedures\spCustomerGroup_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spCustomerGroup_GetBySlug.sql" />
-    <Build Include="dbo\Store Procedures\spCustomerGroup_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spCustomerGroup_Update.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_Delete.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_GetById.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_RecordSync.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_Update.sql" />
-    <Build Include="dbo\Store Procedures\spDistributorFeed_UpdateSecret.sql" />
-    <Build Include="dbo\Store Procedures\spInventory_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spInventory_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spOrder_ConvertFromQuote.sql" />
-    <Build Include="dbo\Store Procedures\spOrder_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spOrder_GetByReference.sql" />
-    <Build Include="dbo\Store Procedures\spOrder_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spOrder_UpdateStatus.sql" />
-    <Build Include="dbo\Store Procedures\spOrderLine_GetByOrder.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_BulkUpsertFromFeed.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_GetById.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_GetBySku.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_GetImageCandidates.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_SetImage.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_SyncFeeds.sql" />
-    <Build Include="dbo\Store Procedures\spProduct_Update.sql" />
-    <Build Include="dbo\Store Procedures\spPurchase_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spPurchase_LookUp.sql" />
-    <Build Include="dbo\Store Procedures\spPurchase_PurchaseReport.sql" />
-    <Build Include="dbo\Store Procedures\spPurchaseDetails_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spQuote_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spQuote_GetByReference.sql" />
-    <Build Include="dbo\Store Procedures\spQuote_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spQuote_UpdateStatus.sql" />
-    <Build Include="dbo\Store Procedures\spQuoteLine_Delete.sql" />
-    <Build Include="dbo\Store Procedures\spQuoteLine_GetByQuote.sql" />
-    <Build Include="dbo\Store Procedures\spQuoteLine_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spReport_GetSales.sql" />
-    <Build Include="dbo\Store Procedures\spUser_GetAll.sql" />
-    <Build Include="dbo\Store Procedures\spUser_Insert.sql" />
-    <Build Include="dbo\Store Procedures\spUserLookup.sql" />
-    <Build Include="dbo\Tables\Account.sql" />
-    <Build Include="dbo\Tables\CustomerGroup.sql" />
-    <Build Include="dbo\Tables\DistributorFeed.sql" />
-    <Build Include="dbo\Tables\Inventory.sql" />
-    <Build Include="dbo\Tables\Product.sql" />
-    <Build Include="dbo\Tables\Purchase.sql" />
-    <Build Include="dbo\Tables\PurchaseDetail.sql" />
-    <Build Include="dbo\Tables\Quote.sql" />
-    <Build Include="dbo\Tables\QuoteLine.sql" />
-    <Build Include="dbo\Tables\User.sql" />
-    <Build Include="dbo\User Defined Types\DistributorFeedItem.sql" />
-  </ItemGroup>
-  <ItemGroup>
+    <!-- The SDK globs **/*.sql as Build items, which is why individual tables and procedures no
+         longer need listing. Deployment scripts are not schema, so they are removed from that
+         glob and declared for their phase instead. -->
+    <Build Remove="Scripts\**\*.sql" />
+    <PostDeploy Include="Scripts\PostDeployment\Seed.sql" />
     <RefactorLog Include="SMDatabase.refactorlog" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Scripts\" />
+    <Folder Include="Scripts\PostDeployment\" />
   </ItemGroup>
 </Project>

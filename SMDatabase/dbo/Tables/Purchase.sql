@@ -15,7 +15,12 @@ CREATE TABLE [dbo].[Purchase]
     [Currency] NVARCHAR(3) NULL,
     -- Awaiting payment | Processing | Fulfilled | Cancelled
     [Status] NVARCHAR(30) NULL,
+    -- Set on portal orders only. Desktop POS sales have no site and keep it NULL — unlike the
+    -- other scoped tables, this column is not backfilled, because a POS sale genuinely does not
+    -- belong to a storefront.
+    [SiteId] INT NULL,
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
     CONSTRAINT [FK_Purchase_ToAccount] FOREIGN KEY ([AccountId]) REFERENCES [Account]([Id]),
-    CONSTRAINT [FK_Purchase_ToQuote] FOREIGN KEY ([QuoteId]) REFERENCES [Quote]([Id])
+    CONSTRAINT [FK_Purchase_ToQuote] FOREIGN KEY ([QuoteId]) REFERENCES [Quote]([Id]),
+    CONSTRAINT [FK_Purchase_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

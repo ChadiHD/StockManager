@@ -58,17 +58,10 @@ builder.Services.AddHttpClient<IIcecatClient, IcecatClient>(client =>
 builder.Services.AddTransient<IProductImageEnricher, ProductImageEnricher>();
 builder.Services.AddHostedService<ProductImageBackgroundService>();
 
-// Data Protection store (default; used for local development).
-// The keyring MUST outlive the container: with the default provider the keys sit on the
-// container filesystem, so a redeployed container can no longer decrypt credentials written
-// by the previous one. Set FeedSecrets:KeyRingPath to a mounted volume, or move to the
-// KeyVault provider, before running this in production.
-var keyRingPath = builder.Configuration["FeedSecrets:KeyRingPath"];
-var dataProtection = builder.Services.AddDataProtection().SetApplicationName("StockManager");
-if (!string.IsNullOrWhiteSpace(keyRingPath))
-{
-    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
-}
+// Data Protection keys live in the identity database, shared with SMStore. This replaces the
+// default per-container filesystem ring, which lost saved feed credentials on every redeploy
+// and could not be read by a second app. See AddSharedDataProtection.
+builder.AddSharedDataProtection();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 
@@ -142,6 +135,8 @@ using (var scope = app.Services.CreateScope())
 	var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 	db.Database.Migrate();
 }
+
+await app.EnsureDataProtectionKeyStoreAsync();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

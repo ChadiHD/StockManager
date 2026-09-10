@@ -22,21 +22,49 @@ quotes, accounts, customer groups or distributor feeds:
 - `docs/plans/2026-07-24-aclitrade-b2b-ecommerce-design.md` — the target design
 - `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and current state
 
-.NET Aspire orchestrates everything. One API serves three clients:
+.NET Aspire orchestrates everything.
 
 | Project | Role |
 | --- | --- |
 | `StockManager.AppHost` | Aspire orchestrator. **The entry point** — dashboard on 17291 |
 | `StockApi` | ASP.NET Core Web API, HTTPS **pinned to 7042** (clients hardcode it) |
-| `SMDataManager.Library` | Dapper + stored-procedure data access. Shared by the API only |
+| `SMDataManager.Library` | Dapper + stored-procedure data access. Shared by `StockApi` and `SMStore` |
 | `SMDatabase` | Classic SSDT `.sqlproj` — tables and stored procedures |
-| `SMPortal` | Blazor **WebAssembly** admin portal (`/admin/*`), the active front end |
+| `SMStore` | Blazor **Web App** (SSR) customer storefront. Serves every site from one deployment |
+| `SMPortal` | Blazor **WebAssembly** admin portal (`/admin/*`) |
 | `SMDesktopUI` + `.Library` | WPF POS desktop app (legacy, still shipped) |
 | `SMDesktopUI.UITests` | xunit + FlaUI UI automation for the WPF app |
-| `StockManager.ServiceDefaults` | Shared Aspire telemetry, health checks and resilience |
+| `StockManager.ServiceDefaults` | Shared Aspire telemetry, health checks, resilience, Data Protection |
 
-`SMDataManager/` (a .NET Framework 4.8 Web API with `packages.config`) is **not in the solution**.
-It is dead code whose controllers mirror `StockApi`'s. Never edit it — changes there do nothing.
+`SMStore` does **not** call `StockApi`. It renders on the server and reads `SMDatabase` through
+`SMDataManager.Library` in process — an HTTP hop to a co-located API would only add a token
+exchange to every anonymous catalog page. `SMPortal`, being WebAssembly, still goes through the
+API.
+
+## Multi-store rules
+
+Every request resolves to a `dbo.Site` row from its host header, via `SiteResolutionMiddleware`,
+before anything else runs. Consequences that are easy to get wrong:
+
+- **Read site values from `ISiteContext`, never from configuration or a constant.** Country,
+  currency, locale, ordering mode, registration field set and price visibility all live on the
+  site.
+- **An unresolved host is a 404, never a fallback to a default store.** Falling back is how one
+  tenant's catalog and prices get served on another tenant's domain.
+- **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
+  leak, not a display bug. Scoped today: `Account`, `CustomerGroup`, `Quote`, `Purchase`
+  (portal orders only), `DistributorFeed`.
+- **Nothing outside `SMStore/Ordering/` branches on `Site.OrderMode`.** Ask
+  `OrderingModeProvider.Current` instead.
+- **`wwwroot/app.css` holds no colour of its own.** It reads custom properties that a theme
+  under `wwwroot/sites/{SiteKey}/` defines. `SiteThemeResolver` falls back to the `default`
+  theme for any asset a site is missing.
+- `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
+  start with it set outside Development.
+
+Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDataProtection`,
+persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
+name, or neither can read the other's cookies or the feed credentials in `dbo.DistributorFeed`.
 
 ## Build and run
 
@@ -51,19 +79,49 @@ with volume `stockmanager-sql-data`) holding `ApiAuthDb` and `SMDatabase`. The c
 `StockApi/appsettings.json` are overridden by Aspire at run time — the `SITIHAPIB` value there is not
 what a running app uses.
 
-### SMDatabase needs Visual Studio MSBuild, not the dotnet CLI
+### SMDatabase builds with the dotnet CLI
 
-`dotnet build` on `SMDatabase.sqlproj` — or on `StockManager.sln`, which contains it — fails with
-`error MSB4278` (missing SSDT targets). Use VS MSBuild:
+`SMDatabase.sqlproj` is an SDK-style project (`Microsoft.Build.Sql/2.2.0`), so the DACPAC comes
+from a plain build and `dotnet build StockManager.sln` works:
 
 ```bash
-"$("/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/MSBuild.exe')" SMDatabase/SMDatabase.sqlproj -v:m -nologo
+dotnet build SMDatabase/SMDatabase.sqlproj
 ```
 
-The app host **refuses to start** if `SMDatabase/bin/Debug/SMDatabase.dacpac` is missing or older than
-any `.sql` file under `SMDatabase/`. So after touching SQL: rebuild the sqlproj, then restart the app
-host. `smdatabase-schema` publishes the DACPAC automatically (`WithSkipWhenDeployed`, so an unchanged
-DACPAC is skipped).
+It was classic SSDT until 2026-09-10 and `dotnet build` failed with `MSB4278`. An earlier
+conversion attempt on Microsoft.Build.Sql 1.x was reverted because VS 18's SSDT targets pass
+`SqlBuildTask` parameters the 1.x task did not declare (`MSB4064` / `MSB4063` on
+`AutomaticIndexCompaction` or `AcceleratedDatabaseRecovery`). The 2.x SDK declares them. **If a
+Visual Studio build ever reports `MSB4064` on a property name again, that is this collision
+returning — look at the SDK version, not the project layout.**
+
+`<TargetFramework>netstandard2.0</TargetFramework>` is pinned in the sqlproj and must stay.
+Left unset, the two toolchains disagree: `dotnet build` restores `netstandard2.0` while a build
+through Visual Studio evaluates `net472`, because VS still supplies the legacy SSDT
+`TargetFrameworkVersion` of `v4.7.2`. The result is
+`error NETSDK1005: Assets file ... doesn't have a target for 'net472'`. With it pinned, both
+toolchains share one `obj/project.assets.json` and can be alternated without a re-restore.
+
+`StockManager.AppHost` carries a build-only `ProjectReference` to the sqlproj
+(`ReferenceOutputAssembly="false" IsAspireProjectResource="false"`), so building the app host
+builds the schema too and there is no separate step after touching SQL — just rebuild and restart.
+
+**The app host does not guess where the DACPAC is.** Its `ResolveSMDatabaseDacpacPath` target asks
+the SQL project (`GetTargetPath`) and stamps the answer in as `AssemblyMetadata`, which `AppHost.cs`
+reads back. The path moves with `$(Configuration)` and again with `$(BaseOutputPath)`, so a
+hardcoded `bin\Debug` sent a Release or output-redirected build's guard at a file nothing had
+written. Keep the target and the project reference together — `AppHost.cs` throws with an
+actionable message if the metadata is absent.
+
+It still **refuses to start** if that DACPAC is missing or older than any `.sql` file under
+`SMDatabase/`, which catches a hand-edited `.sql` that was never rebuilt. `smdatabase-schema`
+publishes it automatically (`WithSkipWhenDeployed`, so an unchanged DACPAC is skipped).
+`AppendTargetFrameworkToOutputPath` is off in the sqlproj so the output does not nest under a
+target-framework folder.
+
+Building `StockManager.AppHost.csproj` **alone** with Visual Studio's MSBuild from a clean `obj`
+fails with `CS0246: The type or namespace name 'Projects' could not be found` — the Aspire SDK
+generates those classes from the reference graph. Build the solution, or use `dotnet build`.
 
 ### Locked bin directories
 
@@ -107,10 +165,16 @@ object, which Dapper cannot write back through. Insert procedures therefore take
 ignore it, and the caller re-queries for the newest row. To return a value from a mutation, `SELECT`
 it and call `LoadData<int, dynamic>` instead — see `QuoteData.DeleteQuoteLine`.
 
-Adding a stored procedure takes two steps: create the `.sql` file under
-`SMDatabase/dbo/Store Procedures/`, **and** add a `<Build Include="..." />` entry to
-`SMDatabase.sqlproj`. That project lists every file explicitly; a file left out of it silently never
-deploys.
+Adding a stored procedure is one step: create the `.sql` file under
+`SMDatabase/dbo/Store Procedures/`. The SDK-style project globs `**/*.sql`, so there is no longer
+a `<Build Include="..." />` list to keep in step — that was the old classic-SSDT footgun, where a
+file left out of the project silently never deployed.
+
+`Scripts/PostDeployment/Seed.sql` runs on **every** publish, so everything in it must be
+idempotent. Its job is to guarantee a `dbo.Site` row exists — multi-store scoping means a
+database with no site renders nothing — and to backfill `SiteId` on rows that predate it. The
+site it seeds is deliberately generic; a real store is inserted as tenant configuration, not
+baked into the platform schema.
 
 ### `dbo.Purchase` does double duty
 

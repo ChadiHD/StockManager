@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Windows because the solution still contains the WPF POS app, which does not build
+    # elsewhere. The DACPAC no longer needs Visual Studio — SMDatabase.sqlproj is an SDK-style
+    # project, so plain `dotnet build` produces it.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore StockManager.sln
+
+      - name: Build
+        run: dotnet build StockManager.sln --configuration Release --no-restore
+
+      # SMDesktopUI.UITests drives a real WPF window with FlaUI and needs an interactive
+      # desktop session, so it cannot run on a hosted runner. It is deliberately not invoked
+      # here. StockApi, SMDataManager.Library, SMStore and SMPortal have no tests yet — the
+      # implementation plan calls for coverage of the price resolver, the tax engine,
+      # spOrder_ConvertFromQuote and site scoping first.
+
+      - name: Publish DACPAC
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMDatabase-dacpac
+          path: SMDatabase/bin/Release/SMDatabase.dacpac
+          if-no-files-found: error

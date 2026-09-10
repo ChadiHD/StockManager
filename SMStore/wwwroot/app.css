@@ -1,0 +1,127 @@
+/*
+Shared storefront stylesheet. Structure only — every colour, font and radius here is read from
+a custom property that a site theme defines. Hardcoding a value in this file bakes one store's
+brand into the platform, so don't: add the token below and set it in each theme.
+
+Token contract a theme must satisfy (see wwwroot/sites/default/theme.css for the reference
+implementation):
+
+  --color-bg, --color-surface, --color-text, --color-text-muted, --color-border
+  --color-accent, --color-accent-strong, --color-accent-contrast
+  --color-danger
+  --font-body, --font-heading
+  --radius, --measure
+*/
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    line-height: 1.55;
+}
+
+h1,
+h2,
+h3 {
+    font-family: var(--font-heading);
+    line-height: 1.2;
+    margin: 0 0 0.5em;
+}
+
+h1:focus {
+    outline: none;
+}
+
+a {
+    color: var(--color-accent-strong);
+}
+
+.site-header,
+.site-footer {
+    padding: 16px clamp(16px, 4vw, 48px);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.site-footer {
+    border-bottom: 0;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.site-header__brand {
+    display: inline-flex;
+    align-items: center;
+}
+
+.site-main {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px);
+}
+
+.lede {
+    color: var(--color-text-muted);
+    max-width: 60ch;
+}
+
+/* T0 proof page. Removed with Home.razor when the designed home page lands in T1. */
+.site-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 8px 24px;
+    margin: 32px 0 0;
+    padding: 20px 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.site-facts dt {
+    color: var(--color-text-muted);
+}
+
+.site-facts dd {
+    margin: 0;
+}
+
+@media (max-width: 560px) {
+    .site-facts {
+        grid-template-columns: 1fr;
+        gap: 2px 0;
+    }
+
+    .site-facts dd {
+        margin-bottom: 12px;
+    }
+}
+
+/* Framework-rendered states. Blazor emits these class names, so the selectors are fixed. */
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid var(--color-accent);
+}
+
+.invalid {
+    outline: 1px solid var(--color-danger);
+}
+
+.validation-message {
+    color: var(--color-danger);
+}
+
+.blazor-error-boundary {
+    background: var(--color-danger);
+    padding: 1rem;
+    color: #fff;
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}

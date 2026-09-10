@@ -1,3 +1,4 @@
+using System.Reflection;
 using Aspire.Hosting.ApplicationModel;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -20,14 +21,29 @@ var jwtSigningKey = builder.AddParameter("jwt-signing-key", secret: true);
 // Deploy the SMDatabase schema (tables + stored procedures) into the provisioned
 // database on every run. Without this, a fresh SQL volume leaves SMDatabase empty
 // and calls like dbo.spUserLookup fail with "Could not find stored procedure".
-// Points at the DACPAC produced by building SMDatabase.sqlproj in Visual Studio.
-var smDacpacPath = Path.GetFullPath(
-	Path.Combine(builder.AppHostDirectory, "..", "SMDatabase", "bin", "Debug", "SMDatabase.dacpac"));
+//
+// The path is stamped in at build time by the ResolveSMDatabaseDacpacPath target, which asks
+// the SQL project itself. It is not derived here because the output location moves with the
+// configuration and again with $(BaseOutputPath) — a hardcoded "bin\Debug" pointed at a file
+// that a Release or output-redirected build had never written, and the guard below then
+// compared against a stale DACPAC or none at all.
+var smDacpacPath = Assembly.GetExecutingAssembly()
+	.GetCustomAttributes<AssemblyMetadataAttribute>()
+	.FirstOrDefault(attribute => attribute.Key == "SMDatabaseDacpacPath")
+	?.Value;
 
-// SMDatabase is a classic SSDT project, so the DACPAC is produced by Visual Studio rather than
-// by `dotnet build`. Deploying a stale one silently applies old schema and produces confusing
-// "invalid object name" / "could not find stored procedure" errors at runtime, so check it here
-// and fail with something actionable instead.
+if (string.IsNullOrWhiteSpace(smDacpacPath))
+{
+	throw new InvalidOperationException(
+		"The app host was built without the SMDatabaseDacpacPath assembly metadata, so it " +
+		"cannot locate the schema to deploy. Check that the SMDatabase.sqlproj ProjectReference " +
+		"and the ResolveSMDatabaseDacpacPath target are both still present in " +
+		"StockManager.AppHost.csproj, then rebuild.");
+}
+
+// Deploying a stale DACPAC silently applies old schema and produces confusing "invalid object
+// name" / "could not find stored procedure" errors at runtime, so check it here and fail with
+// something actionable instead.
 if (builder.ExecutionContext.IsRunMode)
 {
 	var smProjectDirectory = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "SMDatabase"));
@@ -35,8 +51,7 @@ if (builder.ExecutionContext.IsRunMode)
 	if (!File.Exists(smDacpacPath))
 	{
 		throw new InvalidOperationException(
-			$"SMDatabase.dacpac was not found at '{smDacpacPath}'. Build the SMDatabase project in " +
-			"Visual Studio before running the app host.");
+			$"SMDatabase.dacpac was not found at '{smDacpacPath}'. Rebuild the app host before running it.");
 	}
 
 	var newestSource = Directory
@@ -51,7 +66,7 @@ if (builder.ExecutionContext.IsRunMode)
 	{
 		throw new InvalidOperationException(
 			"SMDatabase.dacpac is older than the .sql files in SMDatabase. Rebuild the SMDatabase " +
-			"project in Visual Studio, otherwise the app host would deploy out-of-date schema.");
+			"project, otherwise the app host would deploy out-of-date schema.");
 	}
 }
 
@@ -88,6 +103,22 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 builder.AddProject<Projects.SMPortal>("sm-portal")
 	.WithReference(api)
 	.WaitFor(api)
+	.WithExternalHttpEndpoints()
+	.PublishAsAzureContainerApp((_, _) => { });
+
+// Customer-facing storefront. Unlike sm-portal it holds no reference to the API: it renders on
+// the server and reads SMDatabase through SMDataManager.Library in process. One deployment
+// serves every store, resolving the site from the request host, so this stays a single
+// resource however many sites exist.
+builder.AddProject<Projects.SMStore>("sm-store")
+	.WithReference(stockDatabase)
+	// Not for identity yet — the storefront signs nobody in until T3. It needs ApiAuthDb now
+	// because the Data Protection key ring it shares with the API is stored there.
+	.WithReference(identityDatabase)
+	.WaitFor(stockDatabase)
+	.WaitFor(identityDatabase)
+	.WaitForCompletion(smSchema)
+	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints()
 	.PublishAsAzureContainerApp((_, _) => { });
 

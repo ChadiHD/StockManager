@@ -1,0 +1,28 @@
+/*
+Reference theme. Deliberately neutral — it is the platform's fallback and the starting point
+for a new store, not a brand. A real store gets its own folder alongside this one, named for
+its SiteKey, and overrides these values.
+
+Every token app.css reads must be defined here, because SiteThemeResolver falls back to this
+file for any asset a site has not supplied.
+*/
+
+:root {
+    --color-bg: #f6f7f8;
+    --color-surface: #ffffff;
+    --color-text: #16181c;
+    --color-text-muted: #5b6472;
+    --color-border: #dfe3e8;
+
+    --color-accent: #2f6fdb;
+    --color-accent-strong: #22539f;
+    --color-accent-contrast: #ffffff;
+
+    --color-danger: #b32121;
+
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-heading: var(--font-body);
+
+    --radius: 8px;
+    --measure: 1200px;
+}

@@ -18,8 +18,28 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SMDatabase\SMDatabase.sqlproj"
+                      ReferenceOutputAssembly="false"
+                      IsAspireProjectResource="false" />
     <ProjectReference Include="..\StockApi\StockApi.csproj" />
     <ProjectReference Include="..\SMPortal\SMPortal.csproj" />
+    <ProjectReference Include="..\SMStore\SMStore.csproj" />
   </ItemGroup>
+
+  <!-- AppHost.cs needs the DACPAC's location, and it cannot be assumed: the path moves with
+       $(Configuration) and again with $(BaseOutputPath), which CLAUDE.md tells people to
+       redirect when a running app host locks the bin directories. Guessing "bin\Debug" left the
+       guard reading a file that build had never written. Ask the SQL project where its output
+       actually went and bake that answer in, so the two can never disagree. -->
+  <Target Name="ResolveSMDatabaseDacpacPath" BeforeTargets="GetAssemblyAttributes">
+    <MSBuild Projects="@(ProjectReference->WithMetadataValue('Extension', '.sqlproj'))"
+             Targets="GetTargetPath">
+      <Output TaskParameter="TargetOutputs" ItemName="_SMDatabaseDacpac" />
+    </MSBuild>
+
+    <ItemGroup>
+      <AssemblyMetadata Include="SMDatabaseDacpacPath" Value="%(_SMDatabaseDacpac.FullPath)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

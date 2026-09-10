@@ -16,6 +16,11 @@ CREATE TABLE [dbo].[Account]
     -- Drives the approvals workflow on /admin/accounts: Pending | Approved | Rejected | Suspended
     [Status] NVARCHAR(20) NOT NULL DEFAULT 'Pending',
     [CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
+    -- The store this account belongs to. Nullable only because rows created before multi-site
+    -- have no answer; Scripts/PostDeployment/Seed.sql backfills them to the default site.
+    -- Tighten to NOT NULL once every write path sets it.
+    [SiteId] INT NULL,
     CONSTRAINT [UQ_Account_Reference] UNIQUE ([Reference]),
-    CONSTRAINT [FK_Account_ToCustomerGroup] FOREIGN KEY ([CustomerGroupId]) REFERENCES [CustomerGroup]([Id])
+    CONSTRAINT [FK_Account_ToCustomerGroup] FOREIGN KEY ([CustomerGroupId]) REFERENCES [CustomerGroup]([Id]),
+    CONSTRAINT [FK_Account_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )
