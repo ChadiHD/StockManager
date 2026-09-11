@@ -10,6 +10,12 @@ namespace SMDataManager.Library.Models
         public string ManufacturerPartNumber { get; set; }
         public string Ean { get; set; }
 
+        /// <summary>
+        /// Who supplied the row. Brand strings are distributor vocabulary, so the alias that
+        /// translates <see cref="Manufacturer"/> for a content provider can be scoped to one.
+        /// </summary>
+        public string Distributor { get; set; }
+
         /// <summary>Feed hint that Icecat content exists; not required to attempt a lookup.</summary>
         public bool? IcecatAvailable { get; set; }
     }

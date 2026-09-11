@@ -14,6 +14,7 @@ namespace SMDataManager.Library.Feeds
         private readonly IProductData _productData;
         private readonly IDistributorFeedData _feedData;
         private readonly IFeedSecretStoreResolver _secrets;
+        private readonly IImageEnrichmentSignal _enrichment;
         private readonly ILogger<DistributorFeedSyncService> _logger;
 
         public DistributorFeedSyncService(
@@ -21,12 +22,14 @@ namespace SMDataManager.Library.Feeds
             IProductData productData,
             IDistributorFeedData feedData,
             IFeedSecretStoreResolver secrets,
+            IImageEnrichmentSignal enrichment,
             ILogger<DistributorFeedSyncService> logger)
         {
             _feedClient = feedClient;
             _productData = productData;
             _feedData = feedData;
             _secrets = secrets;
+            _enrichment = enrichment;
             _logger = logger;
         }
 
@@ -157,6 +160,11 @@ namespace SMDataManager.Library.Feeds
 
                 _feedData.RecordSync(feed.Id,
                     $"Imported {result.Imported} of {result.RecordCount}; {result.Delisted} delisted.");
+
+                // A sync is the only thing that introduces products with no image, so it is
+                // also the only moment worth starting a pass. Signalling rather than enriching
+                // here keeps thousands of Icecat calls out of this request.
+                _enrichment.RequestPass();
 
                 _logger.LogInformation(
                     "Distributor feed {Distributor} imported {Imported} of {Total} records ({Delisted} delisted).",

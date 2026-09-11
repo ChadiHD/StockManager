@@ -31,6 +31,28 @@ UPDATE [dbo].[CustomerGroup]   SET [SiteId] = @DefaultSiteId WHERE [SiteId] IS N
 UPDATE [dbo].[Quote]           SET [SiteId] = @DefaultSiteId WHERE [SiteId] IS NULL;
 UPDATE [dbo].[DistributorFeed] SET [SiteId] = @DefaultSiteId WHERE [SiteId] IS NULL;
 
+/*
+Brand aliases. Reference data rather than tenant content — a distributor's brand vocabulary
+means the same thing whichever store resells it — so a starting set ships with the platform.
+
+Only entries worth asserting are here. An unmapped brand passes through unchanged, and a wrong
+alias is worse than none, so the rest are left to be added once an enrichment run shows which
+brands actually miss.
+*/
+MERGE dbo.BrandAlias AS t
+USING (VALUES
+	-- FlexIT files Hewlett-Packard's consumer arm under HPINC, which matches nothing at
+	-- Icecat and covers roughly two-thirds of that feed.
+	(N'HPINC', N'HP', N'Feed shorthand for HP Inc.'),
+	-- Not a manufacturer: the feed's bucket for unbranded accessories. NULL suppresses the
+	-- brand lookup so only the EAN fallback is attempted.
+	(N'UNIVERSAL', NULL, N'Not a brand — unbranded accessories.')
+) AS s([FeedBrand], [IcecatBrand], [Note])
+	ON t.[Distributor] IS NULL AND t.[FeedBrand] = s.[FeedBrand]
+WHEN NOT MATCHED BY TARGET THEN
+	INSERT ([Distributor], [FeedBrand], [IcecatBrand], [Note])
+	VALUES (NULL, s.[FeedBrand], s.[IcecatBrand], s.[Note]);
+
 -- Portal orders inherit the site of the quote or account they came from. POS rows
 -- (Reference IS NULL) are left alone.
 UPDATE [p]
