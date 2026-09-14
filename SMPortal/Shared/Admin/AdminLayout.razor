@@ -74,6 +74,25 @@
           <strong>@Title</strong>
           <span>@Subtitle</span>
         </div>
+
+        @* Only shown when there is a choice to make. With one store the label would be an
+           instruction to do nothing, and every list on every page is that store's already. *@
+        @if (Data.Sites.Count > 1)
+        {
+          <div class="site-switch">
+            <label for="admin-site">Store</label>
+            @* Selection is marked on the options rather than set as a value attribute on the
+               select: once the control has been touched, writing value from code no longer
+               moves the DOM property, and this one is written on every reload. *@
+            <select id="admin-site" class="site-switch-select" disabled="@switching"
+                    @onchange="OnSiteChanged">
+              @foreach (var site in Data.Sites)
+              {
+                <option value="@site.SiteKey" selected="@(site.SiteKey == Data.CurrentSiteKey)">@site.Name</option>
+              }
+            </select>
+          </div>
+        }
         <AuthorizeView>
           <Authorized Context="auth">
             <div class="account">
@@ -125,6 +144,7 @@
 @code {
     private bool navOpen;
     private bool loaded;
+    private bool switching;
     private string? loadError;
 
     public string Title { get; private set; } = "Dashboard";
@@ -154,6 +174,35 @@
         catch (Exception exception)
         {
             loadError = exception.Message;
+        }
+    }
+
+    // Switching store reloads every list in the workspace, so the page goes back to its
+    // loading state rather than showing the previous store's rows under the new store's name
+    // while the calls are in flight.
+    private async Task OnSiteChanged(ChangeEventArgs args)
+    {
+        var siteKey = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(siteKey) || siteKey == Data.CurrentSiteKey) return;
+
+        switching = true;
+        loaded = false;
+        loadError = null;
+        StateHasChanged();
+
+        try
+        {
+            await Data.SwitchSiteAsync(siteKey);
+            loaded = true;
+            Toast.Show($"Now showing {Data.Sites.FirstOrDefault(s => s.SiteKey == siteKey)?.Name ?? siteKey}.");
+        }
+        catch (Exception exception)
+        {
+            loadError = exception.Message;
+        }
+        finally
+        {
+            switching = false;
         }
     }
 

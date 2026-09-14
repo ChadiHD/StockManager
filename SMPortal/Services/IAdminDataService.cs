@@ -10,6 +10,22 @@ namespace SMPortal.Services;
 // WebAssembly client cannot block on an HTTP call.
 public interface IAdminDataService
 {
+    /// <summary>
+    /// The stores this admin may act for, and the one the snapshot below belongs to.
+    /// </summary>
+    /// <remarks>
+    /// Everything else on this interface is implicitly scoped to <see cref="CurrentSiteKey"/>:
+    /// the service puts it in a header on the shared HttpClient, so no call passes a site and
+    /// none can forget to. Switching stores therefore invalidates the whole snapshot, which is
+    /// why <see cref="SwitchSiteAsync"/> reloads rather than refreshing a part of it.
+    /// </remarks>
+    IReadOnlyList<SiteOption> Sites { get; }
+
+    string? CurrentSiteKey { get; }
+
+    /// <summary>Changes the store this workspace is showing, and reloads everything.</summary>
+    Task SwitchSiteAsync(string siteKey);
+
     IReadOnlyList<Account> Accounts { get; }
     IReadOnlyList<Quote> Quotes { get; }
     IReadOnlyList<Order> Orders { get; }

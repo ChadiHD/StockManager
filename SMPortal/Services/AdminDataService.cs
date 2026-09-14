@@ -28,10 +28,19 @@ public class AdminDataService : IAdminDataService
     private readonly Dictionary<string, int> _accountIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _groupSlugs = new(StringComparer.OrdinalIgnoreCase);
 
+    // The stores this admin may act for, and the one currently selected. Every scoped
+    // endpoint reads its site from the X-Site-Key header, so nothing else in this service
+    // passes a site explicitly — see EnsureSiteAsync.
+    private readonly List<SiteOption> _sites = new();
+    private string? _currentSiteKey;
+
     private bool _loaded;
 
     private readonly ILocalStorageService _localStorage;
     private readonly string _tokenKey;
+
+    private const string SiteKeyStorageKey = "adminSiteKey";
+    private const string SiteHeaderName = "X-Site-Key";
 
     public AdminDataService(HttpClient client, IConfiguration config, ILocalStorageService localStorage)
     {
@@ -57,6 +66,62 @@ public class AdminDataService : IAdminDataService
         }
     }
 
+    /// <summary>
+    /// Tells the API which store this request is about. Set on the shared HttpClient rather
+    /// than passed per call, so an endpoint added later is scoped by default instead of by
+    /// the author remembering — the same reasoning as the bearer token above.
+    /// </summary>
+    private async Task EnsureSiteAsync()
+    {
+        if (_sites.Count > 0 && _currentSiteKey is not null)
+        {
+            ApplySiteHeader();
+            return;
+        }
+
+        Replace(_sites, await GetListAsync<SiteOption>("api/Site"));
+
+        var stored = await _localStorage.GetItemAsync<string>(SiteKeyStorageKey);
+
+        // A stored key that no longer names a store — renamed, deactivated, or belonging to a
+        // different deployment — falls back rather than leaving the portal wedged on a site
+        // the API will refuse.
+        _currentSiteKey = _sites.Any(site => site.SiteKey == stored)
+            ? stored
+            : _sites.FirstOrDefault()?.SiteKey;
+
+        ApplySiteHeader();
+    }
+
+    private void ApplySiteHeader()
+    {
+        _client.DefaultRequestHeaders.Remove(SiteHeaderName);
+
+        if (!string.IsNullOrWhiteSpace(_currentSiteKey))
+        {
+            _client.DefaultRequestHeaders.Add(SiteHeaderName, _currentSiteKey);
+        }
+    }
+
+    public IReadOnlyList<SiteOption> Sites => _sites;
+
+    public string? CurrentSiteKey => _currentSiteKey;
+
+    public async Task SwitchSiteAsync(string siteKey)
+    {
+        if (string.IsNullOrWhiteSpace(siteKey) || siteKey == _currentSiteKey) return;
+
+        _currentSiteKey = siteKey;
+        await _localStorage.SetItemAsync(SiteKeyStorageKey, siteKey);
+        ApplySiteHeader();
+
+        // Everything held in the snapshot belonged to the previous store, so this is a full
+        // reload rather than a refresh — leaving one list stale would show another store's
+        // accounts under this store's name.
+        _loaded = false;
+        await RefreshAsync();
+    }
+
     public IReadOnlyList<Account> Accounts => _accounts;
     public IReadOnlyList<Quote> Quotes => _quotes;
     public IReadOnlyList<Order> Orders => _orders;
@@ -75,6 +140,10 @@ public class AdminDataService : IAdminDataService
     public async Task RefreshAsync()
     {
         await EnsureAuthHeaderAsync();
+
+        // Before anything else: the requests below are site-scoped and the API answers 400
+        // without the header once a second store exists.
+        await EnsureSiteAsync();
 
         var accountsTask = GetListAsync<AccountDto>("api/Account");
         var groupsTask = GetListAsync<GroupDto>("api/CustomerGroup");
