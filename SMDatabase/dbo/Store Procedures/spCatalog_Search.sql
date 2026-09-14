@@ -1,11 +1,12 @@
 /*
 Paged, faceted, site-scoped product search for the storefront.
 
-Three things are deliberate:
+Four things are deliberate:
 
 1. Visibility is decided inside the query, not filtered afterwards. A product removed from an
    already-fetched page has still been counted, still shifted the paging, and has usually
-   already reached the browser. Every gate below is part of the same predicate.
+   already reached the browser. Every gate lives in dbo.fnCatalog_VisibleProducts, which this
+   procedure and spCatalog_GetFacets both call rather than each keeping a copy.
 
 2. A product belongs to this store when its feed category has a dbo.CategoryMapping row for
    the site — dbo.Product carries no SiteId, because the desktop POS and own stock have no
@@ -16,10 +17,37 @@ Three things are deliberate:
    one another, and approximate matching on them returns confidently wrong products — the same
    reason FuzzySearch gives code fields no fuzzy pass.
 
+4. The discount and the margin floor are resolved here, from the group and the site, and are
+   not parameters. A caller that could pass a discount is a caller that could ask for 90% off.
+
 Full-text was the intended mechanism and is not used: the development SQL Server container
 reports IsFullTextInstalled = 0, so CONTAINSTABLE is unavailable there even though Azure SQL
-supports it. The ranking below is portable and correct at this catalog's size; swapping it for
-CONTAINSTABLE later is a change to this file alone.
+supports it. The ranking is portable and correct at this catalog's size; swapping it for
+CONTAINSTABLE later is a change to fnCatalog_VisibleProducts alone.
+
+Why browsing branches per sort and searching does not
+-----------------------------------------------------
+A single ORDER BY picking between four columns with CASE can never match an index's key order:
+the optimiser cannot know which column governs the sort until the CASE is evaluated per row,
+so it can never walk an index and stop once @PageSize rows are out. Page 1 of an unfiltered
+browse then pays to rank the entire catalog. Branching gives each browse sort a plain column
+reference the optimiser can actually use.
+
+A search does not get the same treatment, and does not need it. Its result is already reduced
+to the rows that matched, it must lead on relevance whatever the sort control says — sorting
+keyword results by name buries the exact SKU match — and the sort is still wanted as a
+tiebreak within equal relevance. One CASE ladder over a filtered set is cheap; four more
+copies of a seventeen-column projection to avoid it would be a worse trade than the one being
+made.
+
+OPTION (RECOMPILE) is on every branch because fnCatalog_VisibleProducts is a wall of optional
+"@X IS NULL OR col = @X" filters. Whichever combination first compiles a plan gets reused for
+every other, and "one category" versus "the whole catalog" versus "a search term" differ in
+selectivity by orders of magnitude. RECOMPILE also re-sniffs local variables — @Term, @Prefix,
+@Contains, @HasIncludeRule and the resolved discount are all DECLAREd, and a cached plan would
+estimate them off a generic density guess rather than their actual values. At this catalog's
+size the compile is a poor trade against a wrong plan's reads, and it gets better as the
+catalog grows.
 */
 CREATE PROCEDURE [dbo].[spCatalog_Search]
 	@SiteId int,
@@ -49,9 +77,40 @@ BEGIN
 	                 ELSE @Page END;
 
 	-- Anything the sort control did not send falls back to the default instead of matching no
-	-- CASE branch and silently landing in an arbitrary order.
+	-- branch and silently landing in an arbitrary order.
 	SET @Sort = CASE WHEN @Sort IN (N'price-asc', N'price-desc', N'name', N'featured')
 	                 THEN @Sort ELSE N'featured' END;
+
+	/*
+	A group belonging to another store is treated as no group at all, rather than as an error.
+
+	Both halves matter. Its Discount must not price this store's catalog, and its
+	GroupVisibility rules must not filter it — a tampered session that kept the id would
+	otherwise see this store's products through another store's allow-list. Degrading to list
+	price and no rules is the safe reading, and it gives an attacker nothing to probe with:
+	a wrong id and an id from elsewhere are indistinguishable in the response.
+	*/
+	IF @CustomerGroupId IS NOT NULL
+	   AND NOT EXISTS (SELECT 1 FROM dbo.CustomerGroup
+	                   WHERE [Id] = @CustomerGroupId AND [SiteId] = @SiteId)
+	BEGIN
+		SET @CustomerGroupId = NULL;
+	END
+
+	DECLARE @DiscountPct int = 0;
+
+	SELECT @DiscountPct = [Discount]
+	FROM dbo.CustomerGroup
+	WHERE [Id] = @CustomerGroupId;
+
+	-- Clamped to match PriceResolver, which does the same before applying it. A group row
+	-- edited to 150 or -20 should not invert a price.
+	SET @DiscountPct = CASE WHEN ISNULL(@DiscountPct, 0) < 0 THEN 0
+	                        WHEN @DiscountPct > 100 THEN 100
+	                        ELSE @DiscountPct END;
+
+	DECLARE @MinMarginPct decimal(5, 2) =
+		ISNULL((SELECT [MinMarginPct] FROM dbo.Site WHERE [Id] = @SiteId), 0);
 
 	DECLARE @Term nvarchar(200) = NULLIF(LTRIM(RTRIM(@Search)), N'');
 
@@ -71,91 +130,97 @@ BEGIN
 		                  WHERE [CustomerGroupId] = @CustomerGroupId AND [Rule] = 'IncludeCategory')
 		     THEN 1 ELSE 0 END;
 
-	WITH [visible] AS
-	(
+	DECLARE @Offset int = (@Page - 1) * @PageSize;
+
+	/*
+	NetPrice is not in any projection below, only in the ORDER BY of the two price branches.
+
+	It is an ordering key, not a price. The price a customer sees comes from PriceResolver in
+	SMDataManager.Library, which is the one implementation allowed to answer that question;
+	leaving the column out of the SELECT is what makes rendering the other one impossible
+	rather than merely discouraged.
+	*/
+
+	IF @Term IS NOT NULL
+	BEGIN
 		SELECT
-			[p].[Id],
-			[p].[Sku],
-			[p].[ProductName],
-			[p].[Description],
-			[p].[RetailPrice],
-			[p].[Cost],
-			[p].[QuantityInStock],
-			[p].[ProductImage],
-			[p].[Manufacturer],
-			[p].[ManufacturerPartNumber],
-			[p].[Distributor],
-			[p].[Source],
-			[p].[Badge],
-			[p].[Featured],
-			[c].[Slug] AS [CategorySlug],
-			[c].[Name] AS [CategoryName],
-			[c].[SortOrder] AS [CategorySortOrder],
-			CASE
-				WHEN @Term IS NULL THEN 0
-				WHEN [p].[Sku] = @Term THEN 100
-				WHEN [p].[ManufacturerPartNumber] = @Term THEN 95
-				WHEN [p].[Sku] LIKE @Prefix ESCAPE N'\' THEN 80
-				WHEN [p].[ProductName] LIKE @Prefix ESCAPE N'\' THEN 70
-				WHEN [p].[ProductName] LIKE @Contains ESCAPE N'\' THEN 50
-				WHEN [p].[ManufacturerPartNumber] LIKE @Contains ESCAPE N'\' THEN 40
-				WHEN [p].[Description] LIKE @Contains ESCAPE N'\' THEN 20
-				ELSE 0
-			END AS [Relevance]
-		FROM [dbo].[Product] p
-		INNER JOIN [dbo].[CategoryMapping] m
-			ON m.[SiteId] = @SiteId
-			AND m.[FeedValue] = p.[Category]
-		INNER JOIN [dbo].[SiteCategory] c
-			ON c.[Id] = m.[SiteCategoryId]
-			-- CategoryMapping.SiteCategoryId is an FK to *a* category, not to one this site
-			-- owns — nothing ties a mapping's SiteId to the SiteId of the category it points
-			-- at. Scoping only the mapping leaves one mistyped id enough to put another
-			-- store's category name and slug into this store's catalog and navigation.
-			AND c.[SiteId] = @SiteId
-			AND c.[IsActive] = 1
-		WHERE p.[Published] = 1
-		  AND p.[Delisted] = 0
-		  AND (@CategorySlug IS NULL OR c.[Slug] = @CategorySlug)
-		  AND (@Brand IS NULL OR p.[Manufacturer] = @Brand)
-		  AND (@InStockOnly = 0 OR p.[QuantityInStock] > 0)
-		  AND (@HasIncludeRule = 0 OR EXISTS (
-		          SELECT 1 FROM dbo.GroupVisibility g
-		          WHERE g.[CustomerGroupId] = @CustomerGroupId
-		            AND g.[Rule] = 'IncludeCategory'
-		            AND g.[Value] = c.[Slug]))
-		  AND NOT EXISTS (
-		          SELECT 1 FROM dbo.GroupVisibility g
-		          WHERE g.[CustomerGroupId] = @CustomerGroupId
-		            AND g.[Rule] = 'ExcludeCategory'
-		            AND g.[Value] = c.[Slug])
-		  AND NOT EXISTS (
-		          SELECT 1 FROM dbo.GroupVisibility g
-		          WHERE g.[CustomerGroupId] = @CustomerGroupId
-		            AND g.[Rule] = 'ExcludeDistributor'
-		            AND g.[Value] = p.[Distributor])
-	)
-	SELECT
-		[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
-		[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-		[Badge], [Featured], [CategorySlug], [CategoryName],
-		-- One window function rather than a second query: the caller needs the total to build
-		-- the pager, and a separate COUNT would re-evaluate the whole predicate.
-		COUNT(*) OVER () AS [TotalCount]
-	FROM [visible]
-	WHERE @Term IS NULL OR [Relevance] > 0
-	ORDER BY
-		-- A search always ranks by relevance first, whatever the sort control says; sorting a
-		-- keyword result by name buries the exact SKU match.
-		CASE WHEN @Term IS NULL THEN 0 ELSE [Relevance] END DESC,
-		CASE WHEN @Sort = 'price-asc' THEN [RetailPrice] END ASC,
-		CASE WHEN @Sort = 'price-desc' THEN [RetailPrice] END DESC,
-		CASE WHEN @Sort = 'name' THEN [ProductName] END ASC,
-		CASE WHEN @Sort IS NULL OR @Sort = 'featured' THEN [Featured] END DESC,
-		[CategorySortOrder],
-		-- Ties broken on the key so paging is stable; without it a product can appear on two
-		-- consecutive pages and another on neither.
-		[Id]
-	OFFSET (@Page - 1) * @PageSize ROWS
-	FETCH NEXT @PageSize ROWS ONLY;
+			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
+			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
+			[Badge], [Featured], [CategorySlug], [CategoryName],
+			-- One window function rather than a second query: the caller needs the total to
+			-- build the pager, and a separate COUNT would re-evaluate the whole predicate.
+			COUNT(*) OVER () AS [TotalCount]
+		FROM dbo.fnCatalog_VisibleProducts(
+			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+		WHERE [Relevance] > 0
+		ORDER BY
+			[Relevance] DESC,
+			CASE WHEN @Sort = N'price-asc'  THEN [NetPrice]    END ASC,
+			CASE WHEN @Sort = N'price-desc' THEN [NetPrice]    END DESC,
+			CASE WHEN @Sort = N'name'       THEN [ProductName] END ASC,
+			CASE WHEN @Sort = N'featured'   THEN [Featured]    END DESC,
+			[CategorySortOrder],
+			-- Ties broken on the key so paging is stable; without it a product can appear on
+			-- two consecutive pages and another on neither.
+			[Id]
+		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+		OPTION (RECOMPILE);
+	END
+	ELSE IF @Sort = N'price-asc'
+	BEGIN
+		SELECT
+			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
+			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
+			[Badge], [Featured], [CategorySlug], [CategoryName],
+			COUNT(*) OVER () AS [TotalCount]
+		FROM dbo.fnCatalog_VisibleProducts(
+			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+		ORDER BY [NetPrice] ASC, [Id]
+		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+		OPTION (RECOMPILE);
+	END
+	ELSE IF @Sort = N'price-desc'
+	BEGIN
+		SELECT
+			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
+			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
+			[Badge], [Featured], [CategorySlug], [CategoryName],
+			COUNT(*) OVER () AS [TotalCount]
+		FROM dbo.fnCatalog_VisibleProducts(
+			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+		ORDER BY [NetPrice] DESC, [Id]
+		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+		OPTION (RECOMPILE);
+	END
+	ELSE IF @Sort = N'name'
+	BEGIN
+		SELECT
+			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
+			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
+			[Badge], [Featured], [CategorySlug], [CategoryName],
+			COUNT(*) OVER () AS [TotalCount]
+		FROM dbo.fnCatalog_VisibleProducts(
+			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+		ORDER BY [ProductName] ASC, [Id]
+		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+		OPTION (RECOMPILE);
+	END
+	ELSE
+	BEGIN
+		SELECT
+			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
+			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
+			[Badge], [Featured], [CategorySlug], [CategoryName],
+			COUNT(*) OVER () AS [TotalCount]
+		FROM dbo.fnCatalog_VisibleProducts(
+			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+		ORDER BY [Featured] DESC, [CategorySortOrder], [Id]
+		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+		OPTION (RECOMPILE);
+	END
 END
