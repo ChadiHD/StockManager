@@ -284,6 +284,18 @@ dotnet build SMDatabase/SMDatabase.sqlproj && \
   unzip -p SMDatabase/bin/Debug/SMDatabase.dacpac model.xml | grep -c YourNewObject
 ```
 
+**`-p:BaseOutputPath=` redirects the DACPAC too.** The scratch-directory trick for building
+around a running app host applies to every project in the solution, `SMDatabase` included — so
+`dotnet build StockManager.sln -p:BaseOutputPath=<scratch>` leaves `SMDatabase/bin/Debug/`
+holding whatever was there before, and a `sqlpackage` publish from that path cheerfully
+deploys the *previous* schema and reports success. The symptom is a procedure that does not
+have the column you just added to it, in a database you just published to. Build the sqlproj
+on its own before publishing:
+
+```bash
+dotnet build SMDatabase/SMDatabase.sqlproj    # no BaseOutputPath
+```
+
 **Hand-applying a procedure with `sqlcmd` needs `-I`.** `sqlcmd` defaults `QUOTED_IDENTIFIER`
 off, and SQL Server bakes the session's SET options into a procedure at creation time. A
 procedure created without it throws `INSERT failed because the following SET options have

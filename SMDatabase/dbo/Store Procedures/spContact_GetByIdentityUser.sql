@@ -22,10 +22,19 @@ BEGIN
 	       [k].[Id], [k].[AccountId], [k].[IdentityUserId], [k].[FirstName], [k].[LastName],
 	       [k].[Email], [k].[Phone], [k].[RoleInAccount], [k].[IsPrimary], [k].[Status],
 	       [k].[CreatedDate],
-	       [a].[CustomerGroupId], [a].[Status] AS [AccountStatus], [a].[Company] AS [AccountCompany]
+	       [a].[CustomerGroupId], [a].[Status] AS [AccountStatus], [a].[Company] AS [AccountCompany],
+	       -- The rate, not just the group. The storefront has to resolve a price in C# for
+	       -- display and cannot do it from an id, and making it fetch the group separately
+	       -- would be a second round trip on every authenticated page for one integer.
+	       ISNULL([g].[Discount], 0) AS [CustomerGroupDiscount]
 	FROM [dbo].[Contact] k
 	INNER JOIN [dbo].[Account] a
 		ON a.[Id] = k.[AccountId]
 		AND a.[SiteId] = @SiteId
+	LEFT JOIN [dbo].[CustomerGroup] g
+		ON g.[Id] = a.[CustomerGroupId]
+		-- FK_Account_ToCustomerGroup is composite so a cross-store pairing cannot be stored,
+		-- but a discount is the last place to rely on a constraint somewhere else.
+		AND g.[SiteId] = @SiteId
 	WHERE [k].[IdentityUserId] = @IdentityUserId;
 END

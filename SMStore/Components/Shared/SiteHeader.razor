@@ -1,7 +1,9 @@
+@using SMStore.Accounts
 @using SMStore.Navigation
 @inject ISiteContext SiteContext
 @inject SiteThemeResolver Themes
 @inject StoreNavigation Nav
+@inject ICustomerContext Customer
 @inject NavigationManager Navigation
 
 @* The mobile menu is a CSS-only disclosure: a visually hidden checkbox toggles the panel
@@ -41,15 +43,31 @@
                 }
             </div>
 
-            <a href="@Nav.SignIn.Href" class="btn btn-secondary site-header__signin"
-               aria-current="@Current(Nav.SignIn.Href)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                </svg>
-                <span>@Nav.SignIn.Label</span>
-            </a>
+            @if (Customer.IsSignedIn)
+            {
+                @* A form, not a link: signing out is a state change, and a GET that ends a
+                   session can be triggered by anything that can make the browser fetch a
+                   URL — an image tag on another site will do it. *@
+                <form method="post" action="@CustomerAuthentication.LogoutPath"
+                      class="site-header__account">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="returnUrl" value="/" />
+                    <a href="/account" class="site-header__whoami">@Customer.Contact!.FirstName</a>
+                    <button type="submit" class="btn btn-secondary">Sign out</button>
+                </form>
+            }
+            else
+            {
+                <a href="@Nav.SignIn.Href" class="btn btn-secondary site-header__signin"
+                   aria-current="@Current(Nav.SignIn.Href)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    <span>@Nav.SignIn.Label</span>
+                </a>
+            }
 
             <a href="@Nav.Basket.Href" class="btn btn-primary blueprint site-header__basket"
                aria-current="@Current(Nav.Basket.Href)">
@@ -83,8 +101,20 @@
                 {
                     <a href="@link.Href">@link.Label</a>
                 }
-                <a href="@Nav.SignIn.Href">@Nav.SignIn.Label</a>
-                <a href="@Nav.Register.Href">@Nav.Register.Label</a>
+                @if (Customer.IsSignedIn)
+                {
+                    <a href="/account">My account</a>
+                    <form method="post" action="@CustomerAuthentication.LogoutPath">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="returnUrl" value="/" />
+                        <button type="submit" class="site-header__panel-signout">Sign out</button>
+                    </form>
+                }
+                else
+                {
+                    <a href="@Nav.SignIn.Href">@Nav.SignIn.Label</a>
+                    <a href="@Nav.Register.Href">@Nav.Register.Label</a>
+                }
             </div>
         </div>
     </div>

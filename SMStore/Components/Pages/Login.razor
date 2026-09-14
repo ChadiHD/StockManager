@@ -1,5 +1,8 @@
 @page "/login"
+@using SMStore.Accounts
 @inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject NavigationManager Navigation
 
 <PageTitle>Sign in · @SiteContext.Site.Name</PageTitle>
 
@@ -8,15 +11,78 @@
         <i class="corner tl"></i><i class="corner tr"></i>
         <i class="corner bl"></i><i class="corner br"></i>
 
-        <h1 class="signin__title">Sign in</h1>
-        <p class="text-muted signin__lede">
-            Trade accounts only. Prices and stock shown after sign-in reflect your account's terms.
-        </p>
+        @if (Customer.IsSignedIn)
+        {
+            <h1 class="signin__title">Already signed in</h1>
+            <p class="text-muted signin__lede">
+                You are signed in as @Customer.Contact!.FullName.
+            </p>
+            <a href="/catalog" class="btn btn-primary btn-block">Continue to the catalog</a>
+        }
+        else
+        {
+            <h1 class="signin__title">Sign in</h1>
+            <p class="text-muted signin__lede">
+                Trade accounts only. Prices and stock shown after sign-in reflect your account's terms.
+            </p>
 
-        <div class="stub">Sign-in lands with T3.</div>
+            @* Posts to the endpoint in CustomerAuthEndpoints rather than handling the submit
+               here: a cookie is a response header, and by the time this component renders the
+               response has already started. *@
+            <form method="post" action="@CustomerAuthentication.LoginPath" class="signin__form">
+                <AntiforgeryToken />
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
 
-        <p class="signin__alt">
-            No account yet? <a href="/register">Apply for one</a>.
-        </p>
+                @if (Failed)
+                {
+                    @* One message for every cause. Telling an unauthenticated caller whether
+                       an address is known here, or whether that company has been approved,
+                       is a question worth answering only to the person who can already sign
+                       in — see the endpoint for the full reasoning. *@
+                    <div class="alert error" role="alert">
+                        <strong>We could not sign you in.</strong>
+                        <span>
+                            Check your email address and password. If your application is still being
+                            reviewed, you will hear from us by email.
+                        </span>
+                    </div>
+                }
+
+                <div class="field">
+                    <label for="signin-email">Email address</label>
+                    <input class="input" type="email" id="signin-email" name="email"
+                           autocomplete="username" required />
+                </div>
+
+                <div class="field">
+                    <label for="signin-password">Password</label>
+                    <input class="input" type="password" id="signin-password" name="password"
+                           autocomplete="current-password" required />
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+            </form>
+
+            <p class="signin__alt">
+                No account yet? <a href="/register">Apply for one</a>.
+            </p>
+        }
     </div>
 </div>
+
+@code {
+    // Bound as text, not bool: Blazor's query binding throws on a value it cannot convert,
+    // which would turn "?failed=yes" from a hand-edited URL into a 500.
+    [SupplyParameterFromQuery(Name = "failed")] public string? Failed_ { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrlQuery { get; set; }
+
+    private bool Failed => Failed_ == "1";
+
+    /// <summary>
+    /// Echoed back into the form so a sign-in prompted from a deep link returns there. The
+    /// endpoint re-checks it before redirecting — a value that arrived in a query string and
+    /// goes back out in a form post is attacker-controlled twice over.
+    /// </summary>
+    private string ReturnUrl =>
+        string.IsNullOrWhiteSpace(ReturnUrlQuery) ? "/" : ReturnUrlQuery;
+}

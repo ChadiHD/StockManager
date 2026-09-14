@@ -130,3 +130,27 @@
        stays checked, and without this the desktop bar would render the mobile list under it. */
     .site-header__toggle:checked ~ .site-header__panel { display: none; }
 }
+
+/* Signed-in controls. A form rather than a link, so it needs laying out like the button row
+   it replaces. */
+.site-header__account {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.site-header__whoami {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.site-header__panel-signout {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}

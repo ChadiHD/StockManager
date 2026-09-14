@@ -1,6 +1,7 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Pricing;
+using SMStore.Accounts;
 using SMStore.Components;
 using SMStore.Catalog;
 using SMStore.Content;
@@ -64,10 +65,11 @@ StockManager.Identity project. **This host must never migrate it.** StockApi cal
 Database.Migrate() at startup and the app host starts both together; two processes applying
 migrations to one database race on the history table.
 
-AddIdentityCore rather than AddDefaultIdentity: this needs UserManager and nothing else yet.
-Cookies, sign-in and the site-membership check are the next piece of work, and pulling in the
-Identity UI's Razor pages and its own login routes now would put a second, unscoped sign-in
-form on the storefront.
+AddIdentityCore rather than AddDefaultIdentity: this wants UserManager and the token
+providers, and nothing else. AddDefaultIdentity would bring the Identity UI's Razor pages
+with their own /Identity/Account/Login — a second sign-in form on the storefront that knows
+nothing about which store it is serving, and would happily authenticate another store's
+customer. The cookie scheme below is this storefront's own.
 */
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -86,6 +88,44 @@ builder.Services.AddIdentityCore<IdentityUser>(options =>
 
 builder.Services.AddScoped<IAccountRegistrationData, AccountRegistrationData>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddTransient<IContactData, ContactData>();
+
+/*
+Customer sign-in: a cookie scheme of this storefront's own.
+
+Not IdentityConstants.ApplicationScheme, and not the Identity cookie name. StockApi uses
+those for the Razor admin UI, the two hosts share a hostname in development, and cookies
+ignore ports — so identical names would have the two sessions overwriting each other, and the
+shared key ring means each can read what the other wrote.
+
+OnValidatePrincipal is where the session is actually checked. See CustomerSessionValidator:
+a cookie proves who someone is, and which store they may use is a different question that
+only the database can answer.
+*/
+builder.Services.AddScoped<CustomerContext>();
+builder.Services.AddScoped<ICustomerContext>(services => services.GetRequiredService<CustomerContext>());
+
+builder.Services.AddAuthentication(CustomerAuthentication.Scheme)
+    .AddCookie(CustomerAuthentication.Scheme, options =>
+    {
+        options.Cookie.Name = CustomerAuthentication.CookieName;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        // Always, not SameAsRequest: the storefront redirects to HTTPS anyway, and a cookie
+        // that would travel in clear over a misconfigured hop is worth refusing to send.
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+
+        options.LoginPath = CustomerAuthentication.LoginPath;
+        options.LogoutPath = CustomerAuthentication.LogoutPath;
+        options.AccessDeniedPath = CustomerAuthentication.AccessDeniedPath;
+
+        options.SlidingExpiration = true;
+        options.ExpireTimeSpan = TimeSpan.FromDays(14);
+
+        options.Events.OnValidatePrincipal = CustomerSessionValidator.ValidateAsync;
+    });
+
+builder.Services.AddAuthorization();
 
 // Navigation is assembled rather than written into markup, so a site can vary it and the
 // basket entry can follow the ordering mode.
@@ -127,9 +167,16 @@ app.UseWhen(
             && !context.Request.Path.StartsWithSegments("/alive"),
     branch => branch.UseSiteResolution());
 
+// After site resolution, and that ordering is load-bearing: CustomerSessionValidator runs
+// inside the cookie handler and asks ISiteContext which store this request is for. Put
+// authentication first and it would validate every session against an unresolved site.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapCustomerAuth();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

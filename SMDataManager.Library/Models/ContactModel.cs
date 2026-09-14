@@ -43,6 +43,14 @@ namespace SMDataManager.Library.Models
         /// something useful. It must still refuse anything but Approved.
         /// </remarks>
         public int? CustomerGroupId { get; set; }
+
+        /// <summary>
+        /// The group's discount percentage, or zero for an account with no group. Carried
+        /// alongside the id because the storefront resolves the displayed price in C# and
+        /// cannot do that from an id alone.
+        /// </summary>
+        public decimal CustomerGroupDiscount { get; set; }
+
         public string AccountStatus { get; set; }
         public string AccountCompany { get; set; }
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using SMDataManager.Library.Pricing;
+using SMStore.Accounts;
 using SMStore.Sites;
 
 namespace SMStore.Catalog;
@@ -19,12 +20,18 @@ public sealed class CatalogPresenter
     private readonly ICatalogData _catalog;
     private readonly IPriceResolver _pricing;
     private readonly ISiteContext _siteContext;
+    private readonly ICustomerContext _customer;
 
-    public CatalogPresenter(ICatalogData catalog, IPriceResolver pricing, ISiteContext siteContext)
+    public CatalogPresenter(
+        ICatalogData catalog,
+        IPriceResolver pricing,
+        ISiteContext siteContext,
+        ICustomerContext customer)
     {
         _catalog = catalog;
         _pricing = pricing;
         _siteContext = siteContext;
+        _customer = customer;
     }
 
     /// <summary>
@@ -37,10 +44,17 @@ public sealed class CatalogPresenter
         || CustomerGroupId is not null;
 
     /// <summary>
-    /// The signed-in account's pricing group. Null until sign-in lands in T3, which means
-    /// everyone currently sees list price and the group rules that apply to everyone.
+    /// The signed-in account's pricing group, or null for an anonymous visitor — who sees
+    /// list price and only the visibility rules that apply to everyone.
     /// </summary>
-    public int? CustomerGroupId => null;
+    /// <remarks>
+    /// From the resolved session and nowhere else. This value decides both the discount and
+    /// which products exist as far as this viewer is concerned, so a query string or a form
+    /// field reaching it would be a discount anyone could ask for. The procedures defend
+    /// themselves too — a group that does not belong to the request's site is treated as no
+    /// group — but that is the second line, not the first.
+    /// </remarks>
+    public int? CustomerGroupId => _customer.CustomerGroupId;
 
     public CatalogResult Search(
         string? categorySlug, string? brand, bool inStockOnly, string? search, string? sort, int page)
@@ -108,11 +122,20 @@ public sealed class CatalogPresenter
         return Money(Resolve(item).NetPrice);
     }
 
+    /// <summary>
+    /// The price this viewer is shown.
+    /// </summary>
+    /// <remarks>
+    /// Must agree with the net price <c>dbo.fnCatalog_VisibleProducts</c> computed to sort
+    /// the page, or a price-sorted list renders visibly out of order. Both are driven by the
+    /// same three inputs — the row, this group's rate and this site's margin floor — and
+    /// <c>CatalogPriceParityTests</c> is what keeps the two implementations of the rule
+    /// agreeing on what to do with them.
+    /// </remarks>
     public ResolvedPrice Resolve(CatalogItemModel item) => _pricing.Resolve(
         item.RetailPrice,
         item.Cost,
-        // Group discount arrives with sign-in; until then every viewer is on list.
-        groupDiscountPct: 0m,
+        groupDiscountPct: _customer.GroupDiscountPct,
         minMarginPct: _siteContext.Site.MinMarginPct);
 
     public string Money(decimal amount)
