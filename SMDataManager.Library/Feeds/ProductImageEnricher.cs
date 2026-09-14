@@ -67,7 +67,10 @@ namespace SMDataManager.Library.Feeds
                     if (string.IsNullOrWhiteSpace(imageUrl)) result.NotFound++;
                     else result.Matched++;
                 }
-                catch (OperationCanceledException)
+                // Only a real cancellation abandons the pass. An HttpClient timeout arrives as
+                // TaskCanceledException with the token untouched, and rethrowing that would
+                // stop the worker outright rather than costing one product its lookup.
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     throw;
                 }

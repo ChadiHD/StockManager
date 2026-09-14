@@ -21,27 +21,64 @@ namespace SMDataManager.Library.Feeds
     }
 
     /// <summary>
-    /// Coalescing signal: several requests arriving while a pass is already pending produce
-    /// one wake-up, because the worker drains the whole backlog anyway.
+    /// Coalescing latch: several requests arriving before the worker looks produce one wake-up,
+    /// because the worker drains the whole backlog anyway.
     /// </summary>
+    /// <remarks>
+    /// A SemaphoreSlim looks like the obvious fit and is the wrong one. The worker waits on this
+    /// alongside an idle timer, so any time the timer wins, the losing WaitAsync stays queued on
+    /// the semaphore. Release() hands the count to a queued waiter before incrementing the count,
+    /// so the next RequestPass() completes that orphan — which nobody is observing — and the live
+    /// waiter is never woken. Sync-starts-a-pass then works exactly once per process, and each
+    /// subsequent idle period adds another orphan that must be absorbed first.
+    ///
+    /// A flag plus one replaceable TaskCompletionSource has no per-waiter state to strand: an
+    /// abandoned wait leaves the flag set, so the request survives for whoever asks next.
+    /// </remarks>
     public sealed class ImageEnrichmentSignal : IImageEnrichmentSignal
     {
-        private readonly SemaphoreSlim _pending = new SemaphoreSlim(0, 1);
+        private readonly object _gate = new object();
+
+        private bool _requested;
+        private TaskCompletionSource<bool> _waiter;
 
         public void RequestPass()
         {
-            try
+            TaskCompletionSource<bool> waiting;
+
+            lock (_gate)
             {
-                _pending.Release();
+                // Latched even when there is a waiter to hand the signal to directly. That
+                // waiter may already have been abandoned, and nothing here can tell; leaving the
+                // flag set costs one pass that finds no candidates, while clearing it on the
+                // assumption someone is listening loses the request outright.
+                _requested = true;
+                waiting = _waiter;
+                _waiter = null;
             }
-            catch (SemaphoreFullException)
-            {
-                // A pass is already pending. Nothing to do — one wake-up covers both.
-            }
+
+            waiting?.TrySetResult(true);
         }
 
-        public Task WaitForRequestAsync(CancellationToken cancellationToken) =>
-            _pending.WaitAsync(cancellationToken);
+        public Task WaitForRequestAsync(CancellationToken cancellationToken)
+        {
+            TaskCompletionSource<bool> waiting;
+
+            lock (_gate)
+            {
+                if (_requested)
+                {
+                    _requested = false;
+                    return Task.CompletedTask;
+                }
+
+                _waiter ??= new TaskCompletionSource<bool>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                waiting = _waiter;
+            }
+
+            return waiting.Task.WaitAsync(cancellationToken);
+        }
     }
 
     /// <summary>

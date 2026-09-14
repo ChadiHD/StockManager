@@ -1,4 +1,3 @@
-using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using System;
 using System.Collections.Generic;
@@ -46,19 +45,25 @@ namespace SMDataManager.Library.Feeds
     {
         private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(10);
 
-        // A factory rather than the data access itself: this resolver is a singleton so the
-        // cache survives between enrichment batches, and holding a transient IDisposable for
-        // the life of the app would be a captive dependency. Each refresh resolves its own.
-        private readonly Func<IBrandAliasData> _dataFactory;
+        // A loader delegate rather than the data access itself: this resolver is a singleton so
+        // the cache survives between enrichment batches, and holding a transient IDisposable for
+        // the life of the app would be a captive dependency.
+        //
+        // It hands back rows rather than an IBrandAliasData for the same reason. A factory
+        // returning the dependency still leaves the caller nowhere to dispose it, and resolving
+        // one from the root provider — which is what a singleton's factory closes over — puts
+        // every refresh's SqlDataAccess on the root's disposables list until the host stops.
+        // Returning data lets the composition root own a scope per refresh and dispose it.
+        private readonly Func<List<BrandAliasModel>> _load;
         private readonly object _gate = new object();
 
         private Dictionary<string, ResolvedBrand> _byDistributorAndBrand;
         private Dictionary<string, ResolvedBrand> _byBrand;
         private DateTime _loadedUtc;
 
-        public BrandAliasResolver(Func<IBrandAliasData> dataFactory)
+        public BrandAliasResolver(Func<List<BrandAliasModel>> load)
         {
-            _dataFactory = dataFactory;
+            _load = load;
         }
 
         public ResolvedBrand Resolve(string distributor, string feedBrand)
@@ -117,7 +122,7 @@ namespace SMDataManager.Library.Feeds
                     return;
                 }
 
-                var aliases = _dataFactory().GetAliases();
+                var aliases = _load();
 
                 _byDistributorAndBrand = aliases
                     .Where(alias => !string.IsNullOrWhiteSpace(alias.Distributor))

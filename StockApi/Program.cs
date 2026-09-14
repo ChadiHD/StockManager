@@ -58,9 +58,20 @@ builder.Services.AddHttpClient<IIcecatClient, IcecatClient>(client =>
 builder.Services.AddTransient<IBrandAliasData, BrandAliasData>();
 
 // Singleton so the alias cache survives between enrichment batches; a transient would re-read
-// dbo.BrandAlias once per product.
+// dbo.BrandAlias once per product. A singleton's factory closes over the *root* provider, so it
+// scopes each refresh explicitly — resolving the transient IBrandAliasData straight from the
+// root would leave its SqlDataAccess on the root's disposables list, one per refresh, for the
+// life of the process.
 builder.Services.AddSingleton<IBrandAliasResolver>(services =>
-    new BrandAliasResolver(services.GetRequiredService<IBrandAliasData>));
+{
+    var scopes = services.GetRequiredService<IServiceScopeFactory>();
+
+    return new BrandAliasResolver(() =>
+    {
+        using var scope = scopes.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IBrandAliasData>().GetAliases();
+    });
+});
 
 builder.Services.AddTransient<IProductImageEnricher, ProductImageEnricher>();
 
