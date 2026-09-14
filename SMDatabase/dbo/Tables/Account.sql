@@ -21,6 +21,13 @@ CREATE TABLE [dbo].[Account]
     -- Tighten to NOT NULL once every write path sets it.
     [SiteId] INT NULL,
     CONSTRAINT [UQ_Account_Reference] UNIQUE ([Reference]),
-    CONSTRAINT [FK_Account_ToCustomerGroup] FOREIGN KEY ([CustomerGroupId]) REFERENCES [CustomerGroup]([Id]),
+    -- Lets Quote and Purchase reference an account together with its site.
+    CONSTRAINT [UQ_Account_IdSite] UNIQUE ([Id], [SiteId]),
+    -- Composite: an account may only sit in a group belonging to the same store. Keyed on
+    -- CustomerGroupId alone this permits one store's account to take another store's discount
+    -- rate. A composite foreign key is not checked when any of its columns is NULL, so an
+    -- account with no group is unaffected.
+    CONSTRAINT [FK_Account_ToCustomerGroup] FOREIGN KEY ([CustomerGroupId], [SiteId])
+        REFERENCES [CustomerGroup]([Id], [SiteId]),
     CONSTRAINT [FK_Account_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

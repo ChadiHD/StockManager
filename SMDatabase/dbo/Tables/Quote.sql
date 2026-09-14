@@ -12,6 +12,12 @@ CREATE TABLE [dbo].[Quote]
     -- for rows predating multi-site; backfilled by Scripts/PostDeployment/Seed.sql.
     [SiteId] INT NULL,
     CONSTRAINT [UQ_Quote_Reference] UNIQUE ([Reference]),
-    CONSTRAINT [FK_Quote_ToAccount] FOREIGN KEY ([AccountId]) REFERENCES [Account]([Id]),
+    -- Lets Purchase reference a quote together with its site.
+    CONSTRAINT [UQ_Quote_IdSite] UNIQUE ([Id], [SiteId]),
+    -- Composite: a quote belongs to the store its account belongs to, enforced rather than
+    -- assumed. spQuote_Insert already derives SiteId from the account; this is what stops a
+    -- future caller doing otherwise.
+    CONSTRAINT [FK_Quote_ToAccount] FOREIGN KEY ([AccountId], [SiteId])
+        REFERENCES [Account]([Id], [SiteId]),
     CONSTRAINT [FK_Quote_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

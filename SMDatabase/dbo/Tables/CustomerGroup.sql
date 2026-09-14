@@ -14,5 +14,8 @@ CREATE TABLE [dbo].[CustomerGroup]
     -- routes to /admin/groups/{slug}, so the slug must resolve to exactly one group per site.
     CONSTRAINT [UQ_CustomerGroup_Name] UNIQUE ([SiteId], [Name]),
     CONSTRAINT [UQ_CustomerGroup_Slug] UNIQUE ([SiteId], [Slug]),
+    -- Redundant as a key — Id is already unique — and present only so Account can hang a
+    -- composite foreign key off it. See FK_Account_ToCustomerGroup.
+    CONSTRAINT [UQ_CustomerGroup_IdSite] UNIQUE ([Id], [SiteId]),
     CONSTRAINT [FK_CustomerGroup_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

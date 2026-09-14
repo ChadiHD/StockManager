@@ -1,5 +1,6 @@
 CREATE PROCEDURE [dbo].[spDistributorFeed_GetById]
-	@Id int
+	@Id int,
+	@SiteId int
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -11,5 +12,6 @@ BEGIN
 	       [FieldManufacturer], [FieldMpn], [FieldEan], [FieldIcecat],
 	       [LastSyncedUtc], [LastSyncStatus], [CreatedDate]
 	FROM [dbo].[DistributorFeed]
-	WHERE [Id] = @Id;
+	WHERE [Id] = @Id
+	  AND [SiteId] = @SiteId;
 END

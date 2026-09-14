@@ -1,6 +1,7 @@
 -- Rows for /admin/reports. Covers sales orders raised through the portal; POS sales
 -- (Reference IS NULL) are reported by spPurchase_PurchaseReport instead.
 CREATE PROCEDURE [dbo].[spReport_GetSales]
+	@SiteId int
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -13,7 +14,8 @@ BEGIN
 	       [p].[VAT] AS [Vat],
 	       [p].[FinalPrice] AS [Total]
 	FROM [dbo].[Purchase] p
-	LEFT JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId]
+	LEFT JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId] AND a.[SiteId] = @SiteId
 	WHERE [p].[Reference] IS NOT NULL
+	  AND [p].[SiteId] = @SiteId
 	ORDER BY [p].[PurchaseDate] DESC;
 END

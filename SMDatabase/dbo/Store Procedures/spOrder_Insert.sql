@@ -6,21 +6,23 @@ CREATE PROCEDURE [dbo].[spOrder_Insert]
 	@StaffId nvarchar(128),
 	@AccountId int,
 	@Currency nvarchar(3),
-	@QuoteId int = NULL
+	@QuoteId int = NULL,
+	@SiteId int
 AS
 BEGIN
 	SET NOCOUNT ON;
 
-	-- A portal order inherits the site of the quote or account it came from, the same order of
-	-- preference the post-deployment backfill uses. A POS sale has no site and never reaches
-	-- this procedure.
-	DECLARE @SiteId int = [dbo].[fnSite_Resolve](COALESCE(
-		(SELECT [SiteId] FROM dbo.Quote   WHERE [Id] = @QuoteId),
-		(SELECT [SiteId] FROM dbo.Account WHERE [Id] = @AccountId)));
-
-	IF @SiteId IS NULL
+	-- The account has to belong to the store the caller is acting for, or an admin could raise
+	-- an order against another tenant's customer by guessing an id.
+	IF NOT EXISTS (SELECT 1 FROM dbo.Account WHERE [Id] = @AccountId AND [SiteId] = @SiteId)
 	BEGIN
-		THROW 50002, 'SiteId is required: neither the quote nor the account has a site and this database has more than one, so the store to file this order under cannot be inferred.', 1;
+		THROW 50005, 'That account does not belong to this store.', 1;
+	END
+
+	IF @QuoteId IS NOT NULL
+	   AND NOT EXISTS (SELECT 1 FROM dbo.Quote WHERE [Id] = @QuoteId AND [SiteId] = @SiteId)
+	BEGIN
+		THROW 50004, 'That quote does not belong to this store.', 1;
 	END
 
 	SET @Reference = CONCAT('SO-', FORMAT(NEXT VALUE FOR dbo.OrderReferenceSequence, '0000'));
