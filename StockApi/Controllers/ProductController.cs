@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
+using StockApi.Sites;
 using System.Data;
 
 namespace StockApi.Controllers
@@ -105,9 +106,13 @@ namespace StockApi.Controllers
         [Authorize(Roles = "Admin")]
         [HttpPost("Catalog/Sync")]
         public async Task<ActionResult<List<DistributorFeedResult>>> SyncFeeds(
-            [FromServices] IDistributorFeedSyncService feedSync)
+            [FromServices] IDistributorFeedSyncService feedSync,
+            [FromServices] IAdminSiteContext site)
         {
-            var results = await feedSync.SyncAllAsync();
+            // One store's feeds, not every store's. Injected per action rather than through
+            // the constructor because the rest of this controller serves the desktop POS,
+            // which has no site and must not start needing one.
+            var results = await feedSync.SyncAllAsync(site.SiteId);
 
             // Surface a total failure rather than reporting a clean sync.
             if (results.Count > 0 && results.All(result => !result.Succeeded))

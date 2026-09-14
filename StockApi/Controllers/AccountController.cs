@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using StockApi.Sites;
 
 namespace StockApi.Controllers
 {
@@ -12,22 +13,24 @@ namespace StockApi.Controllers
     public class AccountController : ControllerBase
     {
         private readonly IAccountData _accountData;
+        private readonly IAdminSiteContext _site;
 
-        public AccountController(IAccountData accountData)
+        public AccountController(IAccountData accountData, IAdminSiteContext site)
         {
             _accountData = accountData;
+            _site = site;
         }
 
         [HttpGet]
         public List<AccountModel> GetAll()
         {
-            return _accountData.GetAccounts();
+            return _accountData.GetAccounts(_site.SiteId);
         }
 
         [HttpGet("{id:int}")]
         public ActionResult<AccountModel> GetById(int id)
         {
-            var account = _accountData.GetAccountById(id);
+            var account = _accountData.GetAccountById(id, _site.SiteId);
 
             return account is null ? NotFound() : account;
         }
@@ -40,7 +43,7 @@ namespace StockApi.Controllers
                 return BadRequest("Company is required.");
             }
 
-            return _accountData.CreateAccount(account);
+            return _accountData.CreateAccount(account, _site.SiteId);
         }
 
         public record StatusChangeModel(string Status);
@@ -48,12 +51,12 @@ namespace StockApi.Controllers
         [HttpPut("{id:int}/Status")]
         public IActionResult UpdateStatus(int id, StatusChangeModel change)
         {
-            if (_accountData.GetAccountById(id) is null)
+            if (_accountData.GetAccountById(id, _site.SiteId) is null)
             {
                 return NotFound();
             }
 
-            _accountData.UpdateStatus(id, change.Status);
+            _accountData.UpdateStatus(id, change.Status, _site.SiteId);
 
             return NoContent();
         }
@@ -67,13 +70,13 @@ namespace StockApi.Controllers
         [HttpPut("{id:int}/Terms")]
         public IActionResult UpdateTerms(int id, TermsChangeModel change)
         {
-            if (_accountData.GetAccountById(id) is null)
+            if (_accountData.GetAccountById(id, _site.SiteId) is null)
             {
                 return NotFound();
             }
 
             _accountData.UpdateTerms(id, change.CustomerGroupId, change.PaymentMethod,
-                change.PaymentTerms, change.CreditLimit);
+                change.PaymentTerms, change.CreditLimit, _site.SiteId);
 
             return NoContent();
         }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
+using StockApi.Sites;
 
 namespace StockApi.Controllers
 {
@@ -17,15 +18,18 @@ namespace StockApi.Controllers
         private readonly IDistributorFeedData _feedData;
         private readonly IDistributorFeedSyncService _sync;
         private readonly IFeedSecretStoreResolver _secrets;
+        private readonly IAdminSiteContext _site;
 
         public DistributorFeedController(
             IDistributorFeedData feedData,
             IDistributorFeedSyncService sync,
-            IFeedSecretStoreResolver secrets)
+            IFeedSecretStoreResolver secrets,
+            IAdminSiteContext site)
         {
             _feedData = feedData;
             _sync = sync;
             _secrets = secrets;
+            _site = site;
         }
 
         // What the client is allowed to see. Deliberately has no password and no SecretRef —
@@ -52,12 +56,12 @@ namespace StockApi.Controllers
             string? FieldManufacturer, string? FieldMpn, string? FieldEan, string? FieldIcecat);
 
         [HttpGet]
-        public IEnumerable<FeedView> GetAll() => _feedData.GetFeeds().Select(ToView);
+        public IEnumerable<FeedView> GetAll() => _feedData.GetFeeds(_site.SiteId).Select(ToView);
 
         [HttpGet("{id:int}")]
         public ActionResult<FeedView> GetById(int id)
         {
-            var feed = _feedData.GetFeedById(id);
+            var feed = _feedData.GetFeedById(id, _site.SiteId);
 
             return feed is null ? NotFound() : ToView(feed);
         }
@@ -81,7 +85,7 @@ namespace StockApi.Controllers
             model.SecretProvider = store.ProviderName;
             model.SecretRef = await store.ProtectAsync(input.Name, input.Password);
 
-            var created = _feedData.CreateFeed(model);
+            var created = _feedData.CreateFeed(model, _site.SiteId);
 
             return created is null ? BadRequest("The feed could not be created.") : ToView(created);
         }
@@ -89,12 +93,12 @@ namespace StockApi.Controllers
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, FeedInput input)
         {
-            var existing = _feedData.GetFeedById(id);
+            var existing = _feedData.GetFeedById(id, _site.SiteId);
             if (existing is null) return NotFound();
 
             var model = Apply(existing, input);
             model.Id = id;
-            _feedData.UpdateFeed(model);
+            _feedData.UpdateFeed(model, _site.SiteId);
 
             // An empty password means "leave the stored credential alone", so editing a feed
             // never silently clears it.
@@ -102,7 +106,7 @@ namespace StockApi.Controllers
             {
                 var store = _secrets.Active;
                 var reference = await store.ProtectAsync(input.Name ?? existing.Name, input.Password);
-                _feedData.UpdateSecret(id, store.ProviderName, reference);
+                _feedData.UpdateSecret(id, store.ProviderName, reference, _site.SiteId);
             }
 
             return NoContent();
@@ -111,7 +115,7 @@ namespace StockApi.Controllers
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var existing = _feedData.GetFeedById(id);
+            var existing = _feedData.GetFeedById(id, _site.SiteId);
             if (existing is null) return NotFound();
 
             if (!string.IsNullOrWhiteSpace(existing.SecretRef))
@@ -119,7 +123,7 @@ namespace StockApi.Controllers
                 await _secrets.For(existing.SecretProvider).RemoveAsync(existing.SecretRef);
             }
 
-            _feedData.DeleteFeed(id);
+            _feedData.DeleteFeed(id, _site.SiteId);
 
             return NoContent();
         }
@@ -129,7 +133,7 @@ namespace StockApi.Controllers
         [HttpPost("Test")]
         public async Task<ActionResult<DistributorFeedResult>> Test(FeedInput input, [FromQuery] int? id = null)
         {
-            var model = id.HasValue ? _feedData.GetFeedById(id.Value) : null;
+            var model = id.HasValue ? _feedData.GetFeedById(id.Value, _site.SiteId) : null;
             model = Apply(model ?? new DistributorFeedModel(), input);
 
             if (id.HasValue && model.Id == 0) model.Id = id.Value;
@@ -140,7 +144,7 @@ namespace StockApi.Controllers
         [HttpPost("{id:int}/Sync")]
         public async Task<ActionResult<DistributorFeedResult>> Sync(int id)
         {
-            var result = await _sync.SyncAsync(id);
+            var result = await _sync.SyncAsync(id, _site.SiteId);
 
             return result.Succeeded ? result : StatusCode(StatusCodes.Status502BadGateway, result);
         }
@@ -148,7 +152,7 @@ namespace StockApi.Controllers
         [HttpPost("Sync")]
         public async Task<ActionResult<List<DistributorFeedResult>>> SyncAll()
         {
-            var results = await _sync.SyncAllAsync();
+            var results = await _sync.SyncAllAsync(_site.SiteId);
 
             if (results.Count > 0 && results.All(result => !result.Succeeded))
             {

@@ -8,6 +8,7 @@ using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using StockApi.Feeds;
 using StockApi.Security;
+using StockApi.Sites;
 using StockApi.Data;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -96,6 +97,13 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["FeedSecrets:KeyVaultUri"])
 
 builder.Services.AddSingleton<IFeedSecretStoreResolver, FeedSecretStoreResolver>();
 
+// Which store a request is acting for. Scoped, written once by the middleware, read-only to
+// everything else — the same split SMStore uses for its host-resolved site.
+builder.Services.AddMemoryCache();
+builder.Services.AddTransient<ISiteData, SiteData>();
+builder.Services.AddScoped<AdminSiteContext>();
+builder.Services.AddScoped<IAdminSiteContext>(services => services.GetRequiredService<AdminSiteContext>());
+
 builder.Services.AddTransient<IAccountData, AccountData>();
 builder.Services.AddTransient<ICustomerGroupData, CustomerGroupData>();
 builder.Services.AddTransient<IQuoteData, QuoteData>();
@@ -182,6 +190,10 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authorization: resolving a store is only meaningful for a caller that got this far,
+// and an anonymous request has no business learning whether a given site key exists.
+app.UseMiddleware<AdminSiteResolutionMiddleware>();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
