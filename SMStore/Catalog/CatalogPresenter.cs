@@ -48,6 +48,26 @@ public sealed class CatalogPresenter
         var query = BuildQuery(categorySlug, brand, inStockOnly, search, sort, page);
 
         var result = _catalog.Search(query);
+
+        // A page past the end comes back empty, and an empty page carries no total — the count
+        // rides on the rows. Left alone, a stale deep link to /catalog?cat=x&page=5 renders
+        // "0 products" and the no-matches empty state for a category that is full, and
+        // TotalPages 0 removes the pager, so there is no link back either. Asking again is the
+        // only way to recover the total; it costs a second query on a bad page number and
+        // nothing at all on a normal browse.
+        if (result.Items.Count == 0 && query.Page > 1)
+        {
+            query.Page = 1;
+            result = _catalog.Search(query);
+
+            if (result.TotalPages > 1)
+            {
+                query.Page = result.TotalPages;
+                result = _catalog.Search(query);
+            }
+        }
+
+        // Page is not one of the facet parameters, so the retries above do not disturb this.
         var facets = _catalog.GetFacets(query);
 
         return new CatalogResult(
@@ -121,7 +141,9 @@ public sealed class CatalogPresenter
             InStockOnly = inStockOnly,
             Search = string.IsNullOrWhiteSpace(search) ? null : search,
             Sort = string.IsNullOrWhiteSpace(sort) ? null : sort,
-            Page = page < 1 ? 1 : page,
+            // Mirrors the ceiling spCatalog_Search applies, so the page this reports back is
+            // the page that was actually asked for.
+            Page = page < 1 ? 1 : page > 100000 ? 100000 : page,
             PageSize = 24
         };
 

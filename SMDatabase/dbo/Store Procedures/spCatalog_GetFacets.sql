@@ -51,6 +51,9 @@ BEGIN
 		AND m.[FeedValue] = p.[Category]
 	INNER JOIN [dbo].[SiteCategory] c
 		ON c.[Id] = m.[SiteCategoryId]
+		-- Scoped for the reason spelt out in spCatalog_Search: a mapping's SiteCategoryId is
+		-- not guaranteed to name a category this site owns.
+		AND c.[SiteId] = @SiteId
 		AND c.[IsActive] = 1
 	WHERE p.[Published] = 1
 	  AND p.[Delisted] = 0

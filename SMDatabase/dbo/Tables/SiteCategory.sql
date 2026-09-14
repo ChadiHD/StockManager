@@ -19,5 +19,9 @@ CREATE TABLE [dbo].[SiteCategory]
 
 	CONSTRAINT [FK_SiteCategory_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id]),
 	-- Scoped by site: two stores may each want a "Networking".
-	CONSTRAINT [UQ_SiteCategory_Slug] UNIQUE ([SiteId], [Slug])
+	CONSTRAINT [UQ_SiteCategory_Slug] UNIQUE ([SiteId], [Slug]),
+	-- Redundant on its own — Id is already the key — and exists only so CategoryMapping can
+	-- point a composite foreign key at it and have the database enforce that a mapping and the
+	-- category it names belong to the same store.
+	CONSTRAINT [UQ_SiteCategory_IdSite] UNIQUE ([Id], [SiteId])
 )

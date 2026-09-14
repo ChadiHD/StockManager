@@ -19,7 +19,13 @@ CREATE TABLE [dbo].[CategoryMapping]
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 
 	CONSTRAINT [FK_CategoryMapping_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id]),
-	CONSTRAINT [FK_CategoryMapping_ToSiteCategory] FOREIGN KEY ([SiteCategoryId]) REFERENCES [SiteCategory]([Id]),
+	-- Composite on purpose. Keyed on SiteCategoryId alone, this permits a row for store A that
+	-- points at store B's category — and since mapping rows decide what a store sells, that is
+	-- how one tenant's taxonomy surfaces on another tenant's storefront. Carrying SiteId into
+	-- the reference makes the mismatch impossible to insert rather than something every query
+	-- has to remember to filter out.
+	CONSTRAINT [FK_CategoryMapping_ToSiteCategory] FOREIGN KEY ([SiteCategoryId], [SiteId])
+		REFERENCES [SiteCategory]([Id], [SiteId]),
 	-- One destination per feed value per store, so a product lands in exactly one category.
 	CONSTRAINT [UQ_CategoryMapping_FeedValue] UNIQUE ([SiteId], [FeedValue])
 )

@@ -52,8 +52,34 @@ before anything else runs. Consequences that are easy to get wrong:
 - **An unresolved host is a 404, never a fallback to a default store.** Falling back is how one
   tenant's catalog and prices get served on another tenant's domain.
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
-  leak, not a display bug. Scoped today: `Account`, `CustomerGroup`, `Quote`, `Purchase`
-  (portal orders only), `DistributorFeed`.
+  leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
+  (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`.
+- **A join to a scoped table needs the predicate even when the join path looks safe.** A
+  `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
+  mapping's own `SiteId` says nothing about the category it points at. The catalog procedures
+  filter `SiteCategory` explicitly, and `FK_CategoryMapping_ToSiteCategory` is composite
+  (`SiteCategoryId, SiteId`) so the database refuses the mismatched row in the first place.
+  Prefer the composite key wherever a scoped row references another scoped row.
+
+**Read scoping in the admin API is not implemented, and the storefront's is.** `SMStore`
+resolves a site per request and every storefront query filters on it. `StockApi` and `SMPortal`
+have no site concept at all: no controller, service or data class mentions `SiteId`, and
+`spAccount_GetAll`, `spQuote_GetAll`, `spOrder_GetAll`, `spCustomerGroup_GetAll` and
+`spDistributorFeed_GetAll` return every store's rows. That is correct only while an admin is
+global. It stops being correct the moment an admin belongs to one store — and
+`spDistributorFeed_GetAll` returning every tenant's `SecretRef` is the sharpest edge of it,
+since `StockApi` holds the key ring that decrypts them. **Deciding whether an admin is global
+or per-site is a prerequisite for a second tenant, not a later refinement.**
+
+The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
+`spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
+`spQuote_Insert`, `spOrder_Insert` and `spOrder_ConvertFromQuote` derive it from the account or
+quote the row descends from. All six resolve through `dbo.fnSite_Resolve`, which fills in the
+only site when a database has exactly one and returns NULL when it has more, so the procedure
+throws rather than guessing. This matters more than it looks: `UQ_CustomerGroup_Name`,
+`UQ_CustomerGroup_Slug` and `UQ_DistributorFeed_Name` are scoped by site, and SQL Server treats
+NULL as one distinct value in a unique constraint — while `SiteId` went unset, the second store
+to want a "Reseller" group or a "Main" feed simply could not be created.
 - **Nothing outside `SMStore/Ordering/` branches on `Site.OrderMode`.** Ask
   `OrderingModeProvider.Current` instead.
 - **`wwwroot/app.css` holds no colour of its own.** It reads custom properties that a theme

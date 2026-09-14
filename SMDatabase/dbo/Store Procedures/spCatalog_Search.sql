@@ -36,9 +36,22 @@ AS
 BEGIN
 	SET NOCOUNT ON;
 
-	SET @Page = CASE WHEN @Page < 1 THEN 1 ELSE @Page END;
 	-- Caps the page size so a crafted query cannot ask for the whole catalog in one response.
 	SET @PageSize = CASE WHEN @PageSize NOT BETWEEN 1 AND 96 THEN 24 ELSE @PageSize END;
+
+	-- Bounded at both ends. The ceiling is not tidiness: (@Page - 1) * @PageSize is int
+	-- arithmetic, so at the largest allowed page size a page number in the tens of millions
+	-- overflows and the request fails with "Arithmetic overflow error converting expression to
+	-- data type int" — an unauthenticated 500 from one query string. Past the real last page
+	-- the result is simply empty, which the caller handles.
+	SET @Page = CASE WHEN ISNULL(@Page, 1) < 1 THEN 1
+	                 WHEN @Page > 100000 THEN 100000
+	                 ELSE @Page END;
+
+	-- Anything the sort control did not send falls back to the default instead of matching no
+	-- CASE branch and silently landing in an arbitrary order.
+	SET @Sort = CASE WHEN @Sort IN (N'price-asc', N'price-desc', N'name', N'featured')
+	                 THEN @Sort ELSE N'featured' END;
 
 	DECLARE @Term nvarchar(200) = NULLIF(LTRIM(RTRIM(@Search)), N'');
 
@@ -95,6 +108,11 @@ BEGIN
 			AND m.[FeedValue] = p.[Category]
 		INNER JOIN [dbo].[SiteCategory] c
 			ON c.[Id] = m.[SiteCategoryId]
+			-- CategoryMapping.SiteCategoryId is an FK to *a* category, not to one this site
+			-- owns — nothing ties a mapping's SiteId to the SiteId of the category it points
+			-- at. Scoping only the mapping leaves one mistyped id enough to put another
+			-- store's category name and slug into this store's catalog and navigation.
+			AND c.[SiteId] = @SiteId
 			AND c.[IsActive] = 1
 		WHERE p.[Published] = 1
 		  AND p.[Delisted] = 0

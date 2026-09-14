@@ -51,4 +51,10 @@ GO
 -- gate columns lead and Category follows for the mapping join.
 CREATE NONCLUSTERED INDEX [IX_Product_CatalogGate]
 	ON [dbo].[Product] ([Published], [Delisted], [Category])
-	INCLUDE ([Sku], [ProductName], [RetailPrice], [QuantityInStock], [Distributor], [Manufacturer]);
+	-- ManufacturerPartNumber and Featured are here for reasons the other columns are not.
+	-- The relevance ladder tests MPN before any prefix match, and that ladder runs for every
+	-- row the query has to *rank*, not just the page it returns — leaving it out costs a key
+	-- lookup per visible row on every search. Featured is the default sort key, and unlike a
+	-- select-list column a sort key cannot be deferred until after the page is trimmed.
+	INCLUDE ([Sku], [ProductName], [ManufacturerPartNumber], [RetailPrice], [QuantityInStock],
+	         [Featured], [Distributor], [Manufacturer]);

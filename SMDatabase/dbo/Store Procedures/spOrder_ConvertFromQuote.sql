@@ -10,9 +10,9 @@ AS
 BEGIN
 	SET NOCOUNT ON;
 
-	DECLARE @AccountId int, @Currency nvarchar(3);
+	DECLARE @AccountId int, @Currency nvarchar(3), @SiteId int;
 
-	SELECT @AccountId = [AccountId], @Currency = [Currency]
+	SELECT @AccountId = [AccountId], @Currency = [Currency], @SiteId = [SiteId]
 	FROM dbo.Quote
 	WHERE [Id] = @QuoteId;
 
@@ -21,15 +21,24 @@ BEGIN
 		THROW 50001, 'Quote not found.', 1;
 	END
 
+	-- The order stays in the quote's store. fnSite_Resolve only does anything for a quote that
+	-- predates site scoping and was never backfilled.
+	SET @SiteId = [dbo].[fnSite_Resolve](@SiteId);
+
+	IF @SiteId IS NULL
+	BEGIN
+		THROW 50002, 'SiteId is required: the quote has no site and this database has more than one, so the store to file this order under cannot be inferred.', 1;
+	END
+
 	BEGIN TRY
 		BEGIN TRANSACTION;
 
 		SET @Reference = CONCAT('SO-', FORMAT(NEXT VALUE FOR dbo.OrderReferenceSequence, '0000'));
 
 		INSERT INTO dbo.Purchase([StaffId], [PurchaseDate], [SubTotal], [VAT], [FinalPrice],
-		                         [Reference], [AccountId], [QuoteId], [Currency], [Status])
+		                         [Reference], [AccountId], [QuoteId], [Currency], [Status], [SiteId])
 		VALUES (@StaffId, SYSUTCDATETIME(), 0, 0, 0,
-		        @Reference, @AccountId, @QuoteId, @Currency, 'Awaiting payment');
+		        @Reference, @AccountId, @QuoteId, @Currency, 'Awaiting payment', @SiteId);
 
 		SET @Id = SCOPE_IDENTITY();
 

@@ -19,21 +19,33 @@ CREATE PROCEDURE [dbo].[spDistributorFeed_Insert]
 	@FieldManufacturer nvarchar(100),
 	@FieldMpn nvarchar(100),
 	@FieldEan nvarchar(100),
-	@FieldIcecat nvarchar(100)
+	@FieldIcecat nvarchar(100),
+	@SiteId int = NULL
 AS
 BEGIN
 	SET NOCOUNT ON;
+
+	-- Resolved rather than left NULL; see dbo.fnSite_Resolve. UQ_DistributorFeed_Name is
+	-- scoped by site, so a NULL here is what stops two stores from each having a "Main" feed.
+	SET @SiteId = [dbo].[fnSite_Resolve](@SiteId);
+
+	IF @SiteId IS NULL
+	BEGIN
+		THROW 50002, 'SiteId is required: this database has more than one site, so the store to file this row under cannot be inferred.', 1;
+	END
 
 	INSERT INTO dbo.DistributorFeed([Name], [Host], [Port], [Username], [SecretProvider], [SecretRef],
 	                                [RemoteDirectory], [HostKeySha256], [Enabled],
 	                                [FieldSku], [FieldName], [FieldDescription], [FieldCategory],
 	                                [FieldCost], [FieldSrp], [FieldQuantity],
-	                                [FieldManufacturer], [FieldMpn], [FieldEan], [FieldIcecat])
+	                                [FieldManufacturer], [FieldMpn], [FieldEan], [FieldIcecat],
+	                                [SiteId])
 	VALUES (@Name, @Host, @Port, @Username, @SecretProvider, @SecretRef,
 	        @RemoteDirectory, @HostKeySha256, @Enabled,
 	        @FieldSku, @FieldName, @FieldDescription, @FieldCategory,
 	        @FieldCost, @FieldSrp, @FieldQuantity,
-	        @FieldManufacturer, @FieldMpn, @FieldEan, @FieldIcecat);
+	        @FieldManufacturer, @FieldMpn, @FieldEan, @FieldIcecat,
+	        @SiteId);
 
 	SELECT @Id = SCOPE_IDENTITY();
 END
