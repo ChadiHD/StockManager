@@ -43,4 +43,21 @@ public class FeedSyncOutcome
     public int Delisted { get; set; }
     public bool Succeeded { get; set; }
     public string? Error { get; set; }
+
+    /// <summary>
+    /// Field names the tested feed actually carries. Populated by a test, not by a sync.
+    /// </summary>
+    public List<FeedFieldSampleView> DiscoveredFields { get; set; } = new();
+}
+
+/// <summary>
+/// One field found in a feed. Shown after a test so the mapping below can be filled in from
+/// what the feed contains rather than from guesswork — a name that matches nothing imports as
+/// NULL on every row while the sync still reports success.
+/// </summary>
+public class FeedFieldSampleView
+{
+    public string? Name { get; set; }
+    public int PopulatedPct { get; set; }
+    public string? SampleValue { get; set; }
 }

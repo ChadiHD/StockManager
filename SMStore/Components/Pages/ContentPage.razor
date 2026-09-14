@@ -1,0 +1,56 @@
+@* One component behind every editorial page. The routes are declared rather than matched with
+   a catch-all so that an unknown path still 404s instead of rendering an empty page, and so
+   the sitemap is knowable from the code. *@
+@page "/solutions"
+@page "/about"
+@page "/contact"
+@page "/terms"
+@page "/privacy"
+
+@using SMStore.Content
+@inject ISiteContext SiteContext
+@inject ISiteContentSource Content
+@inject NavigationManager Navigation
+
+<PageTitle>@Title · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>@Title</h1>
+        @if (!string.IsNullOrWhiteSpace(_page?.Lede))
+        {
+            <p class="page-lede">@_page.Lede</p>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_page?.BodyHtml))
+{
+    <article class="content-body">@((MarkupString)_page.BodyHtml)</article>
+}
+else
+{
+    <div class="stub">
+        No content is published for "@Key" on this store yet.
+    </div>
+}
+
+@code {
+    private SiteContentPage? _page;
+
+    private string Key => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');
+
+    /// <summary>
+    /// The stored title when there is one, otherwise the slug title-cased — so a page that
+    /// exists as a route but has no content still reads as itself rather than as blank.
+    /// </summary>
+    private string Title => _page?.Title
+        ?? (Key.Length == 0 ? "Page" : char.ToUpperInvariant(Key[0]) + Key[1..]);
+
+    private NavItem[] Crumbs => [new("Home", "/"), new(Title, "/" + Key)];
+
+    protected override async Task OnParametersSetAsync()
+        => _page = await Content.GetAsync(SiteContext.Site.Id, Key);
+}

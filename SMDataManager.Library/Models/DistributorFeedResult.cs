@@ -14,6 +14,31 @@ namespace SMDataManager.Library.Models
 
         public bool Succeeded { get; set; }
         public string Error { get; set; }
+
+        /// <summary>
+        /// Every field name the feed actually contains, with how well populated it is and an
+        /// example value. Filled by a test run only.
+        ///
+        /// Mapping a distributor is otherwise guesswork: an unmapped or misspelled field name
+        /// silently yields NULL for every row, the sync still reports success, and the gap
+        /// only surfaces much later as an empty facet or a missing image. This is the list to
+        /// pick names from.
+        /// </summary>
+        public List<FeedFieldSample> DiscoveredFields { get; set; } = new List<FeedFieldSample>();
+    }
+
+    /// <summary>One field found in a feed, and how usable it looks.</summary>
+    public class FeedFieldSample
+    {
+        public string Name { get; set; }
+
+        /// <summary>
+        /// Share of sampled records where this field has a value, 0-100. A field present on
+        /// every row is a candidate for an identity mapping; one present on a handful is not.
+        /// </summary>
+        public int PopulatedPct { get; set; }
+
+        public string SampleValue { get; set; }
     }
 
     public class FeedUpsertResult

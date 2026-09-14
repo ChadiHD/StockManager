@@ -31,6 +31,12 @@ namespace SMDataManager.Library.Models
         /// <summary>"Public" or "Authenticated" — whether anonymous visitors see list prices.</summary>
         public string PriceDisplay { get; set; }
 
+        /// <summary>
+        /// Floor under group discounting: a resolved price never falls below cost plus this
+        /// margin. Zero disables it.
+        /// </summary>
+        public decimal MinMarginPct { get; set; }
+
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
     }

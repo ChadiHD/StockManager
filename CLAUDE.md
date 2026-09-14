@@ -52,8 +52,34 @@ before anything else runs. Consequences that are easy to get wrong:
 - **An unresolved host is a 404, never a fallback to a default store.** Falling back is how one
   tenant's catalog and prices get served on another tenant's domain.
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
-  leak, not a display bug. Scoped today: `Account`, `CustomerGroup`, `Quote`, `Purchase`
-  (portal orders only), `DistributorFeed`.
+  leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
+  (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`.
+- **A join to a scoped table needs the predicate even when the join path looks safe.** A
+  `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
+  mapping's own `SiteId` says nothing about the category it points at. The catalog procedures
+  filter `SiteCategory` explicitly, and `FK_CategoryMapping_ToSiteCategory` is composite
+  (`SiteCategoryId, SiteId`) so the database refuses the mismatched row in the first place.
+  Prefer the composite key wherever a scoped row references another scoped row.
+
+**Read scoping in the admin API is not implemented, and the storefront's is.** `SMStore`
+resolves a site per request and every storefront query filters on it. `StockApi` and `SMPortal`
+have no site concept at all: no controller, service or data class mentions `SiteId`, and
+`spAccount_GetAll`, `spQuote_GetAll`, `spOrder_GetAll`, `spCustomerGroup_GetAll` and
+`spDistributorFeed_GetAll` return every store's rows. That is correct only while an admin is
+global. It stops being correct the moment an admin belongs to one store — and
+`spDistributorFeed_GetAll` returning every tenant's `SecretRef` is the sharpest edge of it,
+since `StockApi` holds the key ring that decrypts them. **Deciding whether an admin is global
+or per-site is a prerequisite for a second tenant, not a later refinement.**
+
+The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
+`spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
+`spQuote_Insert`, `spOrder_Insert` and `spOrder_ConvertFromQuote` derive it from the account or
+quote the row descends from. All six resolve through `dbo.fnSite_Resolve`, which fills in the
+only site when a database has exactly one and returns NULL when it has more, so the procedure
+throws rather than guessing. This matters more than it looks: `UQ_CustomerGroup_Name`,
+`UQ_CustomerGroup_Slug` and `UQ_DistributorFeed_Name` are scoped by site, and SQL Server treats
+NULL as one distinct value in a unique constraint — while `SiteId` went unset, the second store
+to want a "Reseller" group or a "Main" feed simply could not be created.
 - **Nothing outside `SMStore/Ordering/` branches on `Site.OrderMode`.** Ask
   `OrderingModeProvider.Current` instead.
 - **`wwwroot/app.css` holds no colour of its own.** It reads custom properties that a theme
@@ -65,6 +91,16 @@ before anything else runs. Consequences that are easy to get wrong:
 Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDataProtection`,
 persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
 name, or neither can read the other's cookies or the feed credentials in `dbo.DistributorFeed`.
+
+**Moving the key ring orphans everything already encrypted against the old one.** When
+`AddSharedDataProtection` replaced the previous per-machine ring
+(`%LOCALAPPDATA%\ASP.NET\DataProtection-Keys`), the new database-backed ring started empty, so
+the distributor feed password stored months earlier could no longer be decrypted —
+`The key {guid} was not found in the key ring`, surfacing as a 502 on sync. There is no
+recovery but re-entering the password on the feed, which re-encrypts against the current ring;
+`DataProtectionFeedSecretStore.ResolveAsync` now says exactly that instead of surfacing the raw
+cryptographic error. Before changing where keys live again, remember that every `SecretRef` in
+`dbo.DistributorFeed` is ciphertext bound to the ring that wrote it.
 
 ## Build and run
 
@@ -170,6 +206,20 @@ Adding a stored procedure is one step: create the `.sql` file under
 a `<Build Include="..." />` list to keep in step — that was the old classic-SSDT footgun, where a
 file left out of the project silently never deployed.
 
+**The glob replaced that footgun with a quieter one: Visual Studio evaluates it when it loads the
+project and does not rescan.** A `.sql` file created outside the IDE — by an agent, a git pull, a
+branch switch — is missing from VS's item list, so a build there produces a DACPAC without it and
+the app host deploys schema that silently lacks the new object. The build succeeds and the
+staleness guard passes, because the DACPAC *is* newer than the sources. The symptom is a runtime
+`Invalid object name` or `Could not find stored procedure` for something that plainly exists on
+disk. Reload the project (or build with `dotnet build`, which evaluates the glob fresh) and
+confirm before blaming the deploy:
+
+```bash
+dotnet build SMDatabase/SMDatabase.sqlproj && \
+  unzip -p SMDatabase/bin/Debug/SMDatabase.dacpac model.xml | grep -c YourNewObject
+```
+
 `Scripts/PostDeployment/Seed.sql` runs on **every** publish, so everything in it must be
 idempotent. Its job is to guarantee a `dbo.Site` row exists — multi-store scoping means a
 database with no site renders nothing — and to backfill `SiteId` on rows that predate it. The
@@ -196,6 +246,49 @@ Identity application cookie for the Razor UI. `SMPortal` and the WPF app `POST /
 `AdminDataService.EnsureAuthHeaderAsync` reads the token straight from storage rather than trusting
 `AuthStateProvider` to have set it — on a full page reload the service can run first, and every call
 401s otherwise.
+
+## SMStore architecture
+
+Static SSR by default. There is no interactive render mode on any page yet, and adding one
+should be a deliberate decision about a specific island rather than a reflex — the mobile menu
+is a CSS-only disclosure (hidden checkbox plus a sibling selector) precisely to avoid a circuit
+on every page.
+
+The design system came from the Template artboards' `_ds/styles.css` and is split in two:
+
+- **`wwwroot/app.css`** holds the system — blueprint frame, `.btn`, `.card`, `.input`, `.tag`,
+  `.table`, `.dialog`, the type scale, `.container` / `.page`, `.breadcrumb`, `.product-grid`,
+  `.stub`. It defines **no** colour, space, radius or font. A token added here must be added to
+  every theme.
+- **`wwwroot/sites/{SiteKey}/theme.css`** holds the `:root` token block and the webfont import.
+  A palette and a typeface are brand, not platform.
+
+Component-specific rules live in scoped `.razor.css`. A class used by more than one component
+belongs in `app.css` instead — scoped CSS does not reach another component's markup, which is
+why `.product-grid` is global. `::deep` reaches markup a child renders, as `FormField` needs to
+style the caller's own `.input`.
+
+Themes supply `theme.css`, `logo.svg`, `logo-inverse.svg` and `favicon.svg`.
+`SiteThemeResolver` falls back to the `default` theme per missing file. The inverse logo exists
+because the footer is painted in `--color-accent-900` and a dark mark disappears into it.
+
+`/_design` renders every primitive against the current theme. Development only — it 404s
+elsewhere — and it is the quickest way to see whether a token or component change broke
+something.
+
+Two conventions worth keeping:
+
+- **Unfinished actions disable themselves.** `ProductCard`'s add button binds an
+  `EventCallback` and disables when nothing is wired, so later phases supply a handler rather
+  than replacing markup. Prefer that to a button that silently does nothing.
+- **Nothing store-specific belongs in a component.** Navigation is assembled in
+  `StoreNavigation`; editorial copy resolves through `ISiteContentSource` from
+  `dbo.SiteContent`, and a store with no row gets an explicit empty state rather than another
+  store's words. `SiteContent.BodyHtml` renders as `MarkupString`, so rows are staff-authored
+  only — nothing originating with a customer may reach that column.
+
+The basket page carries both `@page "/quote"` and `@page "/cart"`; which one a store links to
+comes from `OrderingModeProvider`, so neither route 404s and no markup branches on `OrderMode`.
 
 ## SMPortal architecture
 

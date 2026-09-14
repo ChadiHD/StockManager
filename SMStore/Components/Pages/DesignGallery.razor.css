@@ -1,0 +1,23 @@
+.gallery__section {
+    padding-block: var(--space-6);
+    border-top: 1px solid var(--color-divider);
+}
+
+.gallery__section h4 {
+    margin-bottom: var(--space-4);
+    color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+
+.gallery__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.gallery__cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-4) var(--space-6);
+    max-width: 720px;
+}

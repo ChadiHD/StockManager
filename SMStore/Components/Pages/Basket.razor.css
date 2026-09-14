@@ -1,0 +1,36 @@
+/* Breakpoint from the artboard: the summary rail drops below the lines at 900px. */
+
+.basket {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: clamp(24px, 3vw, 48px);
+    align-items: start;
+}
+
+.basket__summary {
+    position: sticky;
+    top: 104px;
+    gap: var(--space-3);
+}
+
+.basket__totals {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 16px;
+    margin: 0;
+    font-size: 14px;
+}
+
+.basket__totals dt { color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+.basket__totals dd { margin: 0; text-align: right; font-feature-settings: 'tnum' 1; }
+
+.basket__note { font-size: 12px; }
+
+@media (max-width: 900px) {
+    .basket { grid-template-columns: 1fr; }
+
+    .basket__summary {
+        position: static;
+        top: auto;
+    }
+}

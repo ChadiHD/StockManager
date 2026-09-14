@@ -1,0 +1,99 @@
+@inject NavigationManager Navigation
+
+@* Plain links, not buttons. Paging a catalog is navigation: each page is a distinct address
+   that should be linkable, shareable and crawlable, and rendering it as anchors keeps the
+   whole listing statically rendered with no circuit. *@
+
+@if (TotalPages > 1)
+{
+    <nav class="pager" aria-label="Pagination">
+        <a href="@PageHref(CurrentPage - 1)"
+           class="btn btn-secondary pager__step"
+           aria-disabled="@(CurrentPage <= 1)"
+           tabindex="@(CurrentPage <= 1 ? "-1" : null)">
+            <span aria-hidden="true">←</span> Previous
+        </a>
+
+        <ol class="pager__pages">
+            @foreach (var slot in Slots)
+            {
+                <li>
+                    @if (slot is null)
+                    {
+                        <span class="pager__gap" aria-hidden="true">…</span>
+                    }
+                    else if (slot == CurrentPage)
+                    {
+                        <span class="pager__page pager__page--current" aria-current="page">@slot</span>
+                    }
+                    else
+                    {
+                        <a href="@PageHref(slot.Value)" class="pager__page">@slot</a>
+                    }
+                </li>
+            }
+        </ol>
+
+        <a href="@PageHref(CurrentPage + 1)"
+           class="btn btn-secondary pager__step"
+           aria-disabled="@(CurrentPage >= TotalPages)"
+           tabindex="@(CurrentPage >= TotalPages ? "-1" : null)">
+            Next <span aria-hidden="true">→</span>
+        </a>
+    </nav>
+}
+
+@code {
+    [Parameter, EditorRequired] public int CurrentPage { get; set; } = 1;
+
+    [Parameter, EditorRequired] public int TotalPages { get; set; }
+
+    /// <summary>Query-string key carrying the page number.</summary>
+    [Parameter] public string ParameterName { get; set; } = "page";
+
+    /// <summary>
+    /// Page numbers to show, with null marking an elided run. Kept to a fixed width so a
+    /// catalog of four thousand SKUs does not render two hundred links.
+    /// </summary>
+    private IEnumerable<int?> Slots
+    {
+        get
+        {
+            const int window = 1;
+
+            var shown = new SortedSet<int> { 1, TotalPages };
+
+            for (var page = CurrentPage - window; page <= CurrentPage + window; page++)
+            {
+                if (page >= 1 && page <= TotalPages)
+                {
+                    shown.Add(page);
+                }
+            }
+
+            int? previous = null;
+
+            foreach (var page in shown)
+            {
+                if (previous is not null && page - previous > 1)
+                {
+                    yield return null;
+                }
+
+                yield return page;
+                previous = page;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds the target from the current address so filters, sort order and search terms
+    /// survive a page change — dropping them is the classic paging bug.
+    /// </summary>
+    private string PageHref(int page)
+    {
+        var clamped = Math.Clamp(page, 1, Math.Max(TotalPages, 1));
+
+        return Navigation.GetUriWithQueryParameter(ParameterName, clamped <= 1 ? null : clamped);
+    }
+}

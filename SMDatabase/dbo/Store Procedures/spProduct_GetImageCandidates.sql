@@ -11,7 +11,8 @@ BEGIN
 	SET NOCOUNT ON;
 
 	SELECT TOP (@Take)
-	       [Id], [Sku], [ProductName], [Manufacturer], [ManufacturerPartNumber], [Ean], [IcecatAvailable]
+	       [Id], [Sku], [ProductName], [Manufacturer], [ManufacturerPartNumber], [Ean], [IcecatAvailable],
+	       [Distributor]
 	FROM [dbo].[Product]
 	WHERE ([ProductImage] IS NULL OR LTRIM(RTRIM([ProductImage])) = N'')
 	  AND [Delisted] = 0

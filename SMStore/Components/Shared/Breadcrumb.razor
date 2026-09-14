@@ -1,0 +1,34 @@
+@using SMStore.Navigation
+
+@* Trail for pages that sit below the top level. The last crumb is the current page and is
+   rendered as text, not a link — linking to where you already are is noise for everyone and a
+   trap for a screen reader. *@
+
+@if (Items is { Count: > 0 })
+{
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        @for (var i = 0; i < Items.Count; i++)
+        {
+            var item = Items[i];
+            var isLast = i == Items.Count - 1;
+
+            if (isLast || string.IsNullOrWhiteSpace(item.Href))
+            {
+                <span aria-current="@(isLast ? "page" : null)">@item.Label</span>
+            }
+            else
+            {
+                <a href="@item.Href">@item.Label</a>
+            }
+
+            if (!isLast)
+            {
+                <span class="breadcrumb__sep" aria-hidden="true">/</span>
+            }
+        }
+    </nav>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<NavItem> Items { get; set; } = [];
+}

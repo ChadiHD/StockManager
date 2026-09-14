@@ -1,0 +1,75 @@
+@using SMStore.Navigation
+@inject ISiteContext SiteContext
+@inject SiteThemeResolver Themes
+@inject StoreNavigation Nav
+
+<footer class="site-footer">
+    <div class="container site-footer__inner">
+        <div class="site-footer__columns">
+            <div class="site-footer__about">
+                <a href="/" class="site-footer__brand">
+                    @* The footer is painted in the dark accent, so it needs the light mark. *@
+                    <img src="@_theme.LogoInversePath" alt="@SiteContext.Site.Name" height="34" />
+                </a>
+
+                @if (!string.IsNullOrWhiteSpace(Blurb))
+                {
+                    <p class="site-footer__blurb">@Blurb</p>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(ContactPhone) || !string.IsNullOrWhiteSpace(ContactEmail))
+                {
+                    <div class="site-footer__contact">
+                        @if (!string.IsNullOrWhiteSpace(ContactPhone))
+                        {
+                            <div>@ContactPhone</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(ContactEmail))
+                        {
+                            <div>@ContactEmail</div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @foreach (var group in Nav.FooterGroups)
+            {
+                <div>
+                    <div class="site-footer__heading">@group.Heading</div>
+                    <div class="site-footer__links">
+                        @foreach (var link in group.Links)
+                        {
+                            <a href="@link.Href">@link.Label</a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="site-footer__legal">
+            <span>© @DateTime.UtcNow.Year @SiteContext.Site.Name</span>
+            <div class="site-footer__legal-links">
+                @* Prices are quoted excluding tax everywhere until the tax engine lands in T6,
+                   at which point this line becomes a per-site statement rather than a constant. *@
+                <span>Prices exclude tax and freight</span>
+                @foreach (var link in Nav.Legal)
+                {
+                    <a href="@link.Href">@link.Label</a>
+                }
+            </div>
+        </div>
+    </div>
+</footer>
+
+@code {
+    /// <summary>Per-site standfirst. Supplied by the content mechanism; blank hides it.</summary>
+    [Parameter] public string? Blurb { get; set; }
+
+    [Parameter] public string? ContactEmail { get; set; }
+
+    [Parameter] public string? ContactPhone { get; set; }
+
+    private SiteTheme _theme = default!;
+
+    protected override void OnInitialized() => _theme = Themes.Resolve(SiteContext.Site.SiteKey);
+}

@@ -1,0 +1,52 @@
+/* Breakpoint from the artboard: the paired and tripled field rows collapse to one column at
+   760px. The row classes are declared here so T3 fills a settled layout. */
+
+.register {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+    max-width: 860px;
+}
+
+.register__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.register__legend {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-divider);
+}
+
+.register__legend h4 { margin: 0; }
+
+.register__num {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 13px;
+    color: var(--color-accent);
+    font-feature-settings: 'tnum' 1;
+}
+
+.register__cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 22px;
+}
+
+.register__cols-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px 22px;
+}
+
+.register__required { color: var(--color-accent); }
+
+@media (max-width: 760px) {
+    .register__cols-2,
+    .register__cols-3 { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,59 @@
+/* Field discovery panel, shown after a feed test. A feed can carry dozens of fields, so the
+   list scrolls inside the modal rather than pushing its buttons off screen. */
+
+.feed-fields {
+    margin-top: 12px;
+    border: 1px solid var(--admin-border, #d8dce3);
+    border-radius: 6px;
+    background: var(--admin-surface, #fff);
+}
+
+.feed-fields > summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.feed-fields__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    display: block;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.feed-fields__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: left;
+    padding: 6px 12px;
+    background: var(--admin-surface, #fff);
+    border-bottom: 1px solid var(--admin-border, #d8dce3);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.feed-fields__table td {
+    padding: 5px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    vertical-align: top;
+}
+
+.feed-fields__pct {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Sample values include long marketing copy; clip rather than widen the modal. */
+.feed-fields__sample {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #5b6472;
+}

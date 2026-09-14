@@ -1,0 +1,135 @@
+@page "/_design"
+@using SMStore.Catalog
+@inject IWebHostEnvironment Environment
+
+@* Every primitive on one page, so the component library can be reviewed and regressions seen
+   without hunting through the storefront for a page that happens to use the thing.
+   Development only — it is a build tool, not a store page, and it carries sample data. *@
+
+@if (!Environment.IsDevelopment())
+{
+    @* 404 rather than a message: outside development this route does not exist. *@
+    HttpContext!.Response.StatusCode = 404;
+}
+else
+{
+    <PageTitle>Design gallery</PageTitle>
+
+    <div class="page-header">
+        <div>
+            <h1>Design gallery</h1>
+            <p class="page-lede">
+                Every shared primitive rendered against the current site theme. Development only.
+            </p>
+        </div>
+    </div>
+
+    <section class="gallery__section">
+        <h4>Buttons</h4>
+        <div class="gallery__row">
+            <button class="btn btn-primary blueprint">
+                <i class="corner tl"></i><i class="corner tr"></i>
+                <i class="corner bl"></i><i class="corner br"></i>
+                Primary
+            </button>
+            <button class="btn btn-secondary">Secondary</button>
+            <button class="btn btn-ghost">Ghost</button>
+            <button class="btn btn-secondary" disabled>Disabled</button>
+        </div>
+    </section>
+
+    <section class="gallery__section">
+        <h4>Tags</h4>
+        <div class="gallery__row">
+            <span class="tag tag-accent">Accent</span>
+            <span class="tag tag-accent-2">Accent 2</span>
+            <span class="tag tag-neutral">Neutral</span>
+            <span class="tag tag-outline">Outline</span>
+        </div>
+    </section>
+
+    <section class="gallery__section">
+        <h4>Form fields</h4>
+        <div class="gallery__cols">
+            <FormField Label="Work email" Required="true" Hint="We reply to this address."
+                       @ref="_emailField">
+                <input class="input" type="email" id="@_emailField?.FieldId"
+                       aria-describedby="@_emailField?.DescribedBy" placeholder="you@company.com" />
+            </FormField>
+
+            <FormField Label="VAT number" Error="Enter a valid VAT number." @ref="_vatField">
+                <input class="input" type="text" id="@_vatField?.FieldId"
+                       aria-describedby="@_vatField?.DescribedBy" value="IE123" />
+            </FormField>
+
+            <FormField Label="Purchase timeline" @ref="_timelineField">
+                <select class="input" id="@_timelineField?.FieldId">
+                    <option>Within 2 weeks</option>
+                    <option>2–4 weeks</option>
+                    <option>Budgetary / planning</option>
+                </select>
+            </FormField>
+
+            <FormField Label="Requirements" @ref="_notesField">
+                <textarea class="input" id="@_notesField?.FieldId" rows="3"></textarea>
+            </FormField>
+        </div>
+    </section>
+
+    <section class="gallery__section">
+        <h4>Breadcrumb</h4>
+        <Breadcrumb Items="_crumbs" />
+    </section>
+
+    <section class="gallery__section">
+        <h4>Product cards</h4>
+        <div class="product-grid">
+            @foreach (var product in _sampleProducts)
+            {
+                <ProductCard Product="product" />
+            }
+        </div>
+    </section>
+
+    <section class="gallery__section">
+        <h4>Pager</h4>
+        <Pager CurrentPage="4" TotalPages="12" />
+    </section>
+
+    <section class="gallery__section">
+        <h4>Table</h4>
+        <div class="table-scroll">
+            <table class="table">
+                <thead>
+                    <tr><th>SKU</th><th>Description</th><th>Qty</th><th>Unit</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>SAMPLE-01</td><td>Sample line</td><td>2</td><td>1,240.00</td></tr>
+                    <tr><td>SAMPLE-02</td><td>Another sample line</td><td>5</td><td>318.00</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private FormField? _emailField;
+    private FormField? _vatField;
+    private FormField? _timelineField;
+    private FormField? _notesField;
+
+    private readonly NavItem[] _crumbs =
+        [new("Home", "/"), new("Catalog", "/catalog"), new("Networking", "/catalog")];
+
+    private readonly ProductCardView[] _sampleProducts =
+    [
+        new("SAMPLE-SW48", "Sample 48-port 10G managed switch", "SampleBrand",
+            "Best seller", "In stock", true, "€3,240.00", null),
+        new("SAMPLE-SRV1", "Sample 1U dual-socket rack server", "SampleBrand",
+            null, "Ships in 2–3 weeks", false, "€6,450.00", null),
+        new("SAMPLE-HIDE", "Sample product with hidden pricing", "SampleBrand",
+            null, "In stock", true, null, null),
+    ];
+}

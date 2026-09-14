@@ -1,0 +1,148 @@
+@using SMStore.Navigation
+@inject ISiteContext SiteContext
+@inject SiteThemeResolver Themes
+@inject StoreNavigation Nav
+@inject NavigationManager Navigation
+
+@* The mobile menu is a CSS-only disclosure: a visually hidden checkbox toggles the panel
+   through a sibling selector. A hamburger is not worth an interactive circuit on every page
+   of an otherwise statically rendered storefront. *@
+
+<header class="site-header">
+    <div class="site-header__utility">
+        <div class="container site-header__utility-inner">
+            @* Separators are emitted between items rather than after each, so a store with no
+               published contact details does not show a dangling divider. *@
+            @for (var i = 0; i < UtilityItems.Count; i++)
+            {
+                if (i > 0)
+                {
+                    <span class="site-header__utility-sep" aria-hidden="true">·</span>
+                }
+
+                var item = UtilityItems[i];
+                <a href="@item.Href" class="@item.Class">@item.Label</a>
+            }
+        </div>
+    </div>
+
+    <div class="site-header__bar">
+        <input type="checkbox" id="site-menu" class="site-header__toggle visually-hidden" />
+
+        <nav class="container site-header__nav" aria-label="Primary">
+            <a href="/" class="site-header__brand">
+                <img src="@_theme.LogoPath" alt="@SiteContext.Site.Name" height="40" />
+            </a>
+
+            <div class="site-header__links">
+                @foreach (var link in Nav.Primary)
+                {
+                    <a href="@link.Href" aria-current="@Current(link.Href)">@link.Label</a>
+                }
+            </div>
+
+            <a href="@Nav.SignIn.Href" class="btn btn-secondary site-header__signin"
+               aria-current="@Current(Nav.SignIn.Href)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                <span>@Nav.SignIn.Label</span>
+            </a>
+
+            <a href="@Nav.Basket.Href" class="btn btn-primary blueprint site-header__basket"
+               aria-current="@Current(Nav.Basket.Href)">
+                <i class="corner tl"></i><i class="corner tr"></i>
+                <i class="corner bl"></i><i class="corner br"></i>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+                    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                    <path d="M16 13H8" /><path d="M16 17H8" />
+                </svg>
+                <span>@Nav.Basket.Label</span>
+                @if (BasketCount > 0)
+                {
+                    <span class="site-header__count">@BasketCount</span>
+                }
+            </a>
+
+            <label for="site-menu" class="btn btn-secondary btn-icon site-header__hamburger">
+                <span class="visually-hidden">Menu</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4 12h16" /><path d="M4 6h16" /><path d="M4 18h16" />
+                </svg>
+            </label>
+        </nav>
+
+        <div class="site-header__panel">
+            <div class="container site-header__panel-inner">
+                @foreach (var link in Nav.Primary)
+                {
+                    <a href="@link.Href">@link.Label</a>
+                }
+                <a href="@Nav.SignIn.Href">@Nav.SignIn.Label</a>
+                <a href="@Nav.Register.Href">@Nav.Register.Label</a>
+            </div>
+        </div>
+    </div>
+</header>
+
+@code {
+    /// <summary>
+    /// Lines waiting in the basket. Always zero until the server-side basket lands in T5;
+    /// the badge is here so that arrives as a value rather than as markup.
+    /// </summary>
+    [Parameter] public int BasketCount { get; set; }
+
+    /// <summary>Per-site contact details. Supplied by the content mechanism; blank hides the row.</summary>
+    [Parameter] public string? ContactEmail { get; set; }
+
+    [Parameter] public string? ContactPhone { get; set; }
+
+    private SiteTheme _theme = default!;
+
+    protected override void OnInitialized() => _theme = Themes.Resolve(SiteContext.Site.SiteKey);
+
+    private record UtilityItem(string Label, string Href, string? Class = null);
+
+    private IReadOnlyList<UtilityItem> UtilityItems
+    {
+        get
+        {
+            var items = new List<UtilityItem>();
+
+            if (!string.IsNullOrWhiteSpace(ContactEmail))
+            {
+                items.Add(new UtilityItem(ContactEmail, $"mailto:{ContactEmail}"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(ContactPhone))
+            {
+                items.Add(new UtilityItem(ContactPhone, $"tel:{ContactPhone.Replace(" ", string.Empty)}"));
+            }
+
+            items.Add(new UtilityItem("Talk to sales", "/contact", "site-header__utility-cta"));
+
+            return items;
+        }
+    }
+
+    /// <summary>
+    /// Marks the active link. Compared on the path only — a query string still means the same
+    /// page, and "/" must match exactly or it would light up everywhere.
+    /// </summary>
+    private string? Current(string href)
+    {
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
+
+        var isCurrent = href == "/"
+            ? path == "/"
+            : path.Equals(href, StringComparison.OrdinalIgnoreCase)
+              || path.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+
+        return isCurrent ? "page" : null;
+    }
+}

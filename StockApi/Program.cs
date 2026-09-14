@@ -55,7 +55,30 @@ builder.Services.AddHttpClient<IIcecatClient, IcecatClient>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(20);
 });
+builder.Services.AddTransient<IBrandAliasData, BrandAliasData>();
+
+// Singleton so the alias cache survives between enrichment batches; a transient would re-read
+// dbo.BrandAlias once per product. A singleton's factory closes over the *root* provider, so it
+// scopes each refresh explicitly — resolving the transient IBrandAliasData straight from the
+// root would leave its SqlDataAccess on the root's disposables list, one per refresh, for the
+// life of the process.
+builder.Services.AddSingleton<IBrandAliasResolver>(services =>
+{
+    var scopes = services.GetRequiredService<IServiceScopeFactory>();
+
+    return new BrandAliasResolver(() =>
+    {
+        using var scope = scopes.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IBrandAliasData>().GetAliases();
+    });
+});
+
 builder.Services.AddTransient<IProductImageEnricher, ProductImageEnricher>();
+
+// Singleton so a finished sync and the background worker share the same signal — the sync
+// asks for a pass, the worker is waiting on it. Two instances would mean the request is
+// raised on one and awaited on the other, and nothing would ever wake.
+builder.Services.AddSingleton<IImageEnrichmentSignal, ImageEnrichmentSignal>();
 builder.Services.AddHostedService<ProductImageBackgroundService>();
 
 // Data Protection keys live in the identity database, shared with SMStore. This replaces the

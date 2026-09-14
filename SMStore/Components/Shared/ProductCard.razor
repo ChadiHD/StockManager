@@ -1,0 +1,88 @@
+@using SMStore.Catalog
+@inject OrderingModeProvider Ordering
+
+<article class="card blueprint product-card">
+    <i class="corner tl"></i><i class="corner tr"></i>
+    <i class="corner bl"></i><i class="corner br"></i>
+
+    <div class="product-card__media">
+        @if (!string.IsNullOrWhiteSpace(Product.Badge))
+        {
+            <span class="tag tag-accent product-card__badge">@Product.Badge</span>
+        }
+
+        <span class="tag @(Product.InStock ? "tag-accent" : "tag-neutral") product-card__avail">
+            <span class="product-card__dot" aria-hidden="true"></span>@Product.Availability
+        </span>
+
+        @if (!string.IsNullOrWhiteSpace(Product.ImageUrl))
+        {
+            <img src="@Product.ImageUrl" alt="@Product.Title" loading="lazy" />
+        }
+        else
+        {
+            @* Distributor feeds carry no image for a long tail of SKUs, and Icecat enrichment
+               will not close that gap entirely, so the empty state is a permanent case. *@
+            <div class="product-card__noimage" aria-hidden="true">No image</div>
+        }
+    </div>
+
+    <div class="product-card__body">
+        <div class="card-kicker">@Product.Brand</div>
+
+        <a href="@Product.Href" class="product-card__title">@Product.Title</a>
+
+        <div class="text-muted product-card__sku">SKU @Product.Sku</div>
+
+        <div class="product-card__foot">
+            <div class="product-card__price">
+                @if (Product.PriceLabel is not null)
+                {
+                    <span class="product-card__amount">@Product.PriceLabel</span>
+                    <span class="text-muted product-card__note">@PriceNote</span>
+                }
+                else
+                {
+                    <span class="text-muted product-card__note">Sign in to see pricing</span>
+                }
+            </div>
+
+            <div class="product-card__actions">
+                <button type="button" class="btn btn-primary blueprint product-card__add"
+                        disabled="@(!OnAdd.HasDelegate)"
+                        title="@(OnAdd.HasDelegate ? null : "Available once the basket lands")"
+                        @onclick="() => OnAdd.InvokeAsync(Product.Sku)">
+                    <i class="corner tl"></i><i class="corner tr"></i>
+                    <i class="corner bl"></i><i class="corner br"></i>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                        <path d="M5 12h14" /><path d="M12 5v14" />
+                    </svg>
+                    @Ordering.Current.AddToBasketLabel
+                </button>
+
+                <a href="@Product.Href" class="btn btn-secondary product-card__view">
+                    <span class="visually-hidden">View @Product.Title</span>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ProductCardView Product { get; set; } = default!;
+
+    /// <summary>
+    /// Adds the SKU to the basket. Unset until the basket lands in T5, and the button disables
+    /// itself rather than pretending to work.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnAdd { get; set; }
+
+    private string PriceNote => Ordering.Current.ShowsPayableTotal
+        ? "excl. tax"
+        : "Volume pricing on quote";
+}

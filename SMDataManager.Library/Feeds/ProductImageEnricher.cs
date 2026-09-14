@@ -16,15 +16,18 @@ namespace SMDataManager.Library.Feeds
     {
         private readonly IProductData _productData;
         private readonly IIcecatClient _icecat;
+        private readonly IBrandAliasResolver _brands;
         private readonly ILogger<ProductImageEnricher> _logger;
 
         public ProductImageEnricher(
             IProductData productData,
             IIcecatClient icecat,
+            IBrandAliasResolver brands,
             ILogger<ProductImageEnricher> logger)
         {
             _productData = productData;
             _icecat = icecat;
+            _brands = brands;
             _logger = logger;
         }
 
@@ -47,6 +50,14 @@ namespace SMDataManager.Library.Feeds
 
                 try
                 {
+                    // Feeds ship their own brand vocabulary — FlexIT's "HPINC" matches nothing
+                    // at Icecat, and "UNIVERSAL" is not a manufacturer at all. Translate before
+                    // querying, and clear the brand entirely when the value is not a brand so
+                    // the client goes straight to its EAN fallback instead of spending a
+                    // request to be told no.
+                    var brand = _brands.Resolve(candidate.Distributor, candidate.Manufacturer);
+                    candidate.Manufacturer = brand.Usable ? brand.Brand : null;
+
                     var imageUrl = await _icecat.FindImageUrlAsync(candidate, cancellationToken);
 
                     // Recorded either way: a null result still stamps the attempt so the same
@@ -56,7 +67,10 @@ namespace SMDataManager.Library.Feeds
                     if (string.IsNullOrWhiteSpace(imageUrl)) result.NotFound++;
                     else result.Matched++;
                 }
-                catch (OperationCanceledException)
+                // Only a real cancellation abandons the pass. An HttpClient timeout arrives as
+                // TaskCanceledException with the token untouched, and rethrowing that would
+                // stop the worker outright rather than costing one product its lookup.
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     throw;
                 }

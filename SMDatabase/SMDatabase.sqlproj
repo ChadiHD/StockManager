@@ -35,6 +35,16 @@
          longer need listing. Deployment scripts are not schema, so they are removed from that
          glob and declared for their phase instead. -->
     <Build Remove="Scripts\**\*.sql" />
+
+    <!-- The SDK excludes the output folders from the glob by pointing at $(BaseOutputPath), so
+         redirecting that — which CLAUDE.md suggests when a running app host locks bin — stops
+         the exclusion covering the real bin\ and obj\. The build script this project generates
+         (bin\Debug\SMDatabase.sql) is then globbed back in as schema and fails the model with
+         SQL46010 / SQL71006 on its own SQLCMD directives. Excluding by path holds whatever the
+         output path is set to. -->
+    <Build Remove="bin\**\*.sql" />
+    <Build Remove="obj\**\*.sql" />
+
     <PostDeploy Include="Scripts\PostDeployment\Seed.sql" />
     <RefactorLog Include="SMDatabase.refactorlog" />
   </ItemGroup>

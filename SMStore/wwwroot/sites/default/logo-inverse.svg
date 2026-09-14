@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="28" viewBox="0 0 132 28" role="img" aria-label="Store">
+  <rect x="0" y="4" width="20" height="20" rx="4" fill="#b5d9fd"/>
+  <path d="M6 14h8M10 10v8" stroke="#1d2d3d" stroke-width="2" stroke-linecap="round"/>
+  <text x="28" y="19" font-family="system-ui, sans-serif" font-size="14" fill="#f2f2f3">Store</text>
+</svg>

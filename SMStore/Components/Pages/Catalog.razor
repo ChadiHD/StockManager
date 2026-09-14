@@ -1,0 +1,205 @@
+@page "/catalog"
+@using SMStore.Catalog
+@inject ISiteContext SiteContext
+@inject CatalogPresenter Presenter
+@inject NavigationManager Navigation
+
+<PageTitle>@Heading · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>@Heading</h1>
+        @if (!string.IsNullOrWhiteSpace(Blurb))
+        {
+            <p class="page-lede">@Blurb</p>
+        }
+    </div>
+</div>
+
+<div class="catalog">
+    <aside class="catalog__filters">
+        @* A GET form, so every filtered view is a real address: linkable, shareable, and
+           re-rendered by the server with no circuit. The controls carry their own names and
+           the browser assembles the query string. *@
+        <form method="get" action="/catalog">
+            <div class="catalog__filters-head">
+                <h6>Filters</h6>
+                @if (HasFilters)
+                {
+                    <a href="/catalog" class="btn btn-ghost">Clear</a>
+                }
+            </div>
+
+            <div class="field catalog__filter-block">
+                <label for="cat-q">Search</label>
+                <input class="input" type="search" id="cat-q" name="q" value="@Q"
+                       placeholder="SKU, part number or name" />
+            </div>
+
+            <div class="catalog__filter-block">
+                <h6>Category</h6>
+                <ul class="catalog__facets">
+                    <li>
+                        <a href="@FacetHref("cat", null)" class="@(Cat is null ? "is-current" : null)">
+                            <span>All categories</span>
+                        </a>
+                    </li>
+                    @foreach (var facet in _result.Categories)
+                    {
+                        <li>
+                            <a href="@FacetHref("cat", facet.Slug)"
+                               class="@(Cat == facet.Slug ? "is-current" : null)">
+                                <span>@facet.Name</span>
+                                <span class="catalog__count">@facet.Count</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            @if (_result.Brands.Count > 0)
+            {
+                <div class="catalog__filter-block">
+                    <h6>Brand</h6>
+                    <ul class="catalog__facets">
+                        @foreach (var facet in _result.Brands.Take(12))
+                        {
+                            <li>
+                                <a href="@FacetHref("brand", facet.Name)"
+                                   class="@(Brand == facet.Name ? "is-current" : null)">
+                                    <span>@facet.Name</span>
+                                    <span class="catalog__count">@facet.Count</span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="catalog__filter-block">
+                <h6>Availability</h6>
+                <label class="radio">
+                    <input type="checkbox" name="stock" value="1" checked="@InStock" />
+                    <span class="dot"></span>
+                    <span>In stock only</span>
+                </label>
+            </div>
+
+            @* Keeps the current category and brand when the form posts the search box. *@
+            @if (Cat is not null)
+            {
+                <input type="hidden" name="cat" value="@Cat" />
+            }
+            @if (Brand is not null)
+            {
+                <input type="hidden" name="brand" value="@Brand" />
+            }
+
+            <button type="submit" class="btn btn-secondary btn-block">Apply</button>
+        </form>
+    </aside>
+
+    <section class="catalog__results">
+        <div class="catalog__toolbar">
+            <div class="catalog__count-line">
+                <strong>@_result.TotalCount.ToString("N0")</strong>
+                @(_result.TotalCount == 1 ? "product" : "products")
+                @if (!string.IsNullOrWhiteSpace(Q))
+                {
+                    <span class="tag tag-neutral catalog__term">“@Q”</span>
+                }
+            </div>
+
+            <div class="catalog__sort">
+                <span class="text-muted">Sort</span>
+                @foreach (var option in SortOptions)
+                {
+                    <a href="@FacetHref("sort", option.Key)"
+                       class="@(CurrentSort == option.Key ? "is-current" : null)">@option.Label</a>
+                }
+            </div>
+        </div>
+
+        @if (_result.Items.Count == 0)
+        {
+            <div class="stub">
+                <p><strong>No products match</strong></p>
+                <p>Try widening your filters, or ask us to source it.</p>
+                <a href="/contact" class="btn btn-secondary">Ask us to source it</a>
+            </div>
+        }
+        else
+        {
+            <div class="product-grid">
+                @foreach (var item in _result.Items)
+                {
+                    <ProductCard Product="item" />
+                }
+            </div>
+
+            <Pager CurrentPage="_result.Page" TotalPages="_result.TotalPages" />
+        }
+    </section>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "cat")] public string? Cat { get; set; }
+    [SupplyParameterFromQuery(Name = "brand")] public string? Brand { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+    [SupplyParameterFromQuery(Name = "sort")] public string? Sort { get; set; }
+    [SupplyParameterFromQuery(Name = "stock")] public string? Stock { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] public int? Page { get; set; }
+
+    private CatalogResult _result = default!;
+    private SMDataManager.Library.Models.SiteCategoryModel? _category;
+
+    private bool InStock => Stock == "1";
+
+    private string CurrentSort => string.IsNullOrWhiteSpace(Sort) ? "featured" : Sort;
+
+    private bool HasFilters =>
+        Cat is not null || Brand is not null || !string.IsNullOrWhiteSpace(Q) || InStock;
+
+    private static readonly (string Key, string Label)[] SortOptions =
+    [
+        ("featured", "Featured"),
+        ("price-asc", "Price ↑"),
+        ("price-desc", "Price ↓"),
+        ("name", "Name")
+    ];
+
+    private string Heading => _category?.Name ?? "Catalog";
+
+    private string? Blurb => _category?.Blurb
+        ?? "Everything the store carries, from own stock and distributor feeds alike.";
+
+    private NavItem[] Crumbs => _category is null
+        ? [new("Home", "/"), new("Catalog", "/catalog")]
+        : [new("Home", "/"), new("Catalog", "/catalog"), new(_category.Name, $"/catalog?cat={_category.Slug}")];
+
+    protected override void OnParametersSet()
+    {
+        _result = Presenter.Search(Cat, Brand, InStock, Q, Sort, Page ?? 1);
+
+        _category = Cat is null
+            ? null
+            : Presenter.GetCategories().FirstOrDefault(c => c.Slug == Cat);
+    }
+
+    /// <summary>
+    /// Changes one facet and drops the page number — page 7 of the old result set means
+    /// nothing in the new one, and landing on an empty page is the classic faceting bug.
+    /// </summary>
+    private string FacetHref(string key, string? value)
+    {
+        var uri = Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            [key] = string.IsNullOrWhiteSpace(value) ? null : value,
+            ["page"] = null
+        });
+
+        return uri;
+    }
+}
