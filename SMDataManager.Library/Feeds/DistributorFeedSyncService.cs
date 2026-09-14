@@ -33,11 +33,11 @@ namespace SMDataManager.Library.Feeds
             _logger = logger;
         }
 
-        public async Task<List<DistributorFeedResult>> SyncAllAsync()
+        public async Task<List<DistributorFeedResult>> SyncAllAsync(int siteId)
         {
             var results = new List<DistributorFeedResult>();
 
-            foreach (var feed in _feedData.GetFeeds().Where(feed => feed.Enabled))
+            foreach (var feed in _feedData.GetFeeds(siteId).Where(feed => feed.Enabled))
             {
                 results.Add(await RunFeedAsync(feed));
             }
@@ -45,9 +45,9 @@ namespace SMDataManager.Library.Feeds
             return results;
         }
 
-        public async Task<DistributorFeedResult> SyncAsync(int feedId)
+        public async Task<DistributorFeedResult> SyncAsync(int feedId, int siteId)
         {
-            var feed = _feedData.GetFeedById(feedId);
+            var feed = _feedData.GetFeedById(feedId, siteId);
 
             if (feed is null)
             {
@@ -159,7 +159,7 @@ namespace SMDataManager.Library.Feeds
                 result.Succeeded = true;
 
                 _feedData.RecordSync(feed.Id,
-                    $"Imported {result.Imported} of {result.RecordCount}; {result.Delisted} delisted.");
+                    $"Imported {result.Imported} of {result.RecordCount}; {result.Delisted} delisted.", feed.SiteId);
 
                 // A sync is the only thing that introduces products with no image, so it is
                 // also the only moment worth starting a pass. Signalling rather than enriching
@@ -177,7 +177,7 @@ namespace SMDataManager.Library.Feeds
 
                 // Message only — the exception could carry connection detail, and the status is
                 // shown in the portal.
-                _feedData.RecordSync(feed.Id, $"Failed: {Trim(exception.Message, 380)}");
+                _feedData.RecordSync(feed.Id, $"Failed: {Trim(exception.Message, 380)}", feed.SiteId);
                 _logger.LogError(exception, "Distributor feed {Distributor} failed.", feed.Name);
             }
 

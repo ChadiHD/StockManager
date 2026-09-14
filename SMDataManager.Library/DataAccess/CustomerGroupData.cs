@@ -15,19 +15,20 @@ namespace SMDataManager.Library.DataAccess
             _sqlDataAccess = sqlDataAccess;
         }
 
-        public List<CustomerGroupModel> GetGroups()
+        public List<CustomerGroupModel> GetGroups(int siteId)
         {
             return _sqlDataAccess.LoadData<CustomerGroupModel, dynamic>(
-                "dbo.spCustomerGroup_GetAll", new { }, "SMDatabase");
+                "dbo.spCustomerGroup_GetAll", new { SiteId = siteId }, "SMDatabase");
         }
 
-        public CustomerGroupModel GetGroupBySlug(string slug)
+        public CustomerGroupModel GetGroupBySlug(string slug, int siteId)
         {
             return _sqlDataAccess.LoadData<CustomerGroupModel, dynamic>(
-                "dbo.spCustomerGroup_GetBySlug", new { Slug = slug }, "SMDatabase").FirstOrDefault();
+                "dbo.spCustomerGroup_GetBySlug", new { Slug = slug, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
         }
 
-        public CustomerGroupModel CreateGroup(CustomerGroupModel group)
+        public CustomerGroupModel CreateGroup(CustomerGroupModel group, int siteId)
         {
             group.Slug = Slugify(group.Name);
 
@@ -38,20 +39,22 @@ namespace SMDataManager.Library.DataAccess
                 group.Slug,
                 group.Discount,
                 group.Terms,
-                group.Note
+                group.Note,
+                SiteId = siteId
             }, "SMDatabase");
 
-            return GetGroupBySlug(group.Slug);
+            return GetGroupBySlug(group.Slug, siteId);
         }
 
-        public void UpdateGroup(string slug, int discount, string terms, string note)
+        public void UpdateGroup(string slug, int discount, string terms, string note, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spCustomerGroup_Update", new
             {
                 Slug = slug,
                 Discount = discount,
                 Terms = terms,
-                Note = note
+                Note = note,
+                SiteId = siteId
             }, "SMDatabase");
         }
 
