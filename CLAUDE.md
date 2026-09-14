@@ -191,7 +191,28 @@ dotnet test SMDesktopUI.UITests/SMDesktopUI.UITests.csproj --filter "FullyQualif
 
 FlaUI drives a real WPF window, so these need an interactive desktop session. The app host registers
 them as `desktop-ui-tests` with `WithExplicitStart()` — they run on demand from the dashboard, never
-on launch. There are no tests for `StockApi`, `SMDataManager.Library` or `SMPortal`.
+on launch.
+
+`SMDataManager.Library.Tests` holds exactly one thing: a parity check between the net-price
+expression in `dbo.fnCatalog_VisibleProducts` and `PriceResolver`. The catalog sorts on the
+SQL copy and displays the C# one, so this is the tripwire that makes that duplication safe.
+
+It needs a database — evaluating the SQL half has no other way, and a C# reimplementation
+would be a third copy of the thing under test. Point `SMDATABASE_TEST_CONNECTION` at a
+development database (the connection string is on the `sql` resource in the Aspire dashboard)
+and note the host: **use `127.0.0.1`, not `localhost`** — the container publishes on IPv4 only
+and `localhost` resolves to `::1` first, which fails as a connect timeout rather than
+anything legible.
+
+```bash
+SMDATABASE_TEST_CONNECTION="Server=127.0.0.1,<port>;Database=SMDatabase;User Id=sa;Password=<pw>;TrustServerCertificate=True;Encrypt=False" \
+  dotnet test SMDataManager.Library.Tests/SMDataManager.Library.Tests.csproj
+```
+
+Without that variable the tests skip rather than fail. Everything they write happens inside a
+transaction that is never committed.
+
+There are no tests for `StockApi`, `SMStore` or `SMPortal`.
 
 `.claude/launch.json` has entries for `preview_start`. `sm-portal-standalone` runs the portal alone on
 7250, which avoids fighting the app host for ports when iterating on UI.
