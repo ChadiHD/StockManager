@@ -47,9 +47,12 @@ template gap.** Fix the template and let the tenant consume it, rather than spec
 | `SMDesktopUI` + `.Library` | WPF POS desktop app (legacy, still shipped) |
 | `SMDesktopUI.UITests` | xunit + FlaUI UI automation for the WPF app |
 | `StockManager.Identity` | `ApplicationDbContext` — ASP.NET Identity's schema, shared by `StockApi` and `SMStore` |
-| `StockManager.ServiceDefaults` | Shared Aspire telemetry, health checks, resilience, Data Protection |
-| `SMDataManager.Library.Tests` | Pricing parity check; needs a database, skips without one |
-| `SMStore.Tests` | Registration field-set rules; pure logic, no database |
+| `StockManager.ServiceDefaults` | Shared host services: telemetry, health checks, resilience, Data Protection, the document store and the mail seam |
+| `SMDataManager.Library.Tests` | xunit + FluentAssertions + NSubstitute. Pricing, and that a `siteId` reaches the procedure. The parity check needs a database and skips without one |
+| `StockApi.Tests` | xunit + FluentAssertions + NSubstitute. Controllers, admin site resolution, the document store |
+| `SMStore.Tests` | bUnit + xunit. Component rendering and per-tenant variation, with `SMDataManager.Library` substituted |
+| `SMPortal.Tests` | bUnit + xunit. Admin components against a substituted `IAdminDataService` — no HTTP |
+| `StockManager.E2ETests` | Playwright + `Aspire.Hosting.Testing` + xunit. Starts the real app host and drives whole journeys. Slow; needs a container runtime |
 
 `SMStore` does **not** call `StockApi`. It renders on the server and reads `SMDatabase` through
 `SMDataManager.Library` in process — an HTTP hop to a co-located API would only add a token
@@ -311,6 +314,43 @@ dotnet build StockApi/StockApi.csproj -p:BaseOutputPath=<scratch-dir>/bo/ -v q -
 
 ### Tests
 
+**xunit is the runner everywhere, on v2.** Two pins hold that together and both are commented
+in every test csproj: **bunit stays on 1.40.0**, because bUnit 2.x moves to xunit v3 and
+upgrading one project would split the runner across the solution; **FluentAssertions stays on
+7.2.2**, because 8.0 moved to a licence that is not free for commercial use. NSubstitute
+rather than Moq.
+
+The split follows what each layer can be tested through:
+
+- `SMDataManager.Library.Tests`, `StockApi.Tests` — plain unit tests with substituted
+  dependencies.
+- `SMStore.Tests`, `SMPortal.Tests` — bUnit. `SMStore` substitutes `SMDataManager.Library`;
+  `SMPortal` substitutes `IAdminDataService`, which is the one seam every admin page binds to,
+  so no HTTP is involved.
+- `StockManager.E2ETests` — the real app host under `Aspire.Hosting.Testing`, driven with
+  Playwright.
+
+```bash
+dotnet test StockManager.sln --filter "FullyQualifiedName!~StockManager.E2ETests"
+```
+
+**That filter is what a routine run wants.** The E2E project is in the solution, so a bare
+`dotnet test StockManager.sln` discovers it, and on any machine that does have a container
+runtime it will actually start SQL Server and run — slowly — rather than skip. It skips only
+when neither `docker version` nor `podman version` answers, or when Playwright's Chromium is
+not installed.
+
+Some of the reasoning that makes those tests worth keeping is not visible from the assertions:
+three of them are guards rather than behaviour checks. `DocumentListItem` must never gain a
+`StoredName` property, `ContactListItem` must never gain `IdentityUserId`, and the
+registration form must never echo a password back into its own HTML. Each is a leak that a
+later "simplification" would reintroduce silently, and each is asserted by reflection or by
+searching the rendered markup because no ordinary assertion expresses "this must stay absent".
+
+`StockManager.E2ETests/README.md` carries the rest: the Playwright install step,
+`E2E_REQUIRE_APPHOST=1` for CI, and — read this before trusting a green run — the fact that
+**those four journeys have never been observed to pass.**
+
 ```bash
 dotnet test SMDesktopUI.UITests/SMDesktopUI.UITests.csproj
 dotnet test SMDesktopUI.UITests/SMDesktopUI.UITests.csproj --filter "FullyQualifiedName~MyTest"
@@ -320,9 +360,10 @@ FlaUI drives a real WPF window, so these need an interactive desktop session. Th
 them as `desktop-ui-tests` with `WithExplicitStart()` — they run on demand from the dashboard, never
 on launch.
 
-`SMDataManager.Library.Tests` holds exactly one thing: a parity check between the net-price
-expression in `dbo.fnCatalog_VisibleProducts` and `PriceResolver`. The catalog sorts on the
-SQL copy and displays the C# one, so this is the tripwire that makes that duplication safe.
+`SMDataManager.Library.Tests` holds the one test the pricing design depends on: a parity check
+between the net-price expression in `dbo.fnCatalog_VisibleProducts` and `PriceResolver`. The
+catalog sorts on the SQL copy and displays the C# one, so this is the tripwire that makes that
+duplication safe.
 
 It needs a database — evaluating the SQL half has no other way, and a C# reimplementation
 would be a third copy of the thing under test. Point `SMDATABASE_TEST_CONNECTION` at a
@@ -339,7 +380,7 @@ SMDATABASE_TEST_CONNECTION="Server=127.0.0.1,<port>;Database=SMDatabase;User Id=
 Without that variable the tests skip rather than fail. Everything they write happens inside a
 transaction that is never committed.
 
-There are no tests for `StockApi`, `SMStore` or `SMPortal`.
+Everything else in that project is a pure unit test and needs nothing.
 
 `.claude/launch.json` has entries for `preview_start`. `sm-portal-standalone` runs the portal alone on
 7250, which avoids fighting the app host for ports when iterating on UI.
@@ -577,6 +618,22 @@ rule.** They are per account and fetched on opening one, because a reviewer open
 application at a time and pulling every customer's staff list and paperwork into the snapshot
 would be the wrong trade. A page using them needs `OnParametersSetAsync`, not
 `OnParametersSet`.
+
+**`ProductDetail`'s category dropdown is a hardcoded seven-item list and does not know what
+decides storefront visibility.** `_cats` is `Servers, Networking, Laptops, Components,
+Security, Power, Peripherals`, with no relationship to `dbo.CategoryMapping` or
+`dbo.SiteCategory` — and it is the mapping, joined in `fnCatalog_VisibleProducts`, that
+decides whether a product appears on a storefront at all. Saving that form on a product whose
+real `Category` string is not one of the seven silently rewrites it to one that may have no
+mapping, and the product disappears from every store with no warning anywhere. Do not add
+features on top of that control; it needs to read the site's own taxonomy first.
+
+**A fresh deployment has no admin and no way to make one.** `POST /api/User/Admin/AddRole` is
+`[Authorize(Roles = "Admin")]`, and the only anonymous endpoint, `POST /api/User/Register`,
+grants no role. Standing up tenant number two therefore means someone writing an
+`AspNetUserRoles` row by hand. `StockManager.E2ETests` bootstraps its operator directly
+against `ApiAuthDb` for exactly this reason — that is a workaround for a gap, not a pattern to
+copy, and the gap should close before a second store ships.
 
 **Nothing in the portal may invent data.** `AccountDetail` used to fabricate contacts, three
 documents and an approval timeline — plausible-looking panels of nothing, rendered beside the
