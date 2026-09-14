@@ -36,16 +36,35 @@
 
     private string _text = "";
 
+    /// <summary>
+    /// The last term this box took from the parent.
+    /// </summary>
+    /// <remarks>
+    /// Tracked separately from <see cref="Value"/> because "has the parent changed its mind?"
+    /// and "has the operator typed something?" are different questions, and answering the
+    /// first by comparing against <c>_text</c> is what broke this component: the guard here
+    /// read <c>if (!_dirty &amp;&amp; _text != Value)</c>, where <c>!_dirty</c> already means
+    /// <c>_text == Value</c>. The two clauses are mutually exclusive, so the body never ran
+    /// and a parent's term was never adopted — not on a later change, not even on first
+    /// render. That is the second time this component's parent-sync has been silently dead;
+    /// the first was <c>Value="_search"</c> passing the literal string.
+    /// </remarks>
+    private string _applied = "";
+
     // True when the box no longer matches what has actually been searched for.
     private bool _dirty => _text != (Value ?? "");
 
     protected override void OnParametersSet()
     {
-        // Only adopt the parent's value when the box is clean, so it cannot overwrite a term
-        // the operator is still typing.
-        if (!_dirty && _text != (Value ?? ""))
+        var incoming = Value ?? "";
+
+        // Adopt only when the parent's own term has moved. A parent re-rendering for an
+        // unrelated reason leaves incoming equal to what was last adopted, so a term the
+        // operator is midway through typing survives.
+        if (incoming != _applied)
         {
-            _text = Value ?? "";
+            _applied = incoming;
+            _text = incoming;
         }
     }
 
