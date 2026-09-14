@@ -6,6 +6,7 @@ using SMStore.Catalog;
 using SMStore.Content;
 using SMStore.Navigation;
 using SMStore.Ordering;
+using SMStore.Registration;
 using SMStore.Sites;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,6 +45,11 @@ builder.Services.AddScoped<ISiteContext>(services => services.GetRequiredService
 // Ordering behaviour is per site. Register every implementation; OrderingModeProvider picks.
 builder.Services.AddSingleton<IOrderingMode, RfqOrderingMode>();
 builder.Services.AddScoped<OrderingModeProvider>();
+
+// What a customer application demands, likewise per site. Field sets are stateless rules, so
+// singletons; the provider is scoped because it reads the request's site.
+builder.Services.AddSingleton<IRegistrationFieldSet, EuB2bRegistrationFieldSet>();
+builder.Services.AddScoped<RegistrationFieldSetProvider>();
 
 // Navigation is assembled rather than written into markup, so a site can vary it and the
 // basket entry can follow the ordering mode.
