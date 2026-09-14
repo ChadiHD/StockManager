@@ -36,6 +36,16 @@ public interface IRegistrationFieldSet
     /// </summary>
     RegistrationRequirement RequirementFor(RegistrationField field);
 
+    /// <summary>
+    /// What to call a field, both on the form and in a message about it.
+    /// </summary>
+    /// <remarks>
+    /// On the interface rather than only on the base class because the form renders from
+    /// this, and a label that differed between the input and the error under it would be
+    /// two names for one box.
+    /// </remarks>
+    string Label(RegistrationField field);
+
     /// <summary>The paperwork this store wants alongside the form.</summary>
     IReadOnlyList<RegistrationDocumentRequirement> Documents { get; }
 

@@ -1,48 +1,342 @@
 @page "/register"
+@using SMStore.Accounts
+@using SMStore.Documents
+@using SMStore.Registration
 @inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject RegistrationFieldSetProvider FieldSets
+@inject IRegistrationService Registrations
+@inject DocumentUploadService Uploads
+@inject StockManager.Notifications.IEmailSender Email
+@inject ILogger<Register> Logger
 
 <PageTitle>Open an account · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="_crumbs" />
 
-<div class="page-header">
-    <div>
-        <h1>Customer application</h1>
-        <p class="page-lede">
-            Apply for a trading account. Our team reviews applications and emails you once the
-            account is open.
-        </p>
+@if (_reference is not null || _submitted)
+{
+    @* One acknowledgement for a new application and for one from an address already
+       registered here. RegistrationService answers both the same way on purpose — telling an
+       unauthenticated caller which companies buy here is a question worth answering only to
+       the person who can already sign in. *@
+    <div class="page-header">
+        <div>
+            <h1>Application received</h1>
+            <p class="page-lede">
+                Thanks. We have your details@(_reference is null ? "" : $" under reference {_reference}")
+                and will email you at the address you gave once someone has looked at them.
+            </p>
+        </div>
     </div>
-</div>
 
-@* Which fields this form asks for is jurisdictional — a VAT number and a Chamber of Commerce
-   document are an EU expectation, not a universal one — so the form is driven by the site's
-   RegistrationFieldSet rather than written out here. The engine that reads it lands in T3;
-   the sections below are the shape it renders into. *@
-<form class="register">
-    <section class="register__section">
-        <div class="register__legend"><span class="register__num">01</span><h4>Company</h4></div>
-        <div class="stub">Fields for field set "@SiteContext.Site.RegistrationFieldSet" land with T3.</div>
-    </section>
-
-    <section class="register__section">
-        <div class="register__legend"><span class="register__num">02</span><h4>Contact details</h4></div>
-        <div class="stub">Contact fields land with T3.</div>
-    </section>
-
-    <section class="register__section">
-        <div class="register__legend"><span class="register__num">03</span><h4>Authorised representative</h4></div>
-        <div class="stub">Representative fields and document upload land with T3.</div>
-    </section>
-
-    <button type="button" class="btn btn-primary blueprint" disabled
-            title="Available once registration lands">
+    <div class="card blueprint register__ack">
         <i class="corner tl"></i><i class="corner tr"></i>
         <i class="corner bl"></i><i class="corner br"></i>
-        Submit application
-    </button>
-</form>
+        <p>
+            Reviews usually take a working day or two. @*
+            Until the "someone tried to register with your address" mail exists, this line is
+            the only route back for an applicant who had already applied and was answered
+            neutrally. Do not remove it before that mail lands. *@
+            <strong>If you do not hear from us, get in touch</strong> — we would rather hear twice
+            than leave an application sitting.
+        </p>
+        <a href="/catalog" class="btn btn-secondary">Browse the catalog</a>
+    </div>
+}
+else if (Customer.IsSignedIn)
+{
+    <div class="page-header">
+        <div>
+            <h1>You already have an account</h1>
+            <p class="page-lede">You are signed in as @Customer.Contact!.FullName.</p>
+        </div>
+    </div>
+    <a href="/account" class="btn btn-primary">Go to your account</a>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>Customer application</h1>
+            <p class="page-lede">@_fieldSet.Summary</p>
+        </div>
+    </div>
+
+    @if (_errors.Count > 0)
+    {
+        <div class="alert error" role="alert">
+            <strong>@(_errors.Any(error => error.Blocks) ? "We could not submit this yet." : "Worth a check before you send this.")</strong>
+            <ul>
+                @foreach (var error in _errors.Where(error => error.Field is null))
+                {
+                    <li>@error.Message</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @* enctype is on the form rather than assumed: the document controls below post bytes,
+       and a urlencoded form silently sends filenames instead. *@
+    <form method="post" enctype="multipart/form-data" class="register"
+          @formname="register" @onsubmit="SubmitAsync">
+        <AntiforgeryToken />
+
+        <section class="register__section">
+            <div class="register__legend"><span class="register__num">01</span><h4>Company</h4></div>
+            <div class="register__grid">
+                @Text(RegistrationField.Company, "organization")
+                @Text(RegistrationField.VatNumber, null)
+                @Text(RegistrationField.RegistrationNumber, null)
+            </div>
+        </section>
+
+        <section class="register__section">
+            <div class="register__legend"><span class="register__num">02</span><h4>Billing address</h4></div>
+            <div class="register__grid">
+                @Text(RegistrationField.AddressLine1, "address-line1")
+                @Text(RegistrationField.AddressLine2, "address-line2")
+                @Text(RegistrationField.City, "address-level2")
+                @Text(RegistrationField.Region, "address-level1")
+                @Text(RegistrationField.PostCode, "postal-code")
+                @Country()
+            </div>
+        </section>
+
+        <section class="register__section">
+            <div class="register__legend"><span class="register__num">03</span><h4>Your details</h4></div>
+            <div class="register__grid">
+                @Text(RegistrationField.FirstName, "given-name")
+                @Text(RegistrationField.LastName, "family-name")
+                @Text(RegistrationField.Email, "email", "email")
+                @Text(RegistrationField.Phone, "tel", "tel")
+
+                @* Never echoed back. Repopulating the rest of the form after an error is a
+                   courtesy; repopulating a password field means the password is in the HTML
+                   of a page that can be cached, printed or shoulder-read. *@
+                <FormField Label="Password" FieldId="reg-password" Required="true"
+                           Hint="At least six characters." Error="@PasswordError">
+                    <input class="input" type="password" id="reg-password" name="Password"
+                           autocomplete="new-password" required />
+                </FormField>
+
+                <FormField Label="Confirm password" FieldId="reg-confirm" Required="true">
+                    <input class="input" type="password" id="reg-confirm" name="ConfirmPassword"
+                           autocomplete="new-password" required />
+                </FormField>
+            </div>
+        </section>
+
+        @if (_fieldSet.Documents.Count > 0)
+        {
+            <section class="register__section">
+                <div class="register__legend"><span class="register__num">04</span><h4>Paperwork</h4></div>
+                <div class="register__grid">
+                    @foreach (var requirement in _fieldSet.Documents)
+                    {
+                        <FormField Label="@requirement.Label" FieldId="@($"doc-{requirement.Kind}")"
+                                   Required="requirement.IsRequired" Hint="@requirement.Help">
+                            @* accept is a filter in the file picker and nothing more. What a
+                               file actually is gets decided by reading its first bytes on the
+                               server — see DocumentContentTypes. *@
+                            <input class="input" type="file" id="@($"doc-{requirement.Kind}")"
+                                   name="@($"doc_{requirement.Kind}")"
+                                   accept="@StockManager.Documents.DocumentContentTypes.Accept" />
+                        </FormField>
+                    }
+                </div>
+            </section>
+        }
+
+        <button type="submit" class="btn btn-primary blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            Submit application
+        </button>
+    </form>
+}
 
 @code {
+    [CascadingParameter] public HttpContext? Http { get; set; }
+
     private readonly NavItem[] _crumbs = [new("Home", "/"), new("Open an account", "/register")];
+
+    private IRegistrationFieldSet _fieldSet = default!;
+    private List<RegistrationError> _errors = [];
+    private string? _reference;
+    private bool _submitted;
+
+    /*
+    Values are read back out of the posted form rather than model-bound.
+
+    Which fields exist is the field set's decision and varies per store, so there is no fixed
+    model to bind — and reading the form directly is also what keeps the password out of the
+    round trip: everything echoed back below is echoed because this code chose to.
+    */
+    private IFormCollection? _posted;
+
+    protected override void OnInitialized() => _fieldSet = FieldSets.Current;
+
+    private string? Value(RegistrationField field) =>
+        _posted?[FieldName(field)].ToString();
+
+    private static string FieldName(RegistrationField field) => field.ToString();
+
+    private string? ErrorFor(RegistrationField field) =>
+        _errors.FirstOrDefault(error => error.Field == field)?.Message;
+
+    private string? PasswordError =>
+        _errors.FirstOrDefault(error => error.Field is null
+            && error.Message.Contains("password", StringComparison.OrdinalIgnoreCase))?.Message;
+
+    /// <summary>One text input, or nothing at all when this store does not ask for it.</summary>
+    private RenderFragment? Text(RegistrationField field, string? autocomplete, string type = "text")
+    {
+        var requirement = _fieldSet.RequirementFor(field);
+
+        // Hidden means not rendered and not read. A store that does not ask cannot leak it,
+        // and an input nothing reads is worse than no input.
+        if (requirement == RegistrationRequirement.Hidden)
+        {
+            return null;
+        }
+
+        var id = $"reg-{field}".ToLowerInvariant();
+
+        return @<FormField Label="@_fieldSet.Label(field)" FieldId="@id"
+                           Required="requirement == RegistrationRequirement.Required"
+                           Error="@ErrorFor(field)">
+            <input class="input" type="@type" id="@id" name="@FieldName(field)"
+                   value="@Value(field)" autocomplete="@autocomplete"
+                   required="@(requirement == RegistrationRequirement.Required)" />
+        </FormField>;
+    }
+
+    private RenderFragment? Country()
+    {
+        var requirement = _fieldSet.RequirementFor(RegistrationField.Country);
+
+        if (requirement == RegistrationRequirement.Hidden)
+        {
+            return null;
+        }
+
+        // Defaults to the store's own country, which is right for most applicants and is the
+        // one value the form can guess without asking.
+        var selected = Value(RegistrationField.Country) is { Length: 2 } posted
+            ? posted.ToUpperInvariant()
+            : SiteContext.Site.Country?.ToUpperInvariant();
+
+        return @<FormField Label="@_fieldSet.Label(RegistrationField.Country)" FieldId="reg-country"
+                           Required="requirement == RegistrationRequirement.Required"
+                           Error="@ErrorFor(RegistrationField.Country)">
+            <select class="input" id="reg-country" name="@FieldName(RegistrationField.Country)"
+                    autocomplete="country" required="@(requirement == RegistrationRequirement.Required)">
+                @foreach (var country in RegistrationCountries.All)
+                {
+                    <option value="@country.Key" selected="@(country.Key == selected)">@country.Value</option>
+                }
+            </select>
+        </FormField>;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _posted = Http?.Request.Form;
+
+        if (_posted is null)
+        {
+            _errors = [new RegistrationError(null, "That form did not arrive intact. Please try again.")];
+            return;
+        }
+
+        var submission = new RegistrationSubmission
+        {
+            Company = Value(RegistrationField.Company),
+            VatNumber = Value(RegistrationField.VatNumber),
+            RegistrationNumber = Value(RegistrationField.RegistrationNumber),
+            FirstName = Value(RegistrationField.FirstName),
+            LastName = Value(RegistrationField.LastName),
+            Email = Value(RegistrationField.Email),
+            Phone = Value(RegistrationField.Phone),
+            AddressLine1 = Value(RegistrationField.AddressLine1),
+            AddressLine2 = Value(RegistrationField.AddressLine2),
+            City = Value(RegistrationField.City),
+            Region = Value(RegistrationField.Region),
+            PostCode = Value(RegistrationField.PostCode),
+            Country = Value(RegistrationField.Country),
+            Password = _posted["Password"],
+            ConfirmPassword = _posted["ConfirmPassword"]
+        };
+
+        /*
+        Documents are validated before anything is written and stored after.
+
+        Before, so that a file this store will not accept refuses the application while there
+        is still nothing to unwind. After, because AccountDocument.AccountId needs an account
+        to point at — and because storing bytes for an application that then failed its own
+        validation would leave files nobody can reach.
+        */
+        var files = _fieldSet.Documents
+            .Select(requirement => (requirement, File: _posted.Files[$"doc_{requirement.Kind}"]))
+            .ToList();
+
+        var documents = await Uploads.ValidateAsync(files, Http!.RequestAborted);
+
+        var outcome = await Registrations.RegisterAsync(submission, Http.RequestAborted);
+
+        _errors = [.. documents.Errors, .. outcome.Errors];
+
+        // Both halves have to be clean. RegisterAsync writes nothing when its own validation
+        // fails, so a document error alone must also stop it — hence validating documents
+        // first and refusing here rather than after the account exists.
+        if (!documents.IsValid || !outcome.Accepted)
+        {
+            return;
+        }
+
+        _submitted = true;
+        _reference = outcome.Reference;
+
+        // No account id means RegisterAsync answered neutrally: the address was already
+        // registered here and nothing was created. There is nothing to attach paperwork to,
+        // and attaching it to the existing account would tell whoever sent it that it exists.
+        if (outcome.AccountId is { } accountId && documents.Accepted.Count > 0)
+        {
+            var stored = await Uploads.AttachAsync(
+                accountId, outcome.ContactId, documents.Accepted, Http.RequestAborted);
+
+            if (stored < documents.Accepted.Count)
+            {
+                // Not a failure the applicant is shown. Their application is written and
+                // they have been acknowledged; a reviewer asks for the missing file, and
+                // this is how a reviewer finds out there is one.
+                Logger.LogError(
+                    "Only {Stored} of {Sent} documents were stored for {Reference}.",
+                    stored, documents.Accepted.Count, _reference);
+            }
+        }
+
+        await AcknowledgeAsync(submission);
+    }
+
+    private async Task AcknowledgeAsync(RegistrationSubmission submission)
+    {
+        try
+        {
+            await Email.SendAsync(RegistrationEmails.Acknowledgement(
+                SiteContext.Site, submission.Email!.Trim(),
+                $"{submission.FirstName} {submission.LastName}".Trim(), _reference),
+                Http!.RequestAborted);
+        }
+        catch (Exception exception)
+        {
+            // The application is written. Failing the page now would have the applicant
+            // submit again and be answered neutrally the second time, which is the worst of
+            // both — so the acknowledgement is best-effort and the failure is ours to chase.
+            Logger.LogError(exception,
+                "Could not acknowledge registration {Reference} at {SiteKey}.",
+                _reference, SiteContext.Site.SiteKey);
+        }
+    }
 }

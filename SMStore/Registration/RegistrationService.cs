@@ -11,10 +11,23 @@ namespace SMStore.Registration;
 /// Whether the applicant should be shown the "check your email" page. Deliberately not the
 /// same thing as "an account was created" — see <see cref="RegistrationService"/>.
 /// </param>
+/// <param name="Reference">
+/// The AC-nnnn reference, or null when nothing was created — which happens both on failure
+/// and on the neutral answer to an address already registered here. A caller must not read
+/// null as failure: <paramref name="Accepted"/> is the only thing that says what to render.
+/// </param>
+/// <param name="AccountId">
+/// The rows just written, for a caller with something to attach to them. Null whenever
+/// <paramref name="Reference"/> is, and for the same reasons — in particular, a duplicate
+/// applicant gets no ids, because attaching their upload to the existing account would tell
+/// whoever sent it that the account exists.
+/// </param>
 public sealed record RegistrationOutcome(
     bool Accepted,
     IReadOnlyList<RegistrationError> Errors,
-    string? Reference = null);
+    string? Reference = null,
+    int? AccountId = null,
+    int? ContactId = null);
 
 public interface IRegistrationService
 {
@@ -162,7 +175,8 @@ public sealed class RegistrationService : IRegistrationService
                 "Registered {Reference} at {SiteKey}, pending approval.",
                 result?.Reference, site.SiteKey);
 
-            return new RegistrationOutcome(true, errors, result?.Reference);
+            return new RegistrationOutcome(
+                true, errors, result?.Reference, result?.AccountId, result?.ContactId);
         }
         catch (Exception exception)
         {

@@ -32,21 +32,25 @@
     font-feature-settings: 'tnum' 1;
 }
 
-.register__cols-2 {
+/* auto-fit rather than a fixed column count, because how many fields a section renders is
+   the site's registration field set's decision. A two-column rule on a section whose middle
+   field is Hidden leaves a hole; this closes up. */
+.register__grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px 22px;
-}
-
-.register__cols-3 {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 18px 22px;
 }
 
 .register__required { color: var(--color-accent); }
 
+.register__ack {
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+}
+
 @media (max-width: 760px) {
-    .register__cols-2,
-    .register__cols-3 { grid-template-columns: 1fr; }
+    .register__grid { grid-template-columns: 1fr; }
 }

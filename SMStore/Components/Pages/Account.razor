@@ -1,47 +1,199 @@
 @page "/account"
+@using SMDataManager.Library.DataAccess
+@using SMDataManager.Library.Models
+@using SMStore.Accounts
+@using SMStore.Documents
 @inject ISiteContext SiteContext
+@inject ICustomerContext Customer
 @inject OrderingModeProvider Ordering
+@inject IAccountData Accounts
+@inject IContactData Contacts
+@inject IAddressData Addresses
+@inject IAccountDocumentData Documents
+@inject NavigationManager Navigation
 
 <PageTitle>Your account · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="_crumbs" />
 
-<div class="page-header">
-    <div>
-        <h1>Your account</h1>
-        <p class="page-lede">
-            Company profile, contacts, addresses, and the history of everything you have asked
-            us to price.
-        </p>
+@if (_account is null)
+{
+    @* Signed in but with no account behind the session. CustomerSessionValidator rejects
+       that case before a page renders, so reaching here means the account was deleted
+       mid-request — say so rather than rendering empty panels. *@
+    <div class="page-header">
+        <div>
+            <h1>Your account</h1>
+            <p class="page-lede">We could not load your account. Please sign in again.</p>
+        </div>
     </div>
-</div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>@_account.Company</h1>
+            <p class="page-lede">
+                @_account.Reference · @_account.Status
+                @if (_contact!.CustomerGroupDiscount > 0)
+                {
+                    <text> · your prices are @_contact.CustomerGroupDiscount.ToString("0.##")% off list</text>
+                }
+            </p>
+        </div>
+    </div>
 
-@* Unauthenticated for now — sign-in lands in T3, and this page becomes authorised then. The
-   section list is the shape the account area takes, so T3 and T5 fill panels rather than
-   inventing an information architecture. *@
-<div class="account">
-    @foreach (var section in Sections)
-    {
+    <div class="account">
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>@section.Title</h5>
-            <p class="card-body">@section.Blurb</p>
-            <div class="text-muted account__when">@section.Arrives</div>
+            <h5>Profile</h5>
+            <dl class="account__facts">
+                <dt>Company</dt><dd>@_account.Company</dd>
+                <dt>Account reference</dt><dd>@_account.Reference</dd>
+                @if (!string.IsNullOrWhiteSpace(_account.VatNumber))
+                {
+                    <dt>VAT number</dt><dd>@_account.VatNumber</dd>
+                }
+                @if (!string.IsNullOrWhiteSpace(_account.RegistrationNumber))
+                {
+                    <dt>Registration number</dt><dd>@_account.RegistrationNumber</dd>
+                }
+                <dt>Payment</dt><dd>@_account.PaymentMethod · @_account.PaymentTerms</dd>
+            </dl>
+            @* Editing lands with the contact-management work. A panel that shows what we
+               hold is worth having before the panel that changes it. *@
+            <p class="text-muted account__when">To change any of this, talk to your account manager.</p>
         </section>
-    }
-</div>
+
+        <section class="card blueprint account__panel">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>Contacts</h5>
+            @foreach (var contact in _contacts)
+            {
+                <div class="account__row">
+                    <strong>@contact.FullName@(contact.IsPrimary ? " · primary" : "")</strong>
+                    <span class="text-muted">@contact.RoleInAccount · @contact.Email</span>
+                    @if (!string.IsNullOrWhiteSpace(contact.Phone))
+                    {
+                        <span class="text-muted">@contact.Phone</span>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="card blueprint account__panel">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>Addresses</h5>
+            @if (_addresses.Count == 0)
+            {
+                <p class="text-muted">No addresses on file.</p>
+            }
+            @foreach (var address in _addresses)
+            {
+                <div class="account__row">
+                    <strong>@address.Kind@(address.IsDefault ? " · default" : "")</strong>
+                    <span class="text-muted">@OneLine(address)</span>
+                </div>
+            }
+        </section>
+
+        <section class="card blueprint account__panel">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>Documents</h5>
+            @if (_documents.Count == 0)
+            {
+                <p class="text-muted">Nothing on file.</p>
+            }
+            @foreach (var document in _documents)
+            {
+                <div class="account__row">
+                    @* Through the endpoint, never a static path: the bytes live outside the
+                       web root and this link is checked against the session that follows it. *@
+                    <a href="@AccountDocumentEndpoints.DownloadUrl(document.Id)">@document.OriginalName</a>
+                    <span class="text-muted">@Kind(document.Kind) · @document.Status</span>
+                </div>
+            }
+        </section>
+
+        @foreach (var section in Later)
+        {
+            <section class="card blueprint account__panel">
+                <i class="corner tl"></i><i class="corner tr"></i>
+                <i class="corner bl"></i><i class="corner br"></i>
+                <h5>@section.Title</h5>
+                <p class="card-body">@section.Blurb</p>
+                <div class="text-muted account__when">@section.Arrives</div>
+            </section>
+        }
+    </div>
+}
 
 @code {
     private readonly NavItem[] _crumbs = [new("Home", "/"), new("Your account", "/account")];
 
+    private AccountModel? _account;
+    private ContactModel? _contact;
+    private IReadOnlyList<ContactModel> _contacts = [];
+    private IReadOnlyList<AddressModel> _addresses = [];
+    private IReadOnlyList<AccountDocumentModel> _documents = [];
+
+    /// <summary>
+    /// Everything on this page is scoped by the site and the account from the session.
+    /// </summary>
+    /// <remarks>
+    /// Not by a route parameter or a query string, which is the whole reason there is no
+    /// "/account/{id}". The only account this page can render is the one the request's
+    /// cookie resolved to, and the site id passed alongside it is the request's own.
+    /// </remarks>
+    protected override void OnInitialized()
+    {
+        // Anonymous visitors are sent to sign in rather than shown an empty account. The
+        // cookie handler's LoginPath does this for [Authorize]; this page gates on the
+        // resolved contact instead, because a cookie alone is not entitlement here.
+        if (!Customer.IsSignedIn)
+        {
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString("/account")}");
+
+            return;
+        }
+
+        _contact = Customer.Contact;
+
+        var siteId = SiteContext.Site.Id;
+        var accountId = _contact!.AccountId;
+
+        _account = Accounts.GetAccountById(accountId, siteId);
+
+        if (_account is null)
+        {
+            return;
+        }
+
+        _contacts = Contacts.GetByAccount(accountId, siteId);
+        _addresses = Addresses.GetByAccount(accountId, siteId);
+        _documents = Documents.GetByAccount(accountId, siteId);
+    }
+
+    private static string OneLine(AddressModel address) => string.Join(", ",
+        new[] { address.Line1, address.Line2, address.City, address.Region, address.PostCode, address.Country }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    private static string Kind(string kind) => kind switch
+    {
+        "ChamberOfCommerce" => "Company registration",
+        "VatCertificate" => "VAT certificate",
+        _ => "Other"
+    };
+
     private record Section(string Title, string Blurb, string Arrives);
 
-    private IReadOnlyList<Section> Sections =>
+    private IReadOnlyList<Section> Later =>
     [
-        new("Profile", "Company details, VAT registration and trading status.", "Lands with T3"),
-        new("Contacts", "The people on this account and what each may do.", "Lands with T3"),
-        new("Addresses", "Billing, shipping and registered addresses.", "Lands with T3"),
         new($"{Ordering.Current.BasketLabel} history",
             "Everything you have submitted, and what we sent back.", "Lands with T5"),
         new("Orders", "Confirmed orders, their status and their paperwork.", "Lands with T5"),
