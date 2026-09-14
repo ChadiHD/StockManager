@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- Slow (provisions SQL Server and publishes the whole DACPAC on a cold volume) and
+         needs a container runtime plus installed Playwright browsers, so this project is
+         never meant to be part of a routine `dotnet test` of the solution — see README.md
+         for what a developer runs instead, and how these skip cleanly without either. -->
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- Pinned to 13.4.6 to match the Aspire.AppHost.Sdk/13.4.6 that
+         StockManager.AppHost.csproj is built with. Aspire.Hosting.Testing has to be the same
+         version as the app host it drives; the two drifting apart is a startup failure in this
+         project that has nothing to do with anything this suite is testing. -->
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.4.6" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+
+    <!-- Held at 7.2.2, matching SMStore.Tests: FluentAssertions 8.0 moved to a licence that is
+         not free for commercial use, and this is a commercial codebase. -->
+    <PackageReference Include="FluentAssertions" Version="7.2.2" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
+
+    <!-- For the handful of rows nothing in the product can create yet (a second Site, a
+         store's own category taxonomy; see Infrastructure/SqlTestData.cs) and for the
+         bootstrap admin (Infrastructure/IdentityTestSupport.cs). Versions match
+         SMDataManager.Library / StockApi / StockManager.Identity so the whole graph resolves
+         to one version of each rather than two fighting over a binding redirect. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IsAspireProjectResource="false": this reference exists purely so the Aspire SDK
+         generates the Projects.StockManager_AppHost marker type
+         DistributedApplicationTestingBuilder.CreateAsync needs. It must not make this test
+         project itself another node in the app graph. -->
+    <ProjectReference Include="..\StockManager.AppHost\StockManager.AppHost.csproj" IsAspireProjectResource="false" />
+    <!-- SiteQualifiedUserName and ApplicationDbContext, so the customer login the cross-tenant
+         journey provisions directly is named and stored exactly the way RegistrationService
+         does it, rather than by a second copy of that rule drifting out of step. -->
+    <ProjectReference Include="..\StockManager.Identity\StockManager.Identity.csproj" />
+    <!-- CustomerAuthentication.CookieName, so the cross-tenant journey replays the storefront's
+         actual cookie name rather than a copy of the string that could silently go stale.
+         SMStore.Tests already references SMStore.csproj directly for the same reason, and the
+         app host builds it regardless as part of Projects.StockManager_AppHost. -->
+    <ProjectReference Include="..\SMStore\SMStore.csproj" />
+  </ItemGroup>
+
+</Project>
