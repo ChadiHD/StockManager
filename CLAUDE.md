@@ -183,6 +183,12 @@ nobody serves.
 - **Antivirus scanning is not done anywhere.** Recorded as accepted risk in the T3 plan, not
   overlooked. The mitigation is the narrow allow-list and that nothing is executed
   server-side.
+- **Both hosts must resolve the same root, and in development they do so by accident.** The
+  default is `<content root>/../app-data/documents`, which lands on the repository root for
+  both `SMStore` and `StockApi` because they sit side by side. Containers do not, so set
+  `Documents:RootPath` on both when they stop sharing a filesystem — the symptom is a
+  reviewer opening an application whose documents all 404. `/app-data/` is gitignored:
+  real applicants' paperwork must never reach a commit.
 
 ### Outbound mail is a seam and nothing more
 
