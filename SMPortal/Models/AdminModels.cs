@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace SMPortal.Models;
 
 // Plain mutable models matching the prototype data shapes. Money is decimal.
@@ -18,6 +20,44 @@ public class Account
     public decimal Credit { get; set; }
     public string Status { get; set; } = "Pending";
     public string Since { get; set; } = "";
+
+    /// <summary>Company identifiers collected at registration; either may be absent.</summary>
+    public string Vat { get; set; } = "";
+
+    public string Registration { get; set; } = "";
+
+    /// <summary>
+    /// Who decided this application and when, from spAccount_Approve / spAccount_Reject.
+    /// Empty until somebody has decided — an account created by an admin has no applicant
+    /// and no decision.
+    /// </summary>
+    public string DecidedBy { get; set; } = "";
+
+    public string DecidedOn { get; set; } = "";
+
+    /// <summary>What the applicant was told. Present only on a rejection.</summary>
+    public string RejectionReason { get; set; } = "";
+}
+
+/// <summary>
+/// A file an applicant uploaded, as the admin API describes it.
+/// </summary>
+/// <remarks>
+/// No stored name. That is the key into the document store, the API does not project it, and
+/// a client that held one would be a client that could be talked into leaking it.
+/// </remarks>
+public class AccountDocument
+{
+    public int Id { get; set; }
+    public string Kind { get; set; } = "";
+
+    /// <summary>What the customer called it. Untrusted text — render it, never use it as a path.</summary>
+    public string Name { get; set; } = "";
+
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string Uploaded { get; set; } = "";
+    public string Status { get; set; } = "Pending";
 }
 
 public class QuoteLine
@@ -147,6 +187,30 @@ public class Contact
     public string Role { get; set; } = "";
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
+
+    /// <summary>The contact the account was registered by, shown first.</summary>
+    public bool IsPrimary { get; set; }
+
+    /// <summary>"Active" | "Invited" | "Disabled", independent of the account's status.</summary>
+    public string Status { get; set; } = "Active";
+}
+
+/// <summary>A billing or delivery address on an account.</summary>
+public class AccountAddress
+{
+    public int Id { get; set; }
+    public string Kind { get; set; } = "Billing";
+    public string Line1 { get; set; } = "";
+    public string Line2 { get; set; } = "";
+    public string City { get; set; } = "";
+    public string Region { get; set; } = "";
+    public string PostCode { get; set; } = "";
+    public string Country { get; set; } = "";
+    public bool IsDefault { get; set; }
+
+    /// <summary>One line, skipping the parts this address does not have.</summary>
+    public string OneLine => string.Join(", ", new[] { Line1, Line2, City, Region, PostCode, Country }
+        .Where(part => !string.IsNullOrWhiteSpace(part)));
 }
 
 public class DocItem

@@ -2,6 +2,7 @@
 @inject IAdminDataService Data
 @inject NavigationManager Nav
 @inject IToastService Toast
+@inject IJSRuntime JS
 
 <PageTitle>Account @Id · StockManager</PageTitle>
 
@@ -26,14 +27,19 @@ else
         </div>
     </div>
 
+    @if (_problem is not null)
+    {
+        <div class="panel panel-pad note-dashed">@_problem</div>
+    }
+
     @if (_a.Status == "Pending")
     {
         <div class="approve-banner">
             <span class="approve-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
             <div class="approve-copy"><strong>Awaiting approval</strong><span>Review the company documents and trading terms, then approve or reject this application.</span></div>
             <div class="approve-actions">
-                <button class="btn btn-danger-outline" @onclick="Reject">Reject</button>
-                <button class="btn btn-accent" @onclick="Approve">
+                <button class="btn btn-danger-outline" @onclick="() => _showReject = true">Reject</button>
+                <button class="btn btn-accent" @onclick="OpenApprove">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve account
                 </button>
             </div>
@@ -47,18 +53,41 @@ else
                 <div class="facts">
                     <div class="fact"><span class="fact-k">Legal name</span><strong>@_a.Company</strong></div>
                     <div class="fact"><span class="fact-k">Account ID</span><strong>@_a.Id</strong></div>
+                    <div class="fact"><span class="fact-k">VAT number</span><strong>@Or(_a.Vat)</strong></div>
+                    <div class="fact"><span class="fact-k">Registration no.</span><strong>@Or(_a.Registration)</strong></div>
                     <div class="fact"><span class="fact-k">Country</span><strong>@_a.Country</strong></div>
                     <div class="fact"><span class="fact-k">Registered</span><strong>@_a.Since</strong></div>
                 </div>
+
                 <div class="divider"></div>
-                <span class="mini-kicker">Primary contacts</span>
+                <span class="mini-kicker">Contacts</span>
+                @if (_contacts.Count == 0)
+                {
+                    <div class="note-dashed">No contacts on this account. An account created here rather than applied for has none until someone is invited.</div>
+                }
                 @foreach (var c in _contacts)
                 {
                     <div class="contact">
                         <span class="contact-ini">@AdminUi.Initials(c.Name)</span>
-                        <div class="contact-body"><strong>@c.Name</strong><small>@c.Role · @c.Email</small></div>
+                        <div class="contact-body">
+                            <strong>@c.Name @(c.IsPrimary ? "· primary" : "")</strong>
+                            <small>@c.Role · @c.Email@(c.Status == "Active" ? "" : $" · {c.Status}")</small>
+                        </div>
                         <span class="contact-phone">@c.Phone</span>
                     </div>
+                }
+
+                @if (_addresses.Count > 0)
+                {
+                    <div class="divider"></div>
+                    <span class="mini-kicker">Addresses</span>
+                    @foreach (var address in _addresses)
+                    {
+                        <div class="fact">
+                            <span class="fact-k">@address.Kind@(address.IsDefault ? " · default" : "")</span>
+                            <strong>@address.OneLine</strong>
+                        </div>
+                    }
                 }
             </div>
 
@@ -72,10 +101,7 @@ else
                 </div>
                 @if (_a.Credit > 0)
                 {
-                    <div class="credit">
-                        <div class="credit-row"><span>Credit used <strong>@AdminUi.Money(_used, _a.Currency)</strong></span><span class="muted">@AdminUi.Money(_a.Credit - _used, _a.Currency) available</span></div>
-                        <div class="credit-bar"><div class="credit-fill"></div></div>
-                    </div>
+                    <div class="note-dashed">Credit exposure lands with T6, which owns credit-limit enforcement.</div>
                 }
                 else
                 {
@@ -85,13 +111,31 @@ else
 
             <div class="panel panel-pad">
                 <span class="card-kicker">Documents</span>
+                @if (_docsLoading)
+                {
+                    <div class="note-dashed">Loading documents…</div>
+                }
+                else if (_docs.Count == 0)
+                {
+                    <div class="note-dashed">Nothing uploaded with this application.</div>
+                }
                 @foreach (var d in _docs)
                 {
                     <div class="doc">
-                        <span class="doc-ico">PDF</span>
-                        <div class="doc-body"><strong>@d.Name</strong><small>@d.Type</small></div>
+                        <span class="doc-ico">@Extension(d.ContentType)</span>
+                        <div class="doc-body"><strong>@d.Name</strong><small>@DocKind(d.Kind) · @Size(d.SizeBytes) · @d.Uploaded</small></div>
                         <span class="badge @AdminUi.StatusClass(d.Status)">@d.Status</span>
-                        <a class="doc-view" href="#" @onclick:preventDefault>View</a>
+                        @* Saved, not opened: these are files a stranger uploaded, and this
+                           origin holds the session that can approve accounts. *@
+                        <a class="doc-view" href="#" @onclick="() => SaveDocument(d)" @onclick:preventDefault>Download</a>
+                        @if (d.Status != "Accepted")
+                        {
+                            <a class="doc-view" href="#" @onclick='() => SetDocStatus(d, "Accepted")' @onclick:preventDefault>Accept</a>
+                        }
+                        @if (d.Status != "Rejected")
+                        {
+                            <a class="doc-view" href="#" @onclick='() => SetDocStatus(d, "Rejected")' @onclick:preventDefault>Reject</a>
+                        }
                     </div>
                 }
             </div>
@@ -102,20 +146,85 @@ else
                 <span class="card-kicker">Account status</span>
                 <div class="status-line"><span class="badge @AdminUi.StatusClass(_a.Status)">@_a.Status</span><span class="muted">since @_a.Since</span></div>
                 <button class="btn btn-secondary btn-block mt" @onclick="() => _showTerms = true">Edit trading terms</button>
-                <button class="btn btn-danger-outline btn-block mt" @onclick="Suspend">@(_a.Status == "Suspended" ? "Reactivate account" : "Suspend account")</button>
+                @* Suspension is not a decision on an application, so it stays a plain status
+                   write and is hidden while one is still pending. *@
+                @if (_a.Status != "Pending" && _a.Status != "Rejected")
+                {
+                    <button class="btn btn-danger-outline btn-block mt" @onclick="Suspend">@(_a.Status == "Suspended" ? "Reactivate account" : "Suspend account")</button>
+                }
             </div>
             <div class="panel panel-pad">
                 <span class="card-kicker">Approval history</span>
-                @foreach (var h in _history)
+                @* What the database recorded, and nothing else. This panel used to invent a
+                   plausible-looking timeline, which is the last thing to have on a screen
+                   where somebody decides whether a company may trade on credit. *@
+                <div class="hist">
+                    <div class="hist-rail"><span class="hist-dot"></span><span class="hist-line"></span></div>
+                    <div class="hist-body"><strong>Account created</strong><small>@_a.Since</small></div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_a.DecidedBy))
                 {
                     <div class="hist">
                         <div class="hist-rail"><span class="hist-dot"></span><span class="hist-line"></span></div>
-                        <div class="hist-body"><strong>@h.Text</strong><small>@h.When · @h.Who</small></div>
+                        <div class="hist-body">
+                            <strong>@(_a.Status == "Rejected" ? "Application rejected" : "Application approved")</strong>
+                            <small>@_a.DecidedOn · @_a.DecidedBy</small>
+                        </div>
                     </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_a.RejectionReason))
+                {
+                    <div class="note-dashed">Reason given to the applicant: @_a.RejectionReason</div>
                 }
             </div>
         </div>
     </div>
+
+    <Modal Visible="_showApprove" Title="Approve account" OnClose="() => _showApprove = false">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2">
+                    <label>Customer group</label>
+                    <select class="input" value="@_approveGroup" @onchange="e => _approveGroup = e.Value?.ToString() ?? string.Empty">
+                        @foreach (var g in Data.Groups) { <option value="@g.Name">@g.Name</option> }
+                    </select>
+                    <span class="field-note">
+                        Sets this account's discount to -@(Data.DiscountFor(_approveGroup))%. It applies
+                        the moment they sign in, so it is part of the approval rather than a later edit.
+                    </span>
+                </div>
+            </div>
+            <p class="muted">Approving emails the applicant and lets them sign in.</p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showApprove = false">Close</button>
+            <button type="button" class="btn btn-accent" disabled="@_busy" @onclick="Approve">Approve account</button>
+        </div>
+    </Modal>
+
+    <Modal Visible="_showReject" Title="Reject application" OnClose="() => _showReject = false">
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field span2">
+                    <label>Reason</label>
+                    <textarea class="input" rows="4" value="@_rejectReason"
+                              @onchange="e => _rejectReason = e.Value?.ToString() ?? string.Empty"></textarea>
+                    @* Required, and quoted verbatim in the email. A rejection nobody can
+                       explain is one that gets reversed by whoever fields the phone call. *@
+                    <span class="field-note @(string.IsNullOrWhiteSpace(_rejectReason) ? "field-note--warn" : null)">
+                        This is sent to the applicant word for word.
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _showReject = false">Close</button>
+            <button type="button" class="btn btn-danger-outline"
+                    disabled="@(_busy || string.IsNullOrWhiteSpace(_rejectReason))" @onclick="Reject">
+                Reject application
+            </button>
+        </div>
+    </Modal>
 
     <Modal Visible="_showTerms" Title="Edit trading terms" OnClose="() => _showTerms = false">
         <EditForm Model="_termsDraft" OnValidSubmit="SaveTerms">
@@ -177,10 +286,17 @@ else
 
     private Account? _a;
     private bool _showTerms;
-    private decimal _used;
-    private List<Contact> _contacts = new();
-    private List<DocItem> _docs = new();
-    private List<HistoryItem> _history = new();
+    private bool _showApprove;
+    private bool _showReject;
+    private bool _busy;
+    private bool _docsLoading;
+    private string? _problem;
+    private string _approveGroup = "";
+    private string _rejectReason = "";
+
+    private IReadOnlyList<Contact> _contacts = [];
+    private IReadOnlyList<AccountAddress> _addresses = [];
+    private IReadOnlyList<AccountDocument> _docs = [];
 
     private sealed class TermsDraft { public string Group = ""; public string Payment = ""; public string Terms = ""; public decimal Credit; }
     private TermsDraft _termsDraft = new();
@@ -212,56 +328,128 @@ else
 
     private string GroupDisc => "-" + Data.DiscountFor(_a?.Group ?? "Reseller") + "%";
 
-    protected override void OnParametersSet()
+    private static string Or(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    protected override async Task OnParametersSetAsync()
     {
-        _a = Data.GetAccount(Id);
         Layout?.SetPage("Account", "Company profile and approval");
-        if (_a is null) return;
-        Build();
+
+        await BuildAsync();
     }
 
-    private void Build()
+    private async Task BuildAsync()
     {
         // Re-read from the snapshot: a mutation replaces the cached objects, so the instance
         // captured when the page loaded is stale after an API round trip.
         _a = Data.GetAccount(Id);
 
         if (_a is null) return;
-        _used = Math.Round(_a.Credit * 0.62m);
-        var domain = _a.Email.Contains('@') ? _a.Email.Split('@')[1] : "company.com";
-        _contacts = new()
-        {
-            new() { Name = _a.Contact, Role = "Procurement lead", Email = _a.Email, Phone = "+353 1 555 0142" },
-            new() { Name = "Accounts payable", Role = "Finance", Email = "ap@" + domain, Phone = "+353 1 555 0148" },
-        };
-        var docStatus = _a.Status == "Pending" ? "Awaiting review" : "Verified";
-        _docs = new()
-        {
-            new() { Name = "Certificate of incorporation", Type = "PDF · 240 KB", Status = docStatus },
-            new() { Name = "VAT registration", Type = "PDF · 118 KB", Status = docStatus },
-            new() { Name = "Tax clearance certificate", Type = "PDF · 96 KB", Status = docStatus },
-        };
-        var last = _a.Status switch { "Approved" => ("29 Jul 2026", "Approved · " + _a.Group + " group assigned", "Órla Doyle"),
-            "Suspended" => ("Yesterday", "Suspended — payment overdue", "Órla Doyle"),
-            _ => ("\u2014", "Awaiting credit review", "\u2014") };
-        _history = new()
-        {
-            new() { When = _a.Since, Text = "Account registered via trade portal", Who = "Self-service" },
-            new() { When = _a.Since, Text = "Onboarding documents uploaded (3 files)", Who = _a.Contact },
-            new() { When = last.Item1, Text = last.Item2, Who = last.Item3 },
-        };
+
         _termsDraft = new() { Group = _a.Group, Payment = _a.Payment, Terms = _a.Terms, Credit = _a.Credit };
+
+        _docsLoading = true;
+
+        // Contacts, addresses and documents are per account rather than in the snapshot, so
+        // they are three requests on opening one application — not on loading every screen.
+        _contacts = await Data.GetContacts(Id);
+        _addresses = await Data.GetAddresses(Id);
+        _docs = await Data.GetDocuments(Id);
+
+        _docsLoading = false;
     }
 
-    private async Task Approve() { await Data.ApproveAccount(Id); Build(); Toast.Show("Account approved"); }
-    private async Task Reject() { await Data.RejectAccount(Id); Build(); Toast.Show("Application rejected"); }
-    private async Task Suspend() { await Data.ToggleSuspend(Id); Build(); Toast.Show(_a!.Status == "Suspended" ? "Account suspended" : "Account reactivated"); }
+    private void OpenApprove()
+    {
+        _problem = null;
+
+        // Defaults to whatever the account already carries, so approving without touching
+        // the selector cannot silently reprice an account an admin had already set up.
+        _approveGroup = string.IsNullOrWhiteSpace(_a?.Group)
+            ? Data.Groups.FirstOrDefault()?.Name ?? ""
+            : _a!.Group;
+
+        _showApprove = true;
+    }
+
+    private async Task Approve()
+    {
+        _busy = true;
+        _problem = await Data.ApproveAccount(Id, _approveGroup);
+        _busy = false;
+        _showApprove = false;
+
+        await BuildAsync();
+
+        Toast.Show(_problem is null ? "Account approved" : "Could not approve the account");
+    }
+
+    private async Task Reject()
+    {
+        _busy = true;
+        _problem = await Data.RejectAccount(Id, _rejectReason);
+        _busy = false;
+        _showReject = false;
+
+        await BuildAsync();
+
+        Toast.Show(_problem is null ? "Application rejected" : "Could not reject the application");
+    }
+
+    private async Task Suspend()
+    {
+        await Data.ToggleSuspend(Id);
+        await BuildAsync();
+        Toast.Show(_a!.Status == "Suspended" ? "Account suspended" : "Account reactivated");
+    }
 
     private async Task SaveTerms()
     {
         await Data.UpdateTerms(Id, _termsDraft.Group, _termsDraft.Payment, _termsDraft.Terms, _termsDraft.Credit);
         _showTerms = false;
-        Build();
+        await BuildAsync();
         Toast.Show("Trading terms updated");
     }
+
+    private async Task SaveDocument(AccountDocument document)
+    {
+        var file = await Data.GetDocumentContent(document.Id);
+
+        if (file is null)
+        {
+            Toast.Show("That document is no longer available");
+            return;
+        }
+
+        await JS.InvokeVoidAsync("smportal.saveFile", document.Name, file.Value.ContentType, file.Value.Base64);
+    }
+
+    private async Task SetDocStatus(AccountDocument document, string status)
+    {
+        if (!await Data.SetDocumentStatus(document.Id, status))
+        {
+            Toast.Show("That document could not be updated");
+            return;
+        }
+
+        _docs = await Data.GetDocuments(Id);
+        Toast.Show($"Document marked {status.ToLowerInvariant()}");
+    }
+
+    private static string DocKind(string kind) => kind switch
+    {
+        "ChamberOfCommerce" => "Company registration",
+        "VatCertificate" => "VAT certificate",
+        _ => "Other"
+    };
+
+    private static string Extension(string contentType) => contentType switch
+    {
+        "application/pdf" => "PDF",
+        "image/png" => "PNG",
+        "image/jpeg" => "JPG",
+        _ => "FILE"
+    };
+
+    private static string Size(long bytes) =>
+        bytes < 1024 * 1024 ? $"{bytes / 1024} KB" : $"{bytes / (1024m * 1024m):0.0} MB";
 }

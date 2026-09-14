@@ -1,8 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using StockApi.Accounts;
 using StockApi.Sites;
+using StockManager.Notifications;
 
 namespace StockApi.Controllers
 {
@@ -14,11 +21,19 @@ namespace StockApi.Controllers
     {
         private readonly IAccountData _accountData;
         private readonly IAdminSiteContext _site;
+        private readonly IEmailSender _email;
+        private readonly ILogger<AccountController> _logger;
 
-        public AccountController(IAccountData accountData, IAdminSiteContext site)
+        public AccountController(
+            IAccountData accountData,
+            IAdminSiteContext site,
+            IEmailSender email,
+            ILogger<AccountController> logger)
         {
             _accountData = accountData;
             _site = site;
+            _email = email;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -59,6 +74,122 @@ namespace StockApi.Controllers
             _accountData.UpdateStatus(id, change.Status, _site.SiteId);
 
             return NoContent();
+        }
+
+        public record ApprovalModel(int? CustomerGroupId);
+
+        /// <summary>
+        /// Approves a trading application: records who decided, assigns the pricing group,
+        /// and tells the applicant they can sign in.
+        /// </summary>
+        /// <remarks>
+        /// Not <c>UpdateStatus("Approved")</c>, which is what the portal used to call. That
+        /// wrote a status and recorded nothing, and approval is the one transition that has
+        /// to leave evidence — a customer eventually asks why they were let in on these
+        /// terms, and "someone changed a status" is not an answer.
+        ///
+        /// Conflict rather than success when the procedure changes no row: the account was
+        /// already approved, and the caller is looking at a stale screen. Reporting success
+        /// would have the portal show an approval that this request did not make and an
+        /// approver it did not record.
+        /// </remarks>
+        [HttpPost("{id:int}/Approve")]
+        public async Task<IActionResult> Approve(
+            int id, ApprovalModel approval, CancellationToken cancellationToken)
+        {
+            var account = _accountData.GetAccountById(id, _site.SiteId);
+
+            if (account is null)
+            {
+                return NotFound();
+            }
+
+            if (!_accountData.Approve(id, Decider(), approval.CustomerGroupId, _site.SiteId))
+            {
+                return Conflict("That account is not awaiting a decision.");
+            }
+
+            await NotifyAsync(
+                AccountDecisionEmails.Approved(_site.Site, Reread(id) ?? account),
+                id, cancellationToken);
+
+            return NoContent();
+        }
+
+        public record RejectionModel(string Reason);
+
+        [HttpPost("{id:int}/Reject")]
+        public async Task<IActionResult> Reject(
+            int id, RejectionModel rejection, CancellationToken cancellationToken)
+        {
+            // The procedure refuses a blank reason too. Checking here as well turns a
+            // THROW into a 400 the portal can render against the textarea.
+            if (string.IsNullOrWhiteSpace(rejection.Reason))
+            {
+                return BadRequest("A rejection needs a reason — it is what the applicant is told.");
+            }
+
+            var account = _accountData.GetAccountById(id, _site.SiteId);
+
+            if (account is null)
+            {
+                return NotFound();
+            }
+
+            if (!_accountData.Reject(id, Decider(), rejection.Reason.Trim(), _site.SiteId))
+            {
+                return Conflict("That account is not awaiting a decision.");
+            }
+
+            await NotifyAsync(
+                AccountDecisionEmails.Rejected(_site.Site, account, rejection.Reason.Trim()),
+                id, cancellationToken);
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Who is recorded as having decided.
+        /// </summary>
+        /// <remarks>
+        /// From the authenticated principal and nowhere else. A decider supplied in the
+        /// request body would be an audit trail the auditee writes.
+        /// </remarks>
+        private string Decider() =>
+            User.Identity?.Name is { Length: > 0 } name ? name : "unknown";
+
+        private AccountModel Reread(int id) => _accountData.GetAccountById(id, _site.SiteId);
+
+        /// <summary>
+        /// Sends the decision mail without letting it undo the decision.
+        /// </summary>
+        /// <remarks>
+        /// The write has already committed. Throwing here would return a failure for a
+        /// decision that was in fact made, and the portal would re-issue it — landing on the
+        /// Conflict above and reading as a bug. So a failed notification is logged with the
+        /// account id and swallowed, and chasing it is an operational job rather than the
+        /// customer's problem. T6's outbox is what turns this into a retry.
+        /// </remarks>
+        private async Task NotifyAsync(EmailMessage message, int accountId, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(message.To))
+            {
+                _logger.LogWarning(
+                    "Account {AccountId} has no email address; the decision was not sent.", accountId);
+
+                return;
+            }
+
+            try
+            {
+                await _email.SendAsync(message, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception,
+                    "The decision on account {AccountId} was recorded but could not be emailed.",
+                    accountId);
+            }
         }
 
         public record TermsChangeModel(

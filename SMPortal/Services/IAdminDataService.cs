@@ -51,9 +51,37 @@ public interface IAdminDataService
     int DiscountFor(string groupName);
 
     // Mutations (return the affected entity where a new id is generated)
-    Task ApproveAccount(string id);
-    Task RejectAccount(string id);
+
+    /// <summary>
+    /// Approves an application on the given pricing group. Returns what went wrong, or null.
+    /// </summary>
+    /// <remarks>
+    /// Text rather than a throw because the interesting failure is a conflict: somebody else
+    /// decided this application while the screen was open, and that is something to tell the
+    /// user rather than an exception to surface.
+    /// </remarks>
+    Task<string?> ApproveAccount(string id, string? group);
+
+    /// <summary>Turns an application down. The reason is quoted to the applicant verbatim.</summary>
+    Task<string?> RejectAccount(string id, string reason);
+
     Task ToggleSuspend(string id);
+
+    /// <summary>The people on one account, primary contact first.</summary>
+    Task<IReadOnlyList<Contact>> GetContacts(string id);
+
+    Task<IReadOnlyList<AccountAddress>> GetAddresses(string id);
+
+    /// <summary>
+    /// The paperwork on one account. Asynchronous, unlike the other reads here, because it
+    /// is fetched per account rather than held in the snapshot.
+    /// </summary>
+    Task<IReadOnlyList<AccountDocument>> GetDocuments(string id);
+
+    /// <summary>The bytes of one document, base64-encoded. Null when the API refuses it.</summary>
+    Task<(string Name, string ContentType, string Base64)?> GetDocumentContent(int documentId);
+
+    Task<bool> SetDocumentStatus(int documentId, string status);
     Task UpdateTerms(string id, string group, string payment, string terms, decimal credit);
 
     Task MarkOrderFulfilled(string id);
