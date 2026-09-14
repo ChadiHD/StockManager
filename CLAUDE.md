@@ -331,14 +331,27 @@ The split follows what each layer can be tested through:
   Playwright.
 
 ```bash
-dotnet test StockManager.sln --filter "FullyQualifiedName!~StockManager.E2ETests"
+dotnet test StockManager.sln \
+  --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants.** The E2E project is in the solution, so a bare
-`dotnet test StockManager.sln` discovers it, and on any machine that does have a container
-runtime it will actually start SQL Server and run — slowly — rather than skip. It skips only
-when neither `docker version` nor `podman version` answers, or when Playwright's Chromium is
-not installed.
+**That filter is what a routine run wants**, and it passes: 225 tests, plus the 2 pricing
+parity checks that skip without a database. Both exclusions earn their place. `SMDesktopUI.UITests`
+drives a real WPF window and needs an interactive desktop. And the E2E project is in the
+solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
+have a container runtime it will start SQL Server and run, slowly, rather than skip. It skips
+only when neither `docker version` nor `podman version` answers, or when Playwright's Chromium
+is missing.
+
+**A bUnit JS interop mock must complete its call, not merely be set up.**
+`JSInterop.SetupVoid("name", ...)` registers a handler and stops the strict-mode throw; the
+task behind the call stays pending until something calls `.SetVoidResult()`. A component that
+awaits that call therefore hangs forever, and a click that awaits the component hangs with it.
+This cost a day: with collections running sequentially, one such hang stalled everything
+scheduled after it, the runner eventually reported a crashed test host, and the run printed
+**31 green with 18 tests never executed**. A partial run that reports success is worse than a
+red one, so treat "declared tests equals executed tests" as something to check rather than
+assume — `--list-tests` gives the first number.
 
 Some of the reasoning that makes those tests worth keeping is not visible from the assertions:
 three of them are guards rather than behaviour checks. `DocumentListItem` must never gain a
