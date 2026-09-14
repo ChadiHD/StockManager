@@ -22,6 +22,15 @@ quotes, accounts, customer groups or distributor feeds:
 - `docs/plans/2026-07-24-aclitrade-b2b-ecommerce-design.md` — the target design
 - `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and current state
 
+**The template is finished before the first tenant is built.** The plan runs two tracks, T0–T7
+for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
+tenant built alongside an unfinished template is how store-specific assumptions get into shared
+code, and the whole point of this exercise is that store number two costs days rather than
+months. T0, T1 and T2 are done and merged; T3 is next.
+
+A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
+template gap.** Fix the template and let the tenant consume it, rather than special-casing.
+
 .NET Aspire orchestrates everything.
 
 | Project | Role |
@@ -29,7 +38,7 @@ quotes, accounts, customer groups or distributor feeds:
 | `StockManager.AppHost` | Aspire orchestrator. **The entry point** — dashboard on 17291 |
 | `StockApi` | ASP.NET Core Web API, HTTPS **pinned to 7042** (clients hardcode it) |
 | `SMDataManager.Library` | Dapper + stored-procedure data access. Shared by `StockApi` and `SMStore` |
-| `SMDatabase` | Classic SSDT `.sqlproj` — tables and stored procedures |
+| `SMDatabase` | SDK-style `.sqlproj` (`Microsoft.Build.Sql`) — tables, procedures, functions |
 | `SMStore` | Blazor **Web App** (SSR) customer storefront. Serves every site from one deployment |
 | `SMPortal` | Blazor **WebAssembly** admin portal (`/admin/*`) |
 | `SMDesktopUI` + `.Library` | WPF POS desktop app (legacy, still shipped) |
@@ -60,6 +69,15 @@ before anything else runs. Consequences that are easy to get wrong:
   filter `SiteCategory` explicitly, and `FK_CategoryMapping_ToSiteCategory` is composite
   (`SiteCategoryId, SiteId`) so the database refuses the mismatched row in the first place.
   Prefer the composite key wherever a scoped row references another scoped row.
+- **Nothing outside `SMStore/Ordering/` branches on `Site.OrderMode`.** Ask
+  `OrderingModeProvider.Current` instead.
+- **`wwwroot/app.css` holds no colour of its own.** It reads custom properties that a theme
+  under `wwwroot/sites/{SiteKey}/` defines. `SiteThemeResolver` falls back to the `default`
+  theme for any asset a site is missing.
+- `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
+  start with it set outside Development.
+
+### Scoping is done on writes and not on admin reads
 
 **Read scoping in the admin API is not implemented, and the storefront's is.** `SMStore`
 resolves a site per request and every storefront query filters on it. `StockApi` and `SMPortal`
@@ -80,13 +98,6 @@ throws rather than guessing. This matters more than it looks: `UQ_CustomerGroup_
 `UQ_CustomerGroup_Slug` and `UQ_DistributorFeed_Name` are scoped by site, and SQL Server treats
 NULL as one distinct value in a unique constraint — while `SiteId` went unset, the second store
 to want a "Reseller" group or a "Main" feed simply could not be created.
-- **Nothing outside `SMStore/Ordering/` branches on `Site.OrderMode`.** Ask
-  `OrderingModeProvider.Current` instead.
-- **`wwwroot/app.css` holds no colour of its own.** It reads custom properties that a theme
-  under `wwwroot/sites/{SiteKey}/` defines. `SiteThemeResolver` falls back to the `default`
-  theme for any asset a site is missing.
-- `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
-  start with it set outside Development.
 
 Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDataProtection`,
 persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
@@ -202,8 +213,9 @@ ignore it, and the caller re-queries for the newest row. To return a value from 
 it and call `LoadData<int, dynamic>` instead — see `QuoteData.DeleteQuoteLine`.
 
 Adding a stored procedure is one step: create the `.sql` file under
-`SMDatabase/dbo/Store Procedures/`. The SDK-style project globs `**/*.sql`, so there is no longer
-a `<Build Include="..." />` list to keep in step — that was the old classic-SSDT footgun, where a
+`SMDatabase/dbo/Store Procedures/` (or `SMDatabase/dbo/Functions/`, which holds
+`fnSite_Resolve`). The SDK-style project globs `**/*.sql`, so there is no longer a
+`<Build Include="..." />` list to keep in step — that was the old classic-SSDT footgun, where a
 file left out of the project silently never deployed.
 
 **The glob replaced that footgun with a quieter one: Visual Studio evaluates it when it loads the
@@ -289,6 +301,82 @@ Two conventions worth keeping:
 
 The basket page carries both `@page "/quote"` and `@page "/cart"`; which one a store links to
 comes from `OrderingModeProvider`, so neither route 404s and no markup branches on `OrderMode`.
+
+### Catalog and pricing
+
+Pages never touch `ICatalogData` or `IPriceResolver`. Both go through `CatalogPresenter`,
+because resolving a price and deciding whether to show one at all are the two things most
+easily got subtly wrong in a page.
+
+`spCatalog_Search` decides visibility inside the query rather than filtering afterwards — a
+product removed from an already-fetched page has still been counted, still shifted the paging,
+and has usually already reached the browser. Ranking is a literal ladder (exact SKU, exact MPN,
+prefix, contains, description) because the dev SQL Server reports `IsFullTextInstalled = 0`, so
+`CONTAINSTABLE` is unavailable. It is deliberately confined to that one procedure, so adopting
+full text later is a change in one place.
+
+Three hazards in the query path, all of which have already bitten:
+
+- **A query-string parameter bound as `int?` is a 500 waiting to happen.** Blazor converts the
+  value during binding and throws on anything it cannot parse, before any of your validation
+  runs — `?page=abc`, or any number past `int.MaxValue`. Bind as `string` and parse. `Catalog`
+  is the only page with a numeric query parameter; keep it that way.
+- **Clamp page numbers in the procedure as well.** `(@Page - 1) * @PageSize` is int arithmetic,
+  and an unbounded page number overflows it into an unauthenticated 500.
+- **An empty page carries no total.** The count rides on the rows via `COUNT(*) OVER ()`, so a
+  page past the end reports zero matches for a category that is full and drops the pager
+  entirely. `CatalogPresenter` re-queries to recover the total and lands on the last page.
+
+Two known-wrong things that are invisible only because sign-in does not exist yet, and that T3
+turns on:
+
+- `CatalogPresenter.CustomerGroupId` is hardcoded null, so `groupDiscountPct` is always 0 and
+  the margin floor in `PriceResolver` can never bind.
+- Because of that, `ORDER BY RetailPrice` and the displayed net price agree. **They stop
+  agreeing the moment a real group discount exists and any site sets `MinMarginPct > 0`** —
+  price sort then renders visibly out of order, worst on the thin-margin rows a buyer studies
+  hardest. Fixing it means either moving the floor into SQL or paging in memory, and that
+  decision also governs the `spCatalog_Search` rewrite (inline TVF, per-sort `ORDER BY`,
+  `OPTION (RECOMPILE)`) that is deliberately not done yet. Decide once, change the procedure
+  once.
+
+`CatalogItemModel.Cost` is a buy price and is currently selected on every catalog row.
+`ProductCardView` excludes it; the detail page binds the raw model, so it is one field
+reference away from publishing margin on a public page. Do not add it to a view record, and
+prefer removing it from the projection over relying on review.
+
+## Distributor feeds and image enrichment
+
+A feed sync imports thousands of rows, so anything per-product and outbound happens out of
+band. `DistributorFeedSyncService` does the import; `ProductImageBackgroundService` fills in
+images afterwards, a batch at a time.
+
+- **A finished sync signals the worker through `IImageEnrichmentSignal`** rather than leaving
+  new products to wait out the idle sweep. The signal is a flag plus one replaceable
+  `TaskCompletionSource`, **not** a `SemaphoreSlim` — the worker waits on it with `WhenAny`
+  against a timer, and a semaphore strands the losing `WaitAsync` on its queue, where the next
+  `Release()` feeds an orphan instead of the live waiter. That bug made Sync work exactly once
+  per process. The `WhenAny` loser is cancelled through a linked token source, not abandoned.
+- **An `HttpClient` timeout is an `OperationCanceledException` too.** Every catch around
+  outbound work must filter on `stoppingToken.IsCancellationRequested`, or one slow response
+  ends the worker silently for the life of the process.
+- **`Considered` counts candidates fetched, not progressed.** Only a lookup that reaches a
+  verdict stamps `ImageLookupUtc` and drops the row from the candidate set, so a batch where
+  every call threw leaves the same rows waiting. Progress is `Failed < Considered`; a batch
+  that clears nothing backs off by doubling rather than retrying at the batch pause.
+- **`dbo.BrandAlias` translates feed brand vocabulary for the content provider.** A feed files
+  HP Inc. under `HPINC`, which matches nothing at Icecat; `UNIVERSAL` is not a manufacturer at
+  all, and a NULL `IcecatBrand` suppresses the brand lookup so only the EAN fallback runs. An
+  unmapped brand passes through unchanged, because most of them are already right.
+- **`BrandAliasResolver` is a singleton and takes a loader delegate, not its data access.** A
+  singleton's factory closes over the *root* provider, so resolving a transient `IDisposable`
+  from it leaks one per refresh for the life of the host. The composition root scopes each
+  refresh instead.
+
+**Icecat's free tier covers 3.8% of this catalog** — a full pass over 1,676 live products
+matched 63. The feed carries an Icecat id but no image URLs. Treat images as an unsolved
+sourcing problem, not a code problem, and do not build storefront features that assume a
+product has one.
 
 ## SMPortal architecture
 
