@@ -91,6 +91,14 @@ builder.Services.AddHostedService<ProductImageBackgroundService>();
 // and could not be read by a second app. See AddSharedDataProtection.
 builder.AddSharedDataProtection();
 
+// Customer-uploaded documents, written by SMStore and read back here by whoever reviews the
+// application. Both hosts must resolve the same container root, or a reviewer opens an empty
+// store — see AddDocumentStore.
+builder.AddDocumentStore();
+
+// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
+builder.AddEmail();
+
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 
 // Key Vault store, registered only when configured so local development needs no Azure.

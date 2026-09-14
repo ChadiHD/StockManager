@@ -5,10 +5,13 @@ using SMStore.Accounts;
 using SMStore.Components;
 using SMStore.Catalog;
 using SMStore.Content;
+using SMStore.Documents;
 using SMStore.Navigation;
 using SMStore.Ordering;
 using SMStore.Registration;
+using StockManager.Documents;
 using StockManager.Identity;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SMStore.Sites;
@@ -22,11 +25,49 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddMemoryCache();
 
+/*
+The upload cap, enforced before the bytes are accepted rather than after.
+
+DocumentUploadService checks each file against the same number and says something useful
+about it, but a check in code runs only once the body has already been read — which is no
+protection at all against someone posting a gigabyte. So the limit is set here too, and it is
+the one that actually refuses.
+
+Sized for the whole form rather than one file: an application carries several documents plus
+its text fields, so the request limit is a multiple of the per-file cap. A file over the
+per-file cap but under this one is what reaches the friendly message; anything over this gets
+a 413 and deserves it.
+
+Registration is the only upload on the storefront, so a global limit is the right shape. If a
+second one ever appears, this becomes per-endpoint metadata instead.
+*/
+var maxDocumentBytes =
+    builder.Configuration.GetValue<long?>($"{DocumentStoreOptions.SectionName}:MaxBytes")
+    ?? new DocumentStoreOptions().MaxBytes;
+
+var maxRequestBytes = (maxDocumentBytes * 4) + (1024 * 1024);
+
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxRequestBytes);
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = maxRequestBytes;
+    options.MultipartHeadersLengthLimit = 16 * 1024;
+});
+
 // Same key ring as StockApi, held in the identity database, so a cookie issued by either host
 // is readable by both. That is what makes storefront sign-in cheap to add, and also why a
 // valid cookie proves only who someone is: which store they may use is checked separately,
 // through Contact -> Account -> Site.
 builder.AddSharedDataProtection();
+
+// Customer-uploaded documents. The bytes live outside the web root; the only way to one is
+// an endpoint that re-checks who is asking. StockApi registers the same store so a reviewer
+// can read what an applicant sent.
+builder.AddDocumentStore();
+
+// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
+builder.AddEmail();
 
 // Data access. The storefront reads the same stored procedures the API does, in process —
 // see the note on the project reference in SMStore.csproj.
@@ -89,6 +130,14 @@ builder.Services.AddIdentityCore<IdentityUser>(options =>
 builder.Services.AddScoped<IAccountRegistrationData, AccountRegistrationData>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 builder.Services.AddTransient<IContactData, ContactData>();
+builder.Services.AddTransient<IAddressData, AddressData>();
+
+// Read-only here. Every method on IAccountData takes a siteId and the account area passes
+// the resolved site's, but the write methods on it are an administrator's — the storefront
+// has no screen that calls one, and adding one would need the same thought about who may.
+builder.Services.AddTransient<IAccountData, AccountData>();
+builder.Services.AddTransient<IAccountDocumentData, AccountDocumentData>();
+builder.Services.AddScoped<DocumentUploadService>();
 
 /*
 Customer sign-in: a cookie scheme of this storefront's own.
@@ -177,6 +226,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapCustomerAuth();
+app.MapAccountDocuments();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
