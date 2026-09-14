@@ -26,7 +26,10 @@ quotes, accounts, customer groups or distributor feeds:
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
-months. T0, T1 and T2 are done and merged; T3 is next.
+months. T0, T1 and T2 are merged. T3 — customer identity, per
+`docs/plans/2026-09-14-t3-customer-identity.md` — is built: admin site scoping, the pricing
+decision, the schema, registration field sets, `spAccount_Register`, storefront sign-in,
+document upload, the mail seam, the approval flow and the account area. T4 is next.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -129,6 +132,93 @@ account blocks that person from registering again and nothing else would surface
   Saying otherwise turns the form into an oracle for who buys here. That leaves a genuine
   duplicate applicant with no feedback until the "someone tried to register" email exists, so
   the acknowledgement page must carry a "contact us if you hear nothing" line until then.
+  The same rule governs the paperwork: a duplicate applicant gets no `AccountId` back from
+  `RegistrationService`, so their upload is not attached to the existing account — doing so
+  would confirm to whoever sent it that the account is there.
+- **The registration form renders from the field set, not from markup.** Which boxes exist,
+  which are required and what they are called are `IRegistrationFieldSet`'s to decide, and a
+  `Hidden` field is not rendered, not read and not stored. `Register.razor` reads its posted
+  values out of `HttpContext.Request.Form` rather than model-binding, because there is no
+  fixed model when the fields vary per store — and because that is what keeps the password
+  out of the round trip. Everything echoed back after a validation error is echoed because
+  the page chose to; the two password inputs never are.
+
+### Customer documents
+
+The first customer-supplied bytes the platform accepts. `IDocumentStore` holds them and
+`dbo.AccountDocument` describes them; the two are always written in that order, because a
+row with no file is a broken download a reviewer sees and a file with no row is an orphan
+nobody serves.
+
+- **A file's type is decided by reading it.** `DocumentContentTypes.TryDetect` sniffs the
+  leading bytes; the declared `Content-Type` and the extension are both chosen by whoever is
+  uploading and neither is evidence. What the sniffer returns is what gets stored, served
+  back and written to the `ContentType` column. Three types are allowed — PDF, JPEG, PNG —
+  and each addition widens the parser surface on a reviewer's machine.
+- **The uploaded filename never reaches a filesystem.** `SaveAsync` generates the stored name
+  and the original is metadata for display only. `LocalFileDocumentStore` re-checks the shape
+  of a stored name on the way back in and that the resolved path is inside the store's own
+  container, because the value arriving there came out of a query whose parameters came out
+  of a URL.
+- **Every `IDocumentStore` call takes the site key**, so the bytes carry the same predicate
+  the metadata row does. A row read for the wrong store cannot resolve a file even if the
+  query that found it had no site filter at all.
+- **There is no static URL for a document and there must never be one.** The bytes live
+  outside the web root; `SMStore` serves them from `/account/documents/{id}` after checking
+  the row belongs to the session's account, and `StockApi` serves them to a reviewer from
+  `AccountDocumentController`. Both answer 404 for "not yours" as well as "not here" — the
+  ids are sequential, and a 403 would confirm one exists. Both send
+  `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`: nothing a stranger
+  uploaded should render in an origin that holds a session.
+- **`AccountDocumentModel.StoredName` must not reach a response.** Only
+  `spAccountDocument_GetById` projects it, and only the download path calls that.
+  `AccountDocumentController` returns a projection rather than the model for exactly this
+  reason — do not "simplify" it back to the model.
+- **The 10 MB cap is enforced on the request as well as in code.** A check in code runs after
+  the body has been read, which is no protection; `SMStore` sets Kestrel's
+  `MaxRequestBodySize` and `FormOptions.MultipartBodyLengthLimit` from
+  `DocumentStoreOptions.MaxBytes`, and the in-code check is what produces a useful message
+  for a file just over the per-file line. Registration is the storefront's only upload, so
+  the limit is global; a second one would make it per-endpoint metadata.
+- **Antivirus scanning is not done anywhere.** Recorded as accepted risk in the T3 plan, not
+  overlooked. The mitigation is the narrow allow-list and that nothing is executed
+  server-side.
+
+### Outbound mail is a seam and nothing more
+
+`IEmailSender` in `StockManager.ServiceDefaults/Email/`, registered by `AddEmail()` on both
+hosts, with `LoggingEmailSender` writing the whole message to the log. **T6 owns the outbox,
+the retry policy and the per-site templates** — T3 wrote the three call sites so T6 has
+something to fill rather than something to find: the application acknowledgement in
+`SMStore/Registration/RegistrationEmails.cs`, and the approval and rejection in
+`StockApi/Accounts/AccountDecisionEmails.cs`.
+
+- **Sending never fails the operation that triggered it.** The write has already committed by
+  the time the mail goes out. An approval rolled back because a mail server blinked would
+  leave the portal re-issuing a decision that had in fact been made, and landing on the
+  conflict response. Failures are logged with the account id and chased operationally.
+- **`LoggingEmailSender` logs the body**, which is fine for an acknowledgement and stops
+  being fine the moment T6 adds a password-reset token. Either it stops logging bodies then,
+  or it stops being registered outside Development.
+
+### Approving an application
+
+`spAccount_Approve` and `spAccount_Reject`, behind `POST api/Account/{id}/Approve` and
+`/Reject`. **Not `spAccount_UpdateStatus`**, which still exists for suspending and
+reinstating but cannot be the approval path: approval is the one transition that has to leave
+evidence, and "someone changed a status" is not an answer to a customer asking why they were
+given these terms.
+
+- The approver comes from the authenticated principal. A decider in the request body would be
+  an audit trail written by the auditee.
+- A rejection reason is required by the procedure, by the controller and by the portal,
+  because it is quoted to the applicant verbatim.
+- Neither procedure touches an account already in the target state, so a no-op means somebody
+  else decided it while the screen was open. That is a `Conflict`, not a success — reporting
+  success would show an approval this request did not make.
+- The pricing group is assigned at approval rather than after it, because it applies the
+  moment the customer signs in. The portal's modal defaults to the group the account already
+  carries, so approving without touching the selector cannot silently reprice.
 
 Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDataProtection`,
 persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
@@ -404,18 +494,25 @@ Three hazards in the query path, all of which have already bitten:
   page past the end reports zero matches for a category that is full and drops the pager
   entirely. `CatalogPresenter` re-queries to recover the total and lands on the last page.
 
-Two known-wrong things that are invisible only because sign-in does not exist yet, and that T3
-turns on:
+**The sort key and the displayed price are two implementations of one rule, and that is
+deliberate.** `CatalogPresenter.CustomerGroupId` now reads the signed-in session, so the group
+discount is real and the margin floor in `PriceResolver` can bind. A discount alone would not
+have broken `ORDER BY RetailPrice` — `net = list × (1 − d)` is monotone in `list` — but the
+floor introduces `cost`, which varies independently, so a thin-margin row floors upward and
+jumps position. `dbo.fnCatalog_VisibleProducts` therefore computes the same expression and the
+procedure sorts on it.
 
-- `CatalogPresenter.CustomerGroupId` is hardcoded null, so `groupDiscountPct` is always 0 and
-  the margin floor in `PriceResolver` can never bind.
-- Because of that, `ORDER BY RetailPrice` and the displayed net price agree. **They stop
-  agreeing the moment a real group discount exists and any site sets `MinMarginPct > 0`** —
-  price sort then renders visibly out of order, worst on the thin-margin rows a buyer studies
-  hardest. Fixing it means either moving the floor into SQL or paging in memory, and that
-  decision also governs the `spCatalog_Search` rewrite (inline TVF, per-sort `ORDER BY`,
-  `OPTION (RECOMPILE)`) that is deliberately not done yet. Decide once, change the procedure
-  once.
+Three rules keep that duplication safe, and none is optional:
+
+- **SQL computes an ordering key; `PriceResolver` computes the price a customer is shown.**
+  `spCatalog_Search` does not project `NetPrice`. Never render a price that came out of it.
+- **The group's discount and the site's margin are resolved inside the procedure**, never
+  passed in. A caller that could pass a discount is a caller that could ask for 90% off, and
+  a `@CustomerGroupId` that does not belong to `@SiteId` degrades to no group rather than
+  erroring — a tampered cookie lands on list price, not on another store's rates.
+- **`CatalogPriceParityTests` is the tripwire.** It drives a matrix of (list, cost, discount,
+  margin) through both implementations and asserts they agree to the cent. It is the reason
+  this duplication is allowed to exist; do not let it rot.
 
 `CatalogItemModel.Cost` is a buy price and is currently selected on every catalog row.
 `ProductCardView` excludes it; the detail page binds the raw model, so it is one field
@@ -468,6 +565,18 @@ The UI models key on human references (`"QT-0041"`, `"SO-0012"`, SKUs), not data
 resolve those to ids through `_accountIds` / `_groupSlugs` lookups or by re-fetching the catalog.
 When a UI model needs a database id — as `QuoteLine.LineId` does so a row can be deleted — it has to
 be added to the model *and* to the `Map*` projection.
+
+**`GetContacts`, `GetAddresses` and `GetDocuments` are the exceptions to the synchronous
+rule.** They are per account and fetched on opening one, because a reviewer opens one
+application at a time and pulling every customer's staff list and paperwork into the snapshot
+would be the wrong trade. A page using them needs `OnParametersSetAsync`, not
+`OnParametersSet`.
+
+**Nothing in the portal may invent data.** `AccountDetail` used to fabricate contacts, three
+documents and an approval timeline — plausible-looking panels of nothing, rendered beside the
+button that opens a company's credit account. Panels now render what the API returned or an
+explicit empty state. A stub belongs behind a "lands with T5" note, never disguised as a
+record.
 
 ### Blazor traps that have already cost time here
 

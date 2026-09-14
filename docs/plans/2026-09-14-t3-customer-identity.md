@@ -8,6 +8,12 @@ track starts until the template track finishes.
 **Exit:** a stranger can apply against any site's field set, be approved from the admin portal,
 sign in on that site and no other, and see their group's prices and their group's catalog.
 
+**Status: all ten work items built.** What this plan said would not be in T3 still is not —
+the quote cart, tax and credit enforcement, the email outbox and templates, per-user admin
+site assignment, precomputed pricing and SSO are all still ahead. Two things the plan assumed
+would be done by hand are not: §7 records "no test coverage anywhere", and the test suite that
+landed alongside this phase is the answer to it.
+
 ---
 
 ## 1. The pricing decision, first
