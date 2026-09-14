@@ -141,6 +141,7 @@ else
                                server — see DocumentContentTypes. *@
                             <input class="input" type="file" id="@($"doc-{requirement.Kind}")"
                                    name="@($"doc_{requirement.Kind}")"
+                                   required="@requirement.IsRequired"
                                    accept="@StockManager.Documents.DocumentContentTypes.Accept" />
                         </FormField>
                     }

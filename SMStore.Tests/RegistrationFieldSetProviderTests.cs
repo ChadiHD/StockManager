@@ -1,3 +1,4 @@
+using FluentAssertions;
 using SMDataManager.Library.Models;
 using SMStore.Registration;
 using SMStore.Sites;
@@ -34,7 +35,7 @@ public class RegistrationFieldSetProviderTests
     [Fact]
     public void PicksTheFieldSetNamedByTheSite()
     {
-        Assert.IsType<EuB2bRegistrationFieldSet>(ProviderFor("eu-b2b").Current);
+        ProviderFor("eu-b2b").Current.Should().BeOfType<EuB2bRegistrationFieldSet>();
     }
 
     [Fact]
@@ -42,7 +43,7 @@ public class RegistrationFieldSetProviderTests
     {
         // Site.RegistrationFieldSet is hand-entered tenant configuration, so "EU-B2B" is a
         // plausible thing to find in it and is not worth failing a whole storefront over.
-        Assert.IsType<EuB2bRegistrationFieldSet>(ProviderFor("EU-B2B").Current);
+        ProviderFor("EU-B2B").Current.Should().BeOfType<EuB2bRegistrationFieldSet>();
     }
 
     [Fact]
@@ -50,12 +51,13 @@ public class RegistrationFieldSetProviderTests
     {
         var provider = ProviderFor("us-reseller");
 
-        var exception = Assert.Throws<InvalidOperationException>(() => provider.Current);
+        var act = () => provider.Current;
 
         // The message has to name the key and what is available, because the person reading
         // it is looking at a storefront that will not render and a Site row they may not
         // have written.
-        Assert.Contains("us-reseller", exception.Message);
-        Assert.Contains("eu-b2b", exception.Message);
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Message.Should().Contain("us-reseller");
+        exception.Message.Should().Contain("eu-b2b");
     }
 }

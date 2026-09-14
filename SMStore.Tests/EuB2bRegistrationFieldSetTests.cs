@@ -1,3 +1,4 @@
+using FluentAssertions;
 using SMDataManager.Library.Models;
 using SMStore.Registration;
 using Xunit;
@@ -55,8 +56,8 @@ public class EuB2bRegistrationFieldSetTests
     {
         var errors = Validate(Valid());
 
-        Assert.False(Blocks(errors),
-            "Complete application was rejected: "
+        Blocks(errors).Should().BeFalse(
+            "complete application was rejected: "
             + string.Join("; ", errors.Select(error => $"{error.Field}: {error.Message}")));
     }
 
@@ -72,12 +73,12 @@ public class EuB2bRegistrationFieldSetTests
     [InlineData(RegistrationField.Country)]
     public void DemandsTheFieldsItSaysAreRequired(RegistrationField field)
     {
-        Assert.Equal(RegistrationRequirement.Required, _fieldSet.RequirementFor(field));
+        _fieldSet.RequirementFor(field).Should().Be(RegistrationRequirement.Required);
 
         var submission = Valid();
         Clear(submission, field);
 
-        Assert.True(BlocksOn(Validate(submission), field),
+        BlocksOn(Validate(submission), field).Should().BeTrue(
             $"{field} is declared Required but a blank one was accepted.");
     }
 
@@ -90,12 +91,12 @@ public class EuB2bRegistrationFieldSetTests
     [InlineData(RegistrationField.PostCode)]
     public void LetsOptionalFieldsBeBlank(RegistrationField field)
     {
-        Assert.Equal(RegistrationRequirement.Optional, _fieldSet.RequirementFor(field));
+        _fieldSet.RequirementFor(field).Should().Be(RegistrationRequirement.Optional);
 
         var submission = Valid();
         Clear(submission, field);
 
-        Assert.False(Blocks(Validate(submission)));
+        Blocks(Validate(submission)).Should().BeFalse();
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public class EuB2bRegistrationFieldSetTests
         var submission = Valid();
         submission.Company = new string('x', 201);
 
-        Assert.True(BlocksOn(Validate(submission), RegistrationField.Company));
+        BlocksOn(Validate(submission), RegistrationField.Company).Should().BeTrue();
     }
 
     [Theory]
@@ -118,7 +119,7 @@ public class EuB2bRegistrationFieldSetTests
         var submission = Valid();
         submission.Email = email;
 
-        Assert.True(BlocksOn(Validate(submission), RegistrationField.Email));
+        BlocksOn(Validate(submission), RegistrationField.Email).Should().BeTrue();
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public class EuB2bRegistrationFieldSetTests
         var errors = Validate(submission);
 
         // Belongs to neither box, so it is reported against the form rather than a field.
-        Assert.Contains(errors, error => error.Blocks && error.Field is null);
+        errors.Should().Contain(error => error.Blocks && error.Field == null);
     }
 
     [Theory]
@@ -153,7 +154,7 @@ public class EuB2bRegistrationFieldSetTests
             var prefix => prefix
         };
 
-        Assert.False(BlocksOn(Validate(submission), RegistrationField.VatNumber));
+        BlocksOn(Validate(submission), RegistrationField.VatNumber).Should().BeFalse();
     }
 
     [Theory]
@@ -168,7 +169,7 @@ public class EuB2bRegistrationFieldSetTests
         var submission = Valid();
         submission.VatNumber = vat;
 
-        Assert.True(BlocksOn(Validate(submission), RegistrationField.VatNumber),
+        BlocksOn(Validate(submission), RegistrationField.VatNumber).Should().BeTrue(
             $"'{vat}' was accepted as a VAT number.");
     }
 
@@ -183,8 +184,8 @@ public class EuB2bRegistrationFieldSetTests
 
         // A company can be VAT-registered in a member state it does not trade from. Usually a
         // typo, occasionally legitimate — so it is surfaced and approval decides.
-        Assert.Contains(errors, error => error.Field == RegistrationField.VatNumber && !error.Blocks);
-        Assert.False(Blocks(errors));
+        errors.Should().Contain(error => error.Field == RegistrationField.VatNumber && !error.Blocks);
+        Blocks(errors).Should().BeFalse();
     }
 
     [Fact]
@@ -192,12 +193,12 @@ public class EuB2bRegistrationFieldSetTests
     {
         var required = _fieldSet.Documents.Where(document => document.IsRequired).ToList();
 
-        Assert.NotEmpty(required);
+        required.Should().NotBeEmpty();
 
         // Stored verbatim as dbo.AccountDocument.Kind, so a value CK_AccountDocument_Kind
         // does not allow would fail at the insert rather than here.
         string[] allowed = ["VatCertificate", "ChamberOfCommerce", "Other"];
-        Assert.All(_fieldSet.Documents, document => Assert.Contains(document.Kind, allowed));
+        _fieldSet.Documents.Should().OnlyContain(document => allowed.Contains(document.Kind));
     }
 
     private static void Clear(RegistrationSubmission submission, RegistrationField field)

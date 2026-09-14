@@ -1,3 +1,4 @@
+using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Pricing;
 using Xunit;
@@ -82,11 +83,12 @@ public class CatalogPriceParityTests
                 }
             }
 
-            Assert.True(mismatches.Count == 0,
-                $"{mismatches.Count} of {Products.Length * Discounts.Length * Margins.Length} " +
-                "combinations disagree between dbo.fnCatalog_VisibleProducts and PriceResolver:"
-                + Environment.NewLine
-                + string.Join(Environment.NewLine, mismatches.Take(20)));
+            mismatches.Should().BeEmpty(
+                "{0} of {1} combinations disagree between dbo.fnCatalog_VisibleProducts and PriceResolver:{2}{3}",
+                mismatches.Count,
+                Products.Length * Discounts.Length * Margins.Length,
+                Environment.NewLine,
+                string.Join(Environment.NewLine, mismatches.Take(20)));
 
             // Left uncommitted on purpose; see TestDatabase.OpenRollbackScope.
             transaction.Rollback();
@@ -117,7 +119,7 @@ public class CatalogPriceParityTests
             var byList = rows.OrderBy(r => r.Retail).ThenBy(r => r.Sku).Select(r => r.Sku).ToList();
             var byNet = rows.OrderBy(r => r.NetPrice).ThenBy(r => r.Sku).Select(r => r.Sku).ToList();
 
-            Assert.NotEqual(byList, byNet);
+            byList.Should().NotEqual(byNet);
 
             transaction.Rollback();
         }
