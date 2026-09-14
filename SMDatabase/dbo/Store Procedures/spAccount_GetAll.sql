@@ -9,7 +9,9 @@ BEGIN
 
 	SELECT [a].[Id], [a].[Reference], [a].[Company], [a].[ContactName], [a].[Email], [a].[Country],
 	       [a].[Currency], [a].[CustomerGroupId], [g].[Name] AS [GroupName],
-	       [a].[PaymentMethod], [a].[PaymentTerms], [a].[CreditLimit], [a].[Status], [a].[CreatedDate]
+	       [a].[PaymentMethod], [a].[PaymentTerms], [a].[CreditLimit], [a].[Status], [a].[CreatedDate],
+	       [a].[VatNumber], [a].[RegistrationNumber],
+	       [a].[ApprovedUtc], [a].[ApprovedBy], [a].[RejectionReason]
 	FROM [dbo].[Account] a
 	-- The group is scoped as well as the account. FK_Account_ToCustomerGroup is composite, so
 	-- a mismatched pair cannot be stored, but the predicate costs nothing and keeps the query

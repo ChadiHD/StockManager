@@ -76,7 +76,24 @@ var smSchema = builder.AddSqlProject("smdatabase-schema")
 	.WaitFor(stockDatabase)
 	// The SQL volume is persistent, so skip the redeploy when the dacpac is unchanged.
 	// Keeps subsequent app host starts fast instead of republishing every run.
-	.WithSkipWhenDeployed();
+	.WithSkipWhenDeployed()
+	/*
+	Local development only, and it has to stay that way.
+
+	SqlPackage refuses any change it classifies as possibly lossy while a table has rows, and
+	"possibly" is doing a lot of work: tightening SiteId from NULL to NOT NULL rebuilds the
+	Account table — copy, drop, rename — which trips the guard even though no column is being
+	dropped and no type narrowed. On a persistent development volume that is a hard stop, and
+	the app host simply fails to start.
+
+	The protection this gives up is real. It is what would otherwise catch a column being
+	dropped or a type narrowed by accident, and the only reason it is acceptable here is that
+	this database is a local container backed by a volume anyone can delete and reseed.
+
+	T7 owns the production deployment path. It must not inherit this setting. A real database
+	takes the review and the backup instead.
+	*/
+	.WithConfigureDacDeployOptions(options => options.BlockOnPossibleDataLoss = false);
 
 // CommunityToolkit.Aspire.Hosting.SqlDatabaseProjects tags SQL project resources with
 // ExplicitStartupAnnotation ("do not start with the app host"), so smdatabase-schema sits at

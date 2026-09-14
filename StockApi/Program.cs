@@ -105,6 +105,12 @@ builder.Services.AddScoped<AdminSiteContext>();
 builder.Services.AddScoped<IAdminSiteContext>(services => services.GetRequiredService<AdminSiteContext>());
 
 builder.Services.AddTransient<IAccountData, AccountData>();
+// Children of Account. None carries a site of its own; every procedure behind these joins
+// Account for the predicate, so a guessed id resolves to nothing rather than to another
+// store's customer records.
+builder.Services.AddTransient<IContactData, ContactData>();
+builder.Services.AddTransient<IAddressData, AddressData>();
+builder.Services.AddTransient<IAccountDocumentData, AccountDocumentData>();
 builder.Services.AddTransient<ICustomerGroupData, CustomerGroupData>();
 builder.Services.AddTransient<IQuoteData, QuoteData>();
 builder.Services.AddTransient<IOrderData, OrderData>();

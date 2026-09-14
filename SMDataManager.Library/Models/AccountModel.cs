@@ -18,5 +18,22 @@ namespace SMDataManager.Library.Models
         public decimal CreditLimit { get; set; }
         public string Status { get; set; }
         public DateTime CreatedDate { get; set; }
+
+        /// <summary>
+        /// Company identifiers collected at registration. Which of them are demanded is the
+        /// site's registration field set's decision, so either may be absent.
+        /// </summary>
+        public string VatNumber { get; set; }
+        public string RegistrationNumber { get; set; }
+
+        /// <summary>
+        /// Who decided the application and when. Set by both spAccount_Approve and
+        /// spAccount_Reject — this records the decision, not specifically the approval.
+        /// </summary>
+        public DateTime? ApprovedUtc { get; set; }
+        public string ApprovedBy { get; set; }
+
+        /// <summary>What the rejection email quotes. Cleared when an account is approved.</summary>
+        public string RejectionReason { get; set; }
     }
 }

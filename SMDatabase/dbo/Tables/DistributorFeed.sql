@@ -40,9 +40,10 @@ CREATE TABLE [dbo].[DistributorFeed]
 	[LastModified] DATETIME2 NOT NULL DEFAULT getutcdate(),
 
 	-- Different stores buy from different distributors, so a feed belongs to a site and the
-	-- sync worker loops over active sites. Nullable for rows predating multi-site; backfilled
-	-- by Scripts/PostDeployment/Seed.sql.
-	[SiteId] INT NULL,
+	-- sync worker loops over active sites. NOT NULL, and worth keeping that way: this row
+	-- carries SecretRef, and an unscoped feed is one every tenant's admin can read the
+	-- credential reference for.
+	[SiteId] INT NOT NULL,
 
 	-- Scoped by site: two stores may each have a feed called "Main".
 	CONSTRAINT [UQ_DistributorFeed_Name] UNIQUE ([SiteId], [Name]),

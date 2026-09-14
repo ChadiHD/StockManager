@@ -8,9 +8,10 @@ CREATE TABLE [dbo].[Quote]
     [Status] NVARCHAR(20) NOT NULL DEFAULT 'Requested',
     [CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
     [ExpiresDate] DATETIME2 NULL,
-    -- Denormalised from Account so quote queries can scope by site without a join. Nullable
-    -- for rows predating multi-site; backfilled by Scripts/PostDeployment/Seed.sql.
-    [SiteId] INT NULL,
+    -- Denormalised from Account so quote queries can scope by site without a join. NOT NULL,
+    -- because a composite foreign key stops being enforced the moment one of its columns is
+    -- NULL — FK_Quote_ToAccount below would become advisory.
+    [SiteId] INT NOT NULL,
     CONSTRAINT [UQ_Quote_Reference] UNIQUE ([Reference]),
     -- Lets Purchase reference a quote together with its site.
     CONSTRAINT [UQ_Quote_IdSite] UNIQUE ([Id], [SiteId]),

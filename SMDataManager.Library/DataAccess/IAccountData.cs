@@ -22,7 +22,25 @@ namespace SMDataManager.Library.DataAccess
         List<AccountModel> GetAccounts(int siteId);
         AccountModel GetAccountById(int id, int siteId);
         AccountModel CreateAccount(AccountModel account, int siteId);
+        /// <summary>
+        /// Suspends or reinstates an account. Not the approval path — see
+        /// <see cref="Approve"/>, which records who decided and when.
+        /// </summary>
         void UpdateStatus(int id, string status, int siteId);
+
+        /// <summary>
+        /// Approves an application, records the decision, and assigns the pricing group.
+        /// False when the account was not this store's, or was already approved — an
+        /// existing approver and timestamp are not overwritten by whoever opened the screen
+        /// next.
+        /// </summary>
+        bool Approve(int id, string approvedBy, int? customerGroupId, int siteId);
+
+        /// <summary>
+        /// Turns an application down, recording who decided and why. The reason is required:
+        /// it is what the rejection email quotes.
+        /// </summary>
+        bool Reject(int id, string approvedBy, string reason, int siteId);
         void UpdateTerms(int id, int? customerGroupId, string paymentMethod, string paymentTerms, decimal creditLimit, int siteId);
     }
 }

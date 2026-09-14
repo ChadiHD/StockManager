@@ -55,6 +55,30 @@ namespace SMDataManager.Library.DataAccess
                 new { Id = id, Status = status, SiteId = siteId }, "SMDatabase");
         }
 
+        public bool Approve(int id, string approvedBy, int? customerGroupId, int siteId)
+        {
+            // The procedure returns its row count rather than an output parameter, because
+            // Dapper cannot write one back through an anonymous object.
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spAccount_Approve", new
+            {
+                Id = id,
+                ApprovedBy = approvedBy,
+                CustomerGroupId = customerGroupId,
+                SiteId = siteId
+            }, "SMDatabase").FirstOrDefault() > 0;
+        }
+
+        public bool Reject(int id, string approvedBy, string reason, int siteId)
+        {
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spAccount_Reject", new
+            {
+                Id = id,
+                ApprovedBy = approvedBy,
+                Reason = reason,
+                SiteId = siteId
+            }, "SMDatabase").FirstOrDefault() > 0;
+        }
+
         public void UpdateTerms(int id, int? customerGroupId, string paymentMethod, string paymentTerms, decimal creditLimit, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spAccount_UpdateTerms", new
