@@ -43,7 +43,10 @@ template gap.** Fix the template and let the tenant consume it, rather than spec
 | `SMPortal` | Blazor **WebAssembly** admin portal (`/admin/*`) |
 | `SMDesktopUI` + `.Library` | WPF POS desktop app (legacy, still shipped) |
 | `SMDesktopUI.UITests` | xunit + FlaUI UI automation for the WPF app |
+| `StockManager.Identity` | `ApplicationDbContext` — ASP.NET Identity's schema, shared by `StockApi` and `SMStore` |
 | `StockManager.ServiceDefaults` | Shared Aspire telemetry, health checks, resilience, Data Protection |
+| `SMDataManager.Library.Tests` | Pricing parity check; needs a database, skips without one |
+| `SMStore.Tests` | Registration field-set rules; pure logic, no database |
 
 `SMStore` does **not** call `StockApi`. It renders on the server and reads `SMDatabase` through
 `SMDataManager.Library` in process — an HTTP hop to a co-located API would only add a token
@@ -98,6 +101,34 @@ throws rather than guessing. This matters more than it looks: `UQ_CustomerGroup_
 `UQ_CustomerGroup_Slug` and `UQ_DistributorFeed_Name` are scoped by site, and SQL Server treats
 NULL as one distinct value in a unique constraint — while `SiteId` went unset, the second store
 to want a "Reseller" group or a "Main" feed simply could not be created.
+
+### Customer identity spans two databases
+
+ASP.NET Identity lives in `ApiAuthDb` under EF; accounts, contacts and addresses live in
+`SMDatabase` under Dapper. There is no transaction across them and there will not be — that
+would mean MSDTC, which Azure SQL does not offer. `RegistrationService` therefore creates the
+login first, calls `spAccount_Register`, and **deletes the login again if that call fails**.
+The procedure is itself all-or-nothing, so the only unrecoverable case is a failed
+compensating delete, which is logged at Error with the username because a login with no
+account blocks that person from registering again and nothing else would surface it.
+
+- **`ApplicationDbContext` is shared but only `StockApi` migrates it.** It calls
+  `Database.Migrate()` at startup and the app host starts both hosts together; two processes
+  applying migrations to one database race on the history table. Its migrations stay in
+  `StockApi` via `MigrationsAssembly`, so the `dotnet-ef` workflow is unchanged.
+- **A customer login is named `{SiteKey}|{email}`**, and emails are not unique. One person may
+  hold accounts at two of the stores run from here, and those are separate businesses that
+  must not be able to infer each other's customers. The separator is a pipe because every
+  character in Identity's default allow-list can legally appear in an email; both hosts set
+  `SiteQualifiedUserName.AllowedUserNameCharacters`, because they share one user store.
+- **A valid cookie proves identity, not entitlement.** The shared key ring means a cookie
+  issued by either host is readable by both, so site membership is checked per request through
+  `Contact` → `Account` → `Site` — `spContact_GetByIdentityUser` takes a `@SiteId` and returns
+  nothing for a user belonging to another store.
+- **Registration answers the same way whether or not the address is already registered.**
+  Saying otherwise turns the form into an oracle for who buys here. That leaves a genuine
+  duplicate applicant with no feedback until the "someone tried to register" email exists, so
+  the acknowledgement page must carry a "contact us if you hear nothing" line until then.
 
 Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDataProtection`,
 persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
@@ -251,6 +282,19 @@ confirm before blaming the deploy:
 ```bash
 dotnet build SMDatabase/SMDatabase.sqlproj && \
   unzip -p SMDatabase/bin/Debug/SMDatabase.dacpac model.xml | grep -c YourNewObject
+```
+
+**Hand-applying a procedure with `sqlcmd` needs `-I`.** `sqlcmd` defaults `QUOTED_IDENTIFIER`
+off, and SQL Server bakes the session's SET options into a procedure at creation time. A
+procedure created without it throws `INSERT failed because the following SET options have
+incorrect settings` the first time it writes to a table carrying a filtered index — which now
+means `Contact` and `Address`. The symptom points at the insert, not at how the procedure was
+deployed, and `sqlpackage` gets it right, so this only bites when working around a running app
+host. Prefer republishing the DACPAC:
+
+```bash
+sqlpackage /Action:Publish /SourceFile:SMDatabase/bin/Debug/SMDatabase.dacpac \
+  /TargetConnectionString:"..." /p:BlockOnPossibleDataLoss=false
 ```
 
 `Scripts/PostDeployment/Seed.sql` runs on **every** publish, so everything in it must be

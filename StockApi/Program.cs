@@ -9,7 +9,7 @@ using SMDataManager.Library.Models;
 using StockApi.Feeds;
 using StockApi.Security;
 using StockApi.Sites;
-using StockApi.Data;
+using StockManager.Identity;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
@@ -28,8 +28,12 @@ builder.Services.AddCors(policy =>
         .AllowAnyHeader()
         .AllowAnyMethod());
 });
+// ApplicationDbContext now lives in StockManager.Identity, shared with SMStore, but its
+// migrations stayed here — EF looks for them in the context's own assembly unless told
+// otherwise, and moving generated files to keep a default happy is a poor trade. StockApi
+// remains the only host that migrates; see the remarks on ApplicationDbContext.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("StockApi")));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)

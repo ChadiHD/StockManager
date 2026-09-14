@@ -7,6 +7,9 @@ using SMStore.Content;
 using SMStore.Navigation;
 using SMStore.Ordering;
 using SMStore.Registration;
+using StockManager.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using SMStore.Sites;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,8 +21,10 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddMemoryCache();
 
-// Same key ring as StockApi, held in the identity database. Shared from the start so that
-// when sign-in lands in T3 a cookie issued by either host is readable by both.
+// Same key ring as StockApi, held in the identity database, so a cookie issued by either host
+// is readable by both. That is what makes storefront sign-in cheap to add, and also why a
+// valid cookie proves only who someone is: which store they may use is checked separately,
+// through Contact -> Account -> Site.
 builder.AddSharedDataProtection();
 
 // Data access. The storefront reads the same stored procedures the API does, in process —
@@ -50,6 +55,37 @@ builder.Services.AddScoped<OrderingModeProvider>();
 // singletons; the provider is scoped because it reads the request's site.
 builder.Services.AddSingleton<IRegistrationFieldSet, EuB2bRegistrationFieldSet>();
 builder.Services.AddScoped<RegistrationFieldSetProvider>();
+
+/*
+Identity, for creating and later authenticating customer logins.
+
+The same ApplicationDbContext StockApi uses, against the same ApiAuthDb — hence the shared
+StockManager.Identity project. **This host must never migrate it.** StockApi calls
+Database.Migrate() at startup and the app host starts both together; two processes applying
+migrations to one database race on the history table.
+
+AddIdentityCore rather than AddDefaultIdentity: this needs UserManager and nothing else yet.
+Cookies, sign-in and the site-membership check are the next piece of work, and pulling in the
+Identity UI's Razor pages and its own login routes now would put a second, unscoped sign-in
+form on the storefront.
+*/
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentityCore<IdentityUser>(options =>
+    {
+        // Both hosts must agree, because they share one user store. See SiteQualifiedUserName.
+        options.User.AllowedUserNameCharacters = SiteQualifiedUserName.AllowedUserNameCharacters;
+
+        // One person may hold an account at several of the stores run from here, so the
+        // address is not unique — the username carries the store and is.
+        options.User.RequireUniqueEmail = false;
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<IAccountRegistrationData, AccountRegistrationData>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 
 // Navigation is assembled rather than written into markup, so a site can vary it and the
 // basket entry can follow the ordering mode.

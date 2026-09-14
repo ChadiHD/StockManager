@@ -129,8 +129,9 @@ builder.AddProject<Projects.SMPortal>("sm-portal")
 // resource however many sites exist.
 builder.AddProject<Projects.SMStore>("sm-store")
 	.WithReference(stockDatabase)
-	// Not for identity yet — the storefront signs nobody in until T3. It needs ApiAuthDb now
-	// because the Data Protection key ring it shares with the API is stored there.
+	// ApiAuthDb, for two things: the Data Protection key ring it shares with the API, and the
+	// Identity user store it creates customer logins in. It reads and writes that store but
+	// never migrates it — StockApi owns the migrations, and both start together.
 	.WithReference(identityDatabase)
 	.WaitFor(stockDatabase)
 	.WaitFor(identityDatabase)
