@@ -283,14 +283,29 @@ else
 
         var documents = await Uploads.ValidateAsync(files, Http!.RequestAborted);
 
+        /*
+        Both halves are checked before either is written, and the field set is asked here as
+        well as inside RegisterAsync.
+
+        Asking twice looks redundant and is not. RegisterAsync is the authoritative check and
+        writes nothing when it fails — but a document error is not its business, so calling
+        it first would create the account and then show the applicant a form they have to
+        resubmit. The second attempt would be answered as a duplicate, leaving them with an
+        account they cannot see, no paperwork against it, and no way to tell.
+        */
+        var fieldErrors = _fieldSet.Validate(submission, SiteContext.Site);
+
+        if (!documents.IsValid || fieldErrors.Any(error => error.Blocks))
+        {
+            _errors = [.. documents.Errors, .. fieldErrors];
+            return;
+        }
+
         var outcome = await Registrations.RegisterAsync(submission, Http.RequestAborted);
 
-        _errors = [.. documents.Errors, .. outcome.Errors];
+        _errors = [.. outcome.Errors];
 
-        // Both halves have to be clean. RegisterAsync writes nothing when its own validation
-        // fails, so a document error alone must also stop it — hence validating documents
-        // first and refusing here rather than after the account exists.
-        if (!documents.IsValid || !outcome.Accepted)
+        if (!outcome.Accepted)
         {
             return;
         }
