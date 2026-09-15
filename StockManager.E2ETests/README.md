@@ -15,6 +15,20 @@ deliberately" below.
 | `RegistrationApprovalJourneyTests` | A stranger applies on `/register` (with a real file upload), an admin approves the application with a customer group, and the applicant signs in and sees that group's prices. |
 | `CrossTenantRefusalJourneyTests` | A customer session at one store does not work at another — the platform's central multi-tenant security property. |
 
+## Known blocker: `smdatabase-schema` never finishes here
+
+**Nothing in this project runs today, and the cause is not in this project.** Under
+`DistributedApplicationTestingBuilder` the `smdatabase-schema` resource never reaches
+`Finished`, and both `stock-api` and `sm-store` declare `WaitForCompletion(smSchema)`, so
+neither ever starts and no endpoint is published. A run now fails in whatever
+`E2E_RESOURCE_TIMEOUT_MINUTES` allows, with a message naming that resource.
+
+`AppHost.cs` has a comment about the same symptom: CommunityToolkit tags SQL project resources
+with `ExplicitStartupAnnotation`, which once left the schema at "Not started" and stalled
+`stock-api` behind it, so the app host strips the annotation. That strip evidently does not
+take effect on this path. Fixing it is an app-host change, not a test change — start there,
+not by raising the timeout.
+
 **None of these has ever been observed to pass.** They are written to go the full distance —
 no stub, no commented-out step, no `Skip` covering a missing feature — and every selector was
 cross-checked against the `.razor` source it targets. But the suite has never completed a run,

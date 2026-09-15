@@ -96,9 +96,54 @@ public sealed class AspireAppFixture : IAsyncLifetime
             desktop?.Annotations.Add(new ExplicitStartupAnnotation());
 
             _app = await appHostBuilder.BuildAsync();
-            await _app.StartAsync();
 
+            /*
+            The timeout covers StartAsync as well, and that is not tidiness.
+
+            It used to be created after StartAsync, so a start that never returned was
+            unbounded — and that is exactly what happens here: stock-api and sm-store both
+            WaitForCompletion(smdatabase-schema), and if the schema resource never completes
+            they never start. Observed twice, both times sitting at
+            "Waiting for resource 'smdatabase-schema' to complete" for over half an hour with
+            E2E_REQUIRE_APPHOST=1 set and a twelve-minute resource timeout configured, because
+            neither applied to the call that was actually stuck.
+
+            A test suite is allowed to fail. It is not allowed to hang, because a hang is
+            indistinguishable from slow work and cannot be acted on.
+            */
             using var timeout = new CancellationTokenSource(ResourceHealthyTimeout);
+
+            try
+            {
+                await _app.StartAsync(timeout.Token);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                /*
+                Rewritten because the raw exception is "A task was canceled" with a stack in
+                Aspire's own factory, which says nothing about which resource is stuck.
+
+                The known cause is smdatabase-schema. CommunityToolkit's SQL project resources
+                carry ExplicitStartupAnnotation ("do not start with the app host"), and
+                AppHost.cs strips it so the schema deploys on every run — see the comment
+                there, which records the same symptom stalling stock-api once before. Under
+                DistributedApplicationTestingBuilder that stripping does not take effect, so
+                the schema sits unstarted and stock-api and sm-store, which both
+                WaitForCompletion on it, never start either.
+                */
+                throw new TimeoutException(
+                    $"The app host did not finish starting within {ResourceHealthyTimeout.TotalMinutes} " +
+                    "minutes. The usual cause is smdatabase-schema never reaching Finished: " +
+                    "stock-api and sm-store both WaitForCompletion on it, so neither starts and " +
+                    "no endpoint is ever published. Check that resource first, and raise " +
+                    "E2E_RESOURCE_TIMEOUT_MINUTES only once you have ruled it out.");
+            }
+
+            // Named explicitly rather than left implicit behind stock-api's health check: the
+            // schema is what the other two wait on, so when it stalls the failure should say
+            // so instead of blaming whatever timed out downstream of it.
+            await _app.ResourceNotifications.WaitForResourceAsync(
+                "smdatabase-schema", KnownResourceStates.Finished, timeout.Token);
 
             // stock-api and sm-store both carry WithHttpHealthCheck; sm-portal is a static
             // WASM host with no health endpoint of its own, so Running -- not Healthy, which
