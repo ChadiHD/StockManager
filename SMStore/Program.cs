@@ -176,6 +176,10 @@ builder.Services.AddAuthentication(CustomerAuthentication.Scheme)
 
 builder.Services.AddAuthorization();
 
+// Caps registration and sign-in per caller. Everything else is unlimited -- see
+// CustomerRateLimiting for why a global cap on the catalog would be the wrong shape.
+builder.Services.AddCustomerRateLimiting();
+
 // Navigation is assembled rather than written into markup, so a site can vary it and the
 // basket entry can follow the ordering mode.
 builder.Services.AddScoped<StoreNavigation>();
@@ -224,9 +228,14 @@ app.UseAuthorization();
 
 app.UseAntiforgery();
 
+// After antiforgery so a rejected forgery is not also charged to the caller's rate limit,
+// and before the endpoints it protects.
+app.UseRateLimiter();
+
 app.MapStaticAssets();
 app.MapCustomerAuth();
 app.MapAccountDocuments();
+app.MapEmailConfirmation();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

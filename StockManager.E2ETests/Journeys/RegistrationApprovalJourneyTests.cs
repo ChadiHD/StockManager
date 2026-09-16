@@ -131,6 +131,20 @@ public sealed class RegistrationApprovalJourneyTests
         await adminPage.Locator(".modal-foot").GetByRole(AriaRole.Button, new() { Name = "Approve account" }).ClickAsync();
         await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Account approved");
 
+        /*
+        --- The applicant confirms their address ------------------------------------
+
+        Sign-in refuses an unconfirmed address, so this stands in for opening the
+        acknowledgement email and following the link in it. The token is Identity's own, minted
+        through the storefront's Data Protection ring, so the page below validates it exactly
+        as it would validate the mailed one — see IdentityTestSupport.ConfirmationUrlAsync.
+        */
+        var confirmationUrl = await IdentityTestSupport.ConfirmationUrlAsync(
+            _fixture.ApiAuthConnectionString, _fixture.SmStoreBaseUrl, site.SiteKey, email);
+
+        await customerPage.GotoAsync(confirmationUrl);
+        await Expect(customerPage.Locator("h1")).ToHaveTextAsync("Address confirmed");
+
         // --- The applicant signs in and sees the group's terms ------------------------
         await StoreFront.SignInAsync(customerPage, _fixture.SmStoreBaseUrl, email, password);
 

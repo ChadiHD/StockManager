@@ -131,6 +131,42 @@ account blocks that person from registering again and nothing else would surface
   issued by either host is readable by both, so site membership is checked per request through
   `Contact` → `Account` → `Site` — `spContact_GetByIdentityUser` takes a `@SiteId` and returns
   nothing for a user belonging to another store.
+- **An unconfirmed address cannot sign in.** `RegistrationService` mints an Identity
+  email-confirmation token and mails the link; `/confirm-email` calls `ConfirmEmailAsync`, and
+  `CustomerAuthEndpoints` refuses a user whose `EmailConfirmed` is false. Creating a login
+  proves nothing about who owns the address — an applicant can type somebody else's — and the
+  approval mail and (in T6) password reset both go there. The tokens are Identity's, which is
+  what makes them single-use and expiring: confirming changes the user's security stamp, so a
+  link cannot be replayed. Do not roll a token here.
+  - **Checked at sign-in, not in `CustomerSessionValidator`.** The validator runs on every
+    authenticated request and already reads `Contact` → `Account` → `Site`; an Identity lookup
+    there would double that to re-answer a question that cannot change while a session lives,
+    because a session can only begin at sign-in.
+  - **`/resend-confirmation` exists because the gate would otherwise be a dead end.** Someone
+    who never received the mail has no other route in, and staff cannot fix it from the portal
+    — the flag lives in `ApiAuthDb` and the admin screens read `SMDatabase`. It answers
+    identically for an unknown address, another store's address, and one already confirmed:
+    an endpoint that only sent mail for real addresses would be a cheaper enumeration oracle
+    than the registration form, needing no password and no paperwork.
+  - **A confirmation link is checked against the store as well as the token.** A token is
+    evidence about an address and says nothing about which tenant issued it, so
+    `/confirm-email` compares `SiteQualifiedUserName.BelongsTo(user.UserName, site.SiteKey)`.
+    The link itself is built from `Site.Domain`, never from the request host — it lands in a
+    customer's inbox, where a link to an attacker's host carrying a valid token is the prize.
+- **Registration and sign-in are rate limited; nothing else is.** `CustomerRateLimiting`
+  partitions a global limiter by caller and path, returning no limiter for everything else — a
+  cap that reached the catalog would be a denial-of-service switch aimed at the shop window.
+  Registration is ten an hour because it writes across two databases and accepts files;
+  sign-in is twenty per five minutes because the storefront authenticates with
+  `UserManager.CheckPasswordAsync`, which — unlike `SignInManager` — does not consult
+  `IdentityOptions.Lockout`, so nothing else here slows a password guess down.
+  - Partitioned by IP only, deliberately: adding the site to the key would hand an attacker
+    one allowance per store.
+  - **T7 must configure forwarded headers before these mean anything in production**, or every
+    customer shares the proxy's partition and the cap protects nobody while throttling
+    everybody.
+  - The rejection writes a body. `UseStatusCodePagesWithReExecute` re-executes to `/not-found`
+    for any bodiless 400–599, so a silent 429 would tell the customer the page does not exist.
 - **Registration answers the same way whether or not the address is already registered.**
   Saying otherwise turns the form into an oracle for who buys here. That leaves a genuine
   duplicate applicant with no feedback until the "someone tried to register" email exists, so

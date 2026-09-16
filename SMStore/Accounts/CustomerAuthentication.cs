@@ -30,4 +30,13 @@ public static class CustomerAuthentication
     public const string LoginPath = "/login";
     public const string LogoutPath = "/logout";
     public const string AccessDeniedPath = "/login";
+
+    /// <summary>
+    /// Where the link in the acknowledgement email lands. A page rather than an endpoint,
+    /// because the applicant has to be told what happened.
+    /// </summary>
+    public const string ConfirmEmailPath = "/confirm-email";
+
+    /// <summary>Posts a fresh confirmation link to an address, or pretends to.</summary>
+    public const string ResendConfirmationPath = "/resend-confirmation";
 }

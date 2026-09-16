@@ -86,6 +86,29 @@ public static class CustomerAuthEndpoints
             return Failed(returnUrl);
         }
 
+        /*
+        An unconfirmed address cannot sign in, and this is the check that makes
+        EmailConfirmed mean something.
+
+        Creating a login proves nothing about who owns the address: an applicant can type
+        somebody else's, and approval is a staff member reading company details rather than
+        verifying an inbox. Everything that matters later — the approval mail, and password
+        reset when T6 adds it — is sent there, so the address has to be established before a
+        session exists rather than after.
+
+        It is checked here and not in CustomerSessionValidator on purpose. The validator runs
+        on every authenticated request and already reads Contact -> Account -> Site; adding an
+        Identity lookup to it would double that cost to re-answer a question that cannot change
+        while a session is alive, because a session can only start here.
+        */
+        if (!user.EmailConfirmed)
+        {
+            logger.LogInformation(
+                "Sign-in refused at {SiteKey}: the address has not been confirmed.", site.SiteKey);
+
+            return Failed(returnUrl);
+        }
+
         var contact = contacts.GetByIdentityUser(user.Id, site.Id);
 
         if (contact is null

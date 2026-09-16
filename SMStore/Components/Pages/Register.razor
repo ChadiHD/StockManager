@@ -14,7 +14,24 @@
 
 <Breadcrumb Items="_crumbs" />
 
-@if (_reference is not null || _submitted)
+@if (Resent)
+{
+    @* Where the resend endpoint lands, and it says the same thing whether or not a mail was
+       actually sent — see EmailConfirmationEndpoints for why that has to be true of the page
+       as well as of the endpoint. *@
+    <div class="page-header">
+        <div>
+            <h1>Check your email</h1>
+            <p class="page-lede">
+                If that address has an application with us, a fresh confirmation link is on its
+                way. Links expire, so use this one within a day.
+            </p>
+        </div>
+    </div>
+
+    <a href="@CustomerAuthentication.LoginPath" class="btn btn-secondary">Back to sign in</a>
+}
+else if (_reference is not null || _submitted)
 {
     @* One acknowledgement for a new application and for one from an address already
        registered here. RegistrationService answers both the same way on purpose — telling an
@@ -167,6 +184,16 @@ else
     private string? _reference;
     private bool _submitted;
 
+    // Mailed rather than shown. Putting a confirmation link on the page would confirm the
+    // address for anyone who could reach the page, which is the one thing it exists to test.
+    private string? _confirmationLink;
+
+    // Bound as text and compared, not as a bool: Blazor throws on a query value it cannot
+    // convert, so "?resent=yes" from a hand-edited URL would be a 500.
+    [SupplyParameterFromQuery(Name = "resent")] public string? Resent_ { get; set; }
+
+    private bool Resent => Resent_ == "1";
+
     /*
     Values are read back out of the posted form rather than model-bound.
 
@@ -313,6 +340,7 @@ else
 
         _submitted = true;
         _reference = outcome.Reference;
+        _confirmationLink = outcome.ConfirmationLink;
 
         // No account id means RegisterAsync answered neutrally: the address was already
         // registered here and nothing was created. There is nothing to attach paperwork to,
@@ -342,7 +370,7 @@ else
         {
             await Email.SendAsync(RegistrationEmails.Acknowledgement(
                 SiteContext.Site, submission.Email!.Trim(),
-                $"{submission.FirstName} {submission.LastName}".Trim(), _reference),
+                $"{submission.FirstName} {submission.LastName}".Trim(), _reference, _confirmationLink),
                 Http!.RequestAborted);
         }
         catch (Exception exception)

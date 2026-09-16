@@ -1,3 +1,5 @@
+using System;
+
 namespace StockManager.Identity
 {
     /// <summary>
@@ -46,5 +48,29 @@ namespace StockManager.Identity
         /// <summary>The login name for an email address at one store.</summary>
         public static string For(string siteKey, string email) =>
             $"{siteKey}{Separator}{email.Trim()}";
+
+        /// <summary>
+        /// Whether a login name was issued by the given store.
+        /// </summary>
+        /// <remarks>
+        /// For the paths that hold an <c>IdentityUser</c> and need to know which store it came
+        /// from, rather than resolving all the way to an account — email confirmation being the
+        /// case in point, where the token proves something about an address and nothing about a
+        /// tenant.
+        ///
+        /// The prefix is matched up to the separator, not with StartsWith: a store keyed
+        /// "acli" must not match a login issued by "acli-trade". Case-insensitively, because a
+        /// site key reaching here has been round-tripped through a URL and a database column.
+        ///
+        /// This is not the authorisation check. Anything acting on behalf of a customer still
+        /// resolves Contact -> Account -> Site — see <c>spContact_GetByIdentityUser</c>.
+        /// </remarks>
+        public static bool BelongsTo(string userName, string siteKey) =>
+            !string.IsNullOrEmpty(userName)
+            && !string.IsNullOrEmpty(siteKey)
+            && userName.Length > siteKey.Length
+            && userName[siteKey.Length] == Separator
+            && string.Compare(userName, 0, siteKey, 0, siteKey.Length,
+                StringComparison.OrdinalIgnoreCase) == 0;
     }
 }

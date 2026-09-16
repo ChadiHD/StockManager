@@ -1,6 +1,10 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using SMStore.Accounts;
 using StockManager.Identity;
 
 namespace StockManager.E2ETests.Infrastructure;
@@ -100,11 +104,64 @@ public static class IdentityTestSupport
         return new Credentials(email, Password);
     }
 
+    /// <summary>
+    /// A real confirmation link for an address that has just registered, so a journey can
+    /// follow the one the applicant was mailed.
+    /// </summary>
+    /// <remarks>
+    /// The alternative — setting <c>EmailConfirmed</c> directly — would skip the whole feature
+    /// the journey is meant to prove, and sign-in now refuses an unconfirmed address, so
+    /// something has to stand in for opening the mail. The token is generated through the same
+    /// provider and the same key ring the storefront validates against; see BuildProvider.
+    /// </remarks>
+    public static async Task<string> ConfirmationUrlAsync(
+        string apiAuthConnectionString,
+        Uri storeBaseUrl,
+        string siteKey,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        await using var provider = BuildProvider(apiAuthConnectionString);
+        await using var scope = provider.CreateAsyncScope();
+
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var userName = SiteQualifiedUserName.For(siteKey, email);
+
+        var user = await users.FindByNameAsync(userName)
+            ?? throw new InvalidOperationException(
+                $"No login named {userName} exists, so no confirmation link can be built for it.");
+
+        var token = await users.GenerateEmailConfirmationTokenAsync(user);
+
+        // Built against the store's base URL rather than Site.Domain: under the testing builder
+        // the storefront answers on localhost, and EmailConfirmationLink.For deliberately uses
+        // the configured domain, which nothing in a test run is listening on.
+        return new Uri(storeBaseUrl,
+            $"/confirm-email?userId={Uri.EscapeDataString(user.Id)}" +
+            $"&token={EmailConfirmationLink.Encode(token)}").ToString();
+    }
+
     private static ServiceProvider BuildProvider(string apiAuthConnectionString)
     {
         var services = new ServiceCollection();
 
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(apiAuthConnectionString));
+
+        /*
+        The same Data Protection key ring the hosts use, which is what makes the tokens this
+        container mints acceptable to SMStore.
+
+        Identity's email-confirmation tokens come from DataProtectorTokenProvider, so they are
+        only valid to a process holding the key that wrote them. With an ephemeral ring here,
+        a token generated in the test would be refused by the storefront and the confirmation
+        journey could only be faked by setting EmailConfirmed directly — which would test
+        nothing. The application name has to match AddSharedDataProtection's, because Data
+        Protection derives per-application subkeys from it.
+        */
+        services.AddDbContext<DataProtectionKeyContext>(options => options.UseSqlServer(apiAuthConnectionString));
+        services.AddDataProtection()
+            .SetApplicationName("StockManager")
+            .PersistKeysToDbContext<DataProtectionKeyContext>();
 
         // AddIdentityCore rather than AddDefaultIdentity: there is no web host here, so this
         // wants UserManager and RoleManager and nothing that assumes a request pipeline.
@@ -124,7 +181,10 @@ public static class IdentityTestSupport
                 options.User.RequireUniqueEmail = false;
             })
             .AddRoles<IdentityRole>()
-            .AddEntityFrameworkStores<ApplicationDbContext>();
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            // The email-confirmation token provider, so this container can mint the link a
+            // journey follows. SMStore adds the same providers.
+            .AddDefaultTokenProviders();
 
         return services.BuildServiceProvider();
     }

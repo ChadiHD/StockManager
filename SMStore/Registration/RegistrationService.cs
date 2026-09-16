@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using SMStore.Accounts;
 using SMStore.Sites;
 using StockManager.Identity;
 
@@ -22,12 +23,18 @@ namespace SMStore.Registration;
 /// applicant gets no ids, because attaching their upload to the existing account would tell
 /// whoever sent it that the account exists.
 /// </param>
+/// <param name="ConfirmationLink">
+/// The link that proves the applicant controls the address, for the acknowledgement mail. Null
+/// whenever nothing was created — including the neutral answer to an address already
+/// registered here, where minting a token would be a way to find out that the account exists.
+/// </param>
 public sealed record RegistrationOutcome(
     bool Accepted,
     IReadOnlyList<RegistrationError> Errors,
     string? Reference = null,
     int? AccountId = null,
-    int? ContactId = null);
+    int? ContactId = null,
+    string? ConfirmationLink = null);
 
 public interface IRegistrationService
 {
@@ -175,8 +182,23 @@ public sealed class RegistrationService : IRegistrationService
                 "Registered {Reference} at {SiteKey}, pending approval.",
                 result?.Reference, site.SiteKey);
 
+            /*
+            The confirmation token is minted after the account is written, not before.
+
+            Creating the login is not evidence the address belongs to the applicant — anyone
+            can type someone else's — so EmailConfirmed starts false and sign-in refuses until
+            this link is followed. Identity owns the token, which makes it single-use and
+            expiring: ConfirmEmailAsync checks it against the user's security stamp, and
+            confirming changes that stamp.
+
+            Minting it here rather than in the caller keeps the UserManager in one place, and
+            means a failure to generate a token cannot lose an account that is already written.
+            */
+            var confirmationToken = await _users.GenerateEmailConfirmationTokenAsync(user);
+
             return new RegistrationOutcome(
-                true, errors, result?.Reference, result?.AccountId, result?.ContactId);
+                true, errors, result?.Reference, result?.AccountId, result?.ContactId,
+                EmailConfirmationLink.For(site, user.Id, confirmationToken));
         }
         catch (Exception exception)
         {

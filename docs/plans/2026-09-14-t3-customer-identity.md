@@ -8,11 +8,16 @@ track starts until the template track finishes.
 **Exit:** a stranger can apply against any site's field set, be approved from the admin portal,
 sign in on that site and no other, and see their group's prices and their group's catalog.
 
-**Status: all ten work items built.** What this plan said would not be in T3 still is not —
-the quote cart, tax and credit enforcement, the email outbox and templates, per-user admin
-site assignment, precomputed pricing and SSO are all still ahead. Two things the plan assumed
-would be done by hand are not: §7 records "no test coverage anywhere", and the test suite that
-landed alongside this phase is the answer to it.
+**Status: all ten work items built, and §5 satisfied.** Registration is rate limited and an
+unconfirmed address cannot sign in; both were named in §5 and neither was there when the ten
+items first landed. What this plan said would not be in T3 still is not — the quote cart, tax
+and credit enforcement, the email outbox and templates, per-user admin site assignment,
+precomputed pricing and SSO are all still ahead. §5 asks for password reset alongside
+confirmation, and that is the one part of it still outstanding.
+
+§7 records "no test coverage anywhere" and accepts it. That is no longer true: five test
+projects landed with this phase, and the end-to-end suite caught a bug the unit tests had
+encoded as correct behaviour.
 
 ---
 
