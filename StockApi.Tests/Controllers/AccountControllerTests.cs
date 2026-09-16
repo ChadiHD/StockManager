@@ -53,7 +53,12 @@ public class AccountControllerTests
         name is null
             ? new ClaimsPrincipal(new ClaimsIdentity())
             : new ClaimsPrincipal(new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.Name, name) }, authenticationType: "Test"));
+                [
+                    // NameIdentifier, not Name. Account.ApprovedBy is a foreign key into
+                    // dbo.User(UserId), so only the id is storable — see AccountController.Decider.
+                    new Claim(ClaimTypes.NameIdentifier, name),
+                    new Claim(ClaimTypes.Name, "operator@example.com")
+                ], authenticationType: "Test"));
 
     /// <summary>Wires a controller against substitutes, with the account behind id 5 fixed up front.</summary>
     private sealed class Fixture
@@ -62,7 +67,7 @@ public class AccountControllerTests
         public IEmailSender Email { get; } = Substitute.For<IEmailSender>();
         public AccountController Controller { get; }
 
-        public Fixture(AccountModel? account, string? approverName = "reviewer@example.com")
+        public Fixture(AccountModel? account, string? approverId = "0f4b-reviewer-id")
         {
             var site = Substitute.For<IAdminSiteContext>();
             site.SiteId.Returns(Site().Id);
@@ -74,7 +79,7 @@ public class AccountControllerTests
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = new DefaultHttpContext { User = Principal(approverName) }
+                    HttpContext = new DefaultHttpContext { User = Principal(approverId) }
                 }
             };
         }
@@ -111,23 +116,34 @@ public class AccountControllerTests
     {
         // ApprovalModel carries only a customer group id — there is no field in the request a
         // caller could use to name their own approver even if they wanted to.
-        var fixture = new Fixture(Account(), approverName: "alice@store.example");
+        var fixture = new Fixture(Account(), approverId: "alice-user-id");
         fixture.Accounts.Approve(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int?>(), Arg.Any<int>()).Returns(true);
 
         await fixture.Controller.Approve(5, new AccountController.ApprovalModel(3), CancellationToken.None);
 
-        fixture.Accounts.Received(1).Approve(5, "alice@store.example", 3, 42);
+        fixture.Accounts.Received(1).Approve(5, "alice-user-id", 3, 42);
     }
 
     [Fact]
-    public async Task ApproveRecordsUnknownWhenTheRequestHasNoAuthenticatedName()
+    public async Task ApproveRefusesRatherThanRecordingAnApproverItCannotStore()
     {
-        var fixture = new Fixture(Account(), approverName: null);
+        /*
+        This test used to assert the opposite — that a principal with no id was recorded as
+        "unknown" — and that was the bug, not the behaviour. Account.ApprovedBy is a foreign
+        key into dbo.User(UserId), so "unknown" is as unstorable as an email address: the
+        UPDATE fails with error 547 and the approval is lost after the caller has been told it
+        succeeded. Refusing is the only honest answer, and [Authorize] should mean it never
+        comes up.
+        */
+        var fixture = new Fixture(Account(), approverId: null);
         fixture.Accounts.Approve(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int?>(), Arg.Any<int>()).Returns(true);
 
-        await fixture.Controller.Approve(5, new AccountController.ApprovalModel(null), CancellationToken.None);
+        var result = await fixture.Controller.Approve(
+            5, new AccountController.ApprovalModel(null), CancellationToken.None);
 
-        fixture.Accounts.Received(1).Approve(5, "unknown", null, 42);
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+        fixture.Accounts.DidNotReceive().Approve(
+            Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int?>(), Arg.Any<int>());
     }
 
     [Fact]
@@ -217,13 +233,13 @@ public class AccountControllerTests
     [Fact]
     public async Task RejectRecordsTheApproverFromTheAuthenticatedUserNotTheRequestBody()
     {
-        var fixture = new Fixture(Account(), approverName: "alice@store.example");
+        var fixture = new Fixture(Account(), approverId: "alice-user-id");
         fixture.Accounts.Reject(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>()).Returns(true);
 
         await fixture.Controller.Reject(
             5, new AccountController.RejectionModel("Not enough evidence."), CancellationToken.None);
 
-        fixture.Accounts.Received(1).Reject(5, "alice@store.example", "Not enough evidence.", 42);
+        fixture.Accounts.Received(1).Reject(5, "alice-user-id", "Not enough evidence.", 42);
     }
 
     [Fact]

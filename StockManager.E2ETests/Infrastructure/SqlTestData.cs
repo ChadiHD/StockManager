@@ -191,6 +191,36 @@ public static class SqlTestData
     /// and going through the full UI flow again to get there would just be the same journey
     /// run twice under a different name.
     /// </remarks>
+    /// <summary>
+    /// The <c>dbo.User</c> profile row that goes with an Identity login for a staff user.
+    /// </summary>
+    /// <remarks>
+    /// An admin needs a row in both databases, and the second one is easy to miss because
+    /// nothing fails until after a successful sign-in. <c>GET /api/User</c> looks the caller
+    /// up by their Identity id and answers 404 when there is no profile; SMPortal's
+    /// AuthStateProvider treats any failure of that call as a failed sign-in, so a token that
+    /// was issued perfectly well is discarded and the operator is told "Check your email and
+    /// password". A login with no profile therefore looks exactly like a wrong password.
+    /// </remarks>
+    public static async Task CreateUserProfileAsync(
+        string connectionString, string identityUserId, string email,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            """
+            INSERT INTO dbo.[User] ([UserId], [FirstName], [LastName], [EmailAddress])
+            VALUES (@UserId, N'E2E', N'Admin', @EmailAddress);
+            """, connection);
+
+        command.Parameters.AddWithValue("@UserId", identityUserId);
+        command.Parameters.AddWithValue("@EmailAddress", email);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public static async Task CreateApprovedAccountAndContactAsync(
         string connectionString, int siteId, string identityUserId, string email,
         CancellationToken cancellationToken = default)

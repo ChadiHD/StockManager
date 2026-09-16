@@ -1,4 +1,5 @@
 using System;
+using System.Security.Claims;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -104,7 +105,12 @@ namespace StockApi.Controllers
                 return NotFound();
             }
 
-            if (!_accountData.Approve(id, Decider(), approval.CustomerGroupId, _site.SiteId))
+            if (Decider() is not { Length: > 0 } approver)
+            {
+                return Unauthorized("The signed-in operator has no user id to record as the approver.");
+            }
+
+            if (!_accountData.Approve(id, approver, approval.CustomerGroupId, _site.SiteId))
             {
                 return Conflict("That account is not awaiting a decision.");
             }
@@ -136,7 +142,12 @@ namespace StockApi.Controllers
                 return NotFound();
             }
 
-            if (!_accountData.Reject(id, Decider(), rejection.Reason.Trim(), _site.SiteId))
+            if (Decider() is not { Length: > 0 } decider)
+            {
+                return Unauthorized("The signed-in operator has no user id to record as the decider.");
+            }
+
+            if (!_accountData.Reject(id, decider, rejection.Reason.Trim(), _site.SiteId))
             {
                 return Conflict("That account is not awaiting a decision.");
             }
@@ -149,14 +160,25 @@ namespace StockApi.Controllers
         }
 
         /// <summary>
-        /// Who is recorded as having decided.
+        /// Who is recorded as having decided: the operator's Identity user id.
         /// </summary>
         /// <remarks>
         /// From the authenticated principal and nowhere else. A decider supplied in the
         /// request body would be an audit trail the auditee writes.
+        /// <para>
+        /// It must be the id and not the name. <c>Account.ApprovedBy</c> is
+        /// <c>FK_Account_ApprovedBy</c> into <c>dbo.User(UserId)</c>, so an email address —
+        /// which is what <c>User.Identity.Name</c> holds here, the JWT being issued with the
+        /// address as its name claim — violates the constraint and every approval fails with
+        /// error 547. That is how this shipped: the unit tests asserted the approver came from
+        /// <c>Identity.Name</c>, which was precisely the bug, and only the end-to-end journey
+        /// through the real portal and the real database caught it.
+        /// </para>
+        /// Null when the principal carries no id, which <c>[Authorize]</c> should already have
+        /// prevented — the callers turn it into a refusal rather than writing "unknown", which
+        /// is not a user id either and breaks the same constraint.
         /// </remarks>
-        private string Decider() =>
-            User.Identity?.Name is { Length: > 0 } name ? name : "unknown";
+        private string? Decider() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         private AccountModel Reread(int id) => _accountData.GetAccountById(id, _site.SiteId);
 

@@ -10,15 +10,61 @@ public static class AdminPortal
 {
     public static async Task SignInAsync(IPage page, Uri baseUrl, string email, string password)
     {
+        /*
+        The token call is recorded because the portal cannot report it.
+
+        SMPortal is WebAssembly: AuthenticationService.Login turns any non-2xx into a null and
+        Login.razor renders "Check your email and password", losing the status code and the
+        body. When the same credentials succeed against /token from a .NET client and fail from
+        the browser, that difference is the whole diagnosis, and without this it is invisible.
+        */
+        var tokenCalls = new List<string>();
+
+        page.Response += async (_, response) =>
+        {
+            if (!response.Url.Contains("/token", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            string body;
+            try { body = await response.TextAsync(); } catch { body = "<unreadable>"; }
+
+            tokenCalls.Add($"{response.Status} {response.Url} -> {body[..Math.Min(body.Length, 300)]}");
+        };
+
         await page.GotoAsync(new Uri(baseUrl, "/login").ToString());
         await page.Locator("#email").FillAsync(email);
         await page.Locator("#password").FillAsync(password);
         await page.GetByRole(AriaRole.Button, new() { Name = "Sign in securely" }).ClickAsync();
 
-        // Login.razor navigates away with NavigationManager on success and stays put (with an
-        // error banner) on failure -- waiting for the URL is what tells the two apart, rather
-        // than assuming the click alone means the sign-in succeeded.
-        await page.WaitForURLAsync(url => !url.Contains("/login"));
+        /*
+        Login.razor navigates away with NavigationManager on success and stays put (with an
+        error banner) on failure, so the URL leaving /login is what tells the two apart --
+        assuming the click alone succeeded would fail later, somewhere unrelated.
+
+        The timeout is caught and rethrown with what is actually on the screen. Playwright's
+        own message for this is "Timeout 30000ms exceeded. waiting for navigation until Load",
+        which says nothing about why the portal refused the credentials, and a sign-in that
+        fails here fails every admin journey in the suite at once.
+        */
+        try
+        {
+            await page.WaitForURLAsync(url => !url.Contains("/login"), new() { Timeout = 20_000 });
+        }
+        catch (TimeoutException)
+        {
+            var shown = await page.Locator("body").InnerTextAsync();
+
+            throw new InvalidOperationException(
+                $"The admin portal stayed on {page.Url} after signing in as {email}. " +
+                "That is a refused sign-in, not a slow one.\n" +
+                $"Token calls the browser made: {(tokenCalls.Count == 0
+                    ? "none — the request never left the page, so look at the API address in " +
+                      "SMPortal/wwwroot/appsettings.json and at CORS"
+                    : string.Join("\n  ", tokenCalls))}\n" +
+                "What the page showed:\n" + shown[..Math.Min(shown.Length, 400)]);
+        }
     }
 
     /// <summary>

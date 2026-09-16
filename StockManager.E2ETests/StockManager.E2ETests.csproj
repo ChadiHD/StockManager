@@ -10,6 +10,18 @@
          never meant to be part of a routine `dotnet test` of the solution — see README.md
          for what a developer runs instead, and how these skip cleanly without either. -->
     <IsTestProject>true</IsTestProject>
+    <!-- Deliberately the SAME id as StockManager.AppHost.csproj, so this project reads the
+         app host's own secret store rather than a second copy of it.
+
+         Aspire generates the SQL container's SA password once and persists it to the app
+         host's user secrets. The container is persistent (a named volume, ContainerLifetime
+         .Persistent), so that first password is the one baked into it. A normal
+         `dotnet run` reloads it from user secrets and matches; the testing builder does not
+         load them, generates a fresh password, and then cannot authenticate against the
+         container that already exists — the health check goes Unhealthy, smdatabase-schema
+         waits forever on it, and every app fails to start. Sharing the id is what keeps the
+         two paths using one password. -->
+    <UserSecretsId>f2718572-14eb-4c66-b29b-7d3a59611451</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

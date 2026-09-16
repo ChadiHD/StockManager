@@ -15,30 +15,22 @@ deliberately" below.
 | `RegistrationApprovalJourneyTests` | A stranger applies on `/register` (with a real file upload), an admin approves the application with a customer group, and the applicant signs in and sees that group's prices. |
 | `CrossTenantRefusalJourneyTests` | A customer session at one store does not work at another — the platform's central multi-tenant security property. |
 
-## Known blocker: `smdatabase-schema` never finishes here
+**All four pass**, in about half a minute against a warm SQL container.
 
-**Nothing in this project runs today, and the cause is not in this project.** Under
-`DistributedApplicationTestingBuilder` the `smdatabase-schema` resource never reaches
-`Finished`, and both `stock-api` and `sm-store` declare `WaitForCompletion(smSchema)`, so
-neither ever starts and no endpoint is published. A run now fails in whatever
-`E2E_RESOURCE_TIMEOUT_MINUTES` allows, with a message naming that resource.
+Getting there took fixing four things that had nothing to do with the journeys themselves, all
+recorded in the code that fixes them: the SQL container password (this project shares the app
+host's UserSecretsId), the schema deployment (AppHost.cs now publishes the DACPAC in process),
+port randomisation (disabled, because SMPortal hardcodes the API at 7042), and the bootstrap
+admin's dbo.User profile row.
 
-`AppHost.cs` has a comment about the same symptom: CommunityToolkit tags SQL project resources
-with `ExplicitStartupAnnotation`, which once left the schema at "Not started" and stalled
-`stock-api` behind it, so the app host strips the annotation. That strip evidently does not
-take effect on this path. Fixing it is an app-host change, not a test change — start there,
-not by raising the timeout.
+The suite also found a real product bug on its first complete run: Account.ApprovedBy is a
+foreign key into dbo.User(UserId), and AccountController was recording User.Identity.Name — an
+email address — so every approval failed with SQL error 547. Unit tests could not catch it,
+because they asserted exactly the wrong thing.
 
-**None of these has ever been observed to pass.** They are written to go the full distance —
-no stub, no commented-out step, no `Skip` covering a missing feature — and every selector was
-cross-checked against the `.razor` source it targets. But the suite has never completed a run,
-so every claim above is a claim about the code, not about observed behaviour. Treat a first
-green run as the thing that makes this table true, and expect selector drift until then.
-
-One assertion is deliberately loose and should be tightened once a run has happened:
-`AnonymousCatalogJourneyTests` asserts the malformed `?page=` cases return **less than 500**
-rather than exactly 200, because "does not 500" is the contract CLAUDE.md records and nobody
-has yet seen what the real status is.
+One assertion is deliberately loose: `AnonymousCatalogJourneyTests` asserts the malformed
+`?page=` cases return **less than 500** rather than exactly 200, because "does not 500" is the
+contract CLAUDE.md records.
 
 ## Prerequisites
 
@@ -62,8 +54,7 @@ cleanly" below — but obviously no journey actually runs until both are present
 
 ## Running these deliberately
 
-This project is not (yet) referenced by `StockManager.sln` — that is added separately, not by
-these tests. Run it directly by path:
+The project is in `StockManager.sln`. Run it directly by path:
 
 ```bash
 dotnet test StockManager.E2ETests/StockManager.E2ETests.csproj
@@ -145,6 +136,11 @@ skip either way: that is a prerequisite, not a regression.
   for that site (see `CategoryMapping.sql`'s own comment: "a feed value nobody has mapped stays
   invisible"). `Infrastructure/SqlTestData.cs` writes these two rows directly for the same
   reason as the admin bootstrap: there is nowhere in the product yet that would do it instead.
+- **The bootstrap admin needs a row in both databases.** `GET /api/User` looks the caller up
+  in `SMDatabase.dbo.User` and answers 404 when there is no profile, and SMPortal treats any
+  failure of that call as a failed sign-in — so an Identity login with no profile row is
+  reported to the operator as "Check your email and password". `IdentityTestSupport` writes
+  both.
 - **`CrossTenantRefusalJourneyTests` provisions its customer directly**, rather than through
   `/register` and an approval — it is testing what an *existing* session may do across two
   stores, not how one comes to exist; `RegistrationApprovalJourneyTests` is what exercises the

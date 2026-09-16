@@ -1,6 +1,7 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Playwright;
 using Xunit;
 
@@ -84,29 +85,54 @@ public sealed class AspireAppFixture : IAsyncLifetime
 
         try
         {
-            var appHostBuilder = await DistributedApplicationTestingBuilder
-                .CreateAsync<Projects.StockManager_AppHost>();
+            /*
+            The app host's user secrets are loaded explicitly, and without them nothing here
+            works.
 
-            // sm-desktop is a real WPF window with no bearing on any of the four journeys
-            // here, and unlike smdatabase-schema (AppHost.cs strips its
-            // ExplicitStartupAnnotation so the schema deploys automatically), nothing already
-            // stops sm-desktop auto-starting. Add the same annotation in the opposite
-            // direction so `dotnet test` does not pop a window on whatever desktop runs it.
+            Aspire generates the SQL container's SA password once and persists it to the app
+            host's user secrets. That container is persistent — a named volume and
+            ContainerLifetime.Persistent — so the first password generated is the one baked
+            into it for good. `dotnet run` reloads it from user secrets and matches.
+            DistributedApplicationTestingBuilder does not load them, so it generated a fresh
+            random password every run and then could not authenticate against the container
+            that already existed.
+
+            The symptom was nothing like the cause: sql and SMDatabase reached Running and
+            then flipped Healthy -> Unhealthy, and stock-api, sm-store and sm-portal all
+            reached FailedToStart because they could not connect either.
+
+            This project carries the app host's UserSecretsId so the two share one store
+            rather than one guessing at the other's password. See its csproj.
+            */
+            var appHostBuilder = await DistributedApplicationTestingBuilder
+                .CreateAsync<Projects.StockManager_AppHost>(
+                    // As a command-line argument, not through the configuration callback
+                    // below: DistributedApplicationTestingBuilder sets RandomizePorts itself
+                    // after that callback runs, so a value set there is overwritten and the
+                    // ports come out random anyway. Command-line configuration outranks it.
+                    ["--DcpPublisher:RandomizePorts=false"],
+                    (_, settings) =>
+                    {
+                        settings.Configuration?.AddUserSecrets<AspireAppFixture>(optional: true);
+
+                    });
+
+            // sm-desktop is a real WPF window with no bearing on any of the four journeys here.
+            // Nothing stops it auto-starting, so mark it explicit-start: `dotnet test` should not
+            // pop a window on whatever desktop happens to run it.
             var desktop = appHostBuilder.Resources.FirstOrDefault(resource => resource.Name == "sm-desktop");
             desktop?.Annotations.Add(new ExplicitStartupAnnotation());
 
             _app = await appHostBuilder.BuildAsync();
 
+
             /*
             The timeout covers StartAsync as well, and that is not tidiness.
 
-            It used to be created after StartAsync, so a start that never returned was
-            unbounded — and that is exactly what happens here: stock-api and sm-store both
-            WaitForCompletion(smdatabase-schema), and if the schema resource never completes
-            they never start. Observed twice, both times sitting at
-            "Waiting for resource 'smdatabase-schema' to complete" for over half an hour with
-            E2E_REQUIRE_APPHOST=1 set and a twelve-minute resource timeout configured, because
-            neither applied to the call that was actually stuck.
+            It used to be created after StartAsync, so a start that never returned was unbounded.
+            That happened repeatedly while the schema deployment was broken: runs sat for over half
+            an hour with E2E_REQUIRE_APPHOST=1 set and a resource timeout configured, because neither
+            applied to the call that was actually stuck.
 
             A test suite is allowed to fail. It is not allowed to hang, because a hang is
             indistinguishable from slow work and cannot be acted on.
@@ -123,27 +149,18 @@ public sealed class AspireAppFixture : IAsyncLifetime
                 Rewritten because the raw exception is "A task was canceled" with a stack in
                 Aspire's own factory, which says nothing about which resource is stuck.
 
-                The known cause is smdatabase-schema. CommunityToolkit's SQL project resources
-                carry ExplicitStartupAnnotation ("do not start with the app host"), and
-                AppHost.cs strips it so the schema deploys on every run — see the comment
-                there, which records the same symptom stalling stock-api once before. Under
-                DistributedApplicationTestingBuilder that stripping does not take effect, so
-                the schema sits unstarted and stock-api and sm-store, which both
-                WaitForCompletion on it, never start either.
+                The first place to look is the SMDatabase schema deployment in AppHost.cs.
+                It runs on the database's ResourceReadyEvent and every app waits on that
+                database, so a deployment that throws or never returns holds up the whole
+                application — which is how this suite spent weeks unable to start anything.
                 */
                 throw new TimeoutException(
                     $"The app host did not finish starting within {ResourceHealthyTimeout.TotalMinutes} " +
-                    "minutes. The usual cause is smdatabase-schema never reaching Finished: " +
-                    "stock-api and sm-store both WaitForCompletion on it, so neither starts and " +
-                    "no endpoint is ever published. Check that resource first, and raise " +
-                    "E2E_RESOURCE_TIMEOUT_MINUTES only once you have ruled it out.");
+                    "minutes. Look first at the SMDatabase schema deployment in AppHost.cs: it runs " +
+                    "on the database's ready event and every app waits on that database, so a " +
+                    "deployment that throws or never returns publishes no endpoint at all. Raise " +
+                    "E2E_RESOURCE_TIMEOUT_MINUTES only once you have ruled that out.");
             }
-
-            // Named explicitly rather than left implicit behind stock-api's health check: the
-            // schema is what the other two wait on, so when it stalls the failure should say
-            // so instead of blaming whatever timed out downstream of it.
-            await _app.ResourceNotifications.WaitForResourceAsync(
-                "smdatabase-schema", KnownResourceStates.Finished, timeout.Token);
 
             // stock-api and sm-store both carry WithHttpHealthCheck; sm-portal is a static
             // WASM host with no health endpoint of its own, so Running -- not Healthy, which
@@ -163,7 +180,46 @@ public sealed class AspireAppFixture : IAsyncLifetime
 
             // One admin for the whole run: every admin journey signs in as the same operator,
             // the way one human working through these by hand would.
-            Admin = await IdentityTestSupport.CreateAdminAsync(ApiAuthConnectionString);
+            Admin = await IdentityTestSupport.CreateAdminAsync(
+                ApiAuthConnectionString, SmDatabaseConnectionString);
+
+            /*
+            Prove the bootstrap admin can actually authenticate before any journey depends on
+            it.
+
+            Every admin journey signs in through SMPortal, which is WebAssembly: when the API
+            refuses the credentials all the browser shows is "Check your email and password",
+            with no status code and no body. That sends you looking at Playwright selectors for
+            a problem that is two layers down. Asking /token directly, here, turns it into the
+            API's own answer.
+            */
+            using var tokenClient = new HttpClient(new HttpClientHandler
+            {
+                // The ASP.NET Core development certificate is not trusted in this process, and
+                // this is a loopback call to a host this fixture just started.
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            });
+
+            var tokenResponse = await tokenClient.PostAsync(
+                new Uri(StockApiBaseUrl, "/token"),
+                new FormUrlEncodedContent(
+                [
+                    new KeyValuePair<string, string>("username", Admin.Email),
+                    new KeyValuePair<string, string>("password", Admin.Password),
+                    new KeyValuePair<string, string>("grant_type", "password")
+                ]),
+                timeout.Token);
+
+            if (!tokenResponse.IsSuccessStatusCode)
+            {
+                var body = await tokenResponse.Content.ReadAsStringAsync(timeout.Token);
+
+                throw new InvalidOperationException(
+                    $"The bootstrap admin {Admin.Email} was created but POST {StockApiBaseUrl}token " +
+                    $"answered {(int)tokenResponse.StatusCode} {tokenResponse.StatusCode}: {body}. " +
+                    "Every admin journey signs in through that endpoint, so they would all fail " +
+                    "on this with no indication that the credentials, and not the UI, are the problem.");
+            }
         }
         catch (Exception exception)
         {

@@ -34,7 +34,9 @@ public static class IdentityTestSupport
 
     /// <summary>The one admin every admin-facing journey in this project signs in as.</summary>
     public static async Task<Credentials> CreateAdminAsync(
-        string apiAuthConnectionString, CancellationToken cancellationToken = default)
+        string apiAuthConnectionString,
+        string smDatabaseConnectionString,
+        CancellationToken cancellationToken = default)
     {
         var email = $"e2e-admin-{Guid.NewGuid():N}@example.test";
 
@@ -55,6 +57,12 @@ public static class IdentityTestSupport
 
         Guard(await users.CreateAsync(user, Password), $"create admin user {email}");
         Guard(await users.AddToRoleAsync(user, "Admin"), $"grant Admin to {email}");
+
+        // An admin exists in both databases, and the profile row is the half that is easy to
+        // forget: without it the token is issued, GET /api/User answers 404, and SMPortal
+        // reports a perfectly good sign-in as a wrong password. See CreateUserProfileAsync.
+        await SqlTestData.CreateUserProfileAsync(
+            smDatabaseConnectionString, user.Id, email, cancellationToken);
 
         return new Credentials(email, Password);
     }
@@ -100,7 +108,21 @@ public static class IdentityTestSupport
 
         // AddIdentityCore rather than AddDefaultIdentity: there is no web host here, so this
         // wants UserManager and RoleManager and nothing that assumes a request pipeline.
-        services.AddIdentityCore<IdentityUser>()
+        services.AddIdentityCore<IdentityUser>(options =>
+            {
+                /*
+                The same two options StockApi and SMStore both set, and they are not optional
+                here either.
+
+                A customer login is named "{SiteKey}|{email}", and Identity's default
+                allow-list rejects the pipe — this container refused to create one at all
+                ("can only contain letters or digits") until it agreed with the hosts. That it
+                failed is the rule working: a test that quietly used a different username
+                policy would be provisioning logins the product could never have made.
+                */
+                options.User.AllowedUserNameCharacters = SiteQualifiedUserName.AllowedUserNameCharacters;
+                options.User.RequireUniqueEmail = false;
+            })
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>();
 

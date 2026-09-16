@@ -291,10 +291,26 @@ written. Keep the target and the project reference together — `AppHost.cs` thr
 actionable message if the metadata is absent.
 
 It still **refuses to start** if that DACPAC is missing or older than any `.sql` file under
-`SMDatabase/`, which catches a hand-edited `.sql` that was never rebuilt. `smdatabase-schema`
-publishes it automatically (`WithSkipWhenDeployed`, so an unchanged DACPAC is skipped).
+`SMDatabase/`, which catches a hand-edited `.sql` that was never rebuilt.
 `AppendTargetFrameworkToOutputPath` is off in the sqlproj so the output does not nest under a
 target-framework folder.
+
+**The schema is published in process, on the database's `ResourceReadyEvent`.** It used to be
+a `CommunityToolkit` `AddSqlProject` resource that `stock-api` and `sm-store` both
+`WaitForCompletion`'d — and that resource never ran. It reported one `Waiting` snapshot and
+never another, so everything waiting on it waited for ever and **`dotnet run` could not start
+the apps at all**. Five explanations were checked and none held: the `ExplicitStartupAnnotation`
+the toolkit adds (stripping it changes nothing, and so does leaving it in), the resource's own
+`WaitAnnotation`s (removing every one changes nothing), `WithSkipWhenDeployed`, the Azure
+container app environment, and upgrading Aspire and the toolkit together to 13.5. The DACPAC
+was never at fault — `sqlpackage` applies it to the same container in about ten seconds.
+
+So `AppHost.cs` calls `DacServices.Deploy` directly and the toolkit package is gone. Aspire
+awaits `ResourceReadyEvent` subscribers before dependents that `WaitFor` the resource proceed,
+which is what makes a plain `WaitFor(stockDatabase)` sufficient and is why
+`WaitForCompletion(smSchema)` is no longer on either app. Two things went with it: the
+dashboard row for the deploy, and the skip-when-unchanged fast path. Ten seconds a launch is
+cheaper than an application that will not start.
 
 Building `StockManager.AppHost.csproj` **alone** with Visual Studio's MSBuild from a clean `obj`
 fails with `CS0246: The type or namespace name 'Projects' could not be found` — the Aspire SDK
@@ -360,9 +376,16 @@ registration form must never echo a password back into its own HTML. Each is a l
 later "simplification" would reintroduce silently, and each is asserted by reflection or by
 searching the rendered markup because no ordinary assertion expresses "this must stay absent".
 
-`StockManager.E2ETests/README.md` carries the rest: the Playwright install step,
-`E2E_REQUIRE_APPHOST=1` for CI, and — read this before trusting a green run — the fact that
-**those four journeys have never been observed to pass.**
+`StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
+`E2E_REQUIRE_APPHOST=1` for CI. **All four journeys pass**, in about half a minute against a
+warm SQL container.
+
+**The end-to-end suite earns its cost, and here is the evidence.** Its first complete run
+found a bug that four unit-test projects could not: `Account.ApprovedBy` is a foreign key into
+`dbo.User(UserId)`, and `AccountController` was recording `User.Identity.Name` — an email
+address — so every approval died with SQL error 547 *after* telling the caller it had
+succeeded. The unit test asserted the approver came from `Identity.Name`, which was precisely
+the defect. A substituted data access layer cannot fail a foreign key.
 
 ```bash
 dotnet test SMDesktopUI.UITests/SMDesktopUI.UITests.csproj
