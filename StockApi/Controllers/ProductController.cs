@@ -113,7 +113,7 @@ namespace StockApi.Controllers
             // One store's feeds, not every store's. Injected per action rather than through
             // the constructor because the rest of this controller serves the desktop POS,
             // which has no site and must not start needing one.
-            var results = await feedSync.SyncAllAsync(site.SiteId);
+            var results = await feedSync.SyncAllAsync(site.SiteId, FeedSyncTrigger.Operator);
 
             // Surface a total failure rather than reporting a clean sync. A feed that was
             // already running does not count as one — see FeedSyncOutcome.

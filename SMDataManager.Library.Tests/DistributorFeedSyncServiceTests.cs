@@ -62,7 +62,7 @@ public class DistributorFeedSyncServiceTests
         _feeds.GetFeedById(feed.Id, feed.SiteId).Returns(feed);
         Claimable(false);
 
-        var result = await _sync.SyncAsync(feed.Id, feed.SiteId);
+        var result = await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Operator);
 
         result.AlreadyRunning.Should().BeTrue();
         result.Succeeded.Should().BeFalse("nothing was imported");
@@ -83,12 +83,12 @@ public class DistributorFeedSyncServiceTests
         _feeds.GetFeedById(feed.Id, feed.SiteId).Returns(feed);
         Claimable(false);
 
-        await _sync.SyncAsync(feed.Id, feed.SiteId);
+        await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Operator);
 
         // RecordSync also releases the claim. Calling it here would hand the feed away from the
         // sync still running on it, which is the one way this guard could make things worse
         // than no guard at all.
-        _feeds.DidNotReceive().RecordSync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int>());
+        _feeds.DidNotReceive().RecordSync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<FeedSyncRecord>());
     }
 
     [Fact]
@@ -98,13 +98,13 @@ public class DistributorFeedSyncServiceTests
         _feeds.GetFeedById(feed.Id, feed.SiteId).Returns(feed);
         Claimable(true);
 
-        var result = await _sync.SyncAsync(feed.Id, feed.SiteId);
+        var result = await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Operator);
 
         result.Succeeded.Should().BeTrue();
         result.AlreadyRunning.Should().BeFalse();
 
         _feeds.Received(1).ClaimForSync(feed.Id, feed.SiteId);
-        _feeds.Received(1).RecordSync(feed.Id, Arg.Any<string>(), feed.SiteId);
+        _feeds.Received(1).RecordSync(feed.Id, feed.SiteId, Arg.Any<FeedSyncRecord>());
     }
 
     [Fact]
@@ -116,13 +116,14 @@ public class DistributorFeedSyncServiceTests
         _client.Fetch(Arg.Any<DistributorFeedSettings>())
             .Returns(_ => throw new InvalidOperationException("connection refused"));
 
-        var result = await _sync.SyncAsync(feed.Id, feed.SiteId);
+        var result = await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Operator);
 
         result.Succeeded.Should().BeFalse();
 
         // Otherwise a feed that fails once stops syncing until its lease expires, and the
         // symptom — a feed that will not start — looks nothing like the cause.
-        _feeds.Received(1).RecordSync(feed.Id, Arg.Is<string>(status => status.StartsWith("Failed")), feed.SiteId);
+        _feeds.Received(1).RecordSync(feed.Id, feed.SiteId,
+            Arg.Is<FeedSyncRecord>(record => !record.Succeeded && record.Status.StartsWith("Failed")));
     }
 
     [Fact]
@@ -134,11 +135,53 @@ public class DistributorFeedSyncServiceTests
         _feeds.ClaimForSync(busy.Id, 7).Returns(false);
         _feeds.ClaimForSync(free.Id, 7).Returns(true);
 
-        var results = await _sync.SyncAllAsync(7);
+        var results = await _sync.SyncAllAsync(7, FeedSyncTrigger.Schedule);
 
         results.Should().HaveCount(2);
         results.Should().ContainSingle(result => result.AlreadyRunning);
         results.Should().ContainSingle(result => result.Succeeded);
+    }
+
+    [Fact]
+    public async Task TheRecordedRunCarriesItsTriggerAndItsNumbers()
+    {
+        var feed = Feed();
+        _feeds.GetFeedById(feed.Id, feed.SiteId).Returns(feed);
+        Claimable(true);
+        _client.Fetch(Arg.Any<DistributorFeedSettings>()).Returns(
+            new List<DistributorFeedRecord> { new(), new(), new() });
+        _products.BulkUpsertFromFeed(Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
+            .Returns(new FeedUpsertResult { Received = 3, Delisted = 1 });
+
+        await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Schedule);
+
+        _feeds.Received(1).RecordSync(feed.Id, feed.SiteId, Arg.Is<FeedSyncRecord>(record =>
+            record.TriggeredBy == FeedSyncTrigger.Schedule
+            && record.Succeeded
+            && record.RecordCount == 3
+            && record.Imported == 3
+            && record.Delisted == 1
+            && record.StartedUtc != default));
+    }
+
+    [Fact]
+    public async Task AFailedRunStillRecordsHowManyRecordsItHadFetched()
+    {
+        var feed = Feed();
+        _feeds.GetFeedById(feed.Id, feed.SiteId).Returns(feed);
+        Claimable(true);
+        _client.Fetch(Arg.Any<DistributorFeedSettings>()).Returns(
+            new List<DistributorFeedRecord> { new(), new() });
+        _products.BulkUpsertFromFeed(Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
+            .Returns(_ => throw new InvalidOperationException("deadlocked"));
+
+        await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Schedule);
+
+        // A feed that fetched 40,000 records and then failed to import them is a different
+        // problem from one that never connected, and the history is the only place that
+        // difference is recorded.
+        _feeds.Received(1).RecordSync(feed.Id, feed.SiteId, Arg.Is<FeedSyncRecord>(record =>
+            !record.Succeeded && record.RecordCount == 2 && record.Imported == 0));
     }
 
     [Fact]
@@ -148,7 +191,7 @@ public class DistributorFeedSyncServiceTests
         disabled.Enabled = false;
         _feeds.GetFeeds(7).Returns(new List<DistributorFeedModel> { disabled });
 
-        var results = await _sync.SyncAllAsync(7);
+        var results = await _sync.SyncAllAsync(7, FeedSyncTrigger.Schedule);
 
         results.Should().BeEmpty();
         _feeds.DidNotReceive().ClaimForSync(Arg.Any<int>(), Arg.Any<int>());

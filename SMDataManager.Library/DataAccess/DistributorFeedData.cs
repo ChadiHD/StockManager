@@ -114,10 +114,36 @@ namespace SMDataManager.Library.DataAccess
             return claimed.FirstOrDefault() == 1;
         }
 
-        public void RecordSync(int id, string status, int siteId)
+        public void RecordSync(int id, int siteId, FeedSyncRecord record)
         {
-            _sqlDataAccess.SaveData("dbo.spDistributorFeed_RecordSync",
-                new { Id = id, Status = status, SiteId = siteId }, "SMDatabase");
+            _sqlDataAccess.SaveData("dbo.spDistributorFeed_RecordSync", new
+            {
+                Id = id,
+                SiteId = siteId,
+                Status = record.Status,
+                Succeeded = record.Succeeded,
+                StartedUtc = record.StartedUtc,
+                RecordCount = record.RecordCount,
+                Imported = record.Imported,
+                Delisted = record.Delisted,
+                // The enum's name is the stored value, so adding a trigger is one place rather
+                // than two. The column is NVARCHAR(20) and both names fit.
+                TriggeredBy = record.TriggeredBy.ToString()
+            }, "SMDatabase");
+        }
+
+        public List<FeedSyncLogModel> GetSyncHistory(int feedId, int siteId, int take)
+        {
+            return _sqlDataAccess.LoadData<FeedSyncLogModel, dynamic>(
+                "dbo.spDistributorFeedSync_GetByFeed",
+                new { FeedId = feedId, SiteId = siteId, Take = take }, "SMDatabase");
+        }
+
+        public List<FeedSyncLogModel> GetRecentSyncs(int siteId, int take)
+        {
+            return _sqlDataAccess.LoadData<FeedSyncLogModel, dynamic>(
+                "dbo.spDistributorFeedSync_GetRecent",
+                new { SiteId = siteId, Take = take }, "SMDatabase");
         }
     }
 }

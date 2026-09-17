@@ -48,7 +48,7 @@ public class FeedSyncReportingTests
     [Fact]
     public async Task SyncAnswersConflictWhenTheFeedIsAlreadySyncing()
     {
-        _sync.SyncAsync(3, 42).Returns(Busy());
+        _sync.SyncAsync(3, 42, FeedSyncTrigger.Operator).Returns(Busy());
 
         var result = await _controller.Sync(3);
 
@@ -59,7 +59,7 @@ public class FeedSyncReportingTests
     [Fact]
     public async Task SyncAnswersBadGatewayWhenTheFeedActuallyFailed()
     {
-        _sync.SyncAsync(3, 42).Returns(Failed());
+        _sync.SyncAsync(3, 42, FeedSyncTrigger.Operator).Returns(Failed());
 
         var result = await _controller.Sync(3);
 

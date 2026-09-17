@@ -33,19 +33,19 @@ namespace SMDataManager.Library.Feeds
             _logger = logger;
         }
 
-        public async Task<List<DistributorFeedResult>> SyncAllAsync(int siteId)
+        public async Task<List<DistributorFeedResult>> SyncAllAsync(int siteId, FeedSyncTrigger trigger)
         {
             var results = new List<DistributorFeedResult>();
 
             foreach (var feed in _feedData.GetFeeds(siteId).Where(feed => feed.Enabled))
             {
-                results.Add(await RunFeedAsync(feed));
+                results.Add(await RunFeedAsync(feed, trigger));
             }
 
             return results;
         }
 
-        public async Task<DistributorFeedResult> SyncAsync(int feedId, int siteId)
+        public async Task<DistributorFeedResult> SyncAsync(int feedId, int siteId, FeedSyncTrigger trigger)
         {
             var feed = _feedData.GetFeedById(feedId, siteId);
 
@@ -59,7 +59,7 @@ namespace SMDataManager.Library.Feeds
                 };
             }
 
-            return await RunFeedAsync(feed);
+            return await RunFeedAsync(feed, trigger);
         }
 
         public async Task<DistributorFeedResult> TestAsync(DistributorFeedModel feed, string password)
@@ -142,9 +142,15 @@ namespace SMDataManager.Library.Feeds
 
         // One feed failing must not abort the others, so failures are captured per feed and
         // reported back rather than thrown.
-        private async Task<DistributorFeedResult> RunFeedAsync(DistributorFeedModel feed)
+        private async Task<DistributorFeedResult> RunFeedAsync(
+            DistributorFeedModel feed, FeedSyncTrigger trigger)
         {
             var result = new DistributorFeedResult { Distributor = feed.Name };
+
+            // Before the claim, so a run that waited on a busy database still reports how long
+            // it really took. The procedure stamps the finish, and the pair is the duration an
+            // operator reads when a feed starts taking twice as long as it used to.
+            var startedUtc = DateTime.UtcNow;
 
             /*
             Claimed before anything is fetched, and nothing below runs without the claim.
@@ -179,8 +185,16 @@ namespace SMDataManager.Library.Feeds
                 result.Delisted = upsert.Delisted;
                 result.Succeeded = true;
 
-                _feedData.RecordSync(feed.Id,
-                    $"Imported {result.Imported} of {result.RecordCount}; {result.Delisted} delisted.", feed.SiteId);
+                _feedData.RecordSync(feed.Id, feed.SiteId, new FeedSyncRecord
+                {
+                    StartedUtc = startedUtc,
+                    Succeeded = true,
+                    Status = $"Imported {result.Imported} of {result.RecordCount}; {result.Delisted} delisted.",
+                    RecordCount = result.RecordCount,
+                    Imported = result.Imported,
+                    Delisted = result.Delisted,
+                    TriggeredBy = trigger
+                });
 
                 // A sync is the only thing that introduces products with no image, so it is
                 // also the only moment worth starting a pass. Signalling rather than enriching
@@ -198,7 +212,19 @@ namespace SMDataManager.Library.Feeds
 
                 // Message only — the exception could carry connection detail, and the status is
                 // shown in the portal.
-                _feedData.RecordSync(feed.Id, $"Failed: {Trim(exception.Message, 380)}", feed.SiteId);
+                //
+                // RecordCount is carried through even on a failure: a feed that fetched 40,000
+                // records and then failed to import them is a different problem from one that
+                // never connected, and the history is where that is answered.
+                _feedData.RecordSync(feed.Id, feed.SiteId, new FeedSyncRecord
+                {
+                    StartedUtc = startedUtc,
+                    Succeeded = false,
+                    Status = $"Failed: {Trim(exception.Message, 380)}",
+                    RecordCount = result.RecordCount,
+                    TriggeredBy = trigger
+                });
+
                 _logger.LogError(exception, "Distributor feed {Distributor} failed.", feed.Name);
             }
 

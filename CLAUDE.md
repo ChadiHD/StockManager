@@ -420,7 +420,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 251 tests, plus the 2 pricing
+**That filter is what a routine run wants**, and it passes: 271 tests, plus the 2 pricing
 parity checks that skip without a database. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -446,6 +446,21 @@ is a leak that a later "simplification" would reintroduce silently, and each is 
 reflection or by searching the rendered markup because no ordinary assertion expresses "this
 must stay absent". `PasswordResetServiceTests` is mostly the same shape: what it asserts is the
 absence of a difference between a real address and an unknown one.
+
+**A test project that fails to compile is dropped from a solution run, which still exits 0.**
+Changing `IDistributorFeedSyncService.SyncAsync` broke `StockApi.Tests`, and
+`dotnet test StockManager.sln --filter ...` printed two `error CS7036` lines, ran the other
+three projects, printed three green `Passed!` lines and exited 0. Nothing in the summary said a
+project was missing. So the count that matters is **one `Passed!` line per project — four for
+the routine filter** — and the cheap guard is to build the solution before testing it:
+
+```bash
+dotnet build StockManager.sln -v q --nologo && dotnet test StockManager.sln --filter "..."
+```
+
+This is the same failure mode as the bUnit interop hang below, reached a different way: a
+partial run that reports success. Assume neither the exit code nor a green line is evidence
+about a project it does not name.
 
 **Do not add an explicit `AngleSharp` `PackageReference` to a bUnit project.** bUnit 1.40.0
 binds against the AngleSharp it ships with, and pinning 1.8.1 alongside it throws

@@ -143,10 +143,32 @@ namespace StockApi.Controllers
             return await _sync.TestAsync(model, input.Password);
         }
 
+        /// <summary>
+        /// What this feed's recent runs did, which <c>LastSyncStatus</c> cannot say.
+        /// </summary>
+        /// <remarks>
+        /// The feed is looked up first so an id belonging to another store answers 404 rather
+        /// than an empty history. The procedure filters by site too, so this is belt and
+        /// braces — but "no history" and "not your feed" are different answers and only one of
+        /// them is true.
+        /// </remarks>
+        [HttpGet("{id:int}/History")]
+        public ActionResult<IEnumerable<FeedSyncLogModel>> History(int id, [FromQuery] int take = 20)
+        {
+            if (_feedData.GetFeedById(id, _site.SiteId) is null) return NotFound();
+
+            return _feedData.GetSyncHistory(id, _site.SiteId, take).ToList();
+        }
+
+        /// <summary>Recent runs across every feed in this store.</summary>
+        [HttpGet("History")]
+        public IEnumerable<FeedSyncLogModel> RecentHistory([FromQuery] int take = 20) =>
+            _feedData.GetRecentSyncs(_site.SiteId, take);
+
         [HttpPost("{id:int}/Sync")]
         public async Task<ActionResult<DistributorFeedResult>> Sync(int id)
         {
-            var result = await _sync.SyncAsync(id, _site.SiteId);
+            var result = await _sync.SyncAsync(id, _site.SiteId, FeedSyncTrigger.Operator);
 
             if (result.Succeeded) return result;
 
@@ -162,7 +184,7 @@ namespace StockApi.Controllers
         [HttpPost("Sync")]
         public async Task<ActionResult<List<DistributorFeedResult>>> SyncAll()
         {
-            var results = await _sync.SyncAllAsync(_site.SiteId);
+            var results = await _sync.SyncAllAsync(_site.SiteId, FeedSyncTrigger.Operator);
 
             if (FeedSyncOutcome.IsTotalFailure(results))
             {

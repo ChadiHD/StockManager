@@ -39,7 +39,21 @@ namespace SMDataManager.Library.DataAccess
         /// </remarks>
         bool ClaimForSync(int id, int siteId);
 
-        /// <summary>Records the outcome and releases the claim.</summary>
-        void RecordSync(int id, string status, int siteId);
+        /// <summary>
+        /// Records the outcome, writes it to the history, and releases the claim.
+        /// </summary>
+        /// <remarks>
+        /// One call for all three because a caller that did two of them would leave a state
+        /// nobody reads correctly: a status without a release looks like a sync that finished
+        /// and then would not start again, and a release without a history row loses what the
+        /// failure alert uses to tell a new failure from a continuing one.
+        /// </remarks>
+        void RecordSync(int id, int siteId, FeedSyncRecord record);
+
+        /// <summary>Recent attempts against one feed, newest first.</summary>
+        List<FeedSyncLogModel> GetSyncHistory(int feedId, int siteId, int take);
+
+        /// <summary>Recent attempts across every feed in one store, newest first.</summary>
+        List<FeedSyncLogModel> GetRecentSyncs(int siteId, int take);
     }
 }

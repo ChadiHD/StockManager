@@ -57,5 +57,10 @@ CREATE TABLE [dbo].[DistributorFeed]
 
 	-- Scoped by site: two stores may each have a feed called "Main".
 	CONSTRAINT [UQ_DistributorFeed_Name] UNIQUE ([SiteId], [Name]),
+
+	-- Not for uniqueness — Id is already the primary key — but so DistributorFeedSyncLog can
+	-- reference (Id, SiteId) as a composite foreign key and be unable to record a sync against
+	-- a store the feed does not belong to.
+	CONSTRAINT [UQ_DistributorFeed_IdSite] UNIQUE ([Id], [SiteId]),
 	CONSTRAINT [FK_DistributorFeed_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )
