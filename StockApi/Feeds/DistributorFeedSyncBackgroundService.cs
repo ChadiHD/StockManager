@@ -133,6 +133,12 @@ namespace StockApi.Feeds
                     var results = await sync.SyncAllAsync(site.Id, FeedSyncTrigger.Schedule);
 
                     LogOutcome(site, results);
+
+                    // Only from here, never from the controller: an operator who pressed Sync is
+                    // already reading the answer, and mailing them about it is how a channel
+                    // stops being believed. FeedAlertService never throws.
+                    await scope.ServiceProvider.GetRequiredService<FeedAlertService>()
+                        .ReportAsync(site, results, stoppingToken);
                 }
                 catch (Exception exception)
                 {

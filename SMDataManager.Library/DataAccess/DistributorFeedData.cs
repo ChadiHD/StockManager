@@ -139,6 +139,15 @@ namespace SMDataManager.Library.DataAccess
                 new { FeedId = feedId, SiteId = siteId, Take = take }, "SMDatabase");
         }
 
+        public List<DistributorFeedModel> GetStaleFeeds(int siteId)
+        {
+            // Returns the same model the other reads do, but the procedure projects only the
+            // columns an alert or a banner needs — SecretRef is not among them, and does not
+            // need to be for a caller deciding whether to complain about a feed.
+            return _sqlDataAccess.LoadData<DistributorFeedModel, dynamic>(
+                "dbo.spDistributorFeed_GetStale", new { SiteId = siteId }, "SMDatabase");
+        }
+
         public List<FeedSyncLogModel> GetRecentSyncs(int siteId, int take)
         {
             return _sqlDataAccess.LoadData<FeedSyncLogModel, dynamic>(

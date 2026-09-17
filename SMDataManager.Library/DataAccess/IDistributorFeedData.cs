@@ -55,5 +55,16 @@ namespace SMDataManager.Library.DataAccess
 
         /// <summary>Recent attempts across every feed in one store, newest first.</summary>
         List<FeedSyncLogModel> GetRecentSyncs(int siteId, int take);
+
+        /// <summary>
+        /// Enabled feeds this store has not heard from within its own staleness threshold.
+        /// </summary>
+        /// <remarks>
+        /// A different question from "did the last sync fail". A feed that was never attempted
+        /// — the scheduler off, the host down, a misconfigured time — leaves nothing in the
+        /// history to fail, and this is the only thing that notices. Empty when the store has
+        /// set no threshold.
+        /// </remarks>
+        List<DistributorFeedModel> GetStaleFeeds(int siteId);
     }
 }

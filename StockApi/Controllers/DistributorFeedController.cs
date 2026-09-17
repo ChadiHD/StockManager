@@ -165,6 +165,21 @@ namespace StockApi.Controllers
         public IEnumerable<FeedSyncLogModel> RecentHistory([FromQuery] int take = 20) =>
             _feedData.GetRecentSyncs(_site.SiteId, take);
 
+        /// <summary>
+        /// Enabled feeds this store has not heard from inside its own staleness threshold.
+        /// </summary>
+        /// <remarks>
+        /// Only the id, the name and when it last delivered. The full <c>FeedView</c> would do,
+        /// and this is narrower on purpose: the banner that reads this needs three fields, and
+        /// a feed list is the heaviest read in this controller.
+        /// </remarks>
+        public record StaleFeedView(int Id, string Name, DateTime? LastSyncedUtc);
+
+        [HttpGet("Stale")]
+        public IEnumerable<StaleFeedView> Stale() =>
+            _feedData.GetStaleFeeds(_site.SiteId)
+                .Select(feed => new StaleFeedView(feed.Id, feed.Name, feed.LastSyncedUtc));
+
         [HttpPost("{id:int}/Sync")]
         public async Task<ActionResult<DistributorFeedResult>> Sync(int id)
         {

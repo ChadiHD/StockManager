@@ -15,6 +15,39 @@
     </div>
 </div>
 
+@* The pull half of "a failed sync is visible". The push half is the mail FeedAlertService
+   sends, and neither is enough alone: nobody watches a screen at 02:00, and a mail about a
+   failure that has been fixed since is worse than no mail. This is what the page says when
+   somebody does look.
+
+   Rendered from what the API returned or not at all — see CLAUDE.md on the portal never
+   inventing data. An empty banner area means nothing is wrong, not that nothing was checked. *@
+@if (_failing.Count > 0)
+{
+    <div class="alert alert--danger">
+        <strong>@Plural(_failing.Count, "feed is", "feeds are") failing.</strong>
+        <span>
+            @string.Join(", ", _failing.Select(log => log.FeedName))
+            — the last attempt did not complete, so stock from
+            @(_failing.Count == 1 ? "that distributor" : "those distributors")
+            is as old as the last successful sync. Open History on the row for the detail.
+        </span>
+    </div>
+}
+
+@if (_stale.Count > 0)
+{
+    <div class="alert alert--warn">
+        <strong>@Plural(_stale.Count, "feed has", "feeds have") gone quiet.</strong>
+        <span>
+            @string.Join(", ", _stale.Select(feed => feed.Name))
+            @(_stale.Count == 1 ? "has" : "have") not delivered inside this store's staleness
+            threshold. Nothing failed, which usually means the scheduled sync is off or the
+            host that runs it has been down.
+        </span>
+    </div>
+}
+
 <div class="panel panel-clip">
     <div class="toolbar">
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search feed or host" />
@@ -96,7 +129,15 @@
                             </td>
                             <td class="trail num">
                                 <button class="btn btn-sm btn-secondary" @onclick="() => OpenEdit(feed)" disabled="@_busy">Edit</button>
-                                <button class="btn btn-sm btn-secondary" @onclick="() => Sync(feed)" disabled="@_busy">Sync</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => OpenHistory(feed)" disabled="@_busy">History</button>
+                                @* Disabled while a sync of this feed holds the claim, so the
+                                   button does not offer an action the API would refuse with a
+                                   409. The claim is the authority either way — this only stops
+                                   the pointless round trip. *@
+                                <button class="btn btn-sm btn-secondary" @onclick="() => Sync(feed)"
+                                        disabled="@(_busy || feed.SyncStartedUtc is not null)">
+                                    @(feed.SyncStartedUtc is null ? "Sync" : "Syncing…")
+                                </button>
                                 <button class="btn btn-sm btn-danger-outline" @onclick="() => Delete(feed)" disabled="@_busy">Delete</button>
                             </td>
                         </tr>
@@ -256,6 +297,80 @@
     </EditForm>
 </Modal>
 
+<Modal Visible="_showHistory" Title="@($"Sync history — {_historyFeed?.Name}")" OnClose="CloseHistory">
+    <div class="modal-body">
+        @if (_historyLoading)
+        {
+            <p class="text-muted">Loading…</p>
+        }
+        else if (_history.Count == 0)
+        {
+            @* An explicit empty state rather than an empty table: "never attempted" and
+               "attempted and nothing recorded" look identical in a blank grid, and only one of
+               them is possible. *@
+            <div class="empty-state">
+                <strong>No attempts recorded</strong>
+                <span>
+                    This feed has not been synced since the history began. Press Sync on its
+                    row, or wait for the scheduled run.
+                </span>
+            </div>
+        }
+        else
+        {
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                        <tr>
+                            <th class="lead">Started</th>
+                            <th>Trigger</th>
+                            <th>Took</th>
+                            <th class="num">Records</th>
+                            <th class="num">Imported</th>
+                            <th class="num">Delisted</th>
+                            <th class="trail">Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var attempt in _history)
+                        {
+                            <tr>
+                                <td class="lead">
+                                    <span class="cell-primary">@attempt.StartedUtc.ToString("dd MMM HH:mm")</span>
+                                </td>
+                                <td>
+                                    @* Worth showing: a feed that only succeeds when somebody
+                                       presses the button is a scheduler problem, not a feed
+                                       problem, and this column is what tells them apart. *@
+                                    <span class="badge badge--neutral">@attempt.TriggeredBy</span>
+                                </td>
+                                <td><span class="cell-sub">@Took(attempt)</span></td>
+                                <td class="num">@attempt.RecordCount</td>
+                                <td class="num">@attempt.Imported</td>
+                                <td class="num">@attempt.Delisted</td>
+                                <td class="trail">
+                                    @if (attempt.Succeeded)
+                                    {
+                                        <span class="badge badge--ok">Imported</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge--danger" title="@attempt.Message">Failed</span>
+                                        <span class="cell-sub">@attempt.Message</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+    <div class="modal-foot">
+        <button type="button" class="btn btn-secondary" @onclick="CloseHistory">Close</button>
+    </div>
+</Modal>
+
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
 
@@ -321,8 +436,95 @@
 
     private FeedSyncOutcome? _testResult;
 
-    protected override void OnParametersSet() =>
+    // ---- The banner ------------------------------------------------------------------------
+
+    private List<FeedSyncLogView> _failing = [];
+    private List<StaleFeedView> _stale = [];
+
+    private bool _showHistory;
+    private DistributorFeedView? _historyFeed;
+    private List<FeedSyncLogView> _history = [];
+    private bool _historyLoading;
+
+    // OnParametersSetAsync rather than OnParametersSet: these two reads are per request and not
+    // in the snapshot, like GetContacts and GetDocuments. See CLAUDE.md on the exceptions to
+    // IAdminDataService's synchronous rule.
+    protected override async Task OnParametersSetAsync()
+    {
         Layout?.SetPage("Distributor feeds", "Stock sources and import credentials");
+
+        await RefreshBannerAsync();
+    }
+
+    /// <summary>
+    /// What the two banners show: feeds whose newest recorded attempt failed, and feeds that
+    /// have gone quiet.
+    /// </summary>
+    /// <remarks>
+    /// The failing list is derived from the history rather than from
+    /// <c>DistributorFeedView.LastSyncStatus</c>, which is a free-text string — matching on
+    /// "Failed:" would be a parser over a message somebody will reword. The history carries a
+    /// boolean, and the newest row per feed is the current state.
+    ///
+    /// A failure and a stale reading can both be true of one feed. Both banners render, because
+    /// they say different things: one is "the attempt broke", the other is "the data is old",
+    /// and an operator chasing a distributor needs to know which.
+    /// </remarks>
+    private async Task RefreshBannerAsync()
+    {
+        try
+        {
+            var recent = await Data.GetRecentFeedHistory();
+
+            _failing = recent
+                .GroupBy(attempt => attempt.FeedId)
+                .Select(group => group.OrderByDescending(attempt => attempt.StartedUtc).First())
+                .Where(attempt => !attempt.Succeeded)
+                .OrderBy(attempt => attempt.FeedName)
+                .ToList();
+
+            _stale = [.. await Data.GetStaleFeeds()];
+        }
+        catch (Exception)
+        {
+            // A banner is not worth failing the page for. Cleared rather than left stale: a
+            // warning nobody can refresh is worse than no warning, because it reads as current.
+            _failing = [];
+            _stale = [];
+        }
+    }
+
+    private static string Plural(int count, string one, string many) =>
+        count == 1 ? $"One {one}" : $"{count} {many}";
+
+    private static string Took(FeedSyncLogView attempt) =>
+        attempt.Duration.TotalMinutes >= 1
+            ? $"{attempt.Duration.TotalMinutes:F0} min"
+            : $"{attempt.Duration.TotalSeconds:F0} s";
+
+    private async Task OpenHistory(DistributorFeedView feed)
+    {
+        _historyFeed = feed;
+        _history = [];
+        _historyLoading = true;
+        _showHistory = true;
+
+        try
+        {
+            _history = [.. await Data.GetFeedHistory(feed.Id)];
+        }
+        finally
+        {
+            _historyLoading = false;
+        }
+    }
+
+    private void CloseHistory()
+    {
+        _showHistory = false;
+        _historyFeed = null;
+        _history = [];
+    }
 
     private void OpenNew()
     {

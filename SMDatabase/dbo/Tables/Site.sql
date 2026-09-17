@@ -49,6 +49,16 @@ CREATE TABLE [dbo].[Site]
 	-- round. See dbo.fnSite_StaleBeforeUtc.
 	[HideStaleProducts] BIT NOT NULL DEFAULT 0,
 
+	-- Where an operational alert about this store goes: a failed feed sync, or a feed whose
+	-- data has gone stale. Per site because the back office is per store, and one address for
+	-- the whole platform would tell every tenant's operator about every other tenant's
+	-- distributor.
+	--
+	-- NULL means log only. Nothing invents an address, and nothing falls back to a
+	-- platform-wide one — an alert about store A arriving at store B's inbox names A's
+	-- distributor and A's hostname.
+	[OperatorEmail] NVARCHAR(320) NULL,
+
 	[IsActive] BIT NOT NULL DEFAULT 1,
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 

@@ -105,6 +105,26 @@ public interface IAdminDataService
 
     Task SyncFeeds();
 
+    /// <summary>
+    /// Every recorded attempt against one feed, newest first.
+    /// </summary>
+    /// <remarks>
+    /// Asynchronous and per feed, like <see cref="GetDocuments"/> and for the same reason: an
+    /// operator opens one feed's history at a time, and holding every attempt for every feed in
+    /// the snapshot would be the wrong trade. A page calling this needs
+    /// <c>OnParametersSetAsync</c>, not <c>OnParametersSet</c>.
+    /// </remarks>
+    Task<IReadOnlyList<FeedSyncLogView>> GetFeedHistory(int feedId);
+
+    /// <summary>Recent attempts across every feed, newest first.</summary>
+    Task<IReadOnlyList<FeedSyncLogView>> GetRecentFeedHistory();
+
+    /// <summary>
+    /// Feeds this store has not heard from inside its staleness threshold. Empty when the
+    /// store has set no threshold.
+    /// </summary>
+    Task<IReadOnlyList<StaleFeedView>> GetStaleFeeds();
+
     // ---- Distributor feed management -------------------------------------------------------
     IReadOnlyList<DistributorFeedView> Feeds { get; }
 

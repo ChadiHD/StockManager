@@ -9,7 +9,7 @@ BEGIN
 
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
-	       [FeedStaleAfterHours], [HideStaleProducts], [IsActive], [CreatedDate]
+	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail], [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	WHERE [Domain] = @Domain
 	  AND [IsActive] = 1;

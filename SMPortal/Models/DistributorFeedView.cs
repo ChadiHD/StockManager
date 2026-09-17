@@ -63,6 +63,39 @@ public class FeedSyncOutcome
     public List<FeedFieldSampleView> DiscoveredFields { get; set; } = new();
 }
 
+/// <summary>One recorded attempt to sync a feed, as the admin UI reads it.</summary>
+/// <remarks>
+/// Fetched per feed rather than held in the snapshot, like contacts and documents: an operator
+/// opens one feed's history at a time, and pulling every attempt for every feed into memory on
+/// every page load would be the wrong trade.
+/// </remarks>
+public class FeedSyncLogView
+{
+    public int Id { get; set; }
+    public int FeedId { get; set; }
+    public string? FeedName { get; set; }
+    public DateTime StartedUtc { get; set; }
+    public DateTime FinishedUtc { get; set; }
+    public bool Succeeded { get; set; }
+    public int RecordCount { get; set; }
+    public int Imported { get; set; }
+    public int Delisted { get; set; }
+    public string? Message { get; set; }
+
+    /// <summary>"Schedule" or "Operator".</summary>
+    public string? TriggeredBy { get; set; }
+
+    public TimeSpan Duration => FinishedUtc - StartedUtc;
+}
+
+/// <summary>A feed that has not delivered inside this store's staleness threshold.</summary>
+public class StaleFeedView
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public DateTime? LastSyncedUtc { get; set; }
+}
+
 /// <summary>
 /// One field found in a feed. Shown after a test so the mapping below can be filled in from
 /// what the feed contains rather than from guesswork — a name that matches nothing imports as

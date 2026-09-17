@@ -659,6 +659,33 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
     }
 
+    public async Task<IReadOnlyList<FeedSyncLogView>> GetFeedHistory(int feedId)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await GetListAsync<FeedSyncLogView>($"api/DistributorFeed/{feedId}/History?take=20");
+    }
+
+    public async Task<IReadOnlyList<FeedSyncLogView>> GetRecentFeedHistory()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        // Enough to cover the last night or two across a handful of feeds. The page groups
+        // these by feed and reads the newest of each, so a window too small would just report
+        // fewer feeds rather than wrong ones.
+        return await GetListAsync<FeedSyncLogView>("api/DistributorFeed/History?take=50");
+    }
+
+    public async Task<IReadOnlyList<StaleFeedView>> GetStaleFeeds()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await GetListAsync<StaleFeedView>("api/DistributorFeed/Stale");
+    }
+
     public async Task SyncFeeds()
     {
         var response = await _client.PostAsync($"{_api}/api/Product/Catalog/Sync", content: null);

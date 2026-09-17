@@ -420,7 +420,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 283 tests, plus the 8 that need a
+**That filter is what a routine run wants**, and it passes: 303 tests, plus the 13 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -764,6 +764,31 @@ turns hiding on, both default to off, and `dbo.fnSite_StaleBeforeUtc` resolves t
   `Source <> 'Distributor'` is UNKNOWN for a row that predates the column — the predicate names
   `IS NULL` explicitly. A plain `LastSynced >= @cutoff` hides the whole own-brand catalog the
   first time a store sets a threshold.
+**An operator is told twice or not at all.** `FeedAlertService` mails
+`Site.OperatorEmail` — the push half — and `/admin/feeds` renders two banners plus a per-feed
+history modal, which is the pull half. Neither is enough alone: nobody watches a screen at
+02:00, and a mail about a failure that has since been fixed is worse than no mail.
+
+- **Only the scheduler alerts.** An operator who pressed Sync is reading the toast, and mailing
+  them about a failure they are already looking at is how a channel stops being believed.
+- **A failure mails on the transition, not on every failing run.** `IsNewFailure` reads the
+  second row of `DistributorFeedSyncLog` — seven identical mails get the eighth filtered, and
+  that filter is still in place when the next real failure happens. A history it cannot read
+  counts as new: one message too many beats silence.
+- **Staleness is a separate alert because it is a separate condition.** A feed nobody attempted
+  — scheduler off, host down — leaves nothing in the history to fail.
+  `spDistributorFeed_GetStale` keys off `FeedStaleAfterHours` alone, not `HideStaleProducts`: a
+  store that keeps selling while it chases the distributor still wants the mail. A feed that
+  failed in this pass is excluded, or a repeat failure silenced on one path would mail on the
+  other.
+- **`Site.OperatorEmail` has no platform-wide fallback.** The message names this store's
+  distributor and quotes its status text; delivering that to another tenant's operator because
+  a column was blank would be a disclosure. NULL logs at Warning instead.
+- **`Site` has no admin screen**, so `OperatorEmail`, `FeedStaleAfterHours`,
+  `HideStaleProducts`, `MinMarginPct` and `PriceDisplay` are all set by updating the row. That
+  is a gap, not a design: a tenant cannot configure its own staleness policy without database
+  access.
+
 - **`spProduct_SyncFeeds` was deleted, not kept for later.** It stamped
   `LastSynced = SYSUTCDATETIME()` on every distributor-sourced product **without fetching
   anything** — a placeholder from before the feed client existed, called by nothing since

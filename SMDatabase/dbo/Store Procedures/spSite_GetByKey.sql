@@ -9,7 +9,7 @@ BEGIN
 
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
-	       [FeedStaleAfterHours], [HideStaleProducts], [IsActive], [CreatedDate]
+	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail], [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	-- Inactive sites are excluded here as they are in spSite_GetByDomain. Without it the two
 	-- lookups disagree about what counts as a site, and a store taken offline still resolves

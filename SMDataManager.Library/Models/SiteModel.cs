@@ -56,6 +56,16 @@ namespace SMDataManager.Library.Models
         /// </summary>
         public bool HideStaleProducts { get; set; }
 
+        /// <summary>
+        /// Where an operational alert about this store goes. Null means log only.
+        /// </summary>
+        /// <remarks>
+        /// There is no platform-wide fallback, deliberately: an alert about one store names its
+        /// distributor and its hostname, and delivering that to another tenant's operator
+        /// because this column was blank would be a disclosure rather than a convenience.
+        /// </remarks>
+        public string OperatorEmail { get; set; }
+
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
     }
