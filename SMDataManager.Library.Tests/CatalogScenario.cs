@@ -98,7 +98,9 @@ internal sealed class CatalogScenario
         using var command = new SqlCommand("""
             SELECT [Sku], [RetailPrice], [Cost], [NetPrice]
             FROM dbo.fnCatalog_VisibleProducts(
-                @siteId, NULL, 0, NULL, NULL, 0, NULL, NULL, NULL, @discount, @margin)
+                -- The trailing NULL is @StaleBeforeUtc: this test is about the price
+                -- expression, and a cutoff would hide rows it is trying to compare.
+                @siteId, NULL, 0, NULL, NULL, 0, NULL, NULL, NULL, @discount, @margin, NULL)
             ORDER BY [Sku];
             """, _connection, _transaction);
 

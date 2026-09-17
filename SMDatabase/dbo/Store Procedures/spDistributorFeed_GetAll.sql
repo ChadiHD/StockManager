@@ -13,7 +13,7 @@ BEGIN
 	       [FieldSku], [FieldName], [FieldDescription], [FieldCategory],
 	       [FieldCost], [FieldSrp], [FieldQuantity],
 	       [FieldManufacturer], [FieldMpn], [FieldEan], [FieldIcecat],
-	       [LastSyncedUtc], [LastSyncStatus], [CreatedDate]
+	       [LastSyncedUtc], [LastSyncStatus], [SyncStartedUtc], [CreatedDate]
 	FROM [dbo].[DistributorFeed]
 	WHERE [SiteId] = @SiteId
 	ORDER BY [Name];

@@ -41,6 +41,16 @@ namespace SMDataManager.Library.Models
 
         public DateTime? LastSyncedUtc { get; set; }
         public string LastSyncStatus { get; set; }
+
+        /// <summary>
+        /// Set while a sync of this feed is running. See spDistributorFeed_ClaimForSync.
+        /// </summary>
+        /// <remarks>
+        /// Read-only as far as anything outside the sync service is concerned: it is the claim,
+        /// and writing it from a save would hand out a right nothing is holding. The portal
+        /// shows it so an operator can tell a running sync from a stuck one.
+        /// </remarks>
+        public DateTime? SyncStartedUtc { get; set; }
         public DateTime CreatedDate { get; set; }
 
         public bool HasCredential => !string.IsNullOrWhiteSpace(SecretRef);

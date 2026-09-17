@@ -86,6 +86,15 @@ builder.Services.AddTransient<IProductImageEnricher, ProductImageEnricher>();
 builder.Services.AddSingleton<IImageEnrichmentSignal, ImageEnrichmentSignal>();
 builder.Services.AddHostedService<ProductImageBackgroundService>();
 
+// The nightly distributor feed sync, off unless Feeds:SyncEnabled says otherwise. Here rather
+// than in SMStore because this host holds the Data Protection ring that decrypts a feed's
+// stored credential; see DistributorFeedSyncBackgroundService.
+builder.Services.AddHostedService<DistributorFeedSyncBackgroundService>();
+
+// Tells a store's operator when a feed starts failing or its data goes stale. Scoped because
+// it reads per-site data; resolved by the scheduler and by nothing else.
+builder.Services.AddScoped<FeedAlertService>();
+
 // Data Protection keys live in the identity database, shared with SMStore. This replaces the
 // default per-container filesystem ring, which lost saved feed credentials on every redeploy
 // and could not be read by a second app. See AddSharedDataProtection.

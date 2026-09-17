@@ -30,7 +30,10 @@ CREATE FUNCTION [dbo].[fnCatalog_VisibleProducts]
 	-- Resolved by the caller from the group and the site, never accepted from a client. A
 	-- caller that could pass a discount is a caller that could ask for 90% off.
 	@DiscountPct int,
-	@MinMarginPct decimal(5, 2)
+	@MinMarginPct decimal(5, 2),
+	-- Likewise resolved by the caller, through dbo.fnSite_StaleBeforeUtc, because nothing here
+	-- can DECLARE. NULL means the store does not hide stale products.
+	@StaleBeforeUtc datetime2
 )
 RETURNS TABLE
 AS
@@ -151,6 +154,29 @@ RETURN
 
 	WHERE p.[Published] = 1
 	  AND p.[Delisted] = 0
+	  /*
+	  Stale distributor stock, hidden only when the store asked for it.
+
+	  Delisted means the distributor said it no longer supplies the product. Stale means the
+	  distributor has not said anything at all for longer than this store finds acceptable —
+	  the file stopped arriving, the credentials expired, the SFTP host moved — and the quantity
+	  and price on the row are whatever they were the last time it did. Selling from that is how
+	  a customer orders stock nobody has.
+
+	  Two conditions that are easy to get wrong, and both have to be here:
+
+	  - Own stock is never stale. A product the store holds itself has no LastSynced, so a plain
+	    "LastSynced >= @StaleBeforeUtc" would hide the entire own-brand catalog the first time a
+	    store set a threshold. Source is nullable, which is why NULL is named explicitly rather
+	    than left to an inequality that would evaluate to UNKNOWN and hide the row.
+	  - A distributor row with no LastSynced at all is treated as stale. The upsert always
+	    stamps it, so this cannot arise from a sync; if it arises some other way, nothing knows
+	    when that stock was last confirmed and the conservative reading is not to sell it.
+	  */
+	  AND (@StaleBeforeUtc IS NULL
+	       OR p.[Source] IS NULL
+	       OR p.[Source] <> 'Distributor'
+	       OR (p.[LastSynced] IS NOT NULL AND p.[LastSynced] >= @StaleBeforeUtc))
 	  AND (@CategorySlug IS NULL OR c.[Slug] = @CategorySlug)
 	  AND (@Brand IS NULL OR p.[Manufacturer] = @Brand)
 	  AND (@InStockOnly = 0 OR p.[QuantityInStock] > 0)

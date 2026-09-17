@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
+using StockApi.Feeds;
 using StockApi.Sites;
 
 namespace StockApi.Controllers
@@ -37,6 +38,7 @@ namespace StockApi.Controllers
         public record FeedView(int Id, string Name, string Host, int Port, string Username,
             string RemoteDirectory, string HostKeySha256, bool Enabled, bool HasCredential,
             string SecretProvider, DateTime? LastSyncedUtc, string LastSyncStatus,
+            DateTime? SyncStartedUtc,
             string FieldSku, string FieldName, string FieldDescription, string FieldCategory,
             string FieldCost, string FieldSrp, string FieldQuantity,
             string FieldManufacturer, string FieldMpn, string FieldEan, string FieldIcecat);
@@ -44,7 +46,7 @@ namespace StockApi.Controllers
         private static FeedView ToView(DistributorFeedModel feed) => new(
             feed.Id, feed.Name, feed.Host, feed.Port, feed.Username,
             feed.RemoteDirectory, feed.HostKeySha256, feed.Enabled, feed.HasCredential,
-            feed.SecretProvider, feed.LastSyncedUtc, feed.LastSyncStatus,
+            feed.SecretProvider, feed.LastSyncedUtc, feed.LastSyncStatus, feed.SyncStartedUtc,
             feed.FieldSku, feed.FieldName, feed.FieldDescription, feed.FieldCategory,
             feed.FieldCost, feed.FieldSrp, feed.FieldQuantity,
             feed.FieldManufacturer, feed.FieldMpn, feed.FieldEan, feed.FieldIcecat);
@@ -141,20 +143,65 @@ namespace StockApi.Controllers
             return await _sync.TestAsync(model, input.Password);
         }
 
+        /// <summary>
+        /// What this feed's recent runs did, which <c>LastSyncStatus</c> cannot say.
+        /// </summary>
+        /// <remarks>
+        /// The feed is looked up first so an id belonging to another store answers 404 rather
+        /// than an empty history. The procedure filters by site too, so this is belt and
+        /// braces — but "no history" and "not your feed" are different answers and only one of
+        /// them is true.
+        /// </remarks>
+        [HttpGet("{id:int}/History")]
+        public ActionResult<IEnumerable<FeedSyncLogModel>> History(int id, [FromQuery] int take = 20)
+        {
+            if (_feedData.GetFeedById(id, _site.SiteId) is null) return NotFound();
+
+            return _feedData.GetSyncHistory(id, _site.SiteId, take).ToList();
+        }
+
+        /// <summary>Recent runs across every feed in this store.</summary>
+        [HttpGet("History")]
+        public IEnumerable<FeedSyncLogModel> RecentHistory([FromQuery] int take = 20) =>
+            _feedData.GetRecentSyncs(_site.SiteId, take);
+
+        /// <summary>
+        /// Enabled feeds this store has not heard from inside its own staleness threshold.
+        /// </summary>
+        /// <remarks>
+        /// Only the id, the name and when it last delivered. The full <c>FeedView</c> would do,
+        /// and this is narrower on purpose: the banner that reads this needs three fields, and
+        /// a feed list is the heaviest read in this controller.
+        /// </remarks>
+        public record StaleFeedView(int Id, string Name, DateTime? LastSyncedUtc);
+
+        [HttpGet("Stale")]
+        public IEnumerable<StaleFeedView> Stale() =>
+            _feedData.GetStaleFeeds(_site.SiteId)
+                .Select(feed => new StaleFeedView(feed.Id, feed.Name, feed.LastSyncedUtc));
+
         [HttpPost("{id:int}/Sync")]
         public async Task<ActionResult<DistributorFeedResult>> Sync(int id)
         {
-            var result = await _sync.SyncAsync(id, _site.SiteId);
+            var result = await _sync.SyncAsync(id, _site.SiteId, FeedSyncTrigger.Operator);
 
-            return result.Succeeded ? result : StatusCode(StatusCodes.Status502BadGateway, result);
+            if (result.Succeeded) return result;
+
+            // Conflict rather than 502: nothing is wrong with the feed or with this request,
+            // something else is already doing the work. Once the nightly schedule exists this
+            // is the ordinary answer to a button pressed inside the sync window, and reporting
+            // it as a bad gateway would teach an operator to ignore the status that matters.
+            return result.AlreadyRunning
+                ? Conflict(result)
+                : StatusCode(StatusCodes.Status502BadGateway, result);
         }
 
         [HttpPost("Sync")]
         public async Task<ActionResult<List<DistributorFeedResult>>> SyncAll()
         {
-            var results = await _sync.SyncAllAsync(_site.SiteId);
+            var results = await _sync.SyncAllAsync(_site.SiteId, FeedSyncTrigger.Operator);
 
-            if (results.Count > 0 && results.All(result => !result.Succeeded))
+            if (FeedSyncOutcome.IsTotalFailure(results))
             {
                 return StatusCode(StatusCodes.Status502BadGateway, results);
             }

@@ -37,6 +37,35 @@ namespace SMDataManager.Library.Models
         /// </summary>
         public decimal MinMarginPct { get; set; }
 
+        /// <summary>
+        /// How old a distributor-sourced product's <c>LastSynced</c> may be before it counts as
+        /// stale. Zero disables staleness.
+        /// </summary>
+        /// <remarks>
+        /// Per site because the threshold is a commercial judgement about this store's
+        /// distributor rather than a platform constant. Read by the alerting pass; the
+        /// storefront never applies it in C# — <c>dbo.fnSite_StaleBeforeUtc</c> resolves the
+        /// cutoff inside the catalog procedures, because a product filtered out after the query
+        /// has still been counted and still shifted the paging.
+        /// </remarks>
+        public int FeedStaleAfterHours { get; set; }
+
+        /// <summary>
+        /// Whether a stale product disappears from the storefront, or only shows up in the
+        /// operator's alerts.
+        /// </summary>
+        public bool HideStaleProducts { get; set; }
+
+        /// <summary>
+        /// Where an operational alert about this store goes. Null means log only.
+        /// </summary>
+        /// <remarks>
+        /// There is no platform-wide fallback, deliberately: an alert about one store names its
+        /// distributor and its hostname, and delivering that to another tenant's operator
+        /// because this column was blank would be a disclosure rather than a convenience.
+        /// </remarks>
+        public string OperatorEmail { get; set; }
+
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
     }

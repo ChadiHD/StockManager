@@ -26,11 +26,15 @@ quotes, accounts, customer groups or distributor feeds:
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
-months. T0, T1 and T2 are merged. T3 — customer identity, per
-`docs/plans/2026-09-14-t3-customer-identity.md` — is built: admin site scoping, the pricing
+months. T0–T3 are merged; T3 — customer identity, per
+`docs/plans/2026-09-14-t3-customer-identity.md` — covered admin site scoping, the pricing
 decision, the schema, registration field sets, `spAccount_Register`, storefront sign-in,
 document upload, the mail seam, the approval flow, the account area, email confirmation and
-password reset. T4 is next.
+password reset.
+
+T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — is built: the sync
+claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
+and the delisted-SKU verification. **T5 is next: ordering.**
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -49,7 +53,7 @@ template gap.** Fix the template and let the tenant consume it, rather than spec
 | `SMDesktopUI.UITests` | xunit + FlaUI UI automation for the WPF app |
 | `StockManager.Identity` | `ApplicationDbContext` — ASP.NET Identity's schema, shared by `StockApi` and `SMStore` |
 | `StockManager.ServiceDefaults` | Shared host services: telemetry, health checks, resilience, Data Protection, the document store and the mail seam |
-| `SMDataManager.Library.Tests` | xunit + FluentAssertions + NSubstitute. Pricing, and that a `siteId` reaches the procedure. The parity check needs a database and skips without one |
+| `SMDataManager.Library.Tests` | xunit + FluentAssertions + NSubstitute. Pricing, staleness, and that a `siteId` reaches the procedure. The T-SQL tests need a database and skip without one |
 | `StockApi.Tests` | xunit + FluentAssertions + NSubstitute. Controllers, admin site resolution, the document store |
 | `SMStore.Tests` | bUnit + xunit. Component rendering and per-tenant variation, with `SMDataManager.Library` substituted |
 | `SMPortal.Tests` | bUnit + xunit. Admin components against a substituted `IAdminDataService` — no HTTP |
@@ -420,8 +424,8 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 251 tests, plus the 2 pricing
-parity checks that skip without a database. Both exclusions earn their place. `SMDesktopUI.UITests`
+**That filter is what a routine run wants**, and it passes: 303 tests, plus the 17 that need a
+database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
 have a container runtime it will start SQL Server and run, slowly, rather than skip. It skips
@@ -446,6 +450,21 @@ is a leak that a later "simplification" would reintroduce silently, and each is 
 reflection or by searching the rendered markup because no ordinary assertion expresses "this
 must stay absent". `PasswordResetServiceTests` is mostly the same shape: what it asserts is the
 absence of a difference between a real address and an unknown one.
+
+**A test project that fails to compile is dropped from a solution run, which still exits 0.**
+Changing `IDistributorFeedSyncService.SyncAsync` broke `StockApi.Tests`, and
+`dotnet test StockManager.sln --filter ...` printed two `error CS7036` lines, ran the other
+three projects, printed three green `Passed!` lines and exited 0. Nothing in the summary said a
+project was missing. So the count that matters is **one `Passed!` line per project — four for
+the routine filter** — and the cheap guard is to build the solution before testing it:
+
+```bash
+dotnet build StockManager.sln -v q --nologo && dotnet test StockManager.sln --filter "..."
+```
+
+This is the same failure mode as the bUnit interop hang below, reached a different way: a
+partial run that reports success. Assume neither the exit code nor a green line is evidence
+about a project it does not name.
 
 **Do not add an explicit `AngleSharp` `PackageReference` to a bUnit project.** bUnit 1.40.0
 binds against the AngleSharp it ships with, and pinning 1.8.1 alongside it throws
@@ -473,12 +492,21 @@ FlaUI drives a real WPF window, so these need an interactive desktop session. Th
 them as `desktop-ui-tests` with `WithExplicitStart()` — they run on demand from the dashboard, never
 on launch.
 
-`SMDataManager.Library.Tests` holds the one test the pricing design depends on: a parity check
-between the net-price expression in `dbo.fnCatalog_VisibleProducts` and `PriceResolver`. The
-catalog sorts on the SQL copy and displays the C# one, so this is the tripwire that makes that
-duplication safe.
+`SMDataManager.Library.Tests` holds the tests that need real T-SQL: the parity check between
+the net-price expression in `dbo.fnCatalog_VisibleProducts` and `PriceResolver` (the catalog
+sorts on the SQL copy and displays the C# one, so this is the tripwire that makes that
+duplication safe), and the staleness predicate in the same function, which has three-valued
+logic in it and no failure mode that looks like an error.
 
-It needs a database — evaluating the SQL half has no other way, and a C# reimplementation
+**Every database-backed class belongs in `[Collection(DatabaseCollection.Name)]`.** They each
+hold an open transaction while inserting a `Site`, a `SiteCategory`, a `CategoryMapping` and
+products, and xUnit runs classes in parallel — so the moment a second such class existed, the
+two deadlocked on those tables. One collection makes them sequential. Do not "fix" a deadlock
+here by retrying: these are not concurrency tests, the contention is an artefact of the
+fixtures, and a retry turns a deadlock into an intermittent pass. Classes that touch no
+database must stay out of the collection, or the project loses parallelism for nothing.
+
+They need a database — evaluating the SQL half has no other way, and a C# reimplementation
 would be a third copy of the thing under test. Point `SMDATABASE_TEST_CONNECTION` at a
 development database (the connection string is on the `sql` resource in the Aspire dashboard)
 and note the host: **use `127.0.0.1`, not `localhost`** — the container publishes on IPv4 only
@@ -706,6 +734,83 @@ images afterwards, a batch at a time.
   singleton's factory closes over the *root* provider, so resolving a transient `IDisposable`
   from it leaks one per refresh for the life of the host. The composition root scopes each
   refresh instead.
+
+**A feed is claimed before it is fetched, and a claim refused is not a failure.**
+`spDistributorFeed_ClaimForSync` sets `DistributorFeed.SyncStartedUtc` in one atomic `UPDATE`
+whose `WHERE` and `SET` share a row lock, so two callers arriving together cannot both take it;
+`spDistributorFeed_RecordSync` releases it, writes `dbo.DistributorFeedSyncLog` and stamps the
+feed's last-run fields in one transaction. The claim expires on an hour lease, because a host
+killed mid-sync would otherwise take that feed out of service permanently and silently.
+`DistributorFeedResult.AlreadyRunning` is distinct from `Succeeded = false` all the way out to
+a 409 and a different toast — once feeds sync nightly, an operator pressing Sync in that window
+is the ordinary case, and a red banner there teaches them to ignore the one that matters.
+
+**The nightly sync is `DistributorFeedSyncBackgroundService`, in `StockApi`, off by default.**
+`Feeds:SyncEnabled` and `Feeds:SyncAtUtc` (one time of day, UTC, every store). It lives in
+`StockApi` because that host holds the Data Protection ring that decrypts `SecretRef`, it loops
+active sites so a second country is a `Site` row rather than new sync code, and a host that
+starts after the hour waits for tomorrow — otherwise a restart loop re-imports every feed.
+Nothing guards against two replicas because the claim already does.
+
+**Stale stock hides from the storefront when a store asks, and `Delisted` is a different
+thing.** Delisted means the distributor said it no longer supplies the product; stale means the
+distributor has said nothing at all for longer than `Site.FeedStaleAfterHours`, so the quantity
+and price on the row are whatever they were when the file last arrived. `Site.HideStaleProducts`
+turns hiding on, both default to off, and `dbo.fnSite_StaleBeforeUtc` resolves the cutoff.
+
+- **It is resolved into a variable and passed in, never called per row.**
+  `fnCatalog_VisibleProducts` is inline and cannot `DECLARE`, so `@StaleBeforeUtc` arrives
+  pre-computed exactly as `@DiscountPct` does — and a scalar function in a `WHERE` runs per row
+  and defeats the plan. All three callers (`spCatalog_Search`, `spCatalog_GetFacets`,
+  `spCatalog_GetBySku`) must resolve the same value, or the facet counts disagree with the page
+  they filter to, which is the bug that function was extracted to kill.
+- **Own stock is never stale, and that needs saying twice.** `Source` is nullable, so
+  `Source <> 'Distributor'` is UNKNOWN for a row that predates the column — the predicate names
+  `IS NULL` explicitly. A plain `LastSynced >= @cutoff` hides the whole own-brand catalog the
+  first time a store sets a threshold.
+**An operator is told twice or not at all.** `FeedAlertService` mails
+`Site.OperatorEmail` — the push half — and `/admin/feeds` renders two banners plus a per-feed
+history modal, which is the pull half. Neither is enough alone: nobody watches a screen at
+02:00, and a mail about a failure that has since been fixed is worse than no mail.
+
+- **Only the scheduler alerts.** An operator who pressed Sync is reading the toast, and mailing
+  them about a failure they are already looking at is how a channel stops being believed.
+- **A failure mails on the transition, not on every failing run.** `IsNewFailure` reads the
+  second row of `DistributorFeedSyncLog` — seven identical mails get the eighth filtered, and
+  that filter is still in place when the next real failure happens. A history it cannot read
+  counts as new: one message too many beats silence.
+- **Staleness is a separate alert because it is a separate condition.** A feed nobody attempted
+  — scheduler off, host down — leaves nothing in the history to fail.
+  `spDistributorFeed_GetStale` keys off `FeedStaleAfterHours` alone, not `HideStaleProducts`: a
+  store that keeps selling while it chases the distributor still wants the mail. A feed that
+  failed in this pass is excluded, or a repeat failure silenced on one path would mail on the
+  other.
+- **`Site.OperatorEmail` has no platform-wide fallback.** The message names this store's
+  distributor and quotes its status text; delivering that to another tenant's operator because
+  a column was blank would be a disclosure. NULL logs at Warning instead.
+- **`Site` has no admin screen**, so `OperatorEmail`, `FeedStaleAfterHours`,
+  `HideStaleProducts`, `MinMarginPct` and `PriceDisplay` are all set by updating the row. That
+  is a gap, not a design: a tenant cannot configure its own staleness policy without database
+  access.
+
+**Delisting is flagged, never deleted, and `DelistedProductHistoryTests` is what holds that.**
+A product the distributor dropped still resolves on the quote that already contains it —
+`spQuoteLine_GetByQuote` joins `Product` with no `Delisted` predicate, and
+`spOrder_ConvertFromQuote` copies its lines with none either. That is one well-meant
+`AND p.Delisted = 0` away from a customer opening a six-month-old quote and finding blank
+lines, and the edit would read as a tightening rather than a regression. The staleness
+predicate must not reach a quote line for the same reason: hiding stock from the shop window
+is not the same as withdrawing a price already quoted.
+
+- Whether a quote carrying a delisted line *should* be acceptable, or should be re-quoted
+  first, is **T5's** decision. The test records the current behaviour so that choice is made
+  deliberately rather than discovered.
+
+- **`spProduct_SyncFeeds` was deleted, not kept for later.** It stamped
+  `LastSynced = SYSUTCDATETIME()` on every distributor-sourced product **without fetching
+  anything** — a placeholder from before the feed client existed, called by nothing since
+  `Catalog/Sync` became real. With staleness live it would mark the entire catalog fresh while
+  making the data no newer.
 
 **Icecat's free tier covers 3.8% of this catalog** — a full pass over 1,676 live products
 matched 63. The feed carries an Icecat id but no image URLs. Treat images as an unsolved

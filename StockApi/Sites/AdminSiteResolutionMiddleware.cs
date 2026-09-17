@@ -60,7 +60,7 @@ namespace StockApi.Sites
             }
         }
 
-        private SiteModel Resolve(HttpContext context, ISiteData sites)
+        private SiteModel? Resolve(HttpContext context, ISiteData sites)
         {
             var key = context.Request.Headers[HeaderName].ToString();
 

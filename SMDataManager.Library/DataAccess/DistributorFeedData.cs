@@ -102,10 +102,57 @@ namespace SMDataManager.Library.DataAccess
                 new { Id = id, SiteId = siteId }, "SMDatabase");
         }
 
-        public void RecordSync(int id, string status, int siteId)
+        public bool ClaimForSync(int id, int siteId)
         {
-            _sqlDataAccess.SaveData("dbo.spDistributorFeed_RecordSync",
-                new { Id = id, Status = status, SiteId = siteId }, "SMDatabase");
+            // LoadData rather than SaveData: the procedure SELECTs whether the claim was taken,
+            // and SaveData passes an anonymous object Dapper cannot write an output parameter
+            // back through. See CLAUDE.md on returning a value from a mutation.
+            var claimed = _sqlDataAccess.LoadData<int, dynamic>(
+                "dbo.spDistributorFeed_ClaimForSync",
+                new { Id = id, SiteId = siteId }, "SMDatabase");
+
+            return claimed.FirstOrDefault() == 1;
+        }
+
+        public void RecordSync(int id, int siteId, FeedSyncRecord record)
+        {
+            _sqlDataAccess.SaveData("dbo.spDistributorFeed_RecordSync", new
+            {
+                Id = id,
+                SiteId = siteId,
+                Status = record.Status,
+                Succeeded = record.Succeeded,
+                StartedUtc = record.StartedUtc,
+                RecordCount = record.RecordCount,
+                Imported = record.Imported,
+                Delisted = record.Delisted,
+                // The enum's name is the stored value, so adding a trigger is one place rather
+                // than two. The column is NVARCHAR(20) and both names fit.
+                TriggeredBy = record.TriggeredBy.ToString()
+            }, "SMDatabase");
+        }
+
+        public List<FeedSyncLogModel> GetSyncHistory(int feedId, int siteId, int take)
+        {
+            return _sqlDataAccess.LoadData<FeedSyncLogModel, dynamic>(
+                "dbo.spDistributorFeedSync_GetByFeed",
+                new { FeedId = feedId, SiteId = siteId, Take = take }, "SMDatabase");
+        }
+
+        public List<DistributorFeedModel> GetStaleFeeds(int siteId)
+        {
+            // Returns the same model the other reads do, but the procedure projects only the
+            // columns an alert or a banner needs — SecretRef is not among them, and does not
+            // need to be for a caller deciding whether to complain about a feed.
+            return _sqlDataAccess.LoadData<DistributorFeedModel, dynamic>(
+                "dbo.spDistributorFeed_GetStale", new { SiteId = siteId }, "SMDatabase");
+        }
+
+        public List<FeedSyncLogModel> GetRecentSyncs(int siteId, int take)
+        {
+            return _sqlDataAccess.LoadData<FeedSyncLogModel, dynamic>(
+                "dbo.spDistributorFeedSync_GetRecent",
+                new { SiteId = siteId, Take = take }, "SMDatabase");
         }
     }
 }

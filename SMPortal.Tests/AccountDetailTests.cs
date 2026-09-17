@@ -105,7 +105,7 @@ public class AccountDetailTests : TestContext
 
         await cut.Find(".modal-foot button.btn-accent").ClickAsync(new MouseEventArgs());
 
-        data.Received(1).ApproveAccount("AC-001", "Retail");
+        await data.Received(1).ApproveAccount("AC-001", "Retail");
         Toast.Received(1).Show("Account approved");
         cut.FindAll(".approve-banner").Should().BeEmpty("the account is no longer Pending once approval succeeds");
     }
@@ -122,8 +122,8 @@ public class AccountDetailTests : TestContext
         await cut.Find(".modal-body select.input").ChangeAsync(new ChangeEventArgs { Value = "Reseller" });
         await cut.Find(".modal-foot button.btn-accent").ClickAsync(new MouseEventArgs());
 
-        data.Received(1).ApproveAccount("AC-001", "Reseller");
-        data.DidNotReceive().ApproveAccount("AC-001", "Retail");
+        await data.Received(1).ApproveAccount("AC-001", "Reseller");
+        await data.DidNotReceive().ApproveAccount("AC-001", "Retail");
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class AccountDetailTests : TestContext
 
         await cut.Find(".modal-foot button.btn-danger-outline").ClickAsync(new MouseEventArgs());
 
-        data.Received(1).RejectAccount("AC-001", reason);
+        await data.Received(1).RejectAccount("AC-001", reason);
     }
 
     [Fact]
@@ -233,8 +233,8 @@ public class AccountDetailTests : TestContext
 
         await DocumentLink(DocumentBlock(cut, "chamber-cert.pdf"), "Accept").ClickAsync(new MouseEventArgs());
 
-        data.Received(1).SetDocumentStatus(43, "Accepted");
-        data.DidNotReceive().SetDocumentStatus(42, "Accepted");
+        await data.Received(1).SetDocumentStatus(43, "Accepted");
+        await data.DidNotReceive().SetDocumentStatus(42, "Accepted");
         Toast.Received(1).Show("Document marked accepted");
     }
 
@@ -249,7 +249,7 @@ public class AccountDetailTests : TestContext
 
         await DocumentLink(DocumentBlock(cut, "vat-cert.pdf"), "Reject").ClickAsync(new MouseEventArgs());
 
-        data.Received(1).SetDocumentStatus(42, "Rejected");
+        await data.Received(1).SetDocumentStatus(42, "Rejected");
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public class AccountDetailTests : TestContext
 
         await DocumentLink(DocumentBlock(cut, "vat-cert.pdf"), "Download").ClickAsync(new MouseEventArgs());
 
-        data.Received(1).GetDocumentContent(42);
+        await data.Received(1).GetDocumentContent(42);
         var invocation = JSInterop.VerifyInvoke("smportal.saveFile");
         invocation.Arguments.Should().Equal("vat-cert.pdf", "application/pdf", "QkFTRTY0");
     }

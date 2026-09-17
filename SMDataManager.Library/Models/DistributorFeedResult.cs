@@ -13,6 +13,21 @@ namespace SMDataManager.Library.Models
         public int Delisted { get; set; }
 
         public bool Succeeded { get; set; }
+
+        /// <summary>
+        /// Nothing ran because a sync of this feed was already in progress.
+        /// </summary>
+        /// <remarks>
+        /// Distinct from a failure, and the distinction is the whole point. Once T4 runs feeds
+        /// on a schedule, an operator pressing Sync during the nightly window is the ordinary
+        /// case — reporting it as a failure would put a red banner in front of somebody who did
+        /// nothing wrong, and would teach them to ignore the banner that matters.
+        ///
+        /// <see cref="Succeeded"/> is still false: no import happened. Callers deciding whether
+        /// to shout must test both.
+        /// </remarks>
+        public bool AlreadyRunning { get; set; }
+
         public string Error { get; set; }
 
         /// <summary>
