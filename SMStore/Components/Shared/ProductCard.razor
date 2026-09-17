@@ -1,4 +1,5 @@
 @using SMStore.Catalog
+@using SMStore.Ordering
 @inject OrderingModeProvider Ordering
 
 <article class="card blueprint product-card">
@@ -48,18 +49,25 @@
             </div>
 
             <div class="product-card__actions">
-                <button type="button" class="btn btn-primary blueprint product-card__add"
-                        disabled="@(!OnAdd.HasDelegate)"
-                        title="@(OnAdd.HasDelegate ? null : "Available once the basket lands")"
-                        @onclick="() => OnAdd.InvokeAsync(Product.Sku)">
-                    <i class="corner tl"></i><i class="corner tr"></i>
-                    <i class="corner bl"></i><i class="corner br"></i>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                        <path d="M5 12h14" /><path d="M12 5v14" />
-                    </svg>
-                    @Ordering.Current.AddToBasketLabel
-                </button>
+                @* A form rather than an EventCallback. The card used to bind one and disable
+                   itself until a later phase supplied a handler, but under static SSR there is
+                   no circuit for a handler to run on, so the button could never have worked as
+                   written. The convention it was following still holds — the control was in
+                   place before the behaviour was — only the mechanism was wrong. *@
+                <form method="post" action="@BasketEndpoints.AddPath" class="product-card__add-form">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="sku" value="@Product.Sku" />
+                    <input type="hidden" name="returnUrl" value="@ReturnTo" />
+                    <button type="submit" class="btn btn-primary blueprint product-card__add">
+                        <i class="corner tl"></i><i class="corner tr"></i>
+                        <i class="corner bl"></i><i class="corner br"></i>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                            <path d="M5 12h14" /><path d="M12 5v14" />
+                        </svg>
+                        @Ordering.Current.AddToBasketLabel
+                    </button>
+                </form>
 
                 <a href="@Product.Href" class="btn btn-secondary product-card__view">
                     <span class="visually-hidden">View @Product.Title</span>
@@ -77,10 +85,15 @@
     [Parameter, EditorRequired] public ProductCardView Product { get; set; } = default!;
 
     /// <summary>
-    /// Adds the SKU to the basket. Unset until the basket lands in T5, and the button disables
-    /// itself rather than pretending to work.
+    /// Where the add form returns to, so a customer adding from a filtered or paged listing
+    /// lands back on the same one.
     /// </summary>
-    [Parameter] public EventCallback<string> OnAdd { get; set; }
+    /// <remarks>
+    /// Passed in rather than read from NavigationManager, because a card does not know what
+    /// listing it is part of and the caller does. Left unset it falls back to the basket,
+    /// which is the safe answer rather than the good one.
+    /// </remarks>
+    [Parameter] public string? ReturnTo { get; set; }
 
     private string PriceNote => Ordering.Current.ShowsPayableTotal
         ? "excl. tax"

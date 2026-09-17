@@ -431,7 +431,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 338 tests, plus the 43 that need a
+**That filter is what a routine run wants**, and it passes: 352 tests, plus the 42 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -480,8 +480,10 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All five journeys pass**, in about a minute against a
-warm SQL container.
+`E2E_REQUIRE_APPHOST=1` for CI. **All six journeys pass**, in about a minute against a warm SQL container. The sixth is the
+basket, and it earns its place the way the approval journey did: a basket change is a form
+post plus a redirect, so the antiforgery token, the `Set-Cookie` and the next request's
+lookup all have to hold at once for a single click to work, and no unit test spans the three.
 
 **The end-to-end suite earns its cost, and here is the evidence.** Its first complete run
 found a bug that four unit-test projects could not: `Account.ApprovedBy` is a foreign key into
@@ -714,9 +716,16 @@ something.
 
 Two conventions worth keeping:
 
-- **Unfinished actions disable themselves.** `ProductCard`'s add button binds an
-  `EventCallback` and disables when nothing is wired, so later phases supply a handler rather
-  than replacing markup. Prefer that to a button that silently does nothing.
+- **Unfinished actions disable themselves**, and the control goes in before the behaviour
+  does. `Basket.razor`'s submit button is the current example: disabled with a title saying
+  why, so the control a customer will use is already where they will look for it.
+
+  `ProductCard`'s add button used to follow that convention through an `EventCallback` that
+  disabled itself until a later phase supplied a handler. **That mechanism could never have
+  worked**: static SSR has no circuit, so an `@onclick` never fires. It is a form posting to
+  `BasketEndpoints.AddPath` from T5. The convention held; the mechanism was wrong. Prefer a
+  disabled control with a stated reason over one that silently does nothing, and prefer a
+  form over an event callback anywhere a customer is not already on an interactive island.
 - **Nothing store-specific belongs in a component.** Navigation is assembled in
   `StoreNavigation`; editorial copy resolves through `ISiteContentSource` from
   `dbo.SiteContent`, and a store with no row gets an explicit empty state rather than another
@@ -841,6 +850,32 @@ endpoint reasons about cookies and contacts together.
 - **Removal is `SetQuantity` with a quantity of zero**, not a procedure of its own — that is
   what a customer typing 0 into the box means, and a second name over the same `DELETE` is
   two things to keep in step.
+
+**Every basket change is a form post, because static SSR has no circuit for an event to
+arrive on.** `BasketEndpoints` takes them, validates antiforgery, and redirects to a local
+path only — `returnUrl` arrives in a post, so honouring it as given would make every basket
+button an open redirect. An add returns to the listing it came from rather than to the
+  basket, or browsing becomes a sequence of back buttons.
+
+- **The forms post a SKU, never a product id.** No database id appears in storefront markup,
+  and resolving the SKU through `spCatalog_GetBySku` is the first of two visibility checks:
+  `spBasket_AddLine` asks the same question again through the same function. A form post says
+  nothing about the page it came from, so one check is the minimum and two cost one indexed
+  read on a path nobody clicks in a loop.
+- **A quantity change resolves its SKU against the basket, not the catalog.** A line whose
+  product has since been delisted must still be removable, and `spCatalog_GetBySku` would no
+  longer return it.
+- **`BasketPresenter` is the basket's `CatalogPresenter`**, and prices go through
+  `CatalogPresenter.Resolve` so the basket cannot disagree with the page the customer added
+  from. `BasketLineView` has no `Cost` and no `ProductId`: the first is a buy price and this
+  is the boundary that keeps it off a public page, the second is what lets the forms post a
+  SKU. An unavailable line is rendered and excluded from the value.
+- **`FakeCheckoutMode` is what makes `IOrderingMode` a claim rather than a hope.**
+  `RfqOrderingMode` is the only mode the platform ships, so every other storefront test
+  renders the same words and a page that hard-coded "quote" would pass all of them.
+  `BasketPageTests` renders the basket twice under two modes and asserts the RFQ markup says
+  "quote" and "Indicative value" while the checkout markup says "cart" and "Total". Add to
+  that test when a page gains customer-facing wording.
 
 ## Distributor feeds and image enrichment
 

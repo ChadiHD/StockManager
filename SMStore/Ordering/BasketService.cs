@@ -1,4 +1,5 @@
 using SMDataManager.Library.DataAccess;
+using SMStore.Catalog;
 using SMDataManager.Library.Models;
 using SMStore.Accounts;
 using SMStore.Sites;
@@ -23,6 +24,7 @@ namespace SMStore.Ordering;
 public sealed class BasketService
 {
     private readonly IBasketData _baskets;
+    private readonly CatalogPresenter _catalog;
     private readonly ISiteContext _siteContext;
     private readonly ICustomerContext _customer;
     private readonly IHttpContextAccessor _http;
@@ -30,12 +32,14 @@ public sealed class BasketService
 
     public BasketService(
         IBasketData baskets,
+        CatalogPresenter catalog,
         ISiteContext siteContext,
         ICustomerContext customer,
         IHttpContextAccessor http,
         ILogger<BasketService> logger)
     {
         _baskets = baskets;
+        _catalog = catalog;
         _siteContext = siteContext;
         _customer = customer;
         _http = http;
@@ -64,17 +68,36 @@ public sealed class BasketService
     public int LineCount() => Lines().Count;
 
     /// <summary>
-    /// Adds a product, or raises the quantity of the line already there. Creates the basket and
-    /// its cookie if this is the first thing added.
+    /// Adds a product by SKU, or raises the quantity of the line already there. Creates the
+    /// basket and its cookie if this is the first thing added.
     /// </summary>
     /// <remarks>
-    /// The product id is checked against this store's catalog inside
-    /// <c>spBasket_AddLine</c> rather than here: it arrives in a form post, so nothing about
-    /// the page it came from is evidence.
+    /// By SKU rather than by product id, so no database id ever appears in a storefront form.
+    /// Resolving it is also the first of two visibility checks: <c>spCatalog_GetBySku</c>
+    /// answers for this site and this customer group, and <c>spBasket_AddLine</c> asks the
+    /// same question again through the same function. A form post says nothing about the page
+    /// it came from, so one check would be the minimum and two cost one indexed read on a
+    /// path nobody clicks in a loop.
     /// </remarks>
-    public bool Add(int productId, int quantity)
+    public bool Add(string? sku, int quantity)
     {
         var site = _siteContext.Site;
+
+        if (string.IsNullOrWhiteSpace(sku))
+        {
+            return false;
+        }
+
+        var product = _catalog.GetBySku(sku.Trim());
+
+        if (product is null)
+        {
+            // Not in this store, or hidden from this group, or it went stale or delisted
+            // between the page rendering and the button being pressed. One answer for all
+            // three, because the customer can do the same thing about each.
+            return false;
+        }
+
         var basket = _baskets.EnsureBasket(site.Id, EnsureToken(), _customer.Contact?.Id);
 
         if (basket is null)
@@ -89,7 +112,7 @@ public sealed class BasketService
 
         try
         {
-            _baskets.AddLine(basket.Id, site.Id, productId, quantity, _customer.CustomerGroupId);
+            _baskets.AddLine(basket.Id, site.Id, product.Id, quantity, _customer.CustomerGroupId);
 
             return true;
         }
@@ -100,23 +123,38 @@ public sealed class BasketService
             // no longer available" rather than as an error page, because by the time they
             // clicked it may simply have gone stale.
             _logger.LogWarning(exception,
-                "Refused to add product {ProductId} to a basket at {SiteKey}.",
-                productId, site.SiteKey);
+                "Refused to add {Sku} to a basket at {SiteKey}.",
+                sku, site.SiteKey);
 
             return false;
         }
     }
 
-    /// <summary>Sets a line's quantity, or removes the line when it is below one.</summary>
+    /// <summary>Sets a line quantity, or removes the line when it is below one.</summary>
     /// <remarks>
     /// Removal is a quantity of zero. See <see cref="IBasketData.SetQuantity"/>.
+    ///
+    /// By SKU, like <see cref="Add"/>, but resolved against the basket rather than against
+    /// the catalog: a line whose product has since been delisted must still be removable, and
+    /// <c>spCatalog_GetBySku</c> would no longer return it.
     /// </remarks>
-    public bool SetQuantity(int productId, int quantity)
+    public bool SetQuantity(string? sku, int quantity)
     {
         var basket = Find();
 
-        return basket is not null
-            && _baskets.SetQuantity(basket.Id, _siteContext.Site.Id, productId, quantity);
+        if (basket is null || string.IsNullOrWhiteSpace(sku))
+        {
+            return false;
+        }
+
+        var siteId = _siteContext.Site.Id;
+
+        var line = _baskets.GetLines(basket.Id, siteId, _customer.CustomerGroupId)
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.Sku, sku.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        return line is not null
+            && _baskets.SetQuantity(basket.Id, siteId, line.ProductId, quantity);
     }
 
     /// <summary>
@@ -163,8 +201,23 @@ public sealed class BasketService
     /// </remarks>
     public void Forget() => _http.HttpContext?.Response.Cookies.Delete(BasketToken.CookieName);
 
-    private BasketModel? Find() =>
-        _baskets.FindBasket(_siteContext.Site.Id, ReadToken(), _customer.Contact?.Id);
+    /// <summary>This request\x27s basket, without a round trip when there cannot be one.</summary>
+    /// <remarks>
+    /// The header counts the basket on every page, so the common case - a first-time visitor
+    /// with no cookie and no session - must not cost a query. Neither lookup could match.
+    /// </remarks>
+    private BasketModel? Find()
+    {
+        var token = ReadToken();
+        var contactId = _customer.Contact?.Id;
+
+        if (token is null && contactId is null)
+        {
+            return null;
+        }
+
+        return _baskets.FindBasket(_siteContext.Site.Id, token, contactId);
+    }
 
     /// <summary>The token in the cookie, or null when there is none worth looking up.</summary>
     private string? ReadToken()

@@ -1,5 +1,6 @@
 @page "/product/{Sku}"
 @using SMStore.Catalog
+@using SMStore.Ordering
 @inject ISiteContext SiteContext
 @inject CatalogPresenter Catalog
 @inject OrderingModeProvider Ordering
@@ -72,12 +73,22 @@ else
             }
 
             <div class="product__actions">
-                <button type="button" class="btn btn-primary blueprint" disabled
-                        title="Available once the basket lands">
-                    <i class="corner tl"></i><i class="corner tr"></i>
-                    <i class="corner bl"></i><i class="corner br"></i>
-                    @Ordering.Current.AddToBasketLabel
-                </button>
+                @* A form, not an @onclick: this page renders with static SSR and there is no
+                   circuit for an event to arrive on. Posts the SKU rather than a product id,
+                   so no database id appears in storefront markup. *@
+                <form method="post" action="@BasketEndpoints.AddPath" class="product__add">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="sku" value="@_item.Sku" />
+                    <input type="hidden" name="returnUrl" value="@CurrentPath" />
+                    <label class="visually-hidden" for="add-qty">Quantity</label>
+                    <input class="input product__add-qty" type="number" id="add-qty"
+                           name="quantity" value="1" min="1" max="9999" step="1" />
+                    <button type="submit" class="btn btn-primary blueprint">
+                        <i class="corner tl"></i><i class="corner tr"></i>
+                        <i class="corner bl"></i><i class="corner br"></i>
+                        @Ordering.Current.AddToBasketLabel
+                    </button>
+                </form>
                 <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
                     View your @Ordering.Current.BasketLabel.ToLowerInvariant()
                 </a>
@@ -132,6 +143,15 @@ else
     private string PriceNote => Ordering.Current.ShowsPayableTotal
         ? "excl. tax"
         : "list, excl. tax — volume pricing on quote";
+
+    /// <summary>Where an add returns to, so the customer stays on the product page.</summary>
+    /// <remarks>
+    /// Built from the route parameter rather than read from NavigationManager, because the
+    /// value goes into a form field that comes back as returnUrl — and the endpoint only
+    /// honours a local path, so a value derived from the request would be checked twice for
+    /// no gain and be harder to read.
+    /// </remarks>
+    private string CurrentPath => $"/product/{Uri.EscapeDataString(Sku)}";
 
     private NavItem[] Crumbs =>
     [

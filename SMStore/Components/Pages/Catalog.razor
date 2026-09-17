@@ -135,7 +135,7 @@
             <div class="product-grid">
                 @foreach (var item in _result.Items)
                 {
-                    <ProductCard Product="item" />
+                    <ProductCard Product="item" ReturnTo="@_returnTo" />
                 }
             </div>
 
@@ -160,6 +160,16 @@
 
     private CatalogResult _result = default!;
     private SMDataManager.Library.Models.SiteCategoryModel? _category;
+
+    /// <summary>
+    /// This listing, filters and page included, so an add from a card comes back to it.
+    /// </summary>
+    /// <remarks>
+    /// A relative path, because the endpoint only honours one: the value travels through a
+    /// form field and comes back as returnUrl, where an absolute URL would be refused and
+    /// silently send the customer to the basket instead.
+    /// </remarks>
+    private string _returnTo = "/catalog";
 
     private bool InStock => Stock == "1";
 
@@ -187,6 +197,8 @@
 
     protected override void OnParametersSet()
     {
+        _returnTo = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+
         _result = Presenter.Search(Cat, Brand, InStock, Q, Sort, PageNumber);
 
         _category = Cat is null

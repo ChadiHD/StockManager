@@ -34,3 +34,58 @@
         top: auto;
     }
 }
+
+/* Numeric columns line up on the decimal; tnum is why a table of prices does not shimmer. */
+.basket__num {
+    text-align: right;
+    white-space: nowrap;
+    font-feature-settings: 'tnum' 1;
+}
+
+.basket__table { width: 100%; }
+
+.basket__sku {
+    display: block;
+    font-size: 12px;
+    font-family: var(--font-mono, monospace);
+}
+
+.basket__qty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.basket__qty-input {
+    width: 5.5rem;
+    text-align: right;
+    font-feature-settings: 'tnum' 1;
+}
+
+/* A link rather than a button, because removing a line is secondary to changing its quantity
+   and two equal-weight buttons in one cell read as a choice between them. */
+.basket__remove-btn {
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: color-mix(in srgb, var(--color-text) 60%, transparent);
+    font: inherit;
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.basket__remove-btn:hover { color: var(--color-text); }
+
+/* Dimmed, not hidden. A line the store can no longer supply still has to be visible enough to
+   remove, and a row that vanished would leave the customer wondering what they had added. */
+.basket__row--unavailable { opacity: 0.6; }
+
+.basket__notice {
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-left: 3px solid var(--color-accent-500, currentColor);
+    background: color-mix(in srgb, var(--color-accent-500, currentColor) 8%, transparent);
+    font-size: 14px;
+}

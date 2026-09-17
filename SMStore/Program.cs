@@ -98,6 +98,7 @@ builder.Services.AddScoped<OrderingModeProvider>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<IBasketData, BasketData>();
 builder.Services.AddScoped<BasketService>();
+builder.Services.AddScoped<BasketPresenter>();
 
 // What a customer application demands, likewise per site. Field sets are stateless rules, so
 // singletons; the provider is scoped because it reads the request's site.
@@ -243,6 +244,7 @@ app.UseRateLimiter();
 
 app.MapStaticAssets();
 app.MapCustomerAuth();
+app.MapBasket();
 app.MapAccountDocuments();
 app.MapEmailConfirmation();
 app.MapPasswordReset();

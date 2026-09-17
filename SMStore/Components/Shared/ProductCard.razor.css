@@ -120,3 +120,11 @@
     width: 46px;
     padding: 0;
 }
+
+/* The form wraps the button, so it takes the flex sizing the button used to have. */
+.product-card__add-form {
+    flex: 1;
+    display: flex;
+}
+
+.product-card__add-form .product-card__add { width: 100%; }

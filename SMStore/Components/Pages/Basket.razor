@@ -4,23 +4,111 @@
 @page "/quote"
 @page "/cart"
 
+@using SMStore.Ordering
 @inject ISiteContext SiteContext
-@inject OrderingModeProvider Ordering
+@inject BasketPresenter Presenter
 
-<PageTitle>@Ordering.Current.BasketLabel · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@Mode.BasketLabel · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="Crumbs" />
 
 <div class="page-header">
     <div>
-        <h1>Your @Ordering.Current.BasketLabel.ToLowerInvariant()</h1>
+        <h1>Your @Mode.BasketLabel.ToLowerInvariant()</h1>
         <p class="page-lede">@Lede</p>
     </div>
 </div>
 
+@* Everything below reads its words from IOrderingMode. This page is the test of whether that
+   seam is real: a checkout store renders the same markup and reads "cart" throughout. *@
 <div class="basket">
     <section class="basket__lines">
-        <div class="stub">Basket lines land with T5.</div>
+        @if (_view.IsEmpty)
+        {
+            <div class="stub">
+                <p>Nothing in your @Mode.BasketLabel.ToLowerInvariant() yet.</p>
+                <a href="/catalog" class="btn btn-secondary">Browse the catalog</a>
+            </div>
+        }
+        else
+        {
+            @if (Notice == "unavailable")
+            {
+                <p class="basket__notice" role="status">
+                    That product is no longer available. It may have been withdrawn since the
+                    page you added it from was loaded.
+                </p>
+            }
+
+            @if (_view.HasUnavailableLines)
+            {
+                <p class="basket__notice" role="status">
+                    Some lines are no longer available and are not counted in the value below.
+                    Remove them, or leave them and we will follow up.
+                </p>
+            }
+
+            <table class="table basket__table">
+                <thead>
+                    <tr>
+                        <th scope="col">Product</th>
+                        <th scope="col" class="basket__num">Unit</th>
+                        <th scope="col">Quantity</th>
+                        <th scope="col" class="basket__num">Line</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in _view.Lines)
+                    {
+                        <tr class="@(line.Available ? null : "basket__row--unavailable")">
+                            <td>
+                                <strong>@line.Name</strong>
+                                <span class="text-muted basket__sku">@line.Sku</span>
+                                @if (line.Available)
+                                {
+                                    <span class="tag tag-neutral">@line.Availability</span>
+                                }
+                                else
+                                {
+                                    <span class="tag tag-neutral">No longer available</span>
+                                }
+                            </td>
+                            <td class="basket__num">@(line.UnitPrice ?? "—")</td>
+                            <td>
+                                @* A form per row rather than one form for the table: static SSR
+                                   posts the whole form, and a single form would send every row's
+                                   quantity on every change — so a stale tab would overwrite
+                                   quantities the customer had since changed elsewhere. *@
+                                <form method="post" action="@BasketEndpoints.QuantityPath" class="basket__qty">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="sku" value="@line.Sku" />
+                                    <input type="hidden" name="returnUrl" value="@Mode.BasketRoute" />
+                                    <label class="visually-hidden" for="@($"qty-{line.Sku}")">
+                                        Quantity of @line.Name
+                                    </label>
+                                    <input class="input basket__qty-input" type="number"
+                                           id="@($"qty-{line.Sku}")" name="quantity"
+                                           value="@line.Quantity" min="0" max="9999" step="1" />
+                                    <button type="submit" class="btn btn-secondary btn-sm">Update</button>
+                                </form>
+                                @* Removal is a quantity of zero, so this is the same endpoint
+                                   and there is one code path behind both controls. *@
+                                <form method="post" action="@BasketEndpoints.QuantityPath" class="basket__remove">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="sku" value="@line.Sku" />
+                                    <input type="hidden" name="quantity" value="0" />
+                                    <input type="hidden" name="returnUrl" value="@Mode.BasketRoute" />
+                                    <button type="submit" class="basket__remove-btn">
+                                        Remove<span class="visually-hidden"> @line.Name</span>
+                                    </button>
+                                </form>
+                            </td>
+                            <td class="basket__num">@(line.LineTotal ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
     </section>
 
     <aside class="basket__summary card blueprint">
@@ -29,30 +117,61 @@
         <h5>Summary</h5>
         <dl class="basket__totals">
             <dt>Line items</dt>
-            <dd>0</dd>
+            <dd>@_view.LineCount</dd>
             <dt>Total units</dt>
-            <dd>0</dd>
+            <dd>@_view.TotalUnits</dd>
+            @if (_view.Total is not null)
+            {
+                <dt>@ValueLabel</dt>
+                <dd>@_view.Total</dd>
+            }
         </dl>
         <p class="text-muted basket__note">@SummaryNote</p>
+        @* Submitting lands with item 5. Disabled rather than absent, so the control the
+           customer will use is already where they will look for it. *@
         <button type="button" class="btn btn-primary btn-block" disabled
-                title="Available once the basket lands">
-            @Ordering.Current.SubmitBasketLabel
+                title="Available once submitting lands">
+            @Mode.SubmitBasketLabel
         </button>
     </aside>
 </div>
 
 @code {
+    /// <summary>
+    /// Bound as a string, never as a typed value.
+    /// </summary>
+    /// <remarks>
+    /// Blazor converts a query parameter during binding and throws on anything it cannot parse,
+    /// before any validation here runs. This one is only ever compared to a known word, so the
+    /// type costs nothing — but see Catalog.razor, where binding a page number as int? was a
+    /// 500 anyone could trigger with ?page=abc.
+    /// </remarks>
+    [SupplyParameterFromQuery(Name = "basket")]
+    public string? Notice { get; set; }
+
+    private BasketView _view = new([], 0, 0, null, false);
+
+    private IOrderingMode Mode => Presenter.Mode;
+
     private NavItem[] Crumbs =>
     [
         new("Home", "/"),
-        new(Ordering.Current.BasketLabel, Ordering.Current.BasketRoute),
+        new(Mode.BasketLabel, Mode.BasketRoute),
     ];
 
-    private string Lede => Ordering.Current.ShowsPayableTotal
+    protected override void OnParametersSet() => _view = Presenter.Read();
+
+    private string Lede => Mode.ShowsPayableTotal
         ? "Review your items, then continue to checkout."
         : "Adjust quantities, add your details, and submit. We reply with firm pricing and lead times.";
 
-    private string SummaryNote => Ordering.Current.ShowsPayableTotal
+    /// <summary>
+    /// "Total" under checkout, "Indicative value" under RFQ — because under RFQ it is not a
+    /// total, it is what these list prices come to before sales has priced anything.
+    /// </summary>
+    private string ValueLabel => Mode.ShowsPayableTotal ? "Total" : "Indicative value";
+
+    private string SummaryNote => Mode.ShowsPayableTotal
         ? "Tax and freight are calculated at checkout."
         : "Prices are list, excluding tax and freight. Final pricing is returned with your quote.";
 }

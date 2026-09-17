@@ -1,10 +1,12 @@
 @inherits LayoutComponentBase
+@using SMStore.Ordering
+@inject BasketService Basket
 
 @* Chrome for every storefront page. Header and footer take their branding from the resolved
    site, so this layout is the same for every store. *@
 
 <div class="layout">
-    <SiteHeader ContactEmail="@ContactEmail" ContactPhone="@ContactPhone" />
+    <SiteHeader BasketCount="@Basket.LineCount()" ContactEmail="@ContactEmail" ContactPhone="@ContactPhone" />
 
     <main class="page">
         <div class="container">
@@ -22,6 +24,11 @@
 </div>
 
 @code {
+    // The header counts the basket on every page, which is one indexed read for a visitor
+    // who has one and none at all for a visitor who has not started one - BasketService
+    // short-circuits when there is neither a cookie nor a session. Read here rather than in
+    // SiteHeader so the header stays a component a test can drive by parameter.
+
     // Placeholders until the per-site content mechanism lands later in T1. Left null rather
     // than filled with sample text, so an unconfigured store shows nothing instead of showing
     // another store's details.

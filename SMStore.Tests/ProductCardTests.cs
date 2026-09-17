@@ -1,6 +1,7 @@
 using Bunit;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using SMDataManager.Library.Models;
@@ -19,8 +20,17 @@ namespace SMStore.Tests;
 /// </summary>
 public class ProductCardTests : Bunit.TestContext
 {
+    /// <summary>Renders the antiforgery hidden input a real request would carry.</summary>
+    private sealed class StubAntiforgeryStateProvider : AntiforgeryStateProvider
+    {
+        public override AntiforgeryRequestToken GetAntiforgeryToken() =>
+            new("stub-token-value", "__RequestVerificationToken");
+    }
+
     public ProductCardTests()
     {
+        Services.AddSingleton<AntiforgeryStateProvider>(new StubAntiforgeryStateProvider());
+
         var siteContext = Substitute.For<ISiteContext>();
         siteContext.Site.Returns(new SiteModel { Id = 1, SiteKey = "test", Name = "Test store", OrderMode = RfqOrderingMode.ModeKey });
 
@@ -54,23 +64,37 @@ public class ProductCardTests : Bunit.TestContext
     }
 
     [Fact]
-    public void TheAddButtonDisablesItselfUntilSomethingHandlesIt()
+    public void TheAddButtonPostsTheSkuToTheBasket()
     {
-        // Unwired rather than removed, so a later phase supplies a handler instead of
-        // replacing markup — see the comment on ProductCard.OnAdd.
         var cut = RenderComponent<ProductCard>(p => p.Add(x => x.Product, Card()));
 
-        cut.Find(".product-card__add").HasAttribute("disabled").Should().BeTrue();
+        var form = cut.Find("form.product-card__add-form");
+
+        // A form, not an @onclick. The card used to bind an EventCallback and disable itself
+        // until a later phase wired one, but the storefront renders with static SSR and has no
+        // circuit for a handler to run on, so that button could never have fired.
+        form.GetAttribute("method").Should().Be("post");
+        form.GetAttribute("action").Should().Be(BasketEndpoints.AddPath);
+        form.QuerySelector("input[type=hidden][name=\x27__RequestVerificationToken\x27]")
+            .Should().NotBeNull();
+
+        // The SKU, never a product id: no database id belongs in storefront markup.
+        form.QuerySelector("input[type=hidden][name=\x27sku\x27]")!
+            .GetAttribute("value").Should().Be("SKU1");
     }
 
     [Fact]
-    public void TheAddButtonEnablesOnceAHandlerIsWired()
+    public void TheAddFormReturnsToTheListingItWasRenderedOn()
     {
         var cut = RenderComponent<ProductCard>(p => p
             .Add(x => x.Product, Card())
-            .Add(x => x.OnAdd, EventCallback.Factory.Create<string>(this, _ => { })));
+            .Add(x => x.ReturnTo, "/catalog?cat=servers&page=3"));
 
-        cut.Find(".product-card__add").HasAttribute("disabled").Should().BeFalse();
+        // Otherwise adding from page 3 of a filtered listing loses the customer\x27s place in
+        // it, which turns browsing into a sequence of back buttons.
+        cut.Find("form.product-card__add-form")
+            .QuerySelector("input[type=hidden][name=\x27returnUrl\x27]")!
+            .GetAttribute("value").Should().Be("/catalog?cat=servers&page=3");
     }
 
     [Fact]
