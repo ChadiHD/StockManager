@@ -17,6 +17,12 @@ public class DistributorFeedView
     public DateTime? LastSyncedUtc { get; set; }
     public string? LastSyncStatus { get; set; }
 
+    /// <summary>
+    /// Set while a sync of this feed is running, so the page can say so rather than offering a
+    /// button that will be refused.
+    /// </summary>
+    public DateTime? SyncStartedUtc { get; set; }
+
     public string FieldSku { get; set; } = "FlexITPartNumber";
     public string FieldName { get; set; } = "Description";
     public string? FieldDescription { get; set; } = "WebDescription";
@@ -42,6 +48,13 @@ public class FeedSyncOutcome
     public int Imported { get; set; }
     public int Delisted { get; set; }
     public bool Succeeded { get; set; }
+
+    /// <summary>
+    /// Nothing ran because a sync of this feed was already in progress — the nightly schedule,
+    /// or another operator. Not a failure, and it must not be reported as one.
+    /// </summary>
+    public bool AlreadyRunning { get; set; }
+
     public string? Error { get; set; }
 
     /// <summary>

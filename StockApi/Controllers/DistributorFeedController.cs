@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
+using StockApi.Feeds;
 using StockApi.Sites;
 
 namespace StockApi.Controllers
@@ -37,6 +38,7 @@ namespace StockApi.Controllers
         public record FeedView(int Id, string Name, string Host, int Port, string Username,
             string RemoteDirectory, string HostKeySha256, bool Enabled, bool HasCredential,
             string SecretProvider, DateTime? LastSyncedUtc, string LastSyncStatus,
+            DateTime? SyncStartedUtc,
             string FieldSku, string FieldName, string FieldDescription, string FieldCategory,
             string FieldCost, string FieldSrp, string FieldQuantity,
             string FieldManufacturer, string FieldMpn, string FieldEan, string FieldIcecat);
@@ -44,7 +46,7 @@ namespace StockApi.Controllers
         private static FeedView ToView(DistributorFeedModel feed) => new(
             feed.Id, feed.Name, feed.Host, feed.Port, feed.Username,
             feed.RemoteDirectory, feed.HostKeySha256, feed.Enabled, feed.HasCredential,
-            feed.SecretProvider, feed.LastSyncedUtc, feed.LastSyncStatus,
+            feed.SecretProvider, feed.LastSyncedUtc, feed.LastSyncStatus, feed.SyncStartedUtc,
             feed.FieldSku, feed.FieldName, feed.FieldDescription, feed.FieldCategory,
             feed.FieldCost, feed.FieldSrp, feed.FieldQuantity,
             feed.FieldManufacturer, feed.FieldMpn, feed.FieldEan, feed.FieldIcecat);
@@ -146,7 +148,15 @@ namespace StockApi.Controllers
         {
             var result = await _sync.SyncAsync(id, _site.SiteId);
 
-            return result.Succeeded ? result : StatusCode(StatusCodes.Status502BadGateway, result);
+            if (result.Succeeded) return result;
+
+            // Conflict rather than 502: nothing is wrong with the feed or with this request,
+            // something else is already doing the work. Once the nightly schedule exists this
+            // is the ordinary answer to a button pressed inside the sync window, and reporting
+            // it as a bad gateway would teach an operator to ignore the status that matters.
+            return result.AlreadyRunning
+                ? Conflict(result)
+                : StatusCode(StatusCodes.Status502BadGateway, result);
         }
 
         [HttpPost("Sync")]
@@ -154,7 +164,7 @@ namespace StockApi.Controllers
         {
             var results = await _sync.SyncAllAsync(_site.SiteId);
 
-            if (results.Count > 0 && results.All(result => !result.Succeeded))
+            if (FeedSyncOutcome.IsTotalFailure(results))
             {
                 return StatusCode(StatusCodes.Status502BadGateway, results);
             }

@@ -102,6 +102,18 @@ namespace SMDataManager.Library.DataAccess
                 new { Id = id, SiteId = siteId }, "SMDatabase");
         }
 
+        public bool ClaimForSync(int id, int siteId)
+        {
+            // LoadData rather than SaveData: the procedure SELECTs whether the claim was taken,
+            // and SaveData passes an anonymous object Dapper cannot write an output parameter
+            // back through. See CLAUDE.md on returning a value from a mutation.
+            var claimed = _sqlDataAccess.LoadData<int, dynamic>(
+                "dbo.spDistributorFeed_ClaimForSync",
+                new { Id = id, SiteId = siteId }, "SMDatabase");
+
+            return claimed.FirstOrDefault() == 1;
+        }
+
         public void RecordSync(int id, string status, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spDistributorFeed_RecordSync",

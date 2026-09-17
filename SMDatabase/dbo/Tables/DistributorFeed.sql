@@ -36,6 +36,16 @@ CREATE TABLE [dbo].[DistributorFeed]
 
 	[LastSyncedUtc] DATETIME2 NULL,
 	[LastSyncStatus] NVARCHAR(400) NULL,
+
+	-- Set while a sync of this feed is running, cleared when it finishes. The claim that stops
+	-- two syncs importing one feed at once: an operator pressing Sync during the nightly
+	-- window, or a second StockApi replica whose own scheduler woke at the same hour.
+	--
+	-- Treated as expired past a lease rather than trusted absolutely, because a process killed
+	-- mid-sync leaves this set for ever and a feed that can never be claimed again is a worse
+	-- failure than a double import — it is silent, where a double import is merely wasteful.
+	-- See spDistributorFeed_ClaimForSync.
+	[SyncStartedUtc] DATETIME2 NULL,
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 	[LastModified] DATETIME2 NOT NULL DEFAULT getutcdate(),
 

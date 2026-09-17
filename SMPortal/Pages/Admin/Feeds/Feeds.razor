@@ -424,9 +424,18 @@
         try
         {
             var result = await Data.SyncFeed(feed.Id);
-            Toast.Show(result.Succeeded
-                ? $"{feed.Name}: imported {result.Imported} of {result.RecordCount}, {result.Delisted} delisted"
-                : $"{feed.Name} failed: {result.Error}");
+
+            // Three outcomes, not two. "Already running" is the ordinary answer to a button
+            // pressed inside the nightly sync window, and wording it as a failure would teach
+            // an operator to discount the message when a feed really has broken.
+            Toast.Show(result switch
+            {
+                { Succeeded: true } =>
+                    $"{feed.Name}: imported {result.Imported} of {result.RecordCount}, {result.Delisted} delisted",
+                { AlreadyRunning: true } =>
+                    $"{feed.Name} is already syncing. Its result will show here when it finishes.",
+                _ => $"{feed.Name} failed: {result.Error}"
+            });
         }
         finally
         {

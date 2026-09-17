@@ -146,6 +146,27 @@ namespace SMDataManager.Library.Feeds
         {
             var result = new DistributorFeedResult { Distributor = feed.Name };
 
+            /*
+            Claimed before anything is fetched, and nothing below runs without the claim.
+
+            The claim is what makes this method safe to call from a scheduler as well as a
+            button. Two concurrent imports of one feed are not corrupting — each builds its
+            whole item set before the MERGE, and spProduct_BulkUpsertFromFeed is one
+            transaction — but they are two SFTP sessions and two full imports for one result,
+            and on a distributor that limits concurrent logins the second one fails and reports
+            a broken feed that is not broken.
+            */
+            if (!_feedData.ClaimForSync(feed.Id, feed.SiteId))
+            {
+                result.AlreadyRunning = true;
+                result.Error = "A sync of this feed is already running.";
+
+                _logger.LogInformation(
+                    "Skipped distributor feed {Distributor}: a sync is already running.", feed.Name);
+
+                return result;
+            }
+
             try
             {
                 string secret = await ResolveSecretAsync(feed);

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
+using StockApi.Feeds;
 using StockApi.Sites;
 using System.Data;
 
@@ -114,8 +115,9 @@ namespace StockApi.Controllers
             // which has no site and must not start needing one.
             var results = await feedSync.SyncAllAsync(site.SiteId);
 
-            // Surface a total failure rather than reporting a clean sync.
-            if (results.Count > 0 && results.All(result => !result.Succeeded))
+            // Surface a total failure rather than reporting a clean sync. A feed that was
+            // already running does not count as one — see FeedSyncOutcome.
+            if (FeedSyncOutcome.IsTotalFailure(results))
             {
                 return StatusCode(StatusCodes.Status502BadGateway, results);
             }
