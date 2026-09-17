@@ -8,12 +8,23 @@ track starts until the template track finishes.
 **Exit:** a stranger can apply against any site's field set, be approved from the admin portal,
 sign in on that site and no other, and see their group's prices and their group's catalog.
 
-**Status: all ten work items built, and §5 satisfied.** Registration is rate limited and an
-unconfirmed address cannot sign in; both were named in §5 and neither was there when the ten
-items first landed. What this plan said would not be in T3 still is not — the quote cart, tax
-and credit enforcement, the email outbox and templates, per-user admin site assignment,
-precomputed pricing and SSO are all still ahead. §5 asks for password reset alongside
-confirmation, and that is the one part of it still outstanding.
+**Status: all ten work items built, and §5 satisfied in full.** Registration is rate limited,
+an unconfirmed address cannot sign in, and password reset is built — all three were named in
+§5 and none was there when the ten items first landed. What this plan said would not be in T3
+still is not: the quote cart, tax and credit enforcement, the email outbox and templates,
+per-user admin site assignment, precomputed pricing and SSO are all still ahead.
+
+Password reset went slightly beyond the bullet, and deliberately. §5 asks only that the tokens
+be single-use and expiring and that the reset page not leak account existence, both of which
+fall out of using Identity's own tokens and answering every address identically. But a reset
+that leaves the attacker's session alive resets nothing that matters, so
+`CustomerAuthEndpoints` now pins each session to the login's security stamp and
+`CustomerSessionValidator` compares it per request. That is one extra primary-key read on
+`ApiAuthDb` per authenticated request, and `PasswordResetJourneyTests` is what proves it works
+— no unit test can, since the mechanism is a cookie, two databases and a middleware ordering.
+
+One consequence reaches T6: `LoggingEmailSender` now logs bodies in Development only, because
+a reset link in a shipped log is a credential.
 
 §7 records "no test coverage anywhere" and accepts it. That is no longer true: five test
 projects landed with this phase, and the end-to-end suite caught a bug the unit tests had
@@ -257,6 +268,13 @@ Concentrated here because T3 is the first phase that accepts input from stranger
   whether an email is already registered.
 - Password reset and email confirmation tokens are single-use and expiring — Identity's defaults
   are fine, but the reset page must not leak account existence either.
+  - **Built.** `PasswordResetService` mails a link and spends it; `MailedTokenLink` builds both
+    mailed links from `Site.Domain`. Neither page distinguishes an unknown address from a real
+    one, and a token is checked against the store as well as against the login. An unconfirmed
+    address gets no reset mail, because nobody has shown they own it — `/forgot-password` offers
+    the confirmation route to everybody rather than only to the people it applies to.
+  - Also built, beyond the bullet: a reset ends every session that login had open. See the
+    status note at the top.
 - `Account.Status` gates sign-in. A `Pending`, `Rejected` or `Suspended` account authenticates to
   nothing.
 - Admin approval is a state transition on a scoped entity; it needs the same `@SiteId` predicate

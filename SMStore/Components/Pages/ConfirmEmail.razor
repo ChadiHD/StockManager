@@ -74,10 +74,10 @@
     unauthenticated 500 on the catalog. These two arrive from a link in an email and are
     attacker-supplied in full.
     */
-    [SupplyParameterFromQuery(Name = EmailConfirmationLink.UserIdParameter)]
+    [SupplyParameterFromQuery(Name = MailedTokenLink.UserIdParameter)]
     public string? UserId { get; set; }
 
-    [SupplyParameterFromQuery(Name = EmailConfirmationLink.TokenParameter)]
+    [SupplyParameterFromQuery(Name = MailedTokenLink.TokenParameter)]
     public string? Token { get; set; }
 
     private bool _confirmed;
@@ -89,7 +89,7 @@
     {
         _attempted = !string.IsNullOrWhiteSpace(UserId) || !string.IsNullOrWhiteSpace(Token);
 
-        var token = EmailConfirmationLink.TryDecode(Token);
+        var token = MailedTokenLink.TryDecode(Token);
 
         if (string.IsNullOrWhiteSpace(UserId) || token is null)
         {

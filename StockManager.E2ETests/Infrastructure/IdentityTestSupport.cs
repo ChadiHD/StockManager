@@ -134,11 +134,51 @@ public static class IdentityTestSupport
         var token = await users.GenerateEmailConfirmationTokenAsync(user);
 
         // Built against the store's base URL rather than Site.Domain: under the testing builder
-        // the storefront answers on localhost, and EmailConfirmationLink.For deliberately uses
+        // the storefront answers on localhost, and MailedTokenLink.For deliberately uses
         // the configured domain, which nothing in a test run is listening on.
         return new Uri(storeBaseUrl,
             $"/confirm-email?userId={Uri.EscapeDataString(user.Id)}" +
-            $"&token={EmailConfirmationLink.Encode(token)}").ToString();
+            $"&token={MailedTokenLink.Encode(token)}").ToString();
+    }
+
+    /// <summary>
+    /// A real password reset link for an existing login, so a journey can follow the one the
+    /// customer was mailed.
+    /// </summary>
+    /// <remarks>
+    /// Stands in for opening the mail, exactly as <see cref="ConfirmationUrlAsync"/> does, and
+    /// mints its own token rather than scraping the one the storefront logged. The token is
+    /// generated through the same provider and the same Data Protection ring the storefront
+    /// validates against, so the page under test accepts it for the same reasons it would
+    /// accept the mailed one — see BuildProvider.
+    /// </remarks>
+    public static async Task<string> PasswordResetUrlAsync(
+        string apiAuthConnectionString,
+        Uri storeBaseUrl,
+        string siteKey,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        await using var provider = BuildProvider(apiAuthConnectionString);
+        await using var scope = provider.CreateAsyncScope();
+
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var userName = SiteQualifiedUserName.For(siteKey, email);
+
+        var user = await users.FindByNameAsync(userName)
+            ?? throw new InvalidOperationException(
+                $"No login named {userName} exists, so no reset link can be built for it.");
+
+        var token = await users.GeneratePasswordResetTokenAsync(user);
+
+        // Against the store's base URL rather than Site.Domain, for the same reason as the
+        // confirmation link: under the testing builder the storefront answers on localhost,
+        // and MailedTokenLink.For deliberately uses the configured domain, which nothing in a
+        // test run is listening on.
+        return new Uri(storeBaseUrl,
+            $"{CustomerAuthentication.ResetPasswordPath}" +
+            $"?{MailedTokenLink.UserIdParameter}={Uri.EscapeDataString(user.Id)}" +
+            $"&{MailedTokenLink.TokenParameter}={MailedTokenLink.Encode(token)}").ToString();
     }
 
     private static ServiceProvider BuildProvider(string apiAuthConnectionString)

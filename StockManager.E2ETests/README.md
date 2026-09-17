@@ -14,8 +14,14 @@ deliberately" below.
 | `AnonymousCatalogJourneyTests` | The anonymous catalog pages correctly, and `?page=abc` / `?page=99999999999` do not 500 (both are bugs CLAUDE.md records as having already happened). |
 | `RegistrationApprovalJourneyTests` | A stranger applies on `/register` (with a real file upload), an admin approves the application with a customer group, and the applicant signs in and sees that group's prices. |
 | `CrossTenantRefusalJourneyTests` | A customer session at one store does not work at another — the platform's central multi-tenant security property. |
+| `PasswordResetJourneyTests` | A customer asks for a reset link on `/forgot-password`, follows it, sets a new password — and the session that was already signed in as them is over, while the old password no longer works. |
 
-**All four pass**, in about half a minute against a warm SQL container.
+**All five pass**, in about three quarters of a minute against a warm SQL container.
+
+`PasswordResetJourneyTests` is the clearest case for this project existing. The half of
+password reset that matters — other sessions ending — is a cookie, two databases and a
+middleware ordering, so nothing below this level can fail it: a substituted user store has no
+security stamp to rotate, and a bUnit render has no cookie to present.
 
 Getting there took fixing four things that had nothing to do with the journeys themselves, all
 recorded in the code that fixes them: the SQL container password (this project shares the app
@@ -144,7 +150,14 @@ skip either way: that is a prerequisite, not a regression.
 - **`CrossTenantRefusalJourneyTests` provisions its customer directly**, rather than through
   `/register` and an approval — it is testing what an *existing* session may do across two
   stores, not how one comes to exist; `RegistrationApprovalJourneyTests` is what exercises the
-  real form and the real approval screen end to end.
+  real form and the real approval screen end to end. `PasswordResetJourneyTests` provisions
+  its customer the same way and for the same reason.
+- **The mailed links are minted rather than scraped.** `IdentityTestSupport.ConfirmationUrlAsync`
+  and `PasswordResetUrlAsync` generate their own tokens instead of reading the ones
+  `LoggingEmailSender` wrote to the log. The token comes out of the same provider and the same
+  Data Protection ring the storefront validates against, so the page accepts it for the reasons
+  it would accept the mailed one — and the alternative, setting `EmailConfirmed` or the password
+  column directly, would skip the feature under test entirely.
 - **Structural field lookups, not `GetByLabel`.** Several of SMPortal's own forms (for example
   `ProductDetail.razor`'s "Available units", `Groups.razor`'s "Base discount (%)") render a
   bare `<label>` as a sibling of its control rather than a wrapper, with no `for`/`id` link, so

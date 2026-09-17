@@ -198,7 +198,8 @@ public sealed class RegistrationService : IRegistrationService
 
             return new RegistrationOutcome(
                 true, errors, result?.Reference, result?.AccountId, result?.ContactId,
-                EmailConfirmationLink.For(site, user.Id, confirmationToken));
+                MailedTokenLink.For(
+                    site, CustomerAuthentication.ConfirmEmailPath, user.Id, confirmationToken));
         }
         catch (Exception exception)
         {

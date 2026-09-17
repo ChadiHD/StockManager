@@ -7,16 +7,17 @@ using SMStore.Registration;
 namespace SMStore.Accounts;
 
 /// <summary>
-/// Caps how often one caller may post the storefront's two unauthenticated write paths.
+/// Caps how often one caller may post the storefront's unauthenticated write paths.
 /// </summary>
 /// <remarks>
-/// Registration and sign-in are the only things a stranger can POST here, and both are worth
-/// limiting for different reasons. Registration creates an Identity user, an account, a
-/// contact, an address and up to four uploaded files per request, so it is the cheapest way to
-/// fill this database from outside. Sign-in has no lockout at all: the storefront authenticates
-/// with <c>UserManager.CheckPasswordAsync</c>, which — unlike <c>SignInManager</c> — does not
-/// consult <c>IdentityOptions.Lockout</c>, so nothing else on this host slows a password guess
-/// down.
+/// Registration, sign-in and the two halves of password reset are the only things a stranger
+/// can POST here, and each is worth limiting for its own reason. Registration creates an
+/// Identity user, an account, a contact, an address and up to four uploaded files per request,
+/// so it is the cheapest way to fill this database from outside. Sign-in has no lockout at
+/// all: the storefront authenticates with <c>UserManager.CheckPasswordAsync</c>, which —
+/// unlike <c>SignInManager</c> — does not consult <c>IdentityOptions.Lockout</c>, so nothing
+/// else on this host slows a password guess down. Asking for a reset link sends mail to an
+/// address the caller chose, which is someone else's inbox as far as this host knows.
 ///
 /// Everything else is unlimited. A global limiter that applied to the catalog would be a
 /// denial-of-service switch aimed at the shop window, and the pages a crawler hits hardest are
@@ -44,6 +45,25 @@ public static class CustomerRateLimiting
     /// and a guessing script wants thousands rather than dozens.
     /// </summary>
     private const int SignInsPerFiveMinutes = 20;
+
+    /// <summary>
+    /// Asking for a reset link is capped like registration, because it has registration's
+    /// shape: unauthenticated, and it sends mail to whatever address it was given.
+    /// </summary>
+    /// <remarks>
+    /// Uncapped it is a mail cannon pointed at one customer's inbox, from this store's own
+    /// sending domain — the reputational cost lands here, not on whoever fired it. It is also
+    /// the only endpoint on the storefront that will send mail to an address chosen by a
+    /// stranger, since registration at least demands a form's worth of company details first.
+    /// </remarks>
+    private const int PasswordResetRequestsPerHour = 10;
+
+    /// <summary>
+    /// Posting a new password gets sign-in's allowance, for sign-in's reason: somebody who
+    /// trips the password rules retries at once, and nothing else here rate-limits a
+    /// credential-bearing POST.
+    /// </summary>
+    private const int PasswordResetsPerFiveMinutes = 20;
 
     public static IServiceCollection AddCustomerRateLimiting(this IServiceCollection services) =>
         services.AddRateLimiter(options =>
@@ -84,6 +104,28 @@ public static class CustomerRateLimiting
                         _ => new FixedWindowRateLimiterOptions
                         {
                             PermitLimit = SignInsPerFiveMinutes,
+                            Window = TimeSpan.FromMinutes(5)
+                        });
+                }
+
+                if (path.StartsWithSegments(CustomerAuthentication.RequestPasswordResetPath))
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        $"reset-request:{Caller(context)}",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = PasswordResetRequestsPerHour,
+                            Window = TimeSpan.FromHours(1)
+                        });
+                }
+
+                if (path.StartsWithSegments(CustomerAuthentication.ResetPasswordPath))
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        $"reset:{Caller(context)}",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = PasswordResetsPerFiveMinutes,
                             Window = TimeSpan.FromMinutes(5)
                         });
                 }

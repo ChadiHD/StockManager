@@ -109,6 +109,24 @@ public static class CustomerAuthEndpoints
             return Failed(returnUrl);
         }
 
+        /*
+        The stamp the session will be pinned to, read before anything else can rotate it.
+
+        Refusing a login that has none is defensive rather than expected — UserManager sets a
+        stamp on every user it creates — but a session carrying no stamp would be a session the
+        validator has to either reject on its next request or wave through, and neither is a
+        thing to discover in production. Logged at Error because it means a user row was
+        written by something other than Identity.
+        */
+        if (string.IsNullOrEmpty(user.SecurityStamp))
+        {
+            logger.LogError(
+                "Refused sign-in at {SiteKey}: the login has no security stamp, so its session " +
+                "could not be invalidated by a password change.", site.SiteKey);
+
+            return Failed(returnUrl);
+        }
+
         var contact = contacts.GetByIdentityUser(user.Id, site.Id);
 
         if (contact is null
@@ -134,7 +152,9 @@ public static class CustomerAuthEndpoints
         [
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Name, contact.FullName),
-            new Claim(ClaimTypes.Email, contact.Email ?? string.Empty)
+            new Claim(ClaimTypes.Email, contact.Email ?? string.Empty),
+            // The one claim the validator compares rather than trusts. See SecurityStampClaim.
+            new Claim(CustomerAuthentication.SecurityStampClaim, user.SecurityStamp)
         ], CustomerAuthentication.Scheme));
 
         await http.SignInAsync(CustomerAuthentication.Scheme, principal);

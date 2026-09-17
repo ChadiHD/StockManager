@@ -129,6 +129,9 @@ builder.Services.AddIdentityCore<IdentityUser>(options =>
 
 builder.Services.AddScoped<IAccountRegistrationData, AccountRegistrationData>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+
+// Password reset: mailing a link and spending it. Scoped because it reads the request's site.
+builder.Services.AddScoped<PasswordResetService>();
 builder.Services.AddTransient<IContactData, ContactData>();
 builder.Services.AddTransient<IAddressData, AddressData>();
 
@@ -236,6 +239,7 @@ app.MapStaticAssets();
 app.MapCustomerAuth();
 app.MapAccountDocuments();
 app.MapEmailConfirmation();
+app.MapPasswordReset();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

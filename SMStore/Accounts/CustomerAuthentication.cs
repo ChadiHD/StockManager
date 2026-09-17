@@ -39,4 +39,38 @@ public static class CustomerAuthentication
 
     /// <summary>Posts a fresh confirmation link to an address, or pretends to.</summary>
     public const string ResendConfirmationPath = "/resend-confirmation";
+
+    /// <summary>Where someone who cannot remember their password asks for a link.</summary>
+    public const string ForgotPasswordPath = "/forgot-password";
+
+    /// <summary>Posts a reset link to an address, or pretends to.</summary>
+    /// <remarks>
+    /// A separate endpoint rather than a post back to the page, because the page has nothing
+    /// to report: the answer is the same for every address and is therefore a redirect, not a
+    /// re-render. The reset page below is the opposite case — it holds a token and has real
+    /// errors to show — so that one handles its own post.
+    /// </remarks>
+    public const string RequestPasswordResetPath = "/request-password-reset";
+
+    /// <summary>
+    /// Where the link in the reset email lands, and where the new password is posted.
+    /// </summary>
+    public const string ResetPasswordPath = "/reset-password";
+
+    /// <summary>
+    /// Carries the security stamp the login had when the session began.
+    /// </summary>
+    /// <remarks>
+    /// This is what lets a password change end sessions it cannot reach.
+    /// <c>ResetPasswordAsync</c> rotates the stamp, so a cookie minted before the reset no
+    /// longer matches the login it names, and <c>CustomerSessionValidator</c> drops it on its
+    /// next request. Without it, a customer who resets because they think somebody is in their
+    /// account changes nothing for the somebody, who stays signed in until the cookie expires.
+    ///
+    /// Deliberately not <c>IdentityOptions.ClaimsIdentity.SecurityStampClaimType</c>. Both
+    /// hosts share a key ring and, in development, a hostname, so an admin cookie written by
+    /// StockApi is readable here — under Identity's own claim name it would arrive carrying a
+    /// stamp that validates. Under this name it arrives carrying nothing.
+    /// </remarks>
+    public const string SecurityStampClaim = "SMStore.Customer.SecurityStamp";
 }

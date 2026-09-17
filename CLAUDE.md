@@ -29,7 +29,8 @@ code, and the whole point of this exercise is that store number two costs days r
 months. T0, T1 and T2 are merged. T3 — customer identity, per
 `docs/plans/2026-09-14-t3-customer-identity.md` — is built: admin site scoping, the pricing
 decision, the schema, registration field sets, `spAccount_Register`, storefront sign-in,
-document upload, the mail seam, the approval flow and the account area. T4 is next.
+document upload, the mail seam, the approval flow, the account area, email confirmation and
+password reset. T4 is next.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -135,13 +136,13 @@ account blocks that person from registering again and nothing else would surface
   email-confirmation token and mails the link; `/confirm-email` calls `ConfirmEmailAsync`, and
   `CustomerAuthEndpoints` refuses a user whose `EmailConfirmed` is false. Creating a login
   proves nothing about who owns the address — an applicant can type somebody else's — and the
-  approval mail and (in T6) password reset both go there. The tokens are Identity's, which is
+  approval mail and password reset both go there. The tokens are Identity's, which is
   what makes them single-use and expiring: confirming changes the user's security stamp, so a
   link cannot be replayed. Do not roll a token here.
-  - **Checked at sign-in, not in `CustomerSessionValidator`.** The validator runs on every
-    authenticated request and already reads `Contact` → `Account` → `Site`; an Identity lookup
-    there would double that to re-answer a question that cannot change while a session lives,
-    because a session can only begin at sign-in.
+  - **Checked at sign-in, not in `CustomerSessionValidator`.** `EmailConfirmed` cannot change
+    while a session lives, because a session can only begin at sign-in, so re-reading it per
+    request would buy nothing. The security stamp is the opposite case and is checked there;
+    see below.
   - **`/resend-confirmation` exists because the gate would otherwise be a dead end.** Someone
     who never received the mail has no other route in, and staff cannot fix it from the portal
     — the flag lives in `ApiAuthDb` and the admin screens read `SMDatabase`. It answers
@@ -153,11 +154,38 @@ account blocks that person from registering again and nothing else would surface
     `/confirm-email` compares `SiteQualifiedUserName.BelongsTo(user.UserName, site.SiteKey)`.
     The link itself is built from `Site.Domain`, never from the request host — it lands in a
     customer's inbox, where a link to an attacker's host carrying a valid token is the prize.
-- **Registration and sign-in are rate limited; nothing else is.** `CustomerRateLimiting`
-  partitions a global limiter by caller and path, returning no limiter for everything else — a
-  cap that reached the catalog would be a denial-of-service switch aimed at the shop window.
-  Registration is ten an hour because it writes across two databases and accepts files;
-  sign-in is twenty per five minutes because the storefront authenticates with
+    `MailedTokenLink` builds both mailed links for that reason: written twice, the rule drifts.
+- **Password reset is Identity's tokens plus two pages, and `PasswordResetService` holds every
+  rule worth getting right.** `/forgot-password` posts to `/request-password-reset`, which
+  answers identically for every address and returns nothing the caller can read; the reset link
+  lands on `/reset-password`, which posts back to itself because a password the store's rules
+  refuse needs the rules quoted and the form kept.
+  - **A reset ends every session that login had open**, and that is the half a reset page
+    cannot do for itself. `ResetPasswordAsync` rotates the security stamp, so
+    `CustomerAuthEndpoints` puts the stamp into the cookie as `SecurityStampClaim` and
+    `CustomerSessionValidator` compares it per request. Without that, a customer resetting
+    because they believe somebody is in their account changes nothing for the somebody, who
+    stays signed in for up to fourteen days. It costs one primary-key read on `ApiAuthDb` per
+    authenticated request, on top of the contact lookup; a missing claim is refused rather
+    than skipped, so sessions predating the check end once.
+  - Deliberately not Identity's own `SecurityStampClaimType`. The shared key ring means an
+    admin cookie from `StockApi` is readable here, and under Identity's claim name it would
+    arrive carrying a stamp that validates.
+  - **An unconfirmed address gets no reset mail.** Nobody has shown they own it, so a token
+    sent there is a credential handed to whoever typed the address into the registration form.
+    `/forgot-password` therefore offers the confirmation route to everybody — offering it only
+    to the people it applies to would say which people those are.
+  - **A reset link is checked against the store as well as the token**, exactly as a
+    confirmation link is, and for the same reason.
+  - The success page and the "your password was changed" mail both state that other sessions
+    ended. That is true only while the stamp check above exists; remove it and both lie.
+- **Registration, sign-in and both halves of password reset are rate limited; nothing else is.**
+  `CustomerRateLimiting` partitions a global limiter by caller and path, returning no limiter
+  for everything else — a cap that reached the catalog would be a denial-of-service switch
+  aimed at the shop window. Registration is ten an hour because it writes across two databases
+  and accepts files; asking for a reset link is ten an hour because it fires mail from this
+  store's sending domain at an address a stranger chose; sign-in and posting a new password are
+  twenty per five minutes each because the storefront authenticates with
   `UserManager.CheckPasswordAsync`, which — unlike `SignInManager` — does not consult
   `IdentityOptions.Lockout`, so nothing else here slows a password guess down.
   - Partitioned by IP only, deliberately: adding the site to the key would hand an attacker
@@ -242,9 +270,14 @@ something to fill rather than something to find: the application acknowledgement
   the time the mail goes out. An approval rolled back because a mail server blinked would
   leave the portal re-issuing a decision that had in fact been made, and landing on the
   conflict response. Failures are logged with the account id and chased operationally.
-- **`LoggingEmailSender` logs the body**, which is fine for an acknowledgement and stops
-  being fine the moment T6 adds a password-reset token. Either it stops logging bodies then,
-  or it stops being registered outside Development.
+- **`LoggingEmailSender` logs the body in Development only.** Bodies now carry confirmation
+  and password-reset links, and a reset link is a credential — whoever reads the log can take
+  the account, and logs are copied, shipped to a telemetry backend and read by people with no
+  business signing in as a customer. In Development that logging is exactly what makes the
+  feature testable, since the link is read out of the Aspire dashboard, so the line is drawn at
+  the environment. It stays registered everywhere rather than being Development-only: with no
+  `IEmailSender` at all, the first registration fails to resolve one, and an unsendable message
+  is worse than an unsent one.
 
 ### Approving an application
 
@@ -387,7 +420,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 225 tests, plus the 2 pricing
+**That filter is what a routine run wants**, and it passes: 251 tests, plus the 2 pricing
 parity checks that skip without a database. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -407,13 +440,21 @@ assume — `--list-tests` gives the first number.
 
 Some of the reasoning that makes those tests worth keeping is not visible from the assertions:
 three of them are guards rather than behaviour checks. `DocumentListItem` must never gain a
-`StoredName` property, `ContactListItem` must never gain `IdentityUserId`, and the
-registration form must never echo a password back into its own HTML. Each is a leak that a
-later "simplification" would reintroduce silently, and each is asserted by reflection or by
-searching the rendered markup because no ordinary assertion expresses "this must stay absent".
+`StoredName` property, `ContactListItem` must never gain `IdentityUserId`, and neither the
+registration form nor the password-reset form may echo a password back into its own HTML. Each
+is a leak that a later "simplification" would reintroduce silently, and each is asserted by
+reflection or by searching the rendered markup because no ordinary assertion expresses "this
+must stay absent". `PasswordResetServiceTests` is mostly the same shape: what it asserts is the
+absence of a difference between a real address and an unknown one.
+
+**Do not add an explicit `AngleSharp` `PackageReference` to a bUnit project.** bUnit 1.40.0
+binds against the AngleSharp it ships with, and pinning 1.8.1 alongside it throws
+`MissingMethodException: 'IHtmlCollection<T>.get_Item(Int32)'` from `FindAll(...)[i]` at run
+time — three SMPortal tests failed that way and nothing failed to compile. `using
+AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All four journeys pass**, in about half a minute against a
+`E2E_REQUIRE_APPHOST=1` for CI. **All five journeys pass**, in about a minute against a
 warm SQL container.
 
 **The end-to-end suite earns its cost, and here is the evidence.** Its first complete run

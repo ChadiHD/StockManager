@@ -72,7 +72,9 @@ public static class EmailConfirmationEndpoints
 
             await sender.SendAsync(
                 RegistrationEmails.ConfirmationReminder(
-                    site, user.Email, EmailConfirmationLink.For(site, user.Id, token)),
+                    site, user.Email,
+                    MailedTokenLink.For(
+                        site, CustomerAuthentication.ConfirmEmailPath, user.Id, token)),
                 cancellationToken);
 
             logger.LogInformation("Sent a fresh confirmation link at {SiteKey}.", site.SiteKey);
