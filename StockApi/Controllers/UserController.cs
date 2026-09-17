@@ -1,12 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using StockManager.Identity;
 using StockApi.Models;
-using System.Data;
 using System.Security.Claims;
 
 namespace StockApi.Controllers
@@ -37,7 +35,11 @@ namespace StockApi.Controllers
 		public ActionResult<UserModel> GetById()
         {
             // request the userId from the API directly
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Outdated - RequestContext.Principal.Identity.GetUserId();
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
 
             var user = _userData.GetUserById(userId).FirstOrDefault();
             if (user is null)
@@ -161,14 +163,20 @@ namespace StockApi.Controllers
         [Route("Admin/AddRole")]
         public async Task AddRole(UserRolePairModel pairing)
         {
-            string loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var user = await _userManager?.FindByIdAsync(pairing.UserId);
+            var user = await _userManager.FindByIdAsync(pairing.UserId);
 
             _logger.LogInformation("Admin {Admin} added user {User} to role {Role}",
-                loggedInUserId, user.Id, pairing.RoleName);
+                loggedInUserId, user?.Id, pairing.RoleName);
+            if (user is null)
+			{
+				_logger.LogWarning("Admin {Admin} attempted to add a non-existent user {User} to role {Role}",
+					loggedInUserId, pairing.UserId, pairing.RoleName);
+				throw new ArgumentException($"User with ID {pairing.UserId} does not exist.");
+			}
 
-            await _userManager.AddToRoleAsync(user, pairing.RoleName);
+			await _userManager.AddToRoleAsync(user, pairing.RoleName);
         }
 
         [Authorize(Roles = "Admin")]
@@ -176,9 +184,16 @@ namespace StockApi.Controllers
         [Route("Admin/RemoveRole")]
         public async Task RemoveRole(UserRolePairModel pairing)
         {
-            string loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var user = await _userManager?.FindByIdAsync(pairing.UserId);
+            var user = await _userManager.FindByIdAsync(pairing.UserId);
+
+            if (user is null)
+            {
+                _logger.LogWarning("Admin {Admin} attempted to remove a non-existent user {User} from role {Role}",
+                    loggedInUserId, pairing.UserId, pairing.RoleName);
+                throw new ArgumentException($"User with ID {pairing.UserId} does not exist.");
+            }
 
             _logger.LogInformation("Admin {Admin} removed user {User} from role {Role}",
                 loggedInUserId, user.Id, pairing.RoleName);

@@ -35,7 +35,7 @@ namespace StockApi.Sites
 
     public sealed class AdminSiteContext : IAdminSiteContext
     {
-        private SiteModel _site;
+        private SiteModel? _site;
 
         public bool IsResolved => _site is not null;
 
