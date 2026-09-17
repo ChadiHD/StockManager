@@ -69,7 +69,8 @@ public class QuoteLine
     public string Name { get; set; } = "";
     public int Qty { get; set; }
     public decimal List { get; set; }
-    public int Disc { get; set; }
+    /// <summary>Percentage off list, to two places: a floored price has a fractional one.</summary>
+    public decimal Disc { get; set; }
     public decimal Net { get; set; }
     public decimal LineTotal => Qty * Net;
 }

@@ -26,7 +26,7 @@ quotes, accounts, customer groups or distributor feeds:
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
-months. T0–T3 are merged; T3 — customer identity, per
+months. T0–T4 are merged; T3 — customer identity, per
 `docs/plans/2026-09-14-t3-customer-identity.md` — covered admin site scoping, the pricing
 decision, the schema, registration field sets, `spAccount_Register`, storefront sign-in,
 document upload, the mail seam, the approval flow, the account area, email confirmation and
@@ -768,6 +768,15 @@ Three rules keep that duplication safe, and none is optional:
 - **`CatalogPriceParityTests` is the tripwire.** It drives a matrix of (list, cost, discount,
   margin) through both implementations and asserts they agree to the cent. It is the reason
   this duplication is allowed to exist; do not let it rot.
+- **And the price a customer was shown is the price that gets stored.** `spQuoteLine_Insert`
+  takes an optional `@NetPrice` and derives one only when it is absent, so the storefront
+  records what `CatalogPresenter` rendered while the admin portal keeps typing a list price
+  and a discount. Deriving it unconditionally was wrong twice over: a price held up by
+  `Site.MinMarginPct` has no integer discount that reproduces it, and the old expression did
+  no rounding at all, so 99.99 at 7% stored 92.9907 — `money` carries four decimal places
+  and that number reached the quote document. `QuoteLine.DiscountPct` is `DECIMAL(5, 2)` for
+  the same reason. `QuoteLinePriceTests` pins the derived path to `PriceResolver` the way
+  `CatalogPriceParityTests` pins the sort key.
 
 `CatalogItemModel.Cost` is a buy price and is currently selected on every catalog row.
 `ProductCardView` excludes it; the detail page binds the raw model, so it is one field

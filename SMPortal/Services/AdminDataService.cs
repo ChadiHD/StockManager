@@ -1121,7 +1121,7 @@ public class AdminDataService : IAdminDataService
         string? Currency, string? Status, DateTime CreatedDate, DateTime? ExpiresDate, int Lines, decimal Value);
 
     private sealed record QuoteLineDto(int Id, int QuoteId, int ProductId, string? Sku, string? Name,
-        int Quantity, decimal ListPrice, int DiscountPct, decimal NetPrice);
+        int Quantity, decimal ListPrice, decimal DiscountPct, decimal NetPrice);
 
     private sealed record OrderDto(int Id, string? Reference, int? AccountId, string? AccountName,
         string? Currency, string? Status, DateTime PurchaseDate, decimal SubTotal, decimal VAT,

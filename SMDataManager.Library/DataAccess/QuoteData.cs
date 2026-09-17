@@ -60,7 +60,8 @@ namespace SMDataManager.Library.DataAccess
                 new { Id = quoteId, Status = status, SiteId = siteId }, "SMDatabase");
         }
 
-        public void AddQuoteLine(int quoteId, int productId, int quantity, decimal listPrice, int discountPct, int siteId)
+        public void AddQuoteLine(int quoteId, int productId, int quantity, decimal listPrice,
+            decimal discountPct, int siteId, decimal? netPrice = null)
         {
             _sqlDataAccess.SaveData("dbo.spQuoteLine_Insert", new
             {
@@ -70,7 +71,8 @@ namespace SMDataManager.Library.DataAccess
                 Quantity = quantity,
                 ListPrice = listPrice,
                 DiscountPct = discountPct,
-                SiteId = siteId
+                SiteId = siteId,
+                NetPrice = netPrice
             }, "SMDatabase");
         }
 

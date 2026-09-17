@@ -51,7 +51,7 @@ else
                                     <td class="lead"><span class="cell-strong">@l.Name</span><span class="cell-sub mono">@l.Sku</span></td>
                                     <td class="ctr">@l.Qty</td>
                                     <td class="num strike">@AdminUi.Money(l.List, _q.Currency, 2)</td>
-                                    <td class="ctr"><span class="disc-chip">-@(l.Disc)%</span></td>
+                                    <td class="ctr"><span class="disc-chip">-@(l.Disc.ToString("0.##"))%</span></td>
                                     <td class="num">@AdminUi.Money(l.Net, _q.Currency, 2)</td>
                                     <td class="num"><strong>@AdminUi.Money(l.LineTotal, _q.Currency, 2)</strong></td>
                                     <td class="trail">

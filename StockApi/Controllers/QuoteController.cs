@@ -50,7 +50,8 @@ namespace StockApi.Controllers
             return _quoteData.CreateQuote(quote.AccountId, quote.Currency, quote.ExpiresDate, _site.SiteId);
         }
 
-        public record NewQuoteLineModel(int ProductId, int Quantity, decimal ListPrice, int DiscountPct);
+        public record NewQuoteLineModel(
+            int ProductId, int Quantity, decimal ListPrice, decimal DiscountPct, decimal? NetPrice = null);
 
         [HttpPost("{reference}/Lines")]
         public IActionResult AddLine(string reference, NewQuoteLineModel line)
@@ -61,7 +62,8 @@ namespace StockApi.Controllers
                 return NotFound();
             }
 
-            _quoteData.AddQuoteLine(quote.Id, line.ProductId, line.Quantity, line.ListPrice, line.DiscountPct, _site.SiteId);
+            _quoteData.AddQuoteLine(quote.Id, line.ProductId, line.Quantity, line.ListPrice,
+                line.DiscountPct, _site.SiteId, line.NetPrice);
 
             return NoContent();
         }
