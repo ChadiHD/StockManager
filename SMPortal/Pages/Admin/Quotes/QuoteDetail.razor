@@ -367,15 +367,27 @@ else
     private async Task ConvertToOrder()
     {
         if (_q is null) return;
-        var o = await Data.ConvertQuoteToOrder(_q.Id);
 
-        if (o is null)
+        var conversion = await Data.ConvertQuoteToOrder(_q.Id);
+
+        // Three outcomes. "Already decided" is what an operator sees when the customer
+        // accepted the quote themselves a moment earlier, and calling that a failure would
+        // send somebody looking for a fault that is not there.
+        if (conversion.AlreadyDecided)
+        {
+            Recalc();
+            Toast.Show($"{_q.Id} has already been decided — its order is on the orders screen.");
+            return;
+        }
+
+        if (!conversion.Succeeded)
         {
             Toast.Show("Could not convert the quote to an order.");
             return;
         }
 
-        Toast.Show($"Order {o.Id} created from {_q.Id}");
-        Nav.NavigateTo($"admin/orders/{o.Id}");
+        Toast.Show($"Order {conversion.Order!.Id} created from {_q.Id}");
+        Nav.NavigateTo($"admin/orders/{conversion.Order.Id}");
     }
 }
+

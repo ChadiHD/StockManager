@@ -8,6 +8,7 @@ BEGIN
 	SELECT [p].[Id], [p].[Reference], [p].[AccountId], [a].[Company] AS [AccountName],
 	       [p].[Currency], [p].[Status], [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice],
 	       [q].[Reference] AS [FromQuoteReference],
+	       [p].[PoNumber],
 	       COUNT([d].[Id]) AS [Items]
 	FROM [dbo].[Purchase] p
 	LEFT JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId] AND a.[SiteId] = @SiteId
@@ -18,5 +19,5 @@ BEGIN
 	WHERE [p].[Reference] = @Reference
 	  AND [p].[SiteId] = @SiteId
 	GROUP BY [p].[Id], [p].[Reference], [p].[AccountId], [a].[Company], [p].[Currency], [p].[Status],
-	         [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice], [q].[Reference];
+	         [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice], [q].[Reference], [p].[PoNumber];
 END

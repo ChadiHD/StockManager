@@ -85,6 +85,17 @@ namespace StockApi.Controllers
         [HttpPut("{reference}/Status")]
         public IActionResult UpdateStatus(string reference, QuoteStatusModel change)
         {
+            // CK_Quote_Status refuses anything else, and a constraint violation from inside a
+            // procedure reaches the caller as a 500. Refusing it here makes it an answer.
+            if (!QuoteStatus.IsKnown(change.Status))
+            {
+                return BadRequest(new
+                {
+                    change.Status,
+                    Message = $"A quote status is one of: {string.Join(", ", QuoteStatus.All)}."
+                });
+            }
+
             var quote = _quoteData.GetQuoteByReference(reference, _site.SiteId);
             if (quote is null)
             {

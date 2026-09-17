@@ -85,7 +85,8 @@ public interface IAdminDataService
     Task UpdateTerms(string id, string group, string payment, string terms, decimal credit);
 
     Task MarkOrderFulfilled(string id);
-    Task<Order?> ConvertQuoteToOrder(string quoteId);
+    /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
+    Task<QuoteConversion> ConvertQuoteToOrder(string quoteId);
     Task<Quote?> AddQuote(string accountName, string currency);
     Task<Order?> AddOrder(string accountName, string currency);
     /// <summary>Adds a line for a chosen product. Returns false when nothing was added.</summary>

@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using System.Collections.Generic;
@@ -7,6 +8,9 @@ namespace SMDataManager.Library.DataAccess
 {
     public class OrderData : IOrderData
     {
+        /// <summary>The number spOrder_ConvertFromQuote THROWs when the claim is refused.</summary>
+        private const int QuoteAlreadyDecided = 50010;
+
         private readonly ISqlDataAccess _sqlDataAccess;
 
         public OrderData(ISqlDataAccess sqlDataAccess)
@@ -52,20 +56,41 @@ namespace SMDataManager.Library.DataAccess
                 .FirstOrDefault();
         }
 
-        public OrderModel ConvertQuoteToOrder(int quoteId, string staffId, int siteId)
+        public OrderModel GetOrderByQuote(int quoteId, int siteId)
         {
-            _sqlDataAccess.SaveData("dbo.spOrder_ConvertFromQuote", new
-            {
-                QuoteId = quoteId,
-                StaffId = staffId,
-                Id = 0,
-                Reference = string.Empty,
-                SiteId = siteId
-            }, "SMDatabase");
+            return _sqlDataAccess.LoadData<OrderModel, dynamic>(
+                "dbo.spOrder_GetByQuote", new { QuoteId = quoteId, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
+        }
 
-            return GetOrders(siteId)
-                .OrderByDescending(x => x.Id)
-                .FirstOrDefault();
+        public QuoteAcceptanceResult ConvertQuoteToOrder(
+            int quoteId, QuoteAcceptance acceptance, int siteId)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spOrder_ConvertFromQuote", new
+                {
+                    QuoteId = quoteId,
+                    Id = 0,
+                    Reference = string.Empty,
+                    SiteId = siteId,
+                    acceptance.StaffId,
+                    acceptance.PlacedByContactId,
+                    acceptance.PoNumber
+                }, "SMDatabase");
+            }
+            catch (SqlException ex) when (ex.Number == QuoteAlreadyDecided)
+            {
+                // Not a fault in the request: somebody else decided the quote while this
+                // screen was open, which under T5 is the ordinary race between an admin's
+                // Convert and a customer's Accept. The procedure created nothing.
+                return QuoteAcceptanceResult.AlreadyDecided();
+            }
+
+            // By the quote, not by the store's newest order. UQ_Purchase_QuoteId makes one
+            // order per quote a database fact, so this reads back what this call created;
+            // "newest" would be another caller's order under two concurrent conversions.
+            return QuoteAcceptanceResult.Converted(GetOrderByQuote(quoteId, siteId));
         }
 
         public void UpdateStatus(int purchaseId, string status, int siteId)

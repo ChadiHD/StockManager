@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Blazored.LocalStorage;
@@ -502,16 +503,30 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
     }
 
-    public async Task<Order?> ConvertQuoteToOrder(string quoteId)
+    public async Task<QuoteConversion> ConvertQuoteToOrder(string quoteId)
     {
         var response = await _client.PostAsJsonAsync($"{_api}/api/Order/FromQuote",
             new { QuoteReference = quoteId });
-        response.EnsureSuccessStatusCode();
+
+        // Not EnsureSuccessStatusCode: a 409 means the quote was decided elsewhere while this
+        // screen was open, and a thrown exception cannot carry that apart from a real failure.
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            await RefreshAsync();
+
+            return QuoteConversion.Conflict();
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return QuoteConversion.Failed();
+        }
 
         var created = await response.Content.ReadFromJsonAsync<OrderDto>();
         await RefreshAsync();
 
-        return created is null ? null : GetOrder(created.Reference ?? string.Empty);
+        return QuoteConversion.Created(
+            created is null ? null : GetOrder(created.Reference ?? string.Empty));
     }
 
     public async Task<Quote?> AddQuote(string accountName, string currency)

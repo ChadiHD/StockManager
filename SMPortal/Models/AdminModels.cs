@@ -226,3 +226,36 @@ public class HistoryItem
     public string Text { get; set; } = "";
     public string Who { get; set; } = "";
 }
+
+/// <summary>
+/// What came of converting a quote to an order.
+/// </summary>
+/// <remarks>
+/// Three outcomes rather than two, shaped like <see cref="FeedSyncOutcome"/> and for the same
+/// reason: a quote somebody else already decided is not a fault in the request, and wording it
+/// as a failure teaches an operator to discount the message when a conversion really has
+/// broken. <c>spOrder_ConvertFromQuote</c> claims the quote's status transition, so a refused
+/// claim means a customer accepted it — or another admin converted it — while this screen was
+/// open.
+/// </remarks>
+public sealed class QuoteConversion
+{
+    private QuoteConversion(Order? order, bool alreadyDecided)
+    {
+        Order = order;
+        AlreadyDecided = alreadyDecided;
+    }
+
+    public Order? Order { get; }
+
+    /// <summary>The quote had already been accepted or rejected. Nothing was created.</summary>
+    public bool AlreadyDecided { get; }
+
+    public bool Succeeded => Order is not null;
+
+    public static QuoteConversion Created(Order? order) => new(order, false);
+
+    public static QuoteConversion Conflict() => new(null, true);
+
+    public static QuoteConversion Failed() => new(null, false);
+}

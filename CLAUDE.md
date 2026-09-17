@@ -32,9 +32,14 @@ decision, the schema, registration field sets, `spAccount_Register`, storefront 
 document upload, the mail seam, the approval flow, the account area, email confirmation and
 password reset.
 
-T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — is built: the sync
+T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — is merged: the sync
 claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
-and the delisted-SKU verification. **T5 is next: ordering.**
+and the delisted-SKU verification.
+
+**T5 — ordering is in progress**, per `docs/plans/2026-09-17-t5-ordering.md`. Item 1 of nine is
+built: the accept claim and the placer. The rest — the server-side basket, submit, the
+customer's quote and order screens, admin re-pricing and the documents — is planned, and the
+plan opens with the four decisions that had to be settled before any of it could be written.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -424,7 +429,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 303 tests, plus the 17 that need a
+**That filter is what a routine run wants**, and it passes: 315 tests, plus the 27 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -521,6 +526,15 @@ SMDATABASE_TEST_CONNECTION="Server=127.0.0.1,<port>;Database=SMDatabase;User Id=
 Without that variable the tests skip rather than fail. Everything they write happens inside a
 transaction that is never committed.
 
+**A procedure's `ROLLBACK TRANSACTION` unwinds the test's rollback scope too.** T-SQL has no
+nested transactions: a bare `ROLLBACK` goes back to the outermost `BEGIN`, which in these tests
+is `TestDatabase.OpenRollbackScope`'s. So a test that provokes a transactional procedure's
+`CATCH` — `spOrder_ConvertFromQuote` refusing a claim, for one — must do it **last in its scope**
+and touch the connection no further; anything after it runs with `@@TRANCOUNT` at zero and would
+commit. Validation errors raised before the procedure opens its transaction are safe anywhere,
+and the two kinds are not distinguishable from the call site, so `QuoteAcceptanceTests` says
+which is which.
+
 Everything else in that project is a pure unit test and needs nothing.
 
 `.claude/launch.json` has entries for `preview_start`. `sm-portal-standalone` runs the portal alone on
@@ -602,6 +616,59 @@ writes will reach POS history.
 
 Portal orders never touch `dbo.Inventory`; only `spInventory_Insert` writes it. Order-level changes
 therefore have no stock side effects, but they do move `spReport_GetSales` and `spActivity_GetRecent`.
+
+**The predicate now runs both ways, and until T5 it ran one.** `spPurchase_PurchaseReport` — the
+desktop POS's own report — filtered nothing at all, so it returned portal orders too, attributed
+to whichever admin converted them. It now filters `Reference IS NULL`. That matters more since
+`StaffId` became nullable: the report inner-joins `dbo.[User]`, so a customer-accepted order
+would have dropped out of it by accident rather than on purpose.
+
+### An order records exactly one placer
+
+`Purchase.StaffId` is nullable from T5 and `Purchase.PlacedByContactId` exists beside it, because
+`dbo.[User]` holds staff and a customer is a `dbo.Contact`. A customer accepting their own quote
+has nothing to put in `StaffId`, and an id-shaped string satisfies the compiler and fails
+`FK_Purchase_ToUser` — after the caller has been told it succeeded. That is the third time this
+shape has come up here, after `Account.ApprovedBy` in T3 and a test fixture in T4.
+
+- `CK_Purchase_Placer` demands exactly one of the two, on every row. A POS sale has `StaffId`;
+  making that column nullable removed the only thing stopping a row with no placer at all.
+- `QuoteAcceptance.ByStaff` / `.ByCustomer` are the only ways to build one in C#, so "both" and
+  "neither" are unreachable rather than merely wrong.
+- `FK_Purchase_ToContact` is composite over `(PlacedByContactId, AccountId)` — which is why
+  `UQ_Contact_IdAccount` exists — so another company's buyer cannot place this account's order.
+  The procedure says so first, because a foreign-key violation raised inside a transaction
+  reaches the API as a 500 rather than as an answer.
+- `Purchase.PoNumber` holds the customer's own purchase-order number, captured at acceptance.
+  On the order and not on the quote: a quote that was never accepted has none, and holding it
+  twice is holding a value that can disagree with itself.
+
+### A quote is claimed before it is converted, and a claim refused is not a failure
+
+`spOrder_ConvertFromQuote` opens its transaction with one atomic `UPDATE` moving the quote to
+`Accepted` only while it still reads `Requested` or `Priced`, and throws 50010 on a rowcount of
+zero. Before T5 that `UPDATE` sat at the end with no predicate on the current status, so two
+callers produced **two orders from one quote** — each with its own `SO-` reference and its own
+copy of every line. Reachable then by double-clicking Convert; ordinary once a customer has an
+Accept button and both paths land in the same procedure.
+
+- `UQ_Purchase_QuoteId` is the backstop, filtered to `WHERE QuoteId IS NOT NULL` because POS rows
+  leave it NULL and SQL Server treats NULL as one distinct value in a unique index.
+- **One procedure, not two.** The claim lives here rather than in a separate customer-facing
+  accept, because two procedures over one invariant are two guards that drift. Both `Requested`
+  and `Priced` pass: the procedure's job is to stop a double conversion, not to decide who may
+  convert when. A customer may only accept a *priced* quote, and that rule belongs on the
+  customer path where it can be answered with a page.
+- A refused claim is a 409 and a third toast, not a failure. `QuoteAcceptanceResult`
+  distinguishes it from `Succeeded == false` the whole way out, exactly as
+  `DistributorFeedResult.AlreadyRunning` does — an operator told "that failed" about a customer
+  accepting their own quote learns to discount the message that matters.
+- `OrderData` reads the new order back with `spOrder_GetByQuote`, not as the store's newest
+  order. Under two conversions at once, "newest" is the other caller's.
+- `CK_Quote_Status` enforces `Requested | Priced | Accepted | Rejected`, which the column had
+  carried in a comment since it was written. `QuoteStatus` names them in the library and
+  `QuoteController` refuses a fifth with a 400, because a constraint violation raised inside a
+  procedure reaches the caller as a 500.
 
 ## Auth
 
@@ -802,9 +869,14 @@ lines, and the edit would read as a tightening rather than a regression. The sta
 predicate must not reach a quote line for the same reason: hiding stock from the shop window
 is not the same as withdrawing a price already quoted.
 
-- Whether a quote carrying a delisted line *should* be acceptable, or should be re-quoted
-  first, is **T5's** decision. The test records the current behaviour so that choice is made
-  deliberately rather than discovered.
+- **T5 decided it: expiry blocks, delisting warns.** A quote past its `ExpiresDate` cannot be
+  accepted — that is a statement the store already made in writing. A delisted line does not
+  block: the price was quoted, and withdrawing it at the moment of acceptance pushes a supply
+  problem the store owns onto the customer, who would otherwise be stuck behind a button that
+  cannot succeed until somebody notices. The line is flagged to the customer and on the order
+  instead. Neither gate is built yet — both belong to the customer accept path — and neither
+  belongs in `spOrder_ConvertFromQuote`, which an admin uses deliberately. See
+  `docs/plans/2026-09-17-t5-ordering.md` §5.
 
 - **`spProduct_SyncFeeds` was deleted, not kept for later.** It stamped
   `LastSynced = SYSUTCDATETIME()` on every distributor-sourced product **without fetching

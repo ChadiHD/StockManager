@@ -52,6 +52,11 @@ CREATE TABLE [dbo].[Contact]
 	-- that have no business learning about each other.
 	CONSTRAINT [UQ_Contact_Email] UNIQUE ([AccountId], [Email]),
 
+	-- Lets Purchase reference a contact together with the account it belongs to, so an order
+	-- placed by another company's buyer is refused by FK_Purchase_ToContact rather than by a
+	-- check somebody has to remember to write.
+	CONSTRAINT [UQ_Contact_IdAccount] UNIQUE ([Id], [AccountId]),
+
 	-- New tables get their closed value sets enforced. The older columns of this kind
 	-- (Account.Status, GroupVisibility.Rule, Site.OrderMode) are documented in comments only,
 	-- and were not retrofitted here; the case for a constraint is strongest where the value

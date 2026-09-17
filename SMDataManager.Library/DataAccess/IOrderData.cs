@@ -18,7 +18,16 @@ namespace SMDataManager.Library.DataAccess
         OrderModel GetOrderByReference(string reference, int siteId);
         List<OrderLineModel> GetOrderLines(int purchaseId, int siteId);
         OrderModel CreateOrder(string staffId, int accountId, string currency, int siteId);
-        OrderModel ConvertQuoteToOrder(int quoteId, string staffId, int siteId);
+        OrderModel GetOrderByQuote(int quoteId, int siteId);
+
+        /// <summary>
+        /// Turns a quote into an order, or reports that somebody else already decided it.
+        /// </summary>
+        /// <remarks>
+        /// The procedure claims the quote's status transition, so a second caller creates
+        /// nothing and gets <c>NoLongerAwaitingAcceptance</c> rather than a duplicate order.
+        /// </remarks>
+        QuoteAcceptanceResult ConvertQuoteToOrder(int quoteId, QuoteAcceptance acceptance, int siteId);
         void UpdateStatus(int purchaseId, string status, int siteId);
         List<SalesReportModel> GetSalesReport(int siteId);
         List<ActivityModel> GetRecentActivity(int take, int siteId);

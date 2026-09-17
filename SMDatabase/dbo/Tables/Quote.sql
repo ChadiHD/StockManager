@@ -20,5 +20,10 @@ CREATE TABLE [dbo].[Quote]
     -- future caller doing otherwise.
     CONSTRAINT [FK_Quote_ToAccount] FOREIGN KEY ([AccountId], [SiteId])
         REFERENCES [Account]([Id], [SiteId]),
-    CONSTRAINT [FK_Quote_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
+    CONSTRAINT [FK_Quote_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id]),
+    -- Documented in a comment since this table was written, enforced from T5 because the
+    -- accept path now gates on it: spOrder_ConvertFromQuote converts a quote only while it
+    -- still reads 'Priced', and a status nobody spells the same way twice makes that guard a
+    -- no-op that looks like a guard.
+    CONSTRAINT [CK_Quote_Status] CHECK ([Status] IN (N'Requested', N'Priced', N'Accepted', N'Rejected'))
 )
