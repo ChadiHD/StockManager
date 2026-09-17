@@ -10,5 +10,9 @@ BEGIN
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct], [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
-	WHERE [SiteKey] = @SiteKey;
+	-- Inactive sites are excluded here as they are in spSite_GetByDomain. Without it the two
+	-- lookups disagree about what counts as a site, and a store taken offline still resolves
+	-- through whichever path happens to use this one.
+	WHERE [SiteKey] = @SiteKey
+	  AND [IsActive] = 1;
 END

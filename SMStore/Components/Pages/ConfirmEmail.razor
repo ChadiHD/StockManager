@@ -1,0 +1,137 @@
+@page "/confirm-email"
+@using Microsoft.AspNetCore.Identity
+@using SMStore.Accounts
+@using StockManager.Identity
+@inject ISiteContext SiteContext
+@inject UserManager<IdentityUser> Users
+@inject ILogger<ConfirmEmail> Logger
+
+<PageTitle>Confirm your email · @SiteContext.Site.Name</PageTitle>
+
+<div class="signin">
+    <div class="signin__panel card blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i>
+        <i class="corner bl"></i><i class="corner br"></i>
+
+        @if (_confirmed)
+        {
+            <h1 class="signin__title">Address confirmed</h1>
+            <p class="text-muted signin__lede">
+                Thank you. We will email you again once your application has been reviewed, and
+                you will be able to sign in then.
+            </p>
+            <a href="@CustomerAuthentication.LoginPath" class="btn btn-primary btn-block">Go to sign in</a>
+        }
+        else
+        {
+            @* One message for every failure: a bad token, an expired one, a link already used,
+               and a user id that names nobody. Distinguishing them would tell an unauthenticated
+               caller which ids exist and whether a given address has already confirmed — and
+               the applicant's next step is the same in every case.
+
+               Arriving with no token at all is a different thing: that is someone who came from
+               the sign-in page wanting a new link, not someone whose link failed. Telling them
+               their link did not work would be nonsense. *@
+            @if (_attempted)
+            {
+                <h1 class="signin__title">That link did not work</h1>
+                <p class="text-muted signin__lede">
+                    It may have expired, or already been used. Ask for a fresh one and we will
+                    send it to the address on the application.
+                </p>
+            }
+            else
+            {
+                <h1 class="signin__title">Confirm your email address</h1>
+                <p class="text-muted signin__lede">
+                    Tell us the address you applied with and we will send you a fresh
+                    confirmation link.
+                </p>
+            }
+
+            <form method="post" action="@CustomerAuthentication.ResendConfirmationPath"
+                  class="signin__form">
+                <AntiforgeryToken />
+
+                <div class="field">
+                    <label for="confirm-email-address">Email address</label>
+                    <input class="input" type="email" id="confirm-email-address" name="email"
+                           autocomplete="username" required />
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Send a new link</button>
+            </form>
+        }
+    </div>
+</div>
+
+@code {
+    /*
+    Both bound as text, never as a typed parameter.
+
+    Blazor converts a query-string value during binding and throws on anything it cannot
+    convert, before any validation here runs — which is how ?page=abc became an
+    unauthenticated 500 on the catalog. These two arrive from a link in an email and are
+    attacker-supplied in full.
+    */
+    [SupplyParameterFromQuery(Name = MailedTokenLink.UserIdParameter)]
+    public string? UserId { get; set; }
+
+    [SupplyParameterFromQuery(Name = MailedTokenLink.TokenParameter)]
+    public string? Token { get; set; }
+
+    private bool _confirmed;
+
+    /// <summary>Whether a link was being followed, rather than someone asking for one.</summary>
+    private bool _attempted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _attempted = !string.IsNullOrWhiteSpace(UserId) || !string.IsNullOrWhiteSpace(Token);
+
+        var token = MailedTokenLink.TryDecode(Token);
+
+        if (string.IsNullOrWhiteSpace(UserId) || token is null)
+        {
+            return;
+        }
+
+        var user = await Users.FindByIdAsync(UserId);
+
+        if (user is null)
+        {
+            return;
+        }
+
+        /*
+        The store is checked as well as the token, because a token is only evidence about an
+        address — it says nothing about which of the stores run from here the link came from.
+        The username carries the store, so comparing against this request's site is what stops
+        a link issued for one tenant confirming a login on another tenant's domain.
+        */
+        if (!SiteQualifiedUserName.BelongsTo(user.UserName ?? string.Empty, SiteContext.Site.SiteKey))
+        {
+            Logger.LogInformation(
+                "Refused an email confirmation for a login belonging to another store at {SiteKey}.",
+                SiteContext.Site.SiteKey);
+
+            return;
+        }
+
+        // Identity validates the token against the user's security stamp, and confirming
+        // changes that stamp — so a link cannot be replayed. Nothing here is single-use of its
+        // own making, which is the point: the T3 plan asks for single-use expiring tokens and
+        // rolling them by hand is how you get neither.
+        var result = await Users.ConfirmEmailAsync(user, token);
+
+        _confirmed = result.Succeeded;
+
+        if (!result.Succeeded)
+        {
+            Logger.LogInformation(
+                "Email confirmation refused at {SiteKey}: {Errors}.",
+                SiteContext.Site.SiteKey,
+                string.Join(", ", result.Errors.Select(error => error.Code)));
+        }
+    }
+}

@@ -150,7 +150,13 @@
     [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
     [SupplyParameterFromQuery(Name = "sort")] public string? Sort { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] public string? Stock { get; set; }
-    [SupplyParameterFromQuery(Name = "page")] public int? Page { get; set; }
+    // Bound as text rather than int?. Blazor's query binding throws on a value it cannot
+    // convert, and that surfaces as an unauthenticated 500 from one query string — "?page=abc"
+    // from a crawler, or any number past int.MaxValue. Anything unparseable is page 1, which
+    // is what someone editing a URL by hand meant anyway.
+    [SupplyParameterFromQuery(Name = "page")] public string? Page { get; set; }
+
+    private int PageNumber => int.TryParse(Page, out var page) ? page : 1;
 
     private CatalogResult _result = default!;
     private SMDataManager.Library.Models.SiteCategoryModel? _category;
@@ -181,7 +187,7 @@
 
     protected override void OnParametersSet()
     {
-        _result = Presenter.Search(Cat, Brand, InStock, Q, Sort, Page ?? 1);
+        _result = Presenter.Search(Cat, Brand, InStock, Q, Sort, PageNumber);
 
         _category = Cat is null
             ? null

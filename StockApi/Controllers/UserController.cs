@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
-using StockApi.Data;
+using StockManager.Identity;
 using StockApi.Models;
 using System.Data;
 using System.Security.Claims;

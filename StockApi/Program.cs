@@ -8,7 +8,8 @@ using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using StockApi.Feeds;
 using StockApi.Security;
-using StockApi.Data;
+using StockApi.Sites;
+using StockManager.Identity;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
@@ -27,8 +28,12 @@ builder.Services.AddCors(policy =>
         .AllowAnyHeader()
         .AllowAnyMethod());
 });
+// ApplicationDbContext now lives in StockManager.Identity, shared with SMStore, but its
+// migrations stayed here — EF looks for them in the context's own assembly unless told
+// otherwise, and moving generated files to keep a default happy is a poor trade. StockApi
+// remains the only host that migrates; see the remarks on ApplicationDbContext.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("StockApi")));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
@@ -86,6 +91,14 @@ builder.Services.AddHostedService<ProductImageBackgroundService>();
 // and could not be read by a second app. See AddSharedDataProtection.
 builder.AddSharedDataProtection();
 
+// Customer-uploaded documents, written by SMStore and read back here by whoever reviews the
+// application. Both hosts must resolve the same container root, or a reviewer opens an empty
+// store — see AddDocumentStore.
+builder.AddDocumentStore();
+
+// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
+builder.AddEmail();
+
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 
 // Key Vault store, registered only when configured so local development needs no Azure.
@@ -96,7 +109,20 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["FeedSecrets:KeyVaultUri"])
 
 builder.Services.AddSingleton<IFeedSecretStoreResolver, FeedSecretStoreResolver>();
 
+// Which store a request is acting for. Scoped, written once by the middleware, read-only to
+// everything else — the same split SMStore uses for its host-resolved site.
+builder.Services.AddMemoryCache();
+builder.Services.AddTransient<ISiteData, SiteData>();
+builder.Services.AddScoped<AdminSiteContext>();
+builder.Services.AddScoped<IAdminSiteContext>(services => services.GetRequiredService<AdminSiteContext>());
+
 builder.Services.AddTransient<IAccountData, AccountData>();
+// Children of Account. None carries a site of its own; every procedure behind these joins
+// Account for the predicate, so a guessed id resolves to nothing rather than to another
+// store's customer records.
+builder.Services.AddTransient<IContactData, ContactData>();
+builder.Services.AddTransient<IAddressData, AddressData>();
+builder.Services.AddTransient<IAccountDocumentData, AccountDocumentData>();
 builder.Services.AddTransient<ICustomerGroupData, CustomerGroupData>();
 builder.Services.AddTransient<IQuoteData, QuoteData>();
 builder.Services.AddTransient<IOrderData, OrderData>();
@@ -182,6 +208,10 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authorization: resolving a store is only meaningful for a caller that got this far,
+// and an anonymous request has no business learning whether a given site key exists.
+app.UseMiddleware<AdminSiteResolutionMiddleware>();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>

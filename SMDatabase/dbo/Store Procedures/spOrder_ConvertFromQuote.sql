@@ -5,16 +5,20 @@ CREATE PROCEDURE [dbo].[spOrder_ConvertFromQuote]
 	@QuoteId int,
 	@StaffId nvarchar(128),
 	@Id int output,
-	@Reference nvarchar(20) output
+	@Reference nvarchar(20) output,
+	@SiteId int
 AS
 BEGIN
 	SET NOCOUNT ON;
 
-	DECLARE @AccountId int, @Currency nvarchar(3), @SiteId int;
+	DECLARE @AccountId int, @Currency nvarchar(3), @QuoteSiteId int;
 
-	SELECT @AccountId = [AccountId], @Currency = [Currency], @SiteId = [SiteId]
+	-- Site is part of the lookup, so a quote belonging to another store reads as "not found"
+	-- rather than converting into an order this store's admin can then see.
+	SELECT @AccountId = [AccountId], @Currency = [Currency], @QuoteSiteId = [SiteId]
 	FROM dbo.Quote
-	WHERE [Id] = @QuoteId;
+	WHERE [Id] = @QuoteId
+	  AND [SiteId] = @SiteId;
 
 	IF @AccountId IS NULL
 	BEGIN
@@ -22,8 +26,8 @@ BEGIN
 	END
 
 	-- The order stays in the quote's store. fnSite_Resolve only does anything for a quote that
-	-- predates site scoping and was never backfilled.
-	SET @SiteId = [dbo].[fnSite_Resolve](@SiteId);
+	-- predates site scoping and was never backfilled, which the predicate above cannot match.
+	SET @SiteId = [dbo].[fnSite_Resolve](@QuoteSiteId);
 
 	IF @SiteId IS NULL
 	BEGIN

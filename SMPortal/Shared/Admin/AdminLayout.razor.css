@@ -178,3 +178,37 @@
     height: 18px;
     flex: 0 0 auto;
 }
+
+/* Store selector. Only rendered when the operator runs more than one store, so it sits
+   between the page context and the account block rather than claiming permanent space. */
+.site-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding-right: 18px;
+}
+
+.site-switch label {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .62;
+}
+
+.site-switch-select {
+    padding: 7px 11px;
+    border: 1px solid rgba(16, 24, 40, .16);
+    border-radius: 9px;
+    background: #fff;
+    font: inherit;
+    font-size: .84rem;
+    font-weight: 620;
+    cursor: pointer;
+}
+
+.site-switch-select:disabled {
+    opacity: .55;
+    cursor: progress;
+}

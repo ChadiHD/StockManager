@@ -3,15 +3,24 @@ using System.Collections.Generic;
 
 namespace SMDataManager.Library.DataAccess
 {
+    /// <summary>
+    /// Portal sales orders and the reports over them, scoped to a store. See
+    /// <see cref="IAccountData"/> for why siteId is mandatory and last on every method.
+    /// </summary>
+    /// <remarks>
+    /// An order is a dbo.Purchase row carrying a Reference. POS sales share the table, have no
+    /// site, and are excluded by the Reference predicate rather than by the site one — the two
+    /// filters are independent and both are needed.
+    /// </remarks>
     public interface IOrderData
     {
-        List<OrderModel> GetOrders();
-        OrderModel GetOrderByReference(string reference);
-        List<OrderLineModel> GetOrderLines(int purchaseId);
-        OrderModel CreateOrder(string staffId, int accountId, string currency);
-        OrderModel ConvertQuoteToOrder(int quoteId, string staffId);
-        void UpdateStatus(int purchaseId, string status);
-        List<SalesReportModel> GetSalesReport();
-        List<ActivityModel> GetRecentActivity(int take);
+        List<OrderModel> GetOrders(int siteId);
+        OrderModel GetOrderByReference(string reference, int siteId);
+        List<OrderLineModel> GetOrderLines(int purchaseId, int siteId);
+        OrderModel CreateOrder(string staffId, int accountId, string currency, int siteId);
+        OrderModel ConvertQuoteToOrder(int quoteId, string staffId, int siteId);
+        void UpdateStatus(int purchaseId, string status, int siteId);
+        List<SalesReportModel> GetSalesReport(int siteId);
+        List<ActivityModel> GetRecentActivity(int take, int siteId);
     }
 }

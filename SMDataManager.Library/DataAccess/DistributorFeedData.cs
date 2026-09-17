@@ -14,19 +14,20 @@ namespace SMDataManager.Library.DataAccess
             _sqlDataAccess = sqlDataAccess;
         }
 
-        public List<DistributorFeedModel> GetFeeds()
+        public List<DistributorFeedModel> GetFeeds(int siteId)
         {
             return _sqlDataAccess.LoadData<DistributorFeedModel, dynamic>(
-                "dbo.spDistributorFeed_GetAll", new { }, "SMDatabase");
+                "dbo.spDistributorFeed_GetAll", new { SiteId = siteId }, "SMDatabase");
         }
 
-        public DistributorFeedModel GetFeedById(int id)
+        public DistributorFeedModel GetFeedById(int id, int siteId)
         {
             return _sqlDataAccess.LoadData<DistributorFeedModel, dynamic>(
-                "dbo.spDistributorFeed_GetById", new { Id = id }, "SMDatabase").FirstOrDefault();
+                "dbo.spDistributorFeed_GetById", new { Id = id, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
         }
 
-        public DistributorFeedModel CreateFeed(DistributorFeedModel feed)
+        public DistributorFeedModel CreateFeed(DistributorFeedModel feed, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spDistributorFeed_Insert", new
             {
@@ -50,13 +51,14 @@ namespace SMDataManager.Library.DataAccess
                 feed.FieldManufacturer,
                 feed.FieldMpn,
                 feed.FieldEan,
-                feed.FieldIcecat
+                feed.FieldIcecat,
+                SiteId = siteId
             }, "SMDatabase");
 
-            return GetFeeds().FirstOrDefault(candidate => candidate.Name == feed.Name);
+            return GetFeeds(siteId).FirstOrDefault(candidate => candidate.Name == feed.Name);
         }
 
-        public void UpdateFeed(DistributorFeedModel feed)
+        public void UpdateFeed(DistributorFeedModel feed, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spDistributorFeed_Update", new
             {
@@ -78,29 +80,32 @@ namespace SMDataManager.Library.DataAccess
                 feed.FieldManufacturer,
                 feed.FieldMpn,
                 feed.FieldEan,
-                feed.FieldIcecat
+                feed.FieldIcecat,
+                SiteId = siteId
             }, "SMDatabase");
         }
 
-        public void UpdateSecret(int id, string secretProvider, string secretRef)
+        public void UpdateSecret(int id, string secretProvider, string secretRef, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spDistributorFeed_UpdateSecret", new
             {
                 Id = id,
                 SecretProvider = secretProvider,
-                SecretRef = secretRef
+                SecretRef = secretRef,
+                SiteId = siteId
             }, "SMDatabase");
         }
 
-        public void DeleteFeed(int id)
+        public void DeleteFeed(int id, int siteId)
         {
-            _sqlDataAccess.SaveData("dbo.spDistributorFeed_Delete", new { Id = id }, "SMDatabase");
+            _sqlDataAccess.SaveData("dbo.spDistributorFeed_Delete",
+                new { Id = id, SiteId = siteId }, "SMDatabase");
         }
 
-        public void RecordSync(int id, string status)
+        public void RecordSync(int id, string status, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spDistributorFeed_RecordSync",
-                new { Id = id, Status = status }, "SMDatabase");
+                new { Id = id, Status = status, SiteId = siteId }, "SMDatabase");
         }
     }
 }

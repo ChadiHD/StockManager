@@ -7,6 +7,14 @@ namespace SMDataManager.Library.Models
     public class DistributorFeedModel
     {
         public int Id { get; set; }
+
+        /// <summary>
+        /// The store this feed belongs to. Projected so a sync can record its own result
+        /// without the caller having to carry the site alongside the feed — every write over
+        /// a feed is site-scoped, and a feed that cannot say which store it serves would have
+        /// to be trusted instead.
+        /// </summary>
+        public int SiteId { get; set; }
         public string Name { get; set; }
         public string Host { get; set; }
         public int Port { get; set; } = 22;

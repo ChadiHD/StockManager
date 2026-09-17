@@ -13,6 +13,11 @@
          serialisation on anonymous catalog pages, which are the hot path. -->
     <ProjectReference Include="..\SMDataManager.Library\SMDataManager.Library.csproj" />
     <ProjectReference Include="..\StockManager.ServiceDefaults\StockManager.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\StockManager.Identity\StockManager.Identity.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
   </ItemGroup>
 
 </Project>

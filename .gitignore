@@ -348,3 +348,8 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Customer-uploaded documents in development. LocalFileDocumentStore writes here by default,
+# beside the content root rather than under wwwroot, because anything under wwwroot is served.
+# Real applicants' paperwork must never reach a commit.
+/app-data/

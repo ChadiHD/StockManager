@@ -1,14 +1,19 @@
 /*
-Facet counts for the catalog rail, under the same visibility rules as spCatalog_Search.
+Facet counts for the catalog rail, under the same visibility rules as spCatalog_Search —
+literally the same rules now, since both call dbo.fnCatalog_VisibleProducts. They used to hold
+separate copies of one predicate, which is a class of bug with no symptom until someone counts
+the rail against the page it filters to.
 
 Counts are computed against the current filter minus the facet's own dimension, so the
-category counts show what selecting each category would give and are not all reduced to the
-already-selected one. Availability is the exception: it is a narrowing toggle, so its count
-reflects the filter as it stands.
+category counts show what selecting each category would give rather than all collapsing to the
+already-selected one. That is why @CategorySlug and @Brand are not passed to the function:
+the unfiltered visible set goes into a temp table once and each grid applies the other
+dimension itself. Availability is the exception — it is a narrowing toggle, so it is applied
+to the base set and its count reflects the filter as it stands.
 
-The visible set goes into a temp table rather than a CTE. A CTE is in scope only for the
-statement immediately after it, and this procedure returns two grids — categories, then
-brands — so a CTE gives "Invalid object name" on the second.
+The temp table is not incidental. A CTE is in scope only for the statement immediately after
+it and this procedure returns two grids, so a CTE gives "Invalid object name" on the second —
+and calling the function twice would evaluate the whole predicate twice.
 */
 CREATE PROCEDURE [dbo].[spCatalog_GetFacets]
 	@SiteId int,
@@ -20,6 +25,17 @@ CREATE PROCEDURE [dbo].[spCatalog_GetFacets]
 AS
 BEGIN
 	SET NOCOUNT ON;
+
+	-- The same degradation spCatalog_Search applies, and needed here for the same reason: a
+	-- group from another store must not filter this store's counts through its allow-list.
+	-- If the two procedures disagreed about which group is in play, the rail would count a
+	-- different set from the one the page renders.
+	IF @CustomerGroupId IS NOT NULL
+	   AND NOT EXISTS (SELECT 1 FROM dbo.CustomerGroup
+	                   WHERE [Id] = @CustomerGroupId AND [SiteId] = @SiteId)
+	BEGIN
+		SET @CustomerGroupId = NULL;
+	END
 
 	DECLARE @Term nvarchar(200) = NULLIF(LTRIM(RTRIM(@Search)), N'');
 
@@ -43,43 +59,19 @@ BEGIN
 		[SortOrder] INT NOT NULL
 	);
 
+	-- Zero discount and zero margin: counting rows does not need a price, and the function's
+	-- NetPrice is an unreferenced output column here, which the optimiser drops. Passing the
+	-- real values would mean duplicating the group and site lookups for a number nothing
+	-- reads.
 	INSERT INTO #visible ([Manufacturer], [CategorySlug], [CategoryName], [SortOrder])
-	SELECT [p].[Manufacturer], [c].[Slug], [c].[Name], [c].[SortOrder]
-	FROM [dbo].[Product] p
-	INNER JOIN [dbo].[CategoryMapping] m
-		ON m.[SiteId] = @SiteId
-		AND m.[FeedValue] = p.[Category]
-	INNER JOIN [dbo].[SiteCategory] c
-		ON c.[Id] = m.[SiteCategoryId]
-		-- Scoped for the reason spelt out in spCatalog_Search: a mapping's SiteCategoryId is
-		-- not guaranteed to name a category this site owns.
-		AND c.[SiteId] = @SiteId
-		AND c.[IsActive] = 1
-	WHERE p.[Published] = 1
-	  AND p.[Delisted] = 0
-	  AND (@InStockOnly = 0 OR p.[QuantityInStock] > 0)
-	  AND (@Term IS NULL
-	       OR p.[Sku] = @Term
-	       OR p.[ManufacturerPartNumber] = @Term
-	       OR p.[Sku] LIKE @Prefix ESCAPE N'\'
-	       OR p.[ProductName] LIKE @Contains ESCAPE N'\'
-	       OR p.[ManufacturerPartNumber] LIKE @Contains ESCAPE N'\'
-	       OR p.[Description] LIKE @Contains ESCAPE N'\')
-	  AND (@HasIncludeRule = 0 OR EXISTS (
-	          SELECT 1 FROM dbo.GroupVisibility g
-	          WHERE g.[CustomerGroupId] = @CustomerGroupId
-	            AND g.[Rule] = 'IncludeCategory'
-	            AND g.[Value] = c.[Slug]))
-	  AND NOT EXISTS (
-	          SELECT 1 FROM dbo.GroupVisibility g
-	          WHERE g.[CustomerGroupId] = @CustomerGroupId
-	            AND g.[Rule] = 'ExcludeCategory'
-	            AND g.[Value] = c.[Slug])
-	  AND NOT EXISTS (
-	          SELECT 1 FROM dbo.GroupVisibility g
-	          WHERE g.[CustomerGroupId] = @CustomerGroupId
-	            AND g.[Rule] = 'ExcludeDistributor'
-	            AND g.[Value] = p.[Distributor]);
+	SELECT [Manufacturer], [CategorySlug], [CategoryName], [CategorySortOrder]
+	FROM dbo.fnCatalog_VisibleProducts(
+		@SiteId, @CustomerGroupId, @HasIncludeRule,
+		-- Deliberately unfiltered on both facet dimensions; see the header.
+		NULL, NULL,
+		@InStockOnly, @Term, @Prefix, @Contains, 0, 0)
+	WHERE @Term IS NULL OR [Relevance] > 0
+	OPTION (RECOMPILE);
 
 	-- Categories, counted without the category filter applied.
 	SELECT [CategorySlug] AS [Slug], [CategoryName] AS [Name], COUNT(*) AS [Count]

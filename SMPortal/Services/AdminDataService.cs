@@ -28,10 +28,19 @@ public class AdminDataService : IAdminDataService
     private readonly Dictionary<string, int> _accountIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _groupSlugs = new(StringComparer.OrdinalIgnoreCase);
 
+    // The stores this admin may act for, and the one currently selected. Every scoped
+    // endpoint reads its site from the X-Site-Key header, so nothing else in this service
+    // passes a site explicitly — see EnsureSiteAsync.
+    private readonly List<SiteOption> _sites = new();
+    private string? _currentSiteKey;
+
     private bool _loaded;
 
     private readonly ILocalStorageService _localStorage;
     private readonly string _tokenKey;
+
+    private const string SiteKeyStorageKey = "adminSiteKey";
+    private const string SiteHeaderName = "X-Site-Key";
 
     public AdminDataService(HttpClient client, IConfiguration config, ILocalStorageService localStorage)
     {
@@ -57,6 +66,62 @@ public class AdminDataService : IAdminDataService
         }
     }
 
+    /// <summary>
+    /// Tells the API which store this request is about. Set on the shared HttpClient rather
+    /// than passed per call, so an endpoint added later is scoped by default instead of by
+    /// the author remembering — the same reasoning as the bearer token above.
+    /// </summary>
+    private async Task EnsureSiteAsync()
+    {
+        if (_sites.Count > 0 && _currentSiteKey is not null)
+        {
+            ApplySiteHeader();
+            return;
+        }
+
+        Replace(_sites, await GetListAsync<SiteOption>("api/Site"));
+
+        var stored = await _localStorage.GetItemAsync<string>(SiteKeyStorageKey);
+
+        // A stored key that no longer names a store — renamed, deactivated, or belonging to a
+        // different deployment — falls back rather than leaving the portal wedged on a site
+        // the API will refuse.
+        _currentSiteKey = _sites.Any(site => site.SiteKey == stored)
+            ? stored
+            : _sites.FirstOrDefault()?.SiteKey;
+
+        ApplySiteHeader();
+    }
+
+    private void ApplySiteHeader()
+    {
+        _client.DefaultRequestHeaders.Remove(SiteHeaderName);
+
+        if (!string.IsNullOrWhiteSpace(_currentSiteKey))
+        {
+            _client.DefaultRequestHeaders.Add(SiteHeaderName, _currentSiteKey);
+        }
+    }
+
+    public IReadOnlyList<SiteOption> Sites => _sites;
+
+    public string? CurrentSiteKey => _currentSiteKey;
+
+    public async Task SwitchSiteAsync(string siteKey)
+    {
+        if (string.IsNullOrWhiteSpace(siteKey) || siteKey == _currentSiteKey) return;
+
+        _currentSiteKey = siteKey;
+        await _localStorage.SetItemAsync(SiteKeyStorageKey, siteKey);
+        ApplySiteHeader();
+
+        // Everything held in the snapshot belonged to the previous store, so this is a full
+        // reload rather than a refresh — leaving one list stale would show another store's
+        // accounts under this store's name.
+        _loaded = false;
+        await RefreshAsync();
+    }
+
     public IReadOnlyList<Account> Accounts => _accounts;
     public IReadOnlyList<Quote> Quotes => _quotes;
     public IReadOnlyList<Order> Orders => _orders;
@@ -75,6 +140,10 @@ public class AdminDataService : IAdminDataService
     public async Task RefreshAsync()
     {
         await EnsureAuthHeaderAsync();
+
+        // Before anything else: the requests below are site-scoped and the API answers 400
+        // without the header once a second store exists.
+        await EnsureSiteAsync();
 
         var accountsTask = GetListAsync<AccountDto>("api/Account");
         var groupsTask = GetListAsync<GroupDto>("api/CustomerGroup");
@@ -169,9 +238,189 @@ public class AdminDataService : IAdminDataService
 
     // ---- Account mutations --------------------------------------------------------------
 
-    public Task ApproveAccount(string id) => SetAccountStatus(id, "Approved");
+    /*
+    Approval and rejection are their own endpoints, not a status write.
 
-    public Task RejectAccount(string id) => SetAccountStatus(id, "Rejected");
+    They used to call PUT .../Status, which set a string and recorded nothing. Approval is
+    the one transition that has to leave evidence — who decided, when, and on what terms —
+    and it is also what sends the applicant their mail, assigns the pricing group and lets
+    them sign in. None of that can hang off a status setter that suspension also uses.
+
+    Both return the problem as text, or null when it worked. A Conflict means the account was
+    decided by somebody else while this screen was open, and telling the user that is more
+    use than an exception from EnsureSuccessStatusCode.
+    */
+    public async Task<string?> ApproveAccount(string id, string? group)
+    {
+        if (!_accountIds.TryGetValue(id, out int accountId)) return "That account is no longer listed.";
+
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PostAsJsonAsync($"{_api}/api/Account/{accountId}/Approve",
+            new { CustomerGroupId = await ResolveGroupId(group ?? string.Empty) });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "The account could not be approved.");
+        }
+
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<string?> RejectAccount(string id, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) return "A rejection needs a reason.";
+        if (!_accountIds.TryGetValue(id, out int accountId)) return "That account is no longer listed.";
+
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"{_api}/api/Account/{accountId}/Reject", new { Reason = reason });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "The application could not be rejected.");
+        }
+
+        await RefreshAsync();
+
+        return null;
+    }
+
+    private static async Task<string> Problem(HttpResponseMessage response, string fallback)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+
+        return string.IsNullOrWhiteSpace(body) ? fallback : body.Trim('"');
+    }
+
+    /// <summary>
+    /// The people on one account, primary contact first.
+    /// </summary>
+    /// <remarks>
+    /// Per account and asynchronous, for the same reason as the documents below: a reviewer
+    /// opens one application at a time, and every account's contacts in the snapshot would
+    /// be every customer's staff list held in browser memory.
+    /// </remarks>
+    public async Task<IReadOnlyList<Contact>> GetContacts(string id)
+    {
+        if (!_accountIds.TryGetValue(id, out int accountId)) return [];
+
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var contacts = await GetListAsync<ContactDto>($"api/Contact?accountId={accountId}");
+
+        return contacts
+            .OrderByDescending(contact => contact.IsPrimary)
+            .ThenBy(contact => contact.LastName)
+            .Select(contact => new Contact
+            {
+                Name = $"{contact.FirstName} {contact.LastName}".Trim(),
+                Role = contact.RoleInAccount ?? string.Empty,
+                Email = contact.Email ?? string.Empty,
+                Phone = contact.Phone ?? string.Empty,
+                IsPrimary = contact.IsPrimary,
+                Status = contact.Status ?? "Active"
+            }).ToList();
+    }
+
+    public async Task<IReadOnlyList<AccountAddress>> GetAddresses(string id)
+    {
+        if (!_accountIds.TryGetValue(id, out int accountId)) return [];
+
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var addresses = await GetListAsync<AddressDto>($"api/Address?accountId={accountId}");
+
+        return addresses.Select(address => new AccountAddress
+        {
+            Id = address.Id,
+            Kind = address.Kind ?? "Billing",
+            Line1 = address.Line1 ?? string.Empty,
+            Line2 = address.Line2 ?? string.Empty,
+            City = address.City ?? string.Empty,
+            Region = address.Region ?? string.Empty,
+            PostCode = address.PostCode ?? string.Empty,
+            Country = address.Country ?? string.Empty,
+            IsDefault = address.IsDefault
+        }).ToList();
+    }
+
+    // ---- Account documents ----------------------------------------------------------------
+
+    /// <summary>
+    /// The paperwork on one account.
+    /// </summary>
+    /// <remarks>
+    /// Fetched per account rather than loaded into the snapshot with everything else. Reads
+    /// here are normally synchronous against <c>EnsureLoadedAsync</c>'s cache, and this one
+    /// is not, because pulling every document row for every account to render one detail
+    /// page is the wrong trade — a reviewer opens one application at a time.
+    /// </remarks>
+    public async Task<IReadOnlyList<AccountDocument>> GetDocuments(string id)
+    {
+        if (!_accountIds.TryGetValue(id, out int accountId)) return [];
+
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var documents = await GetListAsync<AccountDocumentDto>($"api/AccountDocument?accountId={accountId}");
+
+        return documents.Select(document => new AccountDocument
+        {
+            Id = document.Id,
+            Kind = document.Kind ?? string.Empty,
+            Name = document.OriginalName ?? "document",
+            ContentType = document.ContentType ?? "application/octet-stream",
+            SizeBytes = document.SizeBytes,
+            Uploaded = Date(document.UploadedUtc),
+            Status = document.Status ?? "Pending"
+        }).ToList();
+    }
+
+    /// <summary>
+    /// The bytes of one document, base64-encoded for the JS that saves them.
+    /// </summary>
+    /// <remarks>
+    /// Fetched rather than linked because the API authenticates with a bearer token and a
+    /// browser navigation does not carry one. Null when the API refuses — which it does with
+    /// 404 for a document belonging to another store, so there is nothing to distinguish.
+    /// </remarks>
+    public async Task<(string Name, string ContentType, string Base64)?> GetDocumentContent(int documentId)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.GetAsync($"{_api}/api/AccountDocument/{documentId}/Content");
+
+        if (!response.IsSuccessStatusCode) return null;
+
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+
+        return (
+            response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+                ?? "document",
+            response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
+            Convert.ToBase64String(bytes));
+    }
+
+    public async Task<bool> SetDocumentStatus(int documentId, string status)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/AccountDocument/{documentId}/Status", new { Status = status });
+
+        return response.IsSuccessStatusCode;
+    }
 
     public Task ToggleSuspend(string id)
     {
@@ -676,7 +925,12 @@ public class AdminDataService : IAdminDataService
         Terms = dto.PaymentTerms ?? string.Empty,
         Credit = dto.CreditLimit,
         Status = dto.Status ?? "Pending",
-        Since = Date(dto.CreatedDate)
+        Since = Date(dto.CreatedDate),
+        Vat = dto.VatNumber ?? string.Empty,
+        Registration = dto.RegistrationNumber ?? string.Empty,
+        DecidedBy = dto.ApprovedBy ?? string.Empty,
+        DecidedOn = dto.ApprovedUtc is { } decided ? Date(decided) : string.Empty,
+        RejectionReason = dto.RejectionReason ?? string.Empty
     };
 
     private static Group MapGroup(GroupDto dto) => new()
@@ -804,7 +1058,19 @@ public class AdminDataService : IAdminDataService
 
     private sealed record AccountDto(int Id, string? Reference, string? Company, string? ContactName,
         string? Email, string? Country, string? Currency, int? CustomerGroupId, string? GroupName,
-        string? PaymentMethod, string? PaymentTerms, decimal CreditLimit, string? Status, DateTime CreatedDate);
+        string? PaymentMethod, string? PaymentTerms, decimal CreditLimit, string? Status, DateTime CreatedDate,
+        string? VatNumber, string? RegistrationNumber,
+        DateTime? ApprovedUtc, string? ApprovedBy, string? RejectionReason);
+
+    private sealed record AccountDocumentDto(int Id, int AccountId, string? Kind, string? OriginalName,
+        string? ContentType, long SizeBytes, DateTime UploadedUtc, string? Status);
+
+    private sealed record ContactDto(int Id, int AccountId, string? FirstName, string? LastName,
+        string? Email, string? Phone, string? RoleInAccount, bool IsPrimary, string? Status,
+        DateTime CreatedDate);
+
+    private sealed record AddressDto(int Id, int AccountId, string? Kind, string? Line1, string? Line2,
+        string? City, string? Region, string? PostCode, string? Country, bool IsDefault);
 
     private sealed record GroupDto(int Id, string? Name, string? Slug, int Discount, string? Terms,
         string? Note, int Accounts, int Overrides);

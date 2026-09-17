@@ -1,5 +1,8 @@
 using System.Reflection;
 using Aspire.Hosting.ApplicationModel;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.SqlServer.Dac;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -70,23 +73,88 @@ if (builder.ExecutionContext.IsRunMode)
 	}
 }
 
-var smSchema = builder.AddSqlProject("smdatabase-schema")
-	.WithDacpac(smDacpacPath)
-	.WithReference(stockDatabase)
-	.WaitFor(stockDatabase)
-	// The SQL volume is persistent, so skip the redeploy when the dacpac is unchanged.
-	// Keeps subsequent app host starts fast instead of republishing every run.
-	.WithSkipWhenDeployed();
+/*
+The schema is published in process, on the database's own ready event, rather than by a
+separate resource in the graph.
 
-// CommunityToolkit.Aspire.Hosting.SqlDatabaseProjects tags SQL project resources with
-// ExplicitStartupAnnotation ("do not start with the app host"), so smdatabase-schema sits at
-// "Not started" until started by hand in the dashboard. Because stock-api below uses
-// WaitForCompletion(smSchema), that also stalled the API — and sm-portal / sm-desktop behind
-// it. Strip the annotation so the schema deploys automatically on every run.
-foreach (var annotation in smSchema.Resource.Annotations.OfType<ExplicitStartupAnnotation>().ToList())
-{
-	smSchema.Resource.Annotations.Remove(annotation);
-}
+It used to be a CommunityToolkit AddSqlProject resource that stock-api and sm-store both
+WaitForCompletion'd. That resource never ran: it sat in Waiting for ever and took the whole
+application down with it, because everything waited on something that would never finish.
+Five explanations were checked and none held — the ExplicitStartupAnnotation the toolkit adds
+(stripping it changes nothing, and so does leaving it), the resource's own WaitAnnotations
+(removing every one of them changes nothing), WithSkipWhenDeployed, the Azure container app
+environment, and upgrading Aspire and the toolkit together to 13.5. In every case the
+resource reported exactly one Waiting snapshot and never another. Nothing in the app graph
+was orchestrating it.
+
+The DACPAC itself was never the problem: published by hand against the same container it
+applies in about ten seconds. So this drops the dependency and does the deploy directly,
+which also removes a third-party resource type from the startup critical path.
+
+ResourceReadyEvent is the documented seam for exactly this — Aspire awaits its subscribers
+before dependents that WaitFor the resource proceed, so stock-api and sm-store need only
+WaitFor(stockDatabase) and the schema is guaranteed to be in place before either starts.
+That is why WaitForCompletion is gone from both.
+
+What is lost is the dashboard row for the deploy and WithSkipWhenDeployed's fast path. The
+row is worth less than an application that starts, and ten seconds per launch is not worth
+an optimisation that can leave the schema unapplied.
+*/
+builder.Eventing.Subscribe<ResourceReadyEvent>(
+	stockDatabase.Resource,
+	async (readyEvent, cancellationToken) =>
+	{
+		var logger = readyEvent.Services
+			.GetRequiredService<ResourceLoggerService>()
+			.GetLogger(stockDatabase.Resource);
+
+		var connectionString = await stockDatabase.Resource.ConnectionStringExpression
+			.GetValueAsync(cancellationToken)
+			?? throw new InvalidOperationException(
+				"SMDatabase reported ready without a connection string, so the schema cannot be deployed.");
+
+		logger.LogInformation("Publishing {Dacpac} to SMDatabase.", smDacpacPath);
+
+		// DacServices is synchronous and the publish takes seconds, so it goes to the thread
+		// pool rather than blocking the event handler Aspire is awaiting.
+		await Task.Run(() =>
+		{
+			var dac = new DacServices(connectionString);
+
+			dac.Message += (_, message) => logger.LogInformation("{Message}", message.Message.Message);
+
+			using var package = DacPackage.Load(smDacpacPath);
+
+			dac.Deploy(
+				package,
+				targetDatabaseName: "SMDatabase",
+				upgradeExisting: true,
+				options: new DacDeployOptions
+				{
+					/*
+					Local development only, and it has to stay that way.
+
+					SqlPackage refuses any change it classifies as possibly lossy while a table
+					has rows, and "possibly" is doing a lot of work: tightening SiteId from NULL
+					to NOT NULL rebuilds the Account table — copy, drop, rename — which trips the
+					guard even though no column is being dropped and no type narrowed. On a
+					persistent development volume that is a hard stop.
+
+					The protection this gives up is real. It is what would otherwise catch a
+					column being dropped or a type narrowed by accident, and the only reason it
+					is acceptable here is that this database is a local container backed by a
+					volume anyone can delete and reseed.
+
+					T7 owns the production deployment path. It must not inherit this setting. A
+					real database takes the review and the backup instead.
+					*/
+					BlockOnPossibleDataLoss = false
+				},
+				cancellationToken: cancellationToken);
+		}, cancellationToken);
+
+		logger.LogInformation("SMDatabase schema is up to date.");
+	});
 
 var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithReference(identityDatabase)
@@ -94,7 +162,6 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithEnvironment("Jwt__SigningKey", jwtSigningKey)
 	.WaitFor(identityDatabase)
 	.WaitFor(stockDatabase)
-	.WaitForCompletion(smSchema)
 	.WithEndpoint("https", endpoint => endpoint.Port = 7042)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints()
@@ -112,12 +179,12 @@ builder.AddProject<Projects.SMPortal>("sm-portal")
 // resource however many sites exist.
 builder.AddProject<Projects.SMStore>("sm-store")
 	.WithReference(stockDatabase)
-	// Not for identity yet — the storefront signs nobody in until T3. It needs ApiAuthDb now
-	// because the Data Protection key ring it shares with the API is stored there.
+	// ApiAuthDb, for two things: the Data Protection key ring it shares with the API, and the
+	// Identity user store it creates customer logins in. It reads and writes that store but
+	// never migrates it — StockApi owns the migrations, and both start together.
 	.WithReference(identityDatabase)
 	.WaitFor(stockDatabase)
 	.WaitFor(identityDatabase)
-	.WaitForCompletion(smSchema)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints()
 	.PublishAsAzureContainerApp((_, _) => { });

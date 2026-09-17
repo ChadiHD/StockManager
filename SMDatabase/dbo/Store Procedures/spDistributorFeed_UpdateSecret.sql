@@ -1,7 +1,8 @@
 CREATE PROCEDURE [dbo].[spDistributorFeed_UpdateSecret]
 	@Id int,
 	@SecretProvider nvarchar(30),
-	@SecretRef nvarchar(MAX)
+	@SecretRef nvarchar(MAX),
+	@SiteId int
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -10,5 +11,6 @@ BEGIN
 	SET [SecretProvider] = @SecretProvider,
 	    [SecretRef] = @SecretRef,
 	    [LastModified] = SYSUTCDATETIME()
-	WHERE [Id] = @Id;
+	WHERE [Id] = @Id
+	  AND [SiteId] = @SiteId;
 END

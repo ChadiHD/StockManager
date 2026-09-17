@@ -20,7 +20,12 @@ CREATE TABLE [dbo].[Purchase]
     -- belong to a storefront.
     [SiteId] INT NULL,
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
-    CONSTRAINT [FK_Purchase_ToAccount] FOREIGN KEY ([AccountId]) REFERENCES [Account]([Id]),
-    CONSTRAINT [FK_Purchase_ToQuote] FOREIGN KEY ([QuoteId]) REFERENCES [Quote]([Id]),
+    -- Composite, like Quote's. A POS sale leaves AccountId, QuoteId and SiteId all NULL, and
+    -- a composite foreign key is not checked when any column is NULL, so the desktop path is
+    -- untouched while a portal order is held to one store throughout.
+    CONSTRAINT [FK_Purchase_ToAccount] FOREIGN KEY ([AccountId], [SiteId])
+        REFERENCES [Account]([Id], [SiteId]),
+    CONSTRAINT [FK_Purchase_ToQuote] FOREIGN KEY ([QuoteId], [SiteId])
+        REFERENCES [Quote]([Id], [SiteId]),
     CONSTRAINT [FK_Purchase_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id])
 )

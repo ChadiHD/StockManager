@@ -14,25 +14,26 @@ namespace SMDataManager.Library.DataAccess
             _sqlDataAccess = sqlDataAccess;
         }
 
-        public List<OrderModel> GetOrders()
+        public List<OrderModel> GetOrders(int siteId)
         {
             return _sqlDataAccess.LoadData<OrderModel, dynamic>(
-                "dbo.spOrder_GetAll", new { }, "SMDatabase");
+                "dbo.spOrder_GetAll", new { SiteId = siteId }, "SMDatabase");
         }
 
-        public OrderModel GetOrderByReference(string reference)
+        public OrderModel GetOrderByReference(string reference, int siteId)
         {
             return _sqlDataAccess.LoadData<OrderModel, dynamic>(
-                "dbo.spOrder_GetByReference", new { Reference = reference }, "SMDatabase").FirstOrDefault();
+                "dbo.spOrder_GetByReference", new { Reference = reference, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
         }
 
-        public List<OrderLineModel> GetOrderLines(int purchaseId)
+        public List<OrderLineModel> GetOrderLines(int purchaseId, int siteId)
         {
             return _sqlDataAccess.LoadData<OrderLineModel, dynamic>(
-                "dbo.spOrderLine_GetByOrder", new { PurchaseId = purchaseId }, "SMDatabase");
+                "dbo.spOrderLine_GetByOrder", new { PurchaseId = purchaseId, SiteId = siteId }, "SMDatabase");
         }
 
-        public OrderModel CreateOrder(string staffId, int accountId, string currency)
+        public OrderModel CreateOrder(string staffId, int accountId, string currency, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spOrder_Insert", new
             {
@@ -41,46 +42,48 @@ namespace SMDataManager.Library.DataAccess
                 StaffId = staffId,
                 AccountId = accountId,
                 Currency = string.IsNullOrWhiteSpace(currency) ? "EUR" : currency,
-                QuoteId = (int?)null
+                QuoteId = (int?)null,
+                SiteId = siteId
             }, "SMDatabase");
 
-            return GetOrders()
+            return GetOrders(siteId)
                 .Where(x => x.AccountId == accountId)
                 .OrderByDescending(x => x.Id)
                 .FirstOrDefault();
         }
 
-        public OrderModel ConvertQuoteToOrder(int quoteId, string staffId)
+        public OrderModel ConvertQuoteToOrder(int quoteId, string staffId, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spOrder_ConvertFromQuote", new
             {
                 QuoteId = quoteId,
                 StaffId = staffId,
                 Id = 0,
-                Reference = string.Empty
+                Reference = string.Empty,
+                SiteId = siteId
             }, "SMDatabase");
 
-            return GetOrders()
+            return GetOrders(siteId)
                 .OrderByDescending(x => x.Id)
                 .FirstOrDefault();
         }
 
-        public void UpdateStatus(int purchaseId, string status)
+        public void UpdateStatus(int purchaseId, string status, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spOrder_UpdateStatus",
-                new { Id = purchaseId, Status = status }, "SMDatabase");
+                new { Id = purchaseId, Status = status, SiteId = siteId }, "SMDatabase");
         }
 
-        public List<SalesReportModel> GetSalesReport()
+        public List<SalesReportModel> GetSalesReport(int siteId)
         {
             return _sqlDataAccess.LoadData<SalesReportModel, dynamic>(
-                "dbo.spReport_GetSales", new { }, "SMDatabase");
+                "dbo.spReport_GetSales", new { SiteId = siteId }, "SMDatabase");
         }
 
-        public List<ActivityModel> GetRecentActivity(int take)
+        public List<ActivityModel> GetRecentActivity(int take, int siteId)
         {
             return _sqlDataAccess.LoadData<ActivityModel, dynamic>(
-                "dbo.spActivity_GetRecent", new { Take = take }, "SMDatabase");
+                "dbo.spActivity_GetRecent", new { Take = take, SiteId = siteId }, "SMDatabase");
         }
     }
 }

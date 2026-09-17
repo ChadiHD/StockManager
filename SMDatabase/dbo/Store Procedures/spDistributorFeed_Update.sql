@@ -20,7 +20,8 @@ CREATE PROCEDURE [dbo].[spDistributorFeed_Update]
 	@FieldManufacturer nvarchar(100),
 	@FieldMpn nvarchar(100),
 	@FieldEan nvarchar(100),
-	@FieldIcecat nvarchar(100)
+	@FieldIcecat nvarchar(100),
+	@SiteId int
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -45,5 +46,6 @@ BEGIN
 	    [FieldEan] = @FieldEan,
 	    [FieldIcecat] = @FieldIcecat,
 	    [LastModified] = SYSUTCDATETIME()
-	WHERE [Id] = @Id;
+	WHERE [Id] = @Id
+	  AND [SiteId] = @SiteId;
 END

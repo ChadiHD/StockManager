@@ -501,3 +501,29 @@ textarea.input { min-height: 90px; resize: vertical; }
     color: color-mix(in srgb, var(--color-text) 55%, transparent);
     text-align: center;
 }
+
+/* The single narrow panel every account-credential page is: sign in, confirm an address,
+   ask for a password reset, choose a new one. Global rather than scoped to the sign-in page
+   because four components render it, and scoped CSS does not reach another component's
+   markup — while these rules lived in Login.razor.css the confirmation page rendered
+   unstyled. */
+.signin {
+    display: grid;
+    place-items: start center;
+    padding-block: var(--space-8);
+}
+
+.signin__panel {
+    width: min(420px, 100%);
+    gap: var(--space-3);
+    padding: var(--space-6);
+}
+
+.signin__title { font-size: 32px; margin-bottom: 0; }
+
+.signin__lede { font-size: 14px; }
+
+.signin__alt {
+    margin: 0;
+    font-size: 13px;
+}
