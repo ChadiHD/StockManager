@@ -36,10 +36,12 @@ T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — 
 claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
 and the delisted-SKU verification.
 
-**T5 — ordering is in progress**, per `docs/plans/2026-09-17-t5-ordering.md`. Item 1 of nine is
-built: the accept claim and the placer. The rest — the server-side basket, submit, the
-customer's quote and order screens, admin re-pricing and the documents — is planned, and the
-plan opens with the four decisions that had to be settled before any of it could be written.
+**T5 — ordering is in progress**, per `docs/plans/2026-09-17-t5-ordering.md`. Items 1 to 3
+of nine are built: the accept claim and the placer, quote lines that record the price the
+customer was shown, and the server-side basket. The rest — the basket pages, submit, the
+customer's quote and order screens, admin re-pricing and the documents — is planned, and
+the plan opens with the four decisions that had to be settled before any of it could be
+written.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -429,7 +431,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 315 tests, plus the 27 that need a
+**That filter is what a routine run wants**, and it passes: 338 tests, plus the 43 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -782,6 +784,59 @@ Three rules keep that duplication safe, and none is optional:
 `ProductCardView` excludes it; the detail page binds the raw model, so it is one field
 reference away from publishing margin on a public page. Do not add it to a view record, and
 prefer removing it from the projection over relying on review.
+
+### The basket
+
+**`dbo.Basket` is its own table and not a `Quote` with a draft status.** `Quote.AccountId` is
+NOT NULL with a composite key to `Account`, so an anonymous visitor cannot have one at all;
+`Quote.Reference` comes from a sequence, so every abandoned basket would burn a `QT-` number;
+and `spQuote_GetAll` and `spActivity_GetRecent` would both show a request nobody made, which
+means a `Status <> 'Draft'` predicate in every query over that table for ever. That is
+`dbo.Purchase`'s double duty again.
+
+**A basket is found by its contact when somebody is signed in and by a token in a cookie when
+nobody is.** Not `localStorage`: this storefront is static SSR with no JavaScript of its own,
+so client storage would mean writing some, plus a render round trip, plus a handoff at sign-in
+where the browser posts product ids and prices the server has to distrust anyway. It would also
+put the prices somewhere the customer can edit. `BasketService` holds all of it, so no page or
+endpoint reasons about cookies and contacts together.
+
+- **The token is a bearer credential, so it is 256 bits from a cryptographic RNG.** Whoever
+  holds it holds the basket. `BasketToken.IsWellFormed` rejects anything that is not 43
+  base64url characters before it reaches a query, and the cookie is `HttpOnly`, `Secure`,
+  `SameSite=Lax` and essential. Lax rather than Strict because a customer arriving from an
+  emailed link is on a cross-site navigation, and Strict would hide their basket on exactly
+  the page they land on.
+- **Reading never creates.** A basket row exists once something has been added, so a crawler
+  walking the catalog leaves nothing behind. Only `spBasket_Ensure` creates, and only an add
+  calls it.
+- **`spBasket_Find` refuses to return a claimed basket to an anonymous caller.** A claimed
+  basket keeps its token, so the cookie left after sign-out names a basket that now belongs to
+  a customer, and the next person at a shared machine would be shown that list.
+  `BasketService.Forget` clears the cookie as well; neither half is sufficient alone. For the
+  same reason `spBasket_Ensure` never adopts a token's basket for a signed-in contact —
+  adopting is `spBasket_Claim`'s job, which runs once, at sign-in, and merges.
+- **The merge keeps the contact's basket, not the browser's**, so its id is stable across
+  browsers and a second sign-in is a no-op. Quantities add where both hold the same product,
+  and the source basket is deleted in the same transaction: left behind, it would be merged
+  again on the next sign-in and double what it contributed.
+- **`spBasket_AddLine` checks the product through `dbo.fnCatalog_VisibleProducts`.** A
+  `ProductId` arrives in a form post, so the page it came from is not evidence, and without
+  the check a basket could be filled with another tenant's catalog and then quoted from it.
+  Going through the function means "available" means here what it means on the listing, the
+  facet rail and the detail page.
+- **A line whose product later vanishes comes back with `Available = 0`, never dropped.** A
+  basket that silently loses rows is one the customer cannot reason about, and the submit path
+  has to be able to refuse the line explicitly rather than never learn it existed.
+- **`BasketLine` holds no price.** The price is resolved at submit, through `PriceResolver`
+  like every other. A price stored on a basket line is a price the customer keeps while the
+  catalog moves under it.
+- Quantities are capped at 9999 in the procedures, because `Quantity * NetPrice` is money
+  arithmetic and `int.MaxValue` of anything overflows a line total.
+- **`spBasket_PurgeAbandoned` exists and nothing calls it yet.** That is the cost of the
+  cookie: a row per visitor who adds something, robots included. It only ever deletes
+  anonymous baskets, and its 30-day default matches the cookie lifetime so neither outlives
+  the other.
 
 ## Distributor feeds and image enrichment
 

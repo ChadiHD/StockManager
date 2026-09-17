@@ -93,6 +93,12 @@ builder.Services.AddScoped<ISiteContext>(services => services.GetRequiredService
 builder.Services.AddSingleton<IOrderingMode, RfqOrderingMode>();
 builder.Services.AddScoped<OrderingModeProvider>();
 
+// The basket. BasketService reads the request cookie, so it needs the accessor and has to be
+// scoped; nothing else in the storefront resolves HttpContext outside an endpoint.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<IBasketData, BasketData>();
+builder.Services.AddScoped<BasketService>();
+
 // What a customer application demands, likewise per site. Field sets are stateless rules, so
 // singletons; the provider is scoped because it reads the request's site.
 builder.Services.AddSingleton<IRegistrationFieldSet, EuB2bRegistrationFieldSet>();
