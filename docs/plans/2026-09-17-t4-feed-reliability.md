@@ -8,8 +8,8 @@ starts until the template track finishes.
 **Exit:** feeds sync nightly unattended; a failed sync is visible and does not poison the
 catalog.
 
-**Status: items 1–3 built.** The claim, the sync history and the nightly scheduler are in;
-staleness (item 4), alerting (item 5) and the delisted-SKU verification (item 6) are not.
+**Status: items 1–4 built.** The claim, the sync history, the nightly scheduler and staleness
+hiding are in; alerting (item 5) and the delisted-SKU verification (item 6) are not.
 
 Most of T4 is finishing what exists rather than writing something new. `DistributorFeedSyncService`
 already fetches, parses, upserts and delists correctly, and `spProduct_BulkUpsertFromFeed` is

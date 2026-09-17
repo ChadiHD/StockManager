@@ -130,6 +130,20 @@ BEGIN
 		                  WHERE [CustomerGroupId] = @CustomerGroupId AND [Rule] = 'IncludeCategory')
 		     THEN 1 ELSE 0 END;
 
+	/*
+	Resolved once into a variable, never per row.
+
+	fnSite_StaleBeforeUtc is a scalar function, and a scalar function in a WHERE or a SELECT
+	list runs for every row and defeats the plan. It is here for the same reason @DiscountPct
+	and @MinMarginPct are: fnCatalog_VisibleProducts is inline and cannot DECLARE, so the
+	cutoff has to arrive already computed.
+
+	spCatalog_GetFacets resolves the identical value. That is not optional — the facet counts
+	and the page they filter to must agree exactly, which is the entire reason the visibility
+	predicate lives in one function.
+	*/
+	DECLARE @StaleBeforeUtc datetime2 = dbo.fnSite_StaleBeforeUtc(@SiteId);
+
 	DECLARE @Offset int = (@Page - 1) * @PageSize;
 
 	/*
@@ -152,7 +166,7 @@ BEGIN
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
-			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
 		WHERE [Relevance] > 0
 		ORDER BY
 			[Relevance] DESC,
@@ -176,7 +190,7 @@ BEGIN
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
-			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
 		ORDER BY [NetPrice] ASC, [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);
@@ -190,7 +204,7 @@ BEGIN
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
-			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
 		ORDER BY [NetPrice] DESC, [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);
@@ -204,7 +218,7 @@ BEGIN
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
-			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
 		ORDER BY [ProductName] ASC, [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);
@@ -218,7 +232,7 @@ BEGIN
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
-			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct)
+			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
 		ORDER BY [Featured] DESC, [CategorySortOrder], [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);

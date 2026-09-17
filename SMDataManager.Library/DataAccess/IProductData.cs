@@ -14,7 +14,6 @@ namespace SMDataManager.Library.DataAccess
         AdminProductModel GetProductBySku(string sku);
         AdminProductModel CreateProduct(AdminProductModel product);
         void UpdateProduct(AdminProductModel product);
-        int SyncDistributorFeeds();
 
         /// <summary>
         /// Applies an entire distributor feed in a single round trip, and delists products the

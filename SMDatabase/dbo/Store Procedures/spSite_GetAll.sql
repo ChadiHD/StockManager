@@ -6,7 +6,8 @@ BEGIN
 	SET NOCOUNT ON;
 
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
-	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct], [IsActive], [CreatedDate]
+	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
+	       [FeedStaleAfterHours], [HideStaleProducts], [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	ORDER BY [Name];
 END

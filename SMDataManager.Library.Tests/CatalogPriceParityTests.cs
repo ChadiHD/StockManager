@@ -19,6 +19,7 @@ namespace SMDataManager.Library.Tests;
 /// It is not a unit test and cannot be. Evaluating the SQL half needs SQL Server;
 /// reimplementing it in C# would be a third copy of the thing under test.
 /// </remarks>
+[Collection(DatabaseCollection.Name)]
 public class CatalogPriceParityTests
 {
     private readonly IPriceResolver _resolver = new PriceResolver();

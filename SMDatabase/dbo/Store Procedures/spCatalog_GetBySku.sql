@@ -28,6 +28,11 @@ BEGIN
 		                  WHERE [CustomerGroupId] = @CustomerGroupId AND [Rule] = 'IncludeCategory')
 		     THEN 1 ELSE 0 END;
 
+	-- The staleness cutoff is the one thing here that is not zeroed out. A stale product must
+	-- 404 on its own page as well as vanish from the listing: a product hidden from the catalog
+	-- but reachable by URL is still a product a customer can be sent a link to and order.
+	DECLARE @StaleBeforeUtc datetime2 = dbo.fnSite_StaleBeforeUtc(@SiteId);
+
 	-- No term, so no relevance filter, and zero discount and margin: the price a detail page
 	-- shows comes from PriceResolver like every other, and NetPrice goes unreferenced here.
 	SELECT
@@ -36,6 +41,7 @@ BEGIN
 		[Ean], [Distributor], [Source], [Badge], [Featured], [LastSynced],
 		[CategorySlug], [CategoryName]
 	FROM dbo.fnCatalog_VisibleProducts(
-		@SiteId, @CustomerGroupId, @HasIncludeRule, NULL, NULL, 0, NULL, NULL, NULL, 0, 0)
+		@SiteId, @CustomerGroupId, @HasIncludeRule, NULL, NULL, 0, NULL, NULL, NULL, 0, 0,
+		@StaleBeforeUtc)
 	WHERE [Sku] = @Sku;
 END

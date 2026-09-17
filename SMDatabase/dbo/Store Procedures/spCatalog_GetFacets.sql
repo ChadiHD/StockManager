@@ -51,6 +51,11 @@ BEGIN
 		                  WHERE [CustomerGroupId] = @CustomerGroupId AND [Rule] = 'IncludeCategory')
 		     THEN 1 ELSE 0 END;
 
+	-- The same cutoff spCatalog_Search resolves, and it has to be the same: a facet count that
+	-- includes stale products while the page they filter to excludes them is a bug with no
+	-- symptom until somebody counts. Resolved into a variable, never called per row.
+	DECLARE @StaleBeforeUtc datetime2 = dbo.fnSite_StaleBeforeUtc(@SiteId);
+
 	CREATE TABLE #visible
 	(
 		[Manufacturer] NVARCHAR(100) NULL,
@@ -69,7 +74,7 @@ BEGIN
 		@SiteId, @CustomerGroupId, @HasIncludeRule,
 		-- Deliberately unfiltered on both facet dimensions; see the header.
 		NULL, NULL,
-		@InStockOnly, @Term, @Prefix, @Contains, 0, 0)
+		@InStockOnly, @Term, @Prefix, @Contains, 0, 0, @StaleBeforeUtc)
 	WHERE @Term IS NULL OR [Relevance] > 0
 	OPTION (RECOMPILE);
 

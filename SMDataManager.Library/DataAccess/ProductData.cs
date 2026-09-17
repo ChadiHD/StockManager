@@ -98,14 +98,6 @@ namespace SMDataManager.Library.DataAccess
                 new { Id = productId, ProductImage = imageUrl }, "SMDatabase");
         }
 
-        public int SyncDistributorFeeds()
-        {
-            var output = _sqlDataAccess.LoadData<int, dynamic>(
-                "dbo.spProduct_SyncFeeds", new { }, "SMDatabase");
-
-            return output.FirstOrDefault();
-        }
-
         public FeedUpsertResult BulkUpsertFromFeed(string distributor, IEnumerable<DistributorFeedRecord> records)
         {
             var table = BuildFeedTable(records);

@@ -33,6 +33,22 @@ CREATE TABLE [dbo].[Site]
 	-- group's discount from selling stock at a loss. Zero disables the floor.
 	[MinMarginPct] DECIMAL(5, 2) NOT NULL DEFAULT 0,
 
+	-- How old a distributor-sourced product's LastSynced may be before it counts as stale.
+	-- Zero disables staleness entirely.
+	--
+	-- Per site because the threshold is a commercial judgement, not a platform constant: a
+	-- distributor dropping a file nightly makes 26 hours suspicious, one delivering twice a
+	-- week makes it normal. That is a property of this store's relationship with its
+	-- distributor, so it belongs here rather than in appsettings.json, which would apply one
+	-- number to every tenant.
+	[FeedStaleAfterHours] INT NOT NULL DEFAULT 0,
+
+	-- Whether a stale product disappears from the storefront, or only shows up in the
+	-- operator's alerts. Off by default, with FeedStaleAfterHours at zero, so this lands inert:
+	-- a platform-wide default that started hiding products on upgrade would be the wrong way
+	-- round. See dbo.fnSite_StaleBeforeUtc.
+	[HideStaleProducts] BIT NOT NULL DEFAULT 0,
+
 	[IsActive] BIT NOT NULL DEFAULT 1,
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 
