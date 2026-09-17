@@ -26,11 +26,15 @@ quotes, accounts, customer groups or distributor feeds:
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
-months. T0, T1 and T2 are merged. T3 — customer identity, per
-`docs/plans/2026-09-14-t3-customer-identity.md` — is built: admin site scoping, the pricing
+months. T0–T3 are merged; T3 — customer identity, per
+`docs/plans/2026-09-14-t3-customer-identity.md` — covered admin site scoping, the pricing
 decision, the schema, registration field sets, `spAccount_Register`, storefront sign-in,
 document upload, the mail seam, the approval flow, the account area, email confirmation and
-password reset. T4 is next.
+password reset.
+
+T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — is built: the sync
+claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
+and the delisted-SKU verification. **T5 is next: ordering.**
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -420,7 +424,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 303 tests, plus the 13 that need a
+**That filter is what a routine run wants**, and it passes: 303 tests, plus the 17 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -788,6 +792,19 @@ history modal, which is the pull half. Neither is enough alone: nobody watches a
   `HideStaleProducts`, `MinMarginPct` and `PriceDisplay` are all set by updating the row. That
   is a gap, not a design: a tenant cannot configure its own staleness policy without database
   access.
+
+**Delisting is flagged, never deleted, and `DelistedProductHistoryTests` is what holds that.**
+A product the distributor dropped still resolves on the quote that already contains it —
+`spQuoteLine_GetByQuote` joins `Product` with no `Delisted` predicate, and
+`spOrder_ConvertFromQuote` copies its lines with none either. That is one well-meant
+`AND p.Delisted = 0` away from a customer opening a six-month-old quote and finding blank
+lines, and the edit would read as a tightening rather than a regression. The staleness
+predicate must not reach a quote line for the same reason: hiding stock from the shop window
+is not the same as withdrawing a price already quoted.
+
+- Whether a quote carrying a delisted line *should* be acceptable, or should be re-quoted
+  first, is **T5's** decision. The test records the current behaviour so that choice is made
+  deliberately rather than discovered.
 
 - **`spProduct_SyncFeeds` was deleted, not kept for later.** It stamped
   `LastSynced = SYSUTCDATETIME()` on every distributor-sourced product **without fetching

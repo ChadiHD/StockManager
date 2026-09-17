@@ -8,8 +8,10 @@ starts until the template track finishes.
 **Exit:** feeds sync nightly unattended; a failed sync is visible and does not poison the
 catalog.
 
-**Status: items 1–5 built.** The claim, the sync history, the nightly scheduler, staleness
-hiding and alerting are in; only the delisted-SKU verification (item 6) is not.
+**Status: all six items built.** The claim, the sync history, the nightly scheduler, staleness
+hiding, alerting and the delisted-SKU verification are all in. What this plan said would
+not be in T4 still is not: the quote cart and what an accepted quote does with a delisted line
+(T5), on-demand stock confirmation, per-feed schedules and retries, and the email outbox (T6).
 
 Most of T4 is finishing what exists rather than writing something new. `DistributorFeedSyncService`
 already fetches, parses, upserts and delists correctly, and `spProduct_BulkUpsertFromFeed` is
@@ -231,8 +233,12 @@ cannot reach a quote line the same way.
 ## 7. Risks
 
 - **A store turns on staleness hiding with a threshold that is too tight** and half its catalog
-  vanishes at once. Mitigation: both columns default to off, the portal shows how many products
-  a threshold would hide before it is saved, and `Source <> 'Distributor'` is exempt.
+  vanishes at once. Mitigated by defaults — both columns start off — and by own stock being
+  exempt. **Not** mitigated by a preview: this plan said the portal would show how many
+  products a threshold would hide before it was saved, and it does not, because `Site` has no
+  admin screen at all. These columns are set by updating the row, so today the person changing
+  them has database access and can count the rows themselves. A site settings screen is the
+  real fix and belongs to whoever builds one.
 - **The scheduler runs in a host that is scaled to zero.** Azure Container Apps can scale an
   app to no replicas, and a `BackgroundService` in no replica does not run. Out of scope to
   solve, in scope to write down: T7 owns the hosting decision, and this is one of its inputs.
