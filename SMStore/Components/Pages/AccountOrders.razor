@@ -1,0 +1,48 @@
+@page "/account/orders"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject CustomerOrderPresenter Documents
+@inject NavigationManager Navigation
+
+<PageTitle>Your orders · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="_crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>Your orders</h1>
+        <p class="page-lede">Confirmed orders, their status and their paperwork.</p>
+    </div>
+</div>
+
+<DocumentList Items="_orders" Href="@(reference => $"/account/orders/{reference}")"
+              EmptyMessage="You have no orders yet."
+              EmptyActionHref="@QuoteDecisionEndpoints.QuotesPath"
+              EmptyActionLabel="See your quotes" />
+
+@code {
+    private readonly NavItem[] _crumbs =
+    [
+        new("Home", "/"),
+        new("Your account", "/account"),
+        new("Orders", "/account/orders"),
+    ];
+
+    private IReadOnlyList<DocumentSummary> _orders = [];
+
+    protected override void OnInitialized()
+    {
+        if (!Customer.IsSignedIn)
+        {
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString("/account/orders")}");
+
+            return;
+        }
+
+        _orders = Documents.Orders();
+    }
+}

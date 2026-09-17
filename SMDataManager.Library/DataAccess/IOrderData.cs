@@ -17,6 +17,14 @@ namespace SMDataManager.Library.DataAccess
         List<OrderModel> GetOrders(int siteId);
         OrderModel GetOrderByReference(string reference, int siteId);
         List<OrderLineModel> GetOrderLines(int purchaseId, int siteId);
+
+        /// <summary>One account\x27s orders, for the customer\x27s own list.</summary>
+        /// <remarks>See <see cref="IQuoteData.GetQuotesForAccount"/>.</remarks>
+        List<OrderModel> GetOrdersForAccount(int accountId, int siteId);
+
+        OrderModel GetOrderForAccount(string reference, int accountId, int siteId);
+
+        List<OrderLineModel> GetOrderLinesForAccount(int purchaseId, int accountId, int siteId);
         OrderModel CreateOrder(string staffId, int accountId, string currency, int siteId);
         OrderModel GetOrderByQuote(int quoteId, int siteId);
 

@@ -12,6 +12,12 @@ namespace SMDataManager.Library.Models
         public string Status { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime? ExpiresDate { get; set; }
+        /// <summary>Whatever the customer wrote when they submitted. Never markup.</summary>
+        public string CustomerNote { get; set; }
+
+        /// <summary>Why the customer turned it down, in their words. For sales, not for them.</summary>
+        public string RejectedReason { get; set; }
+
         public int Lines { get; set; }
         public decimal Value { get; set; }
     }

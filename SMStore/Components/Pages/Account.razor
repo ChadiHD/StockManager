@@ -3,6 +3,7 @@
 @using SMDataManager.Library.Models
 @using SMStore.Accounts
 @using SMStore.Documents
+@using SMStore.Ordering
 @inject ISiteContext SiteContext
 @inject ICustomerContext Customer
 @inject OrderingModeProvider Ordering
@@ -119,16 +120,25 @@ else
             }
         </section>
 
-        @foreach (var section in Later)
-        {
-            <section class="card blueprint account__panel">
-                <i class="corner tl"></i><i class="corner tr"></i>
-                <i class="corner bl"></i><i class="corner br"></i>
-                <h5>@section.Title</h5>
-                <p class="card-body">@section.Blurb</p>
-                <div class="text-muted account__when">@section.Arrives</div>
-            </section>
-        }
+        <section class="card blueprint account__panel">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>@Ordering.Current.BasketLabel history</h5>
+            <p class="card-body">Everything you have submitted, and what we sent back.</p>
+            <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">
+                See your @Ordering.Current.BasketLabel.ToLowerInvariant()s
+            </a>
+        </section>
+
+        <section class="card blueprint account__panel">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>Orders</h5>
+            <p class="card-body">Confirmed orders, their status and their paperwork.</p>
+            <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">
+                See your orders
+            </a>
+        </section>
     </div>
 }
 
@@ -190,12 +200,4 @@ else
         _ => "Other"
     };
 
-    private record Section(string Title, string Blurb, string Arrives);
-
-    private IReadOnlyList<Section> Later =>
-    [
-        new($"{Ordering.Current.BasketLabel} history",
-            "Everything you have submitted, and what we sent back.", "Lands with T5"),
-        new("Orders", "Confirmed orders, their status and their paperwork.", "Lands with T5"),
-    ];
 }

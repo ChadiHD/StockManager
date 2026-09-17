@@ -527,3 +527,63 @@ textarea.input { min-height: 90px; resize: vertical; }
     margin: 0;
     font-size: 13px;
 }
+
+/* Quote and order documents in the account area. Global rather than scoped: the list and the
+   two detail pages share the numeric column and the SKU treatment, and scoped CSS does not
+   reach another component's markup. */
+.document-list__num {
+    text-align: right;
+    white-space: nowrap;
+    font-feature-settings: 'tnum' 1;
+}
+
+.document-list__note {
+    display: block;
+    font-size: 12px;
+}
+
+.document {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: clamp(24px, 3vw, 48px);
+    align-items: start;
+}
+
+.document__summary {
+    position: sticky;
+    top: 104px;
+    gap: var(--space-3);
+}
+
+.document__sku {
+    display: block;
+    font-size: 12px;
+}
+
+.document__note {
+    margin-top: var(--space-5);
+}
+
+.document__accept,
+.document__reject {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.document__notice {
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-left: 3px solid var(--color-accent-500, currentColor);
+    background: color-mix(in srgb, var(--color-accent-500, currentColor) 8%, transparent);
+    font-size: 14px;
+}
+
+@media (max-width: 900px) {
+    .document { grid-template-columns: 1fr; }
+
+    .document__summary {
+        position: static;
+        top: auto;
+    }
+}

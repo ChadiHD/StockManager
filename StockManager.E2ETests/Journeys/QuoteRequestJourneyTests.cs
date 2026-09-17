@@ -7,13 +7,18 @@ using static Microsoft.Playwright.Assertions;
 namespace StockManager.E2ETests.Journeys;
 
 /// <summary>
-/// Journey 7: a customer fills a basket while anonymous, signs in, and submits it.
+/// Journey 7: a customer fills a basket while anonymous, signs in, submits, and accepts.
 /// </summary>
 /// <remarks>
-/// This is the first half of T5's exit criterion — cart, submit, and the request landing in the
-/// admin queue — and it spans three things that only line up in a real browser: the basket
-/// built under a cookie, the merge that hands it to a contact at sign-in, and one transaction
-/// that writes a quote, its lines, and deletes the basket.
+/// T5's exit criterion, end to end, with one step done in SQL: cart, submit, price, accept,
+/// order exists. The pricing is a direct UPDATE because that is item 7's job in the portal —
+/// "Send to customer" is still a toast over no write — and what this journey is about is the
+/// customer's half.
+///
+/// It spans four things that only line up in a real browser: the basket built under a cookie,
+/// the merge that hands it to a contact at sign-in, one transaction that writes a quote and
+/// deletes the basket, and the acceptance that turns it into an order recording the contact
+/// rather than a staff member.
 ///
 /// The sign-in step is the point. Anonymous submits are refused because <c>Quote.AccountId</c>
 /// is NOT NULL, so the endpoint sends the customer to sign in — and their basket has to be
@@ -98,6 +103,87 @@ public sealed class QuoteRequestJourneyTests
         await page.GotoAsync(new Uri(_fixture.SmStoreBaseUrl, "/quote").ToString());
         await Expect(page.Locator("table.basket__table")).ToHaveCountAsync(0);
         await Expect(page.Locator(".site-header__count")).ToHaveCountAsync(0);
+
+        // A Requested quote is not decidable: a customer accepting a price nobody has set is
+        // not the same act as an admin converting one for somebody who rang up.
+        var quotePage = new Uri(_fixture.SmStoreBaseUrl, $"/account/quotes/{reference.Trim()}").ToString();
+
+        await page.GotoAsync(quotePage);
+        await Expect(page.Locator("form.document__accept")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".document__summary")).ToContainTextAsync("pricing this now");
+
+        // Priced in SQL rather than through /admin/quotes, because pricing is what item 7
+        // builds: the portal's Send to customer button is still a toast over no write. What
+        // this journey is about is the customer's half, and it needs a priced quote to have a
+        // decision to make.
+        await PriceAsync(reference.Trim());
+
+        await page.GotoAsync(quotePage);
+        await page.Locator("form.document__accept input[name=poNumber]").FillAsync("PO-E2E-1");
+        await page.Locator("form.document__accept button[type=submit]").ClickAsync();
+
+        // An accepted quote is an order, so that is where the customer lands. Sending them back
+        // to a quote that now reads "Accepted" would leave them looking for what happened.
+        await page.WaitForURLAsync(url => url.Contains("/account/orders/SO-"));
+
+        await Expect(page.Locator("h1.mono")).ToContainTextAsync("SO-");
+        await Expect(page.Locator(".document__summary")).ToContainTextAsync("PO-E2E-1");
+
+        var order = await ReadOrderAsync(reference.Trim());
+
+        order.Lines.Should().Be(2);
+        order.PoNumber.Should().Be("PO-E2E-1");
+        // The placer is the contact, and StaffId is NULL. dbo.[User] holds staff, so a
+        // customer acceptance has nothing to put there — and CK_Purchase_Placer refuses a row
+        // with both or neither, which is what makes this assertion meaningful rather than
+        // incidental.
+        order.PlacedByContactId.Should().NotBeNull();
+        order.StaffId.Should().BeNull();
+    }
+
+    /// <summary>Puts a quote into Priced, which is item 7's job in the portal.</summary>
+    private async Task PriceAsync(string reference)
+    {
+        await using var connection = new SqlConnection(_fixture.SmDatabaseConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new SqlCommand(
+            "UPDATE dbo.Quote SET [Status] = N'Priced' WHERE [Reference] = @Reference;",
+            connection);
+
+        command.Parameters.AddWithValue("@Reference", reference);
+
+        (await command.ExecuteNonQueryAsync()).Should().Be(1);
+    }
+
+    private sealed record OrderRow(int Lines, string? PoNumber, int? PlacedByContactId, string? StaffId);
+
+    private async Task<OrderRow> ReadOrderAsync(string quoteReference)
+    {
+        await using var connection = new SqlConnection(_fixture.SmDatabaseConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new SqlCommand(
+            """
+            SELECT p.[PoNumber], p.[PlacedByContactId], p.[StaffId], COUNT(d.[Id]) AS [Lines]
+            FROM dbo.Purchase p
+            INNER JOIN dbo.Quote q ON q.[Id] = p.[QuoteId]
+            LEFT JOIN dbo.PurchaseDetail d ON d.[PurchaseId] = p.[Id]
+            WHERE q.[Reference] = @Reference
+            GROUP BY p.[PoNumber], p.[PlacedByContactId], p.[StaffId];
+            """, connection);
+
+        command.Parameters.AddWithValue("@Reference", quoteReference);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        (await reader.ReadAsync()).Should().BeTrue($"{quoteReference} should have become an order");
+
+        return new OrderRow(
+            reader.GetInt32(3),
+            reader.IsDBNull(0) ? null : reader.GetString(0),
+            reader.IsDBNull(1) ? null : reader.GetInt32(1),
+            reader.IsDBNull(2) ? null : reader.GetString(2));
     }
 
     private sealed record QuoteRow(string Status, int SiteId, int Lines, string? CustomerNote);

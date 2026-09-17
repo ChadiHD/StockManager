@@ -1,0 +1,125 @@
+@page "/account/orders/{Reference}"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject CustomerOrderPresenter Documents
+@inject NavigationManager Navigation
+
+<PageTitle>@Reference · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+@if (_order is null)
+{
+    @* Same answer for "not yours" as for "not here"; see AccountQuoteDetail. *@
+    <div class="page-header">
+        <div>
+            <h1>Not found</h1>
+            <p class="page-lede">We have no order with that reference on your account.</p>
+        </div>
+    </div>
+
+    <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">Back to your orders</a>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1 class="mono">@_order.Reference</h1>
+            <p class="page-lede">
+                Placed @_order.Placed.ToString("d MMM yyyy")
+                @if (_order.FromQuoteReference is not null)
+                {
+                    <text> · from </text>
+                    <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{_order.FromQuoteReference}")"
+                       class="mono">@_order.FromQuoteReference</a>
+                }
+            </p>
+        </div>
+        <span class="tag tag-neutral">@_order.Status</span>
+    </div>
+
+    <div class="document">
+        <section class="document__lines">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Product</th>
+                        <th scope="col" class="document-list__num">Quantity</th>
+                        <th scope="col" class="document-list__num">Unit</th>
+                        <th scope="col" class="document-list__num">Line</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in _order.Lines)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@line.Name</strong>
+                                <span class="text-muted mono document__sku">@line.Sku</span>
+                            </td>
+                            <td class="document-list__num">@line.Quantity</td>
+                            <td class="document-list__num">@line.UnitPrice</td>
+                            <td class="document-list__num">@line.LineTotal</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <aside class="document__summary card blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>Summary</h5>
+            <dl class="basket__totals">
+                <dt>Lines</dt>
+                <dd>@_order.Lines.Count</dd>
+                @if (_order.PoNumber is not null)
+                {
+                    <dt>Your reference</dt>
+                    <dd class="mono">@_order.PoNumber</dd>
+                }
+                <dt>Net</dt>
+                <dd>@_order.SubTotal</dd>
+                <dt>Total</dt>
+                <dd>@_order.Total</dd>
+            </dl>
+            @* Tax is zero on every order until T6 builds the rule engine, so the page says
+               what it knows rather than presenting a total as final. *@
+            <p class="text-muted basket__note">
+                Tax and freight are confirmed on the invoice.
+            </p>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public string Reference { get; set; } = string.Empty;
+
+    private OrderView? _order;
+
+    private NavItem[] Crumbs =>
+    [
+        new("Home", "/"),
+        new("Your account", "/account"),
+        new("Orders", QuoteDecisionEndpoints.OrdersPath),
+        new(Reference, $"{QuoteDecisionEndpoints.OrdersPath}/{Reference}"),
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (!Customer.IsSignedIn)
+        {
+            var target = $"{QuoteDecisionEndpoints.OrdersPath}/{Uri.EscapeDataString(Reference)}";
+
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString(target)}");
+
+            return;
+        }
+
+        _order = Documents.Order(Reference);
+    }
+}

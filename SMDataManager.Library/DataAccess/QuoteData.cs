@@ -56,6 +56,42 @@ namespace SMDataManager.Library.DataAccess
                 .FirstOrDefault();
         }
 
+        public List<QuoteModel> GetQuotesForAccount(int accountId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<QuoteModel, dynamic>(
+                "dbo.spQuote_GetByAccount", new { AccountId = accountId, SiteId = siteId },
+                "SMDatabase");
+        }
+
+        public QuoteModel GetQuoteForAccount(string reference, int accountId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<QuoteModel, dynamic>(
+                "dbo.spQuote_GetForAccount",
+                new { Reference = reference, AccountId = accountId, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public List<QuoteLineModel> GetQuoteLinesForAccount(int quoteId, int accountId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<QuoteLineModel, dynamic>(
+                "dbo.spQuoteLine_GetForAccount",
+                new { QuoteId = quoteId, AccountId = accountId, SiteId = siteId },
+                "SMDatabase");
+        }
+
+        public bool RejectForAccount(int quoteId, int accountId, int siteId, string reason)
+        {
+            // The procedure reports its row count, so a quote a colleague already decided
+            // is distinguishable from one this call rejected.
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spQuote_Reject", new
+            {
+                QuoteId = quoteId,
+                AccountId = accountId,
+                SiteId = siteId,
+                Reason = reason
+            }, "SMDatabase").FirstOrDefault() > 0;
+        }
+
         public QuoteModel SubmitRequest(QuoteRequest request)
         {
             var table = BuildRequestTable(request.Lines);

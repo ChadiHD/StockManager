@@ -17,6 +17,15 @@ CREATE TABLE [dbo].[Quote]
     -- originate with a customer, so the SiteContent.BodyHtml rule applies in reverse: nothing
     -- here may reach a MarkupString.
     [CustomerNote] NVARCHAR(1000) NULL,
+
+    -- Why the customer turned the quote down, in their words, quoted back to sales. Required
+    -- by spQuote_Reject for the same reason spAccount_Reject requires one: "they said no" is
+    -- not an answer to anybody asking what went wrong with the price.
+    --
+    -- No matching timestamp. The accept path records its moment as Purchase.PurchaseDate, and
+    -- nothing reads when a rejection happened, so a DecidedUtc would be a column written and
+    -- never looked at.
+    [RejectedReason] NVARCHAR(500) NULL,
     -- Denormalised from Account so quote queries can scope by site without a join. NOT NULL,
     -- because a composite foreign key stops being enforced the moment one of its columns is
     -- NULL — FK_Quote_ToAccount below would become advisory.

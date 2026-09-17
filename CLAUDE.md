@@ -431,7 +431,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 362 tests, plus the 49 that need a
+**That filter is what a routine run wants**, and it passes: 389 tests, plus the 59 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -480,8 +480,9 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about a minute against a warm SQL container. The last two are
-the basket and the quote request, and they earn their place the way the approval journey did.
+`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about a minute against a warm
+SQL container. The last two are the basket and the quote request, and they earn their place the
+way the approval journey did.
 A basket change is a form post plus a redirect, so the antiforgery token, the `Set-Cookie` and
 the next request's lookup all have to hold at once for a single click to work. And a quote
 request spans a basket built under a cookie, the merge that hands it to a contact at sign-in,
@@ -916,6 +917,55 @@ holds it open across the network for as many turns as the customer has products.
 - **Submitting is rate limited even though it is authenticated** — the only path here that
   is. One submit writes a quote and a line per product, burns a `QT-` number, and lands in a
   queue a human works through.
+
+### A reference is not an authorisation
+
+**Every customer-facing read of a quote or an order carries the account in its predicate as
+well as the site.** References come from `dbo.QuoteReferenceSequence` and
+`dbo.OrderReferenceSequence` and read `QT-0041` and `SO-0012`, so scoping by site alone — which
+is right for an admin, who may see every quote in their store, and is what
+`spQuote_GetByReference` does — would let any signed-in customer read any other customer's
+lines and prices by changing a digit. Hence a second set of procedures rather than a parameter
+on the first: one shared procedure means one caller passing NULL for the predicate that protects
+the other.
+
+- `spQuote_GetByAccount`, `spQuote_GetForAccount`, `spQuoteLine_GetForAccount`, and the three
+  `spOrder_*` equivalents. **The line reads repeat the predicate** rather than relying on the
+  caller having resolved the parent first: defence that depends on call order survives until
+  somebody adds a second caller.
+- **"Not yours" and "not here" are one answer.** Empty, and the pages render the same "not
+  found" for both, for the reason `AccountDocumentController` answers 404 rather than 403.
+- The account comes from `ICustomerContext`, never from a route. Same rule as the absent
+  `/account/{id}`, applied to documents that carry prices.
+- `CustomerDocumentScopeTests` is what says the predicates are there. It has no failure mode
+  that looks like an error: leave the account out and every other test still passes, and the
+  only symptom is that the wrong person can read a price.
+
+### What a customer may decide
+
+**`QuoteDecisionService` requires a quote to be `Priced` and unexpired, and
+`spOrder_ConvertFromQuote` does not.** That is deliberate rather than an inconsistency: the
+procedure's job is to stop a double conversion, and an admin converting an unpriced quote
+because the customer rang up is a deliberate act. A customer accepting a price nobody has set
+is not.
+
+- **Expiry blocks; a delisted line only warns.** `ExpiresDate` is a statement the store already
+  made in writing, and honouring it past its date is the store's choice rather than a button's.
+  A quote with no `ExpiresDate` is decidable — no date means the store did not set one, not
+  that it has passed.
+- **An acceptance records `PlacedByContactId` and no `StaffId`**, through the same procedure the
+  admin's Convert button uses. One procedure, one guard.
+- **A rejection requires a reason**, in the procedure as well as on the page, for the reason
+  `spAccount_Reject` requires one. It is a claim like the accept — one atomic `UPDATE` over the
+  two undecided statuses — so a reject racing an accept cannot both succeed, and a rowcount of
+  zero means a colleague decided it first, which for a company with two buyers is an ordinary
+  Tuesday rather than a fault.
+- **`Quote.CustomerNote` and `Quote.RejectedReason` originate with a customer**, so the
+  `SiteContent.BodyHtml` rule applies in reverse: neither may ever reach a `MarkupString`.
+  `AccountDocumentPageTests` asserts the note is escaped.
+- **The message after a decision comes from an allow-list.** `?decision=` arrives in a URL
+  anyone can write, inside a session; echoing it would put attacker-chosen text on a page beside
+  the customer's own prices. Same rule as the basket's `?basket=` notices.
 
 ## Distributor feeds and image enrichment
 

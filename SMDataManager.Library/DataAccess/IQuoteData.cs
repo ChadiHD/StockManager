@@ -18,6 +18,23 @@ namespace SMDataManager.Library.DataAccess
         List<QuoteModel> GetQuotes(int siteId);
         QuoteModel GetQuoteByReference(string reference, int siteId);
         List<QuoteLineModel> GetQuoteLines(int quoteId, int siteId);
+
+        /// <summary>One account\x27s quotes, for the customer\x27s own list.</summary>
+        /// <remarks>
+        /// Separate from <see cref="GetQuotes"/> because the predicate differs in kind: an
+        /// admin may see every quote in their store, a customer only their own. See the
+        /// remarks on the procedures for why a reference is not an authorisation.
+        /// </remarks>
+        List<QuoteModel> GetQuotesForAccount(int accountId, int siteId);
+
+        QuoteModel GetQuoteForAccount(string reference, int accountId, int siteId);
+
+        List<QuoteLineModel> GetQuoteLinesForAccount(int quoteId, int accountId, int siteId);
+
+        /// <summary>
+        /// The customer turning a quote down. False when somebody already decided it.
+        /// </summary>
+        bool RejectForAccount(int quoteId, int accountId, int siteId, string reason);
         QuoteModel CreateQuote(int accountId, string currency, DateTime? expiresDate, int siteId);
 
         /// <summary>

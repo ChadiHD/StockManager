@@ -56,6 +56,29 @@ namespace SMDataManager.Library.DataAccess
                 .FirstOrDefault();
         }
 
+        public List<OrderModel> GetOrdersForAccount(int accountId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<OrderModel, dynamic>(
+                "dbo.spOrder_GetByAccount", new { AccountId = accountId, SiteId = siteId },
+                "SMDatabase");
+        }
+
+        public OrderModel GetOrderForAccount(string reference, int accountId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<OrderModel, dynamic>(
+                "dbo.spOrder_GetForAccount",
+                new { Reference = reference, AccountId = accountId, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public List<OrderLineModel> GetOrderLinesForAccount(int purchaseId, int accountId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<OrderLineModel, dynamic>(
+                "dbo.spOrderLine_GetForAccount",
+                new { PurchaseId = purchaseId, AccountId = accountId, SiteId = siteId },
+                "SMDatabase");
+        }
+
         public OrderModel GetOrderByQuote(int quoteId, int siteId)
         {
             return _sqlDataAccess.LoadData<OrderModel, dynamic>(
