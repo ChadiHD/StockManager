@@ -431,7 +431,7 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 352 tests, plus the 42 that need a
+**That filter is what a routine run wants**, and it passes: 362 tests, plus the 49 that need a
 database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
@@ -480,10 +480,12 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All six journeys pass**, in about a minute against a warm SQL container. The sixth is the
-basket, and it earns its place the way the approval journey did: a basket change is a form
-post plus a redirect, so the antiforgery token, the `Set-Cookie` and the next request's
-lookup all have to hold at once for a single click to work, and no unit test spans the three.
+`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about a minute against a warm SQL container. The last two are
+the basket and the quote request, and they earn their place the way the approval journey did.
+A basket change is a form post plus a redirect, so the antiforgery token, the `Set-Cookie` and
+the next request's lookup all have to hold at once for a single click to work. And a quote
+request spans a basket built under a cookie, the merge that hands it to a contact at sign-in,
+and one transaction that writes a quote and deletes the basket. No unit test spans either.
 
 **The end-to-end suite earns its cost, and here is the evidence.** Its first complete run
 found a bug that four unit-test projects could not: `Account.ApprovedBy` is a foreign key into
@@ -876,6 +878,44 @@ button an open redirect. An add returns to the listing it came from rather than 
   `BasketPageTests` renders the basket twice under two modes and asserts the RFQ markup says
   "quote" and "Indicative value" while the checkout markup says "cart" and "Total". Add to
   that test when a page gains customer-facing wording.
+
+### Submitting a quote request
+
+**`spQuote_SubmitRequest` writes the quote, its lines and the deletion of the basket in one
+transaction.** The halfway states are all wrong: a quote with no lines is a request sales
+cannot answer, lines with no quote are orphans, and a basket left full after a successful
+submit sits there inviting the customer to send the same request again. The lines arrive as
+`dbo.QuoteRequestLine` — a basket is small, but a per-line round trip inside a transaction
+holds it open across the network for as many turns as the customer has products.
+
+- **The account is derived from the contact and the currency from the account.** Neither is
+  accepted from the caller: a session proves a contact, and everything else follows from it.
+- **Prices are resolved at submit, through `CatalogPresenter`, never posted by the browser.**
+  A price in a form is a client's opinion about what things cost, and the basket page may
+  have been open for hours. The resolved *effective* discount is what gets stored, which is
+  not the group's rate whenever the margin floor bound — see `QuoteLine.DiscountPct`.
+- **An unavailable line is dropped and named, never dropped silently.** The basket page has
+  already warned about it, and a submit that refuses until the customer tidies up puts the
+  store's supply problem in their way at the moment they were ready to buy. A basket where
+  nothing can be supplied produces no quote and says so.
+- **`spQuote_SubmitRequest` re-checks that every product is sold by this store**, through
+  `CategoryMapping`, even though the caller resolved the lines through
+  `fnCatalog_VisibleProducts` and `spBasket_AddLine` refused anything else. One atomic write
+  is checked on its own terms. The basket `DELETE` is scoped to the site *and* the contact
+  for the same reason: `@BasketId` arrives from the caller.
+- **Submitting needs a session, and `IOrderingMode.RequiresApprovedAccount` is currently
+  unreachable.** It reads false for RFQ, meaning a store may take a request from an
+  unapproved account. Nothing can reach an unapproved session: `CustomerAuthEndpoints` and
+  `CustomerSessionValidator` both admit Approved accounts only. The property stays because a
+  store that wants a pending applicant to ask for a price will change the sign-in gate, not
+  the submit. An anonymous submit redirects to sign-in and the basket follows, through
+  `spBasket_Claim`.
+- **The acknowledgement page shows the reference and nothing else.** References come from a
+  sequence and are guessable, so a page that rendered lines or prices from a `?ref=` would be
+  readable by anyone who changed a digit. The account-scoped view is the account area's.
+- **Submitting is rate limited even though it is authenticated** — the only path here that
+  is. One submit writes a quote and a line per product, burns a `QT-` number, and lands in a
+  queue a human works through.
 
 ## Distributor feeds and image enrichment
 

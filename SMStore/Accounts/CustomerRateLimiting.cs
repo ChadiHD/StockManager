@@ -2,16 +2,18 @@ using System.Globalization;
 using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using SMStore.Ordering;
 using SMStore.Registration;
 
 namespace SMStore.Accounts;
 
 /// <summary>
-/// Caps how often one caller may post the storefront's unauthenticated write paths.
+/// Caps how often one caller may post the storefront's write paths.
 /// </summary>
 /// <remarks>
-/// Registration, sign-in and the two halves of password reset are the only things a stranger
-/// can POST here, and each is worth limiting for its own reason. Registration creates an
+/// Registration, sign-in and the two halves of password reset are everything a stranger can
+/// POST here, and each is worth limiting for its own reason. Submitting a quote request is
+/// the one authenticated path that is capped as well; see its constant for why. Registration creates an
 /// Identity user, an account, a contact, an address and up to four uploaded files per request,
 /// so it is the cheapest way to fill this database from outside. Sign-in has no lockout at
 /// all: the storefront authenticates with <c>UserManager.CheckPasswordAsync</c>, which —
@@ -64,6 +66,21 @@ public static class CustomerRateLimiting
     /// credential-bearing POST.
     /// </summary>
     private const int PasswordResetsPerFiveMinutes = 20;
+
+    /// <summary>
+    /// Submitting a quote request is capped even though it needs a session.
+    /// </summary>
+    /// <remarks>
+    /// Unlike everything else here it is authenticated, so the caller is already a customer
+    /// of this store rather than a stranger. It is capped anyway because one submit writes a
+    /// quote and a line per basket product, burns a QT- number from a sequence, and lands in
+    /// the queue a human works through — a script with a valid session could fill that queue
+    /// faster than anyone could read it, and the references would be full of gaps afterwards.
+    ///
+    /// Thirty an hour: a buyer splitting a large order across several requests is doing
+    /// something normal, and doing it thirty times in an hour is not.
+    /// </remarks>
+    private const int QuoteSubmissionsPerHour = 30;
 
     public static IServiceCollection AddCustomerRateLimiting(this IServiceCollection services) =>
         services.AddRateLimiter(options =>
@@ -127,6 +144,17 @@ public static class CustomerRateLimiting
                         {
                             PermitLimit = PasswordResetsPerFiveMinutes,
                             Window = TimeSpan.FromMinutes(5)
+                        });
+                }
+
+                if (path.StartsWithSegments(BasketEndpoints.SubmitPath))
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        $"quote-submit:{Caller(context)}",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = QuoteSubmissionsPerHour,
+                            Window = TimeSpan.FromHours(1)
                         });
                 }
 

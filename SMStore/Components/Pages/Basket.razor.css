@@ -89,3 +89,16 @@
     background: color-mix(in srgb, var(--color-accent-500, currentColor) 8%, transparent);
     font-size: 14px;
 }
+
+.basket__submit {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.basket__note-label { font-size: 12px; }
+
+.basket__note-input {
+    width: 100%;
+    resize: vertical;
+    font: inherit;
+}

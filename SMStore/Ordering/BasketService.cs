@@ -49,7 +49,7 @@ public sealed class BasketService
     /// <summary>The lines in this request's basket, empty when there is no basket at all.</summary>
     public IReadOnlyList<BasketLineModel> Lines()
     {
-        var basket = Find();
+        var basket = Current();
 
         return basket is null
             ? []
@@ -140,7 +140,7 @@ public sealed class BasketService
     /// </remarks>
     public bool SetQuantity(string? sku, int quantity)
     {
-        var basket = Find();
+        var basket = Current();
 
         if (basket is null || string.IsNullOrWhiteSpace(sku))
         {
@@ -206,7 +206,7 @@ public sealed class BasketService
     /// The header counts the basket on every page, so the common case - a first-time visitor
     /// with no cookie and no session - must not cost a query. Neither lookup could match.
     /// </remarks>
-    private BasketModel? Find()
+    public BasketModel? Current()
     {
         var token = ReadToken();
         var contactId = _customer.Contact?.Id;

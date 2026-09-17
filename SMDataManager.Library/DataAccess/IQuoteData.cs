@@ -19,6 +19,15 @@ namespace SMDataManager.Library.DataAccess
         QuoteModel GetQuoteByReference(string reference, int siteId);
         List<QuoteLineModel> GetQuoteLines(int quoteId, int siteId);
         QuoteModel CreateQuote(int accountId, string currency, DateTime? expiresDate, int siteId);
+
+        /// <summary>
+        /// Turns a basket into a Requested quote, and empties the basket, in one transaction.
+        /// </summary>
+        /// <remarks>
+        /// The reference is returned rather than the caller re-querying for the newest row:
+        /// two customers submitting at once would both read the other\x27s.
+        /// </remarks>
+        QuoteModel SubmitRequest(QuoteRequest request);
         void UpdateStatus(int quoteId, string status, int siteId);
         /// <summary>Adds a line, at a stated net price or at one derived from the discount.</summary>
         /// <remarks>

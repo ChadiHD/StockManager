@@ -4,9 +4,11 @@
 @page "/quote"
 @page "/cart"
 
+@using SMStore.Accounts
 @using SMStore.Ordering
 @inject ISiteContext SiteContext
 @inject BasketPresenter Presenter
+@inject ICustomerContext Customer
 
 <PageTitle>@Mode.BasketLabel · @SiteContext.Site.Name</PageTitle>
 
@@ -32,12 +34,9 @@
         }
         else
         {
-            @if (Notice == "unavailable")
+            @if (NoticeText is not null)
             {
-                <p class="basket__notice" role="status">
-                    That product is no longer available. It may have been withdrawn since the
-                    page you added it from was loaded.
-                </p>
+                <p class="basket__notice" role="status">@NoticeText</p>
             }
 
             @if (_view.HasUnavailableLines)
@@ -127,12 +126,34 @@
             }
         </dl>
         <p class="text-muted basket__note">@SummaryNote</p>
-        @* Submitting lands with item 5. Disabled rather than absent, so the control the
-           customer will use is already where they will look for it. *@
-        <button type="button" class="btn btn-primary btn-block" disabled
-                title="Available once submitting lands">
-            @Mode.SubmitBasketLabel
-        </button>
+
+        @if (!_view.IsEmpty)
+        {
+            @* The note and the submit are one form, so a customer who typed a note and
+               pressed submit sends both. A separate "save note" step would be a second
+               round trip to store something only the submit consumes. *@
+            <form method="post" action="@BasketEndpoints.SubmitPath" class="basket__submit">
+                <AntiforgeryToken />
+                <label class="basket__note-label" for="basket-note">@NoteLabel</label>
+                <textarea class="input basket__note-input" id="basket-note" name="note"
+                          rows="3" maxlength="1000" placeholder="@NotePlaceholder"></textarea>
+                <button type="submit" class="btn btn-primary btn-block">
+                    @Mode.SubmitBasketLabel
+                </button>
+            </form>
+
+            @if (!Customer.IsSignedIn)
+            {
+                @* Said before they press it rather than after. A quote belongs to an
+                   account and a session is the only thing that names one, so the submit
+                   sends them to sign in - and their basket survives, because
+                   spBasket_Claim merges it. *@
+                <p class="text-muted basket__note">
+                    You will be asked to sign in. Your
+                    @Mode.BasketLabel.ToLowerInvariant() comes with you.
+                </p>
+            }
+        }
     </aside>
 </div>
 
@@ -152,6 +173,37 @@
     private BasketView _view = new([], 0, 0, null, false);
 
     private IOrderingMode Mode => Presenter.Mode;
+
+    /// <summary>
+    /// What the last redirect is telling the customer, or null.
+    /// </summary>
+    /// <remarks>
+    /// An allow-list rather than the query value rendered back: `basket` arrives in a URL
+    /// anyone can write, and echoing it would put attacker-chosen text on the page.
+    /// </remarks>
+    private string? NoticeText => Notice switch
+    {
+        "unavailable" =>
+            "That product is no longer available. It may have been withdrawn since the page "
+            + "you added it from was loaded.",
+        "all-unavailable" =>
+            "Nothing in your " + Mode.BasketLabel.ToLowerInvariant() + " can be supplied at "
+            + "the moment, so there is nothing to send. Remove those lines and add something "
+            + "we can quote.",
+        "failed" =>
+            "We could not send your request. Nothing was lost - please try again.",
+        "empty" =>
+            "Your " + Mode.BasketLabel.ToLowerInvariant() + " was already empty.",
+        _ => null
+    };
+
+    private string NoteLabel => Mode.ShowsPayableTotal
+        ? "Order notes (optional)"
+        : "Anything we should know? (optional)";
+
+    private string NotePlaceholder => Mode.ShowsPayableTotal
+        ? "Delivery instructions, a purchase order reference"
+        : "A deadline, a project reference, a compatibility question";
 
     private NavItem[] Crumbs =>
     [

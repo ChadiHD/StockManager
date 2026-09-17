@@ -75,6 +75,7 @@ public class BasketPageTests : Bunit.TestContext
             new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
             NullLogger<BasketService>.Instance);
 
+        Services.AddSingleton(_customer);
         Services.AddSingleton(siteContext);
         Services.AddSingleton(ordering);
         Services.AddSingleton(catalogPresenter);
@@ -276,6 +277,7 @@ public class BasketPageTests : Bunit.TestContext
             new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
             NullLogger<BasketService>.Instance);
 
+        store.Services.AddSingleton(_customer);
         store.Services.AddSingleton(siteContext);
         store.Services.AddSingleton(ordering);
         store.Services.AddSingleton(catalogPresenter);

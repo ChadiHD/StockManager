@@ -97,8 +97,10 @@ builder.Services.AddScoped<OrderingModeProvider>();
 // scoped; nothing else in the storefront resolves HttpContext outside an endpoint.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<IBasketData, BasketData>();
+builder.Services.AddTransient<IQuoteData, QuoteData>();
 builder.Services.AddScoped<BasketService>();
 builder.Services.AddScoped<BasketPresenter>();
+builder.Services.AddScoped<QuoteSubmissionService>();
 
 // What a customer application demands, likewise per site. Field sets are stateless rules, so
 // singletons; the provider is scoped because it reads the request's site.

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SMStore.Accounts;
 
 namespace SMStore.Ordering;
 
@@ -19,6 +20,10 @@ public static class BasketEndpoints
 {
     public const string AddPath = "/basket/add";
     public const string QuantityPath = "/basket/quantity";
+    public const string SubmitPath = "/basket/submit";
+
+    /// <summary>Where a submitted basket lands. Route pair, like the basket page.</summary>
+    public const string SubmittedPath = "/quote/submitted";
 
     public static IEndpointRouteBuilder MapBasket(this IEndpointRouteBuilder endpoints)
     {
@@ -28,6 +33,7 @@ public static class BasketEndpoints
         // turning it off would be a deliberate downgrade for no gain.
         endpoints.MapPost(AddPath, AddAsync);
         endpoints.MapPost(QuantityPath, SetQuantityAsync);
+        endpoints.MapPost(SubmitPath, SubmitAsync);
 
         return endpoints;
     }
@@ -62,6 +68,54 @@ public static class BasketEndpoints
         basket.SetQuantity(sku, quantity ?? 0);
 
         return Results.Redirect(Back(returnUrl, ordering, null));
+    }
+
+    private static IResult SubmitAsync(
+        [FromForm] string? note,
+        [FromServices] BasketService basket,
+        [FromServices] QuoteSubmissionService submissions,
+        [FromServices] OrderingModeProvider ordering)
+    {
+        var current = basket.Current();
+
+        if (current is null)
+        {
+            // Nothing to submit. A stale tab, or a second submit of a basket the first one
+            // already consumed and deleted.
+            return Results.Redirect(ordering.Current.BasketRoute + "?basket=empty");
+        }
+
+        var outcome = submissions.Submit(current.Id, note);
+
+        if (!outcome.SignedIn)
+        {
+            // A quote belongs to an account, and a session is the only thing that names one.
+            // Their basket survives the trip: spBasket_Claim merges it at sign-in.
+            return Results.Redirect(
+                $"{CustomerAuthentication.LoginPath}?returnUrl=" +
+                Uri.EscapeDataString(ordering.Current.BasketRoute));
+        }
+
+        if (!outcome.HadAnythingToQuote)
+        {
+            return Results.Redirect(ordering.Current.BasketRoute + "?basket=all-unavailable");
+        }
+
+        if (!outcome.Succeeded)
+        {
+            // The procedure is all-or-nothing, so the basket is still there and retrying is
+            // the right next move.
+            return Results.Redirect(ordering.Current.BasketRoute + "?basket=failed");
+        }
+
+        var url = $"{SubmittedPath}?ref={Uri.EscapeDataString(outcome.Reference!)}";
+
+        if (outcome.DroppedSkus.Count > 0)
+        {
+            url += "&dropped=" + Uri.EscapeDataString(string.Join(",", outcome.DroppedSkus));
+        }
+
+        return Results.Redirect(url);
     }
 
     /// <summary>

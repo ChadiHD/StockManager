@@ -8,6 +8,15 @@ CREATE TABLE [dbo].[Quote]
     [Status] NVARCHAR(20) NOT NULL DEFAULT 'Requested',
     [CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
     [ExpiresDate] DATETIME2 NULL,
+
+    -- Anything the customer wrote alongside their request: a delivery deadline, a project
+    -- reference, a question about compatibility. Kept because sales reads it before pricing,
+    -- and a quote priced without it gets re-quoted.
+    --
+    -- Rendered as text, never as markup. This is the one column on this table whose contents
+    -- originate with a customer, so the SiteContent.BodyHtml rule applies in reverse: nothing
+    -- here may reach a MarkupString.
+    [CustomerNote] NVARCHAR(1000) NULL,
     -- Denormalised from Account so quote queries can scope by site without a join. NOT NULL,
     -- because a composite foreign key stops being enforced the moment one of its columns is
     -- NULL — FK_Quote_ToAccount below would become advisory.

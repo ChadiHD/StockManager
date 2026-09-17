@@ -1,3 +1,5 @@
+using Dapper;
+using System.Data;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using System;
@@ -52,6 +54,57 @@ namespace SMDataManager.Library.DataAccess
                 .Where(x => x.AccountId == accountId)
                 .OrderByDescending(x => x.Id)
                 .FirstOrDefault();
+        }
+
+        public QuoteModel SubmitRequest(QuoteRequest request)
+        {
+            var table = BuildRequestTable(request.Lines);
+
+            // The reference comes back through a SELECT rather than the output parameter,
+            // because SaveData passes an anonymous object and Dapper cannot write back
+            // through one. Re-querying for the store\x27s newest quote would hand this caller
+            // another customer\x27s under two concurrent submits.
+            var reference = _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spQuote_SubmitRequest",
+                new
+                {
+                    request.ContactId,
+                    request.SiteId,
+                    Lines = table.AsTableValuedParameter("dbo.QuoteRequestLine"),
+                    request.CustomerNote,
+                    ExpiresDate = (DateTime?)null,
+                    request.BasketId,
+                    Id = 0,
+                    Reference = string.Empty
+                },
+                "SMDatabase").FirstOrDefault();
+
+            return string.IsNullOrEmpty(reference)
+                ? null
+                : GetQuoteByReference(reference, request.SiteId);
+        }
+
+        // Column order must match dbo.QuoteRequestLine - table-valued parameters bind by
+        // ordinal, not by name.
+        private static DataTable BuildRequestTable(IEnumerable<QuoteRequestLine> lines)
+        {
+            var table = new DataTable();
+            table.Columns.Add("ProductId", typeof(int));
+            table.Columns.Add("Quantity", typeof(int));
+            table.Columns.Add("ListPrice", typeof(decimal));
+            table.Columns.Add("DiscountPct", typeof(decimal));
+            table.Columns.Add("NetPrice", typeof(decimal));
+
+            // The type is keyed on ProductId, so a basket that somehow held a product twice
+            // would fail the whole submit. UQ_BasketLine_Product makes that impossible, and
+            // this keeps it impossible for any other caller.
+            foreach (var line in lines.GroupBy(line => line.ProductId).Select(group => group.Last()))
+            {
+                table.Rows.Add(
+                    line.ProductId, line.Quantity, line.ListPrice, line.DiscountPct, line.NetPrice);
+            }
+
+            return table;
         }
 
         public void UpdateStatus(int quoteId, string status, int siteId)

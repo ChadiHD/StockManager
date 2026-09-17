@@ -1,0 +1,95 @@
+@* Where a submitted basket lands. Both routes for the same reason the basket page has two:
+   which one a store links to comes from its ordering mode. *@
+@page "/quote/submitted"
+@page "/cart/submitted"
+
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject OrderingModeProvider Ordering
+
+<PageTitle>Request received · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>@Heading</h1>
+        <p class="page-lede">@Lede</p>
+    </div>
+</div>
+
+<div class="card blueprint submitted">
+    <i class="corner tl"></i><i class="corner tr"></i>
+    <i class="corner bl"></i><i class="corner br"></i>
+
+    @if (HasReference)
+    {
+        <dl class="submitted__facts">
+            <dt>Your reference</dt>
+            <dd class="submitted__reference">@Reference</dd>
+        </dl>
+
+        @* Only the reference, which the URL already carries. Nothing about the quote itself
+           is shown here: references come from a sequence and are guessable, so a page that
+           rendered lines or prices from one would be readable by anyone who changed a digit.
+           The account-scoped view lands with the account area. *@
+        <p>
+            Quote your reference if you contact us about it. You will find the full request,
+            and our pricing once it is ready, under your account.
+        </p>
+
+        @if (Dropped.Length > 0)
+        {
+            <p class="submitted__dropped">
+                We could not include @string.Join(", ", Dropped):
+                @(Dropped.Length == 1 ? "it is" : "they are") no longer available. Everything
+                else is on the request.
+            </p>
+        }
+
+        <a href="/account" class="btn btn-secondary">Go to your account</a>
+    }
+    else
+    {
+        @* Reached by typing the URL, or by a stale bookmark. Says so rather than rendering an
+           acknowledgement for a request that was never made. *@
+        <p>There is nothing to confirm here.</p>
+        <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
+            Back to your @Ordering.Current.BasketLabel.ToLowerInvariant()
+        </a>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Bound as a string, like every query parameter on this storefront. See Catalog.razor for
+    /// the 500 that a typed binding produced.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "ref")]
+    public string? Reference { get; set; }
+
+    /// <summary>SKUs the submit left out, comma separated.</summary>
+    [SupplyParameterFromQuery(Name = "dropped")]
+    public string? DroppedSkus { get; set; }
+
+    private bool HasReference => !string.IsNullOrWhiteSpace(Reference);
+
+    private string[] Dropped => string.IsNullOrWhiteSpace(DroppedSkus)
+        ? []
+        : DroppedSkus.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private NavItem[] Crumbs =>
+    [
+        new("Home", "/"),
+        new(Ordering.Current.BasketLabel, Ordering.Current.BasketRoute),
+        new("Request received", "/quote/submitted"),
+    ];
+
+    private string Heading => HasReference
+        ? "We have your request"
+        : "Nothing to confirm";
+
+    private string Lede => HasReference
+        ? "Our sales team will price it and come back to you."
+        : $"Your {Ordering.Current.BasketLabel.ToLowerInvariant()} has not been submitted.";
+}
