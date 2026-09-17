@@ -33,8 +33,8 @@ CREATE TABLE [dbo].[Basket]
 
 	[CreatedUtc] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 
-	-- Moved by every line change. spBasket_PurgeAbandoned reads it, and an anonymous basket
-	-- that nobody comes back to has no other way of becoming collectable.
+	-- Moved by every line change. Nothing reads it yet; the sweep that will is T7's, with the
+	-- hosting decision. Kept rather than added later because every write here already sets it.
 	[UpdatedUtc] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 
 	CONSTRAINT [UQ_Basket_Token] UNIQUE ([Token]),
@@ -51,9 +51,3 @@ GO
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Basket_Contact]
 	ON [dbo].[Basket] ([ContactId])
 	WHERE [ContactId] IS NOT NULL;
-GO
-
--- The purge sweeps by age over baskets nobody has claimed.
-CREATE NONCLUSTERED INDEX [IX_Basket_Abandoned]
-	ON [dbo].[Basket] ([UpdatedUtc])
-	WHERE [ContactId] IS NULL;

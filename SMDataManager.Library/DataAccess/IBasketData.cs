@@ -26,10 +26,13 @@ namespace SMDataManager.Library.DataAccess
         /// <summary>Adds a product, or raises the quantity of the line already there.</summary>
         void AddLine(int basketId, int siteId, int productId, int quantity, int? customerGroupId);
 
-        /// <summary>Sets a line's quantity. A quantity below one removes the line.</summary>
+        /// <summary>Sets a line's quantity, or removes the line when it is below one.</summary>
+        /// <remarks>
+        /// Removal is a quantity of zero rather than a method of its own: that is what a
+        /// customer typing 0 into a quantity box means, and a separate procedure would be the
+        /// same DELETE behind a second name.
+        /// </remarks>
         bool SetQuantity(int basketId, int siteId, int productId, int quantity);
-
-        bool RemoveLine(int basketId, int siteId, int productId);
 
         /// <summary>
         /// Attaches the browser's basket to a contact who has just signed in, merging it into
@@ -37,8 +40,5 @@ namespace SMDataManager.Library.DataAccess
         /// nothing on either side.
         /// </summary>
         int? ClaimBasket(int siteId, string token, int contactId);
-
-        /// <summary>Deletes a page of anonymous baskets nobody has touched. Returns how many.</summary>
-        int PurgeAbandoned(int olderThanDays, int take);
     }
 }

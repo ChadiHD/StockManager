@@ -70,16 +70,6 @@ namespace SMDataManager.Library.DataAccess
             }, "SMDatabase").FirstOrDefault() > 0;
         }
 
-        public bool RemoveLine(int basketId, int siteId, int productId)
-        {
-            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spBasket_RemoveLine", new
-            {
-                BasketId = basketId,
-                SiteId = siteId,
-                ProductId = productId
-            }, "SMDatabase").FirstOrDefault() > 0;
-        }
-
         public int? ClaimBasket(int siteId, string token, int contactId)
         {
             return _sqlDataAccess.LoadData<int?, dynamic>("dbo.spBasket_Claim", new
@@ -87,15 +77,6 @@ namespace SMDataManager.Library.DataAccess
                 SiteId = siteId,
                 Token = token,
                 ContactId = contactId
-            }, "SMDatabase").FirstOrDefault();
-        }
-
-        public int PurgeAbandoned(int olderThanDays, int take)
-        {
-            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spBasket_PurgeAbandoned", new
-            {
-                OlderThanDays = olderThanDays,
-                Take = take
             }, "SMDatabase").FirstOrDefault();
         }
     }

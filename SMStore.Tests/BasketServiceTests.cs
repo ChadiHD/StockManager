@@ -82,8 +82,8 @@ public class BasketServiceTests
 
         service.Lines().Should().BeEmpty();
 
-        // A basket row per page view would be a row per crawler, and the purge would spend its
-        // life cleaning up after robots. EnsureBasket is reached only by an add.
+        // A basket row per page view would be a row per crawler. EnsureBasket is the only
+        // thing that creates one, and only an add reaches it.
         _baskets.DidNotReceive().EnsureBasket(
             Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int?>());
     }
@@ -197,19 +197,15 @@ public class BasketServiceTests
         SetCookieValue().Should().BeNull("a second Set-Cookie would reset the expiry pointlessly");
     }
 
-    // --- Changing and removing ---
+    // --- Changing ---
 
     [Fact]
     public void ChangingALineWithNoBasketDoesNothingRatherThanCreatingOne()
     {
-        var service = ServiceFor();
-
-        service.SetQuantity(productId: 12, quantity: 3).Should().BeFalse();
-        service.Remove(productId: 12).Should().BeFalse();
+        ServiceFor().SetQuantity(productId: 12, quantity: 3).Should().BeFalse();
 
         _baskets.DidNotReceive().SetQuantity(
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>());
-        _baskets.DidNotReceive().RemoveLine(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>());
     }
 
     // --- Sign-in and sign-out ---

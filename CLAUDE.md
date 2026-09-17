@@ -833,10 +833,14 @@ endpoint reasons about cookies and contacts together.
   catalog moves under it.
 - Quantities are capped at 9999 in the procedures, because `Quantity * NetPrice` is money
   arithmetic and `int.MaxValue` of anything overflows a line total.
-- **`spBasket_PurgeAbandoned` exists and nothing calls it yet.** That is the cost of the
-  cookie: a row per visitor who adds something, robots included. It only ever deletes
-  anonymous baskets, and its 30-day default matches the cookie lifetime so neither outlives
-  the other.
+- **Nothing sweeps abandoned anonymous baskets, and that is deliberate.** A row per visitor
+  who adds something, robots included, is the cost of the cookie. The sweep is **T7's**, with
+  the hosting decision that says where a scheduled job runs: written now it would have been
+  a procedure nothing calls, which is what `spProduct_SyncFeeds` was.
+  `Basket.UpdatedUtc` is maintained by every write so it has something to key off.
+- **Removal is `SetQuantity` with a quantity of zero**, not a procedure of its own — that is
+  what a customer typing 0 into the box means, and a second name over the same `DELETE` is
+  two things to keep in step.
 
 ## Distributor feeds and image enrichment
 

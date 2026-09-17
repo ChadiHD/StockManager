@@ -293,35 +293,6 @@ public class BasketQueryTests
         }
     }
 
-    [SkippableFact]
-    public void ThePurgeTakesOldAnonymousBasketsAndLeavesTheRest()
-    {
-        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
-
-        var (connection, transaction) = TestDatabase.OpenRollbackScope();
-        using (connection)
-        using (transaction)
-        {
-            var store = BasketScenario.Create(connection, transaction);
-
-            var stale = store.Ensure();
-            store.Age(stale, days: 60);
-
-            var fresh = store.Ensure(token: "fresh");
-
-            var claimed = store.EnsureForContact();
-            store.Age(claimed, days: 60);
-
-            store.Purge(olderThanDays: 30);
-
-            store.Exists(stale).Should().BeFalse();
-            store.Exists(fresh).Should().BeTrue();
-            // Never swept. A signed-in customer's basket is the one somebody expects to still
-            // be there when they come back next month.
-            store.Exists(claimed).Should().BeTrue();
-        }
-    }
-
     /// <summary>
     /// A store with two visible products and one contact, inside a transaction that is never
     /// committed.
@@ -530,16 +501,6 @@ public class BasketQueryTests
         public void Delist() => Execute(_connection, _transaction, """
             UPDATE dbo.Product SET Delisted = 1 WHERE Id = @productId;
             """, ("@productId", ProductId));
-
-        public void Age(int basketId, int days) => Execute(_connection, _transaction, """
-            UPDATE dbo.Basket
-            SET UpdatedUtc = DATEADD(DAY, -@days, SYSUTCDATETIME())
-            WHERE Id = @basketId;
-            """, ("@days", days), ("@basketId", basketId));
-
-        public int Purge(int olderThanDays) => Scalar(_connection, _transaction, """
-            EXEC dbo.spBasket_PurgeAbandoned @OlderThanDays = @days, @Take = 500;
-            """, ("@days", olderThanDays));
 
         public bool Exists(int basketId) => Scalar(_connection, _transaction, """
             SELECT COUNT(*) FROM dbo.Basket WHERE Id = @basketId;

@@ -107,21 +107,16 @@ public sealed class BasketService
         }
     }
 
-    /// <summary>Sets a line's quantity. A quantity below one removes the line.</summary>
+    /// <summary>Sets a line's quantity, or removes the line when it is below one.</summary>
+    /// <remarks>
+    /// Removal is a quantity of zero. See <see cref="IBasketData.SetQuantity"/>.
+    /// </remarks>
     public bool SetQuantity(int productId, int quantity)
     {
         var basket = Find();
 
         return basket is not null
             && _baskets.SetQuantity(basket.Id, _siteContext.Site.Id, productId, quantity);
-    }
-
-    public bool Remove(int productId)
-    {
-        var basket = Find();
-
-        return basket is not null
-            && _baskets.RemoveLine(basket.Id, _siteContext.Site.Id, productId);
     }
 
     /// <summary>
