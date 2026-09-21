@@ -36,12 +36,11 @@ T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — 
 claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
 and the delisted-SKU verification.
 
-**T5 — ordering is in progress**, per `docs/plans/2026-09-17-t5-ordering.md`. Items 1 to 6
-of nine are built: the accept claim and the placer, quote lines that record the price the
-customer was shown, the server-side basket, the basket pages, submit, and the customer's
-own quote and order screens. Admin re-pricing, the documents and the end-to-end pass are
-planned. The plan opens with the four decisions that had to be settled before any of it
-could be written.
+**T5 — ordering is built**, per `docs/plans/2026-09-17-t5-ordering.md`: the accept claim and
+the placer, quote lines that record the price the customer was shown, the server-side basket,
+the basket pages, submit, the customer's own quote and order screens, admin re-pricing, the
+printable document, and one journey driving the whole round trip. The plan opens with the four
+decisions that had to be settled before any of it could be written.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -474,13 +473,27 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about a minute against a warm
+`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about 80 seconds against a warm
 SQL container. The last two are the basket and the quote request, and they earn their place the
 way the approval journey did.
 A basket change is a form post plus a redirect, so the antiforgery token, the `Set-Cookie` and
-the next request's lookup all have to hold at once for a single click to work. And a quote
-request spans a basket built under a cookie, the merge that hands it to a contact at sign-in,
-and one transaction that writes a quote and deletes the basket. No unit test spans either.
+the next request's lookup all have to hold at once for a single click to work. And the quote
+request drives T5's whole round trip in one pass, across two browsers and both hosts: a basket
+built under a cookie, the merge that hands it to a contact at sign-in, one transaction that
+writes a quote and deletes the basket, an admin re-pricing a line in the WebAssembly portal,
+the claim that makes the quote decidable, and the acceptance that turns it into an order. The
+quantity the admin types is asserted on the order at the end, so every hop has to hold. No
+unit test spans even two of them.
+
+Two things that journey cost, both worth knowing before writing another:
+
+- **Playwright's `fill()` alone does not drive a Blazor `@onchange`.** It sets the value and
+  dispatches the events, and the control stayed disabled anyway; pressing `Tab` after it is
+  what a person typing into the box produces, and is what works.
+- **A reload of `SMPortal` is a cold WebAssembly boot plus `AdminLayout` awaiting its
+  snapshot.** That fits inside Playwright's five-second assertion default on an idle machine
+  and does not when seven journeys share it — a test that passes alone and fails in the suite
+  is this, not flakiness. Twenty seconds, like `AdminPortal.SignInAsync`.
 
 **The end-to-end suite earns its cost, and here is the evidence.** Its first complete run
 found a bug that four unit-test projects could not: `Account.ApprovedBy` is a foreign key into
@@ -670,6 +683,28 @@ Accept button and both paths land in the same procedure.
   carried in a comment since it was written. `QuoteStatus` names them in the library and
   `QuoteController` refuses a fifth with a 400, because a constraint violation raised inside a
   procedure reaches the caller as a 500.
+
+**Pricing is a claim too, and `spQuote_UpdateStatus` is the reason it had to be.** "Send to
+customer" is the `Requested → Priced` transition the customer's Accept button gates on, and
+`spQuote_Price` claims it: one atomic `UPDATE` over `Status IN ('Requested', 'Priced')`,
+reporting its row count.
+
+- `spQuote_UpdateStatus` stores whatever status it is handed with **no predicate on the
+  current one**. Wiring the button to it would mean pricing a quote the customer had just
+  rejected silently un-rejected it, and pricing one they had accepted put an order's own
+  source document back into `Priced`. It has no production caller — only tests — and it
+  should go rather than sit beside the safe procedure it would be mistaken for.
+- Both undecided statuses pass, so re-sending after an edit is ordinary work. A rowcount of
+  zero therefore means exactly one thing: the customer decided first. That is a 409 and a
+  different toast, like a refused conversion.
+- `spQuoteLine_Update` refuses a line on an `Accepted` quote, because
+  `spOrder_ConvertFromQuote` has already copied those lines onto a `Purchase` — a re-price
+  would leave the quote and the order disagreeing about what was sold, in money, with nothing
+  recording which one moved. `spQuoteLine_Delete` does **not** carry that predicate, and
+  should. The portal withdraws both controls, but a page is not a guard.
+- It reads `ListPrice` off the row rather than taking it as a parameter: a caller that could
+  send a list price could quote one the store never set. `@NetPrice` follows
+  `spQuoteLine_Insert`'s rule — stated, it is stored; absent, it is derived.
 
 ## Auth
 
@@ -960,6 +995,27 @@ is not.
 - **The message after a decision comes from an allow-list.** `?decision=` arrives in a URL
   anyone can write, inside a session; echoing it would put attacker-chosen text on a page beside
   the customer's own prices. Same rule as the basket's `?basket=` notices.
+
+### The document, and the renderer that is not chosen yet
+
+`DocumentSheet` renders a quote or an order as the sheet a customer files or forwards, at
+`/account/quotes/{reference}/print` and `/account/orders/{reference}/print`. **There is no PDF
+library behind it, deliberately.** T5 needed the document; T6 decides whether an *attachable
+file* is needed, once there is an outbox to attach one to.
+
+- All three candidates — QuestPDF, a print-styled page, headless Chromium — render this same
+  markup, so the markup is the part that is the same under every one of them. Choosing now
+  would mean either a revenue-conditional licence this repository has already turned down once
+  (FluentAssertions 8), or a browser in the deployment, which is T7's to weigh.
+- **The print route is a second way in to the same document, so it carries the same
+  predicates.** The account comes from the session, "not yours" and "not here" are one answer,
+  and `CustomerNote` is escaped here as well as on the detail page — this is the copy that
+  gets forwarded.
+- Per-site templating is free: the sheet reads the site's own tokens, so a second tenant's
+  document is its own brand with no component change. `@media print` lives in `app.css`
+  because hiding navigation is platform, not brand.
+- `window.print()` is the one inline handler in this storefront. It needs no circuit and no
+  bundle, and without JavaScript the browser's own print command does the same thing.
 
 ## Distributor feeds and image enrichment
 
