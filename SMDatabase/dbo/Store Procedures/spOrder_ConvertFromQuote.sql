@@ -33,7 +33,20 @@ CREATE PROCEDURE [dbo].[spOrder_ConvertFromQuote]
 	*/
 	@TaxTreatment nvarchar(30) = NULL,
 	@TaxLegend nvarchar(200) = NULL,
-	@TaxRatePct decimal(5, 2) = 0
+	@TaxRatePct decimal(5, 2) = 0,
+	/*
+	Whether to refuse an order that goes past the account's credit limit.
+
+	Off by default, which is the admin's path: converting a quote for a customer who rang up
+	may deliberately exceed the limit, and that is a commercial decision somebody is making
+	with their name on it. The order still records that it happened. The customer's own
+	Accept passes 1 and is refused, because nobody is making that decision.
+
+	Inside this transaction rather than before it: the claim above already holds the row
+	lock, and two buyers at the same company accepting at once would each pass a check made
+	outside it and put the account over by the value of the smaller order.
+	*/
+	@EnforceCreditLimit bit = 0
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -160,13 +173,49 @@ BEGIN
 			FROM dbo.PurchaseDetail
 			WHERE [PurchaseId] = @Id);
 
+		/*
+		Credit terms, and what this order costs against them.
+
+		The account's own columns rather than parameters: the procedure already resolved
+		@AccountId from the quote, the values are on a row it is joined to anyway, and a
+		caller that could send a credit limit is a caller that could raise its own.
+
+		**This compares one order against the limit, not the account's outstanding
+		balance.** A balance needs a settled state and dbo.Purchase has none -- its four
+		statuses are Awaiting payment, Processing, Fulfilled and Cancelled, and Fulfilled
+		means shipped and invoiced, which on credit terms is exactly when the money is not
+		yet in. Summing unsettled orders would therefore count every order the customer has
+		ever placed and block them permanently. Invoicing, and the payment state that comes
+		with it, is its own phase; until then this is the check the data supports and it is
+		named for what it does.
+		*/
+		DECLARE @CreditLimit money, @TermsDays int;
+
+		SELECT @CreditLimit = [a].[CreditLimit], @TermsDays = [a].[PaymentTermsDays]
+		FROM dbo.Account a
+		WHERE [a].[Id] = @AccountId AND [a].[SiteId] = @SiteId;
+
+		DECLARE @Total money = @SubTotal + @Vat;
+
+		-- A prepaid account extends no credit, so there is no limit to exceed. Treating zero
+		-- days as a zero limit would refuse every order a prepaid customer ever placed.
+		DECLARE @Exceeded bit =
+			CASE WHEN @TermsDays > 0 AND @Total > @CreditLimit THEN 1 ELSE 0 END;
+
+		IF @Exceeded = 1 AND @EnforceCreditLimit = 1
+		BEGIN
+			THROW 50040, 'That order is larger than the credit limit on this account.', 1;
+		END
+
 		-- Summed from the lines rather than taken on the order total, so the figure on the
 		-- document is the sum of the figures beside it. Rounding the total separately gives
 		-- an order whose VAT line does not equal its own lines by a cent or two.
 		UPDATE dbo.Purchase
 		SET [SubTotal] = @SubTotal,
 		    [VAT] = @Vat,
-		    [FinalPrice] = @SubTotal + @Vat
+		    [FinalPrice] = @Total,
+		    [DueDate] = DATEADD(day, ISNULL(@TermsDays, 0), CAST(SYSUTCDATETIME() AS date)),
+		    [CreditLimitExceeded] = @Exceeded
 		WHERE [Id] = @Id;
 
 		COMMIT TRANSACTION;

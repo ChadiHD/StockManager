@@ -50,6 +50,21 @@ CREATE TABLE [dbo].[Purchase]
     [TaxTreatment] NVARCHAR(30) NULL,
     [TaxLegend] NVARCHAR(200) NULL,
 
+    -- When payment is due: the order date plus Account.PaymentTermsDays, snapshotted because
+    -- an account's terms can be renegotiated and an invoice already sent must not move.
+    -- Equal to the order date for a prepaid account, which is what prepaid means.
+    [DueDate] DATE NULL,
+
+    /*
+    Whether this order went past the account's credit limit.
+
+    Recorded on every order and refused on only one path. A customer accepting their own quote
+    is stopped; an admin converting one for somebody who rang up is making a commercial
+    decision with their name on it, and the flag is how it stays visible afterwards. Same
+    shape as T5's decidability rules, which gate the customer and not the procedure.
+    */
+    [CreditLimitExceeded] BIT NOT NULL DEFAULT 0,
+
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
     -- Composite, like Quote's. A POS sale leaves AccountId, QuoteId and SiteId all NULL, and
     -- a composite foreign key is not checked when any column is NULL, so the desktop path is

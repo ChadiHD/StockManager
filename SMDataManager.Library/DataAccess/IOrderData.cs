@@ -37,7 +37,8 @@ namespace SMDataManager.Library.DataAccess
         /// nothing and gets <c>NoLongerAwaitingAcceptance</c> rather than a duplicate order.
         /// </remarks>
         QuoteAcceptanceResult ConvertQuoteToOrder(
-            int quoteId, QuoteAcceptance acceptance, int siteId, TaxAssessment assessment = null);
+            int quoteId, QuoteAcceptance acceptance, int siteId, TaxAssessment assessment = null,
+            bool enforceCreditLimit = false);
         void UpdateStatus(int purchaseId, string status, int siteId);
         List<SalesReportModel> GetSalesReport(int siteId);
         List<ActivityModel> GetRecentActivity(int take, int siteId);
