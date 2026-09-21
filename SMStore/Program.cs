@@ -1,6 +1,7 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Pricing;
+using SMDataManager.Library.Tax;
 using SMStore.Accounts;
 using SMStore.Components;
 using SMStore.Catalog;
@@ -80,6 +81,12 @@ builder.Services.AddTransient<ICatalogData, CatalogData>();
 // their quote.
 builder.Services.AddSingleton<IPriceResolver, PriceResolver>();
 builder.Services.AddScoped<CatalogPresenter>();
+
+// One tax rule set per store, selected by Site.TaxRuleSet. Registered on both hosts because
+// an order can be raised from either — the customer accepting their own quote here, and an
+// admin converting one through StockApi — and two engines would disagree about the same sale.
+builder.Services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
+builder.Services.AddSingleton<TaxRuleSetProvider>();
 
 // Multi-store plumbing. SiteContext is registered as itself and behind the interface so
 // middleware can write to it while everything else only reads.

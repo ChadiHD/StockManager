@@ -66,6 +66,18 @@ namespace SMDataManager.Library.Models
         /// </remarks>
         public string OperatorEmail { get; set; }
 
+        /// <summary>
+        /// Which <c>ITaxRuleSet</c> this store trades under. Ask
+        /// <c>TaxRuleSetProvider</c>; nothing outside the tax namespace branches on it.
+        /// </summary>
+        public string TaxRuleSet { get; set; }
+
+        /// <summary>The standard rate, as a percentage. Zero until a store is configured.</summary>
+        public decimal StandardTaxRatePct { get; set; }
+
+        /// <summary>The store's own VAT number, printed on documents.</summary>
+        public string TaxRegistrationNumber { get; set; }
+
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
     }
