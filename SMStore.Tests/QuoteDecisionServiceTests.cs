@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using SMStore.Accounts;
 using SMStore.Ordering;
 using SMStore.Sites;
@@ -29,6 +30,7 @@ public class QuoteDecisionServiceTests
 
     private readonly IQuoteData _quotes = Substitute.For<IQuoteData>();
     private readonly IOrderData _orders = Substitute.For<IOrderData>();
+    private readonly IAccountData _accounts = Substitute.For<IAccountData>();
     private readonly ICustomerContext _customer = Substitute.For<ICustomerContext>();
 
     private QuoteDecisionService Service()
@@ -53,7 +55,7 @@ public class QuoteDecisionServiceTests
         _customer.AccountId.Returns(AccountId);
 
         return new QuoteDecisionService(
-            _quotes, _orders, siteContext, _customer,
+            _quotes, _orders, _accounts, new TaxAssessor(new TaxRuleSetProvider(new ITaxRuleSet[] { new EuB2bTaxRuleSet() })), siteContext, _customer,
             NullLogger<QuoteDecisionService>.Instance);
     }
 

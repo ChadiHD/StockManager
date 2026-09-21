@@ -8,6 +8,7 @@ BEGIN
 
 	SELECT [p].[Id], [p].[Reference], [p].[AccountId], [a].[Company] AS [AccountName],
 	       [p].[Currency], [p].[Status], [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice],
+	       [p].[TaxTreatment], [p].[TaxLegend],
 	       [q].[Reference] AS [FromQuoteReference],
 	       COUNT([d].[Id]) AS [Items]
 	FROM [dbo].[Purchase] p
@@ -19,6 +20,7 @@ BEGIN
 	WHERE [p].[Reference] IS NOT NULL
 	  AND [p].[SiteId] = @SiteId
 	GROUP BY [p].[Id], [p].[Reference], [p].[AccountId], [a].[Company], [p].[Currency], [p].[Status],
-	         [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice], [q].[Reference]
+	         [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice], [q].[Reference],
+	         [p].[TaxTreatment], [p].[TaxLegend]
 	ORDER BY [p].[PurchaseDate] DESC;
 END

@@ -87,6 +87,7 @@ builder.Services.AddScoped<CatalogPresenter>();
 // admin converting one through StockApi — and two engines would disagree about the same sale.
 builder.Services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
 builder.Services.AddSingleton<TaxRuleSetProvider>();
+builder.Services.AddSingleton<TaxAssessor>();
 
 // Multi-store plumbing. SiteContext is registered as itself and behind the interface so
 // middleware can write to it while everything else only reads.

@@ -15,6 +15,12 @@ namespace SMDataManager.Library.Models
         public DateTime PurchaseDate { get; set; }
         public decimal SubTotal { get; set; }
         public decimal VAT { get; set; }
+
+        /// <summary>Why this order was taxed the way it was. NULL on a POS row.</summary>
+        public string TaxTreatment { get; set; }
+
+        /// <summary>The sentence printed on the document, snapshotted at acceptance.</summary>
+        public string TaxLegend { get; set; }
         public decimal FinalPrice { get; set; }
         public string FromQuoteReference { get; set; }
 

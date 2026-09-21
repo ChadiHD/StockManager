@@ -15,7 +15,25 @@ CREATE PROCEDURE [dbo].[spOrder_ConvertFromQuote]
 	@StaffId nvarchar(128) = NULL,
 	@PlacedByContactId int = NULL,
 	-- The customer's own purchase-order number, if they gave one.
-	@PoNumber nvarchar(50) = NULL
+	@PoNumber nvarchar(50) = NULL,
+	/*
+	The tax treatment, decided by ITaxRuleSet before this was called and snapshotted onto
+	the order here.
+
+	Passed in rather than worked out: reverse charge turns on the customer's country and
+	VAT number against the store's, which is a decision tree with a legend per branch, and
+	T-SQL is the wrong place for it — TaxRuleSetTests drives the whole table in C# with no
+	database. What this procedure adds is the half that needs the database:
+	Product.IsTaxable lives beside the line, so the rate reaches only the lines that carry
+	the flag.
+
+	Defaulted so a caller that has not been updated raises an untaxed order rather than
+	failing. That was the behaviour until T6 and it is visible on the document, which is
+	the right direction for a default to be wrong in.
+	*/
+	@TaxTreatment nvarchar(30) = NULL,
+	@TaxLegend nvarchar(200) = NULL,
+	@TaxRatePct decimal(5, 2) = 0
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -95,19 +113,41 @@ BEGIN
 		INSERT INTO dbo.Purchase([StaffId], [PlacedByContactId], [PurchaseDate],
 		                         [SubTotal], [VAT], [FinalPrice],
 		                         [Reference], [AccountId], [QuoteId], [Currency], [Status],
-		                         [PoNumber], [SiteId])
+		                         [PoNumber], [SiteId], [TaxTreatment], [TaxLegend])
 		VALUES (@StaffId, @PlacedByContactId, SYSUTCDATETIME(), 0, 0, 0,
 		        @Reference, @AccountId, @QuoteId, @Currency, 'Awaiting payment',
-		        NULLIF(LTRIM(RTRIM(@PoNumber)), N''), @SiteId);
+		        NULLIF(LTRIM(RTRIM(@PoNumber)), N''), @SiteId, @TaxTreatment, @TaxLegend);
 
 		SET @Id = SCOPE_IDENTITY();
 
-		-- No Delisted and no staleness predicate, deliberately. A product the distributor
-		-- dropped still belongs on the order the customer accepted at the price they were
-		-- quoted; DelistedProductHistoryTests is what holds that.
-		INSERT INTO dbo.PurchaseDetail([PurchaseId], [ProductId], [Quantity], [PurchasePrice], [VAT])
-		SELECT @Id, [l].[ProductId], [l].[Quantity], [l].[NetPrice], 0
+		/*
+		No Delisted and no staleness predicate, deliberately. A product the distributor
+		dropped still belongs on the order the customer accepted at the price they were
+		quoted; DelistedProductHistoryTests is what holds that. The join added for
+		IsTaxable below is an INNER JOIN for the same reason it is safe to be one: delisting
+		is a flag, not a delete, so the row is still there.
+
+		The rate reaches a line only if its product is taxable.
+
+		That join is the reason the per-line half is here rather than in the caller: the
+		flag is a column on dbo.Product, and assessing it in C# would mean reading the
+		catalog back for every line of every order to ask a question the database can
+		answer in the same statement that copies the line.
+
+		ROUND, half away from zero, matching TaxAssessment.On and PriceResolver and the
+		expression in fnCatalog_VisibleProducts. A line taxed by one rounding rule and
+		priced by another is two numbers on one document that do not add up.
+		*/
+		INSERT INTO dbo.PurchaseDetail([PurchaseId], [ProductId], [Quantity], [PurchasePrice],
+		                               [VAT], [TaxRatePct])
+		SELECT @Id, [l].[ProductId], [l].[Quantity], [l].[NetPrice],
+		       CASE WHEN [p].[IsTaxable] = 1
+		            THEN ROUND(CAST([l].[Quantity] * [l].[NetPrice] AS decimal(19, 4))
+		                       * CAST(@TaxRatePct AS decimal(9, 4)) / 100, 2)
+		            ELSE 0 END,
+		       CASE WHEN [p].[IsTaxable] = 1 THEN @TaxRatePct ELSE 0 END
 		FROM dbo.QuoteLine l
+		INNER JOIN dbo.Product p ON p.[Id] = [l].[ProductId]
 		WHERE [l].[QuoteId] = @QuoteId;
 
 		DECLARE @SubTotal money = (
@@ -115,10 +155,18 @@ BEGIN
 			FROM dbo.PurchaseDetail
 			WHERE [PurchaseId] = @Id);
 
+		DECLARE @Vat money = (
+			SELECT ISNULL(SUM([VAT]), 0)
+			FROM dbo.PurchaseDetail
+			WHERE [PurchaseId] = @Id);
+
+		-- Summed from the lines rather than taken on the order total, so the figure on the
+		-- document is the sum of the figures beside it. Rounding the total separately gives
+		-- an order whose VAT line does not equal its own lines by a cent or two.
 		UPDATE dbo.Purchase
 		SET [SubTotal] = @SubTotal,
-		    [VAT] = 0,
-		    [FinalPrice] = @SubTotal
+		    [VAT] = @Vat,
+		    [FinalPrice] = @SubTotal + @Vat
 		WHERE [Id] = @Id;
 
 		COMMIT TRANSACTION;

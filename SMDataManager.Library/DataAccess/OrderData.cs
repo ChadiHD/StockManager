@@ -1,6 +1,7 @@
 using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -87,7 +88,7 @@ namespace SMDataManager.Library.DataAccess
         }
 
         public QuoteAcceptanceResult ConvertQuoteToOrder(
-            int quoteId, QuoteAcceptance acceptance, int siteId)
+            int quoteId, QuoteAcceptance acceptance, int siteId, TaxAssessment assessment = null)
         {
             try
             {
@@ -99,7 +100,13 @@ namespace SMDataManager.Library.DataAccess
                     SiteId = siteId,
                     acceptance.StaffId,
                     acceptance.PlacedByContactId,
-                    acceptance.PoNumber
+                    acceptance.PoNumber,
+                    // Null means untaxed, which is what every order raised before T6 was.
+                    // The procedure defaults the same way, so an untaxed order is visible on
+                    // the document rather than a failure somewhere behind it.
+                    TaxTreatment = assessment?.Treatment,
+                    TaxLegend = assessment?.Legend,
+                    TaxRatePct = assessment?.RatePct ?? 0m
                 }, "SMDatabase");
             }
             catch (SqlException ex) when (ex.Number == QuoteAlreadyDecided)

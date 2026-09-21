@@ -32,6 +32,24 @@ CREATE TABLE [dbo].[Purchase]
     -- carry it, which is why it is on the order and not a note somewhere.
     [PoNumber] NVARCHAR(50) NULL,
 
+    /*
+    Why this order was taxed the way it was, snapshotted rather than re-derived.
+
+    The rate can change by statute, the rule set can be corrected, a customer can supply a
+    VAT number they did not have at the time, and a store can move country. None of that may
+    silently rewrite a document somebody has already acted on — the same argument T5 settled
+    for price, one table over.
+
+    TaxLegend is the sentence printed on the document. It is stored rather than rendered from
+    the treatment because it is a legal statement, and improving the wording next year must
+    not restate what last year's orders said.
+
+    Both NULL on a POS row, like every other portal-only column here: a till sale has no
+    account to assess.
+    */
+    [TaxTreatment] NVARCHAR(30) NULL,
+    [TaxLegend] NVARCHAR(200) NULL,
+
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
     -- Composite, like Quote's. A POS sale leaves AccountId, QuoteId and SiteId all NULL, and
     -- a composite foreign key is not checked when any column is NULL, so the desktop path is

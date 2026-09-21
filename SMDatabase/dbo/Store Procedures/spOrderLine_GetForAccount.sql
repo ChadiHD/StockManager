@@ -14,7 +14,7 @@ BEGIN
 
 	SELECT [d].[Id], [d].[PurchaseId], [d].[ProductId],
 	       [p].[Sku], [p].[ProductName] AS [Name],
-	       [d].[Quantity], [d].[PurchasePrice] AS [Price], [d].[VAT]
+	       [d].[Quantity], [d].[PurchasePrice] AS [Price], [d].[VAT], [d].[TaxRatePct]
 	FROM [dbo].[PurchaseDetail] d
 	INNER JOIN [dbo].[Purchase] o
 		ON o.[Id] = d.[PurchaseId]

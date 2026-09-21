@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using StockApi.Sites;
 using System.Security.Claims;
 
@@ -60,7 +61,11 @@ namespace StockApi.Controllers
         public record ConvertQuoteModel(string QuoteReference, string? PoNumber = null);
 
         [HttpPost("FromQuote")]
-        public ActionResult<OrderModel> CreateFromQuote(ConvertQuoteModel conversion, [FromServices] IQuoteData quoteData)
+        public ActionResult<OrderModel> CreateFromQuote(
+            ConvertQuoteModel conversion,
+            [FromServices] IQuoteData quoteData,
+            [FromServices] IAccountData accountData,
+            [FromServices] TaxAssessor taxAssessor)
         {
             var quote = quoteData.GetQuoteByReference(conversion.QuoteReference, _site.SiteId);
             if (quote is null)
@@ -74,8 +79,16 @@ namespace StockApi.Controllers
             // which is how Account.ApprovedBy shipped broken in T3.
             string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+            // Assessed here rather than inside the procedure: reverse charge turns on the
+            // customer's country and VAT number against this store's, and the same assessor
+            // runs on the customer's own accept path so the two cannot reach different
+            // answers about one sale.
+            var assessment = taxAssessor.ForOrder(
+                _site.Site, accountData.GetAccountById(quote.AccountId, _site.SiteId));
+
             var outcome = _orderData.ConvertQuoteToOrder(
-                quote.Id, QuoteAcceptance.ByStaff(staffId, conversion.PoNumber), _site.SiteId);
+                quote.Id, QuoteAcceptance.ByStaff(staffId, conversion.PoNumber), _site.SiteId,
+                assessment);
 
             // Somebody else accepted or rejected it while this screen was open. Reporting
             // success would show a conversion this request did not make -- the same reasoning
