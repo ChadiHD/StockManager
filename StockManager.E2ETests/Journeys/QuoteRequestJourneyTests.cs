@@ -10,15 +10,19 @@ namespace StockManager.E2ETests.Journeys;
 /// Journey 7: a customer fills a basket while anonymous, signs in, submits, and accepts.
 /// </summary>
 /// <remarks>
-/// T5's exit criterion, end to end, with one step done in SQL: cart, submit, price, accept,
-/// order exists. The pricing is a direct UPDATE because that is item 7's job in the portal —
-/// "Send to customer" is still a toast over no write — and what this journey is about is the
-/// customer's half.
+/// T5's exit criterion in one pass, with nothing done in SQL: cart, submit, price in the admin
+/// portal, accept, order exists.
 ///
-/// It spans four things that only line up in a real browser: the basket built under a cookie,
+/// It spans six things that only line up in a real browser: the basket built under a cookie,
 /// the merge that hands it to a contact at sign-in, one transaction that writes a quote and
-/// deletes the basket, and the acceptance that turns it into an order recording the contact
-/// rather than a staff member.
+/// deletes the basket, an admin re-pricing a line in a WebAssembly portal against the API, the
+/// claim that makes the quote decidable, and the acceptance that turns it into an order
+/// recording the contact rather than a staff member. Two browsers, two hosts and two databases.
+///
+/// The re-price is not decoration. It is what proves the price the customer accepts is the one
+/// the admin set rather than the one the storefront resolved at submit — and the quantity
+/// asserted on the order at the end is the number typed into the portal, so the whole chain has
+/// to hold for that assertion to pass.
 ///
 /// The sign-in step is the point. Anonymous submits are refused because <c>Quote.AccountId</c>
 /// is NOT NULL, so the endpoint sends the customer to sign in — and their basket has to be
@@ -28,6 +32,12 @@ namespace StockManager.E2ETests.Journeys;
 [Collection(E2ECollection.Name)]
 public sealed class QuoteRequestJourneyTests
 {
+    /// <summary>
+    /// What the admin re-quantifies the first line to. Deliberately not 1 or 2, so it cannot
+    /// coincide with what the basket put there.
+    /// </summary>
+    private const int RepricedQuantity = 4;
+
     private readonly AspireAppFixture _fixture;
 
     public QuoteRequestJourneyTests(AspireAppFixture fixture) => _fixture = fixture;
@@ -112,11 +122,46 @@ public sealed class QuoteRequestJourneyTests
         await Expect(page.Locator("form.document__accept")).ToHaveCountAsync(0);
         await Expect(page.Locator(".document__summary")).ToContainTextAsync("pricing this now");
 
-        // Priced in SQL rather than through /admin/quotes, because pricing is what item 7
-        // builds: the portal's Send to customer button is still a toast over no write. What
-        // this journey is about is the customer's half, and it needs a priced quote to have a
-        // decision to make.
-        await PriceAsync(reference.Trim());
+        // --- An admin prices it -------------------------------------------------------
+        await using var adminContext = await _fixture.NewContextAsync();
+        var adminPage = await adminContext.NewPageAsync();
+
+        await AdminPortal.SignInAsync(
+            adminPage, _fixture.SmPortalBaseUrl, _fixture.Admin.Email, _fixture.Admin.Password);
+
+        await AdminPortal.EnsureActingForSiteAsync(adminPage, site.SiteKey);
+
+        var adminQuote = new Uri(
+            _fixture.SmPortalBaseUrl, $"/admin/quotes/{reference.Trim()}").ToString();
+
+        await adminPage.GotoAsync(adminQuote);
+
+        // Re-quantify the first line. Save draft wrote nothing at all before T5 item 7, so
+        // this is the write as well as the setup for what the customer accepts.
+        var quantity = adminPage.Locator("input.line-edit").First;
+
+        await quantity.FillAsync(RepricedQuantity.ToString());
+
+        // Tab rather than trusting fill() alone: Blazor binds @onchange to the DOM change
+        // event, and the blur is what a person typing into the box actually produces.
+        await quantity.PressAsync("Tab");
+
+        await Expect(adminPage.Locator("button.quote-save")).ToBeEnabledAsync();
+        await adminPage.Locator("button.quote-save").ClickAsync();
+        await Expect(adminPage.Locator(".toast")).ToContainTextAsync("re-priced");
+
+        // Reloaded rather than trusting the toast: the assertion is that the edit survived the
+        // round trip, and it also clears the toast so the next one cannot match the last.
+        await adminPage.GotoAsync(adminQuote);
+
+        // 20 seconds, like the portal sign-in, and for the same reason: a reload is a cold
+        // WebAssembly boot plus AdminLayout awaiting its snapshot, which is comfortably inside
+        // five seconds on its own and is not when the whole suite is running.
+        await Expect(adminPage.Locator("input.line-edit").First)
+            .ToHaveValueAsync(RepricedQuantity.ToString(), new() { Timeout = 20_000 });
+
+        await adminPage.Locator("button.quote-send").ClickAsync();
+        await Expect(adminPage.Locator(".toast")).ToContainTextAsync("they can accept it now");
 
         await page.GotoAsync(quotePage);
         await page.Locator("form.document__accept input[name=poNumber]").FillAsync("PO-E2E-1");
@@ -133,6 +178,10 @@ public sealed class QuoteRequestJourneyTests
 
         order.Lines.Should().Be(2);
         order.PoNumber.Should().Be("PO-E2E-1");
+        // The quantity the admin typed, on the order the customer accepted. Both basket lines
+        // were added once, so anything other than this number means the re-price did not
+        // reach the document — the one assertion that spans every hop in this journey.
+        order.TopQuantity.Should().Be(RepricedQuantity);
         // The placer is the contact, and StaffId is NULL. dbo.[User] holds staff, so a
         // customer acceptance has nothing to put there — and CK_Purchase_Placer refuses a row
         // with both or neither, which is what makes this assertion meaningful rather than
@@ -141,22 +190,8 @@ public sealed class QuoteRequestJourneyTests
         order.StaffId.Should().BeNull();
     }
 
-    /// <summary>Puts a quote into Priced, which is item 7's job in the portal.</summary>
-    private async Task PriceAsync(string reference)
-    {
-        await using var connection = new SqlConnection(_fixture.SmDatabaseConnectionString);
-        await connection.OpenAsync();
-
-        await using var command = new SqlCommand(
-            "UPDATE dbo.Quote SET [Status] = N'Priced' WHERE [Reference] = @Reference;",
-            connection);
-
-        command.Parameters.AddWithValue("@Reference", reference);
-
-        (await command.ExecuteNonQueryAsync()).Should().Be(1);
-    }
-
-    private sealed record OrderRow(int Lines, string? PoNumber, int? PlacedByContactId, string? StaffId);
+    private sealed record OrderRow(
+        int Lines, int TopQuantity, string? PoNumber, int? PlacedByContactId, string? StaffId);
 
     private async Task<OrderRow> ReadOrderAsync(string quoteReference)
     {
@@ -165,7 +200,8 @@ public sealed class QuoteRequestJourneyTests
 
         await using var command = new SqlCommand(
             """
-            SELECT p.[PoNumber], p.[PlacedByContactId], p.[StaffId], COUNT(d.[Id]) AS [Lines]
+            SELECT p.[PoNumber], p.[PlacedByContactId], p.[StaffId],
+                   COUNT(d.[Id]) AS [Lines], MAX(d.[Quantity]) AS [TopQuantity]
             FROM dbo.Purchase p
             INNER JOIN dbo.Quote q ON q.[Id] = p.[QuoteId]
             LEFT JOIN dbo.PurchaseDetail d ON d.[PurchaseId] = p.[Id]
@@ -181,6 +217,7 @@ public sealed class QuoteRequestJourneyTests
 
         return new OrderRow(
             reader.GetInt32(3),
+            reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
             reader.IsDBNull(0) ? null : reader.GetString(0),
             reader.IsDBNull(1) ? null : reader.GetInt32(1),
             reader.IsDBNull(2) ? null : reader.GetString(2));
