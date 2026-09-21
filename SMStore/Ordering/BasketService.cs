@@ -201,7 +201,7 @@ public sealed class BasketService
     /// </remarks>
     public void Forget() => _http.HttpContext?.Response.Cookies.Delete(BasketToken.CookieName);
 
-    /// <summary>This request\x27s basket, without a round trip when there cannot be one.</summary>
+    /// <summary>This request's basket, without a round trip when there cannot be one.</summary>
     /// <remarks>
     /// The header counts the basket on every page, so the common case - a first-time visitor
     /// with no cookie and no session - must not cost a query. Neither lookup could match.

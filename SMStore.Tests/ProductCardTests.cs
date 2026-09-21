@@ -75,11 +75,11 @@ public class ProductCardTests : Bunit.TestContext
         // circuit for a handler to run on, so that button could never have fired.
         form.GetAttribute("method").Should().Be("post");
         form.GetAttribute("action").Should().Be(BasketEndpoints.AddPath);
-        form.QuerySelector("input[type=hidden][name=\x27__RequestVerificationToken\x27]")
+        form.QuerySelector("input[type=hidden][name='__RequestVerificationToken']")
             .Should().NotBeNull();
 
         // The SKU, never a product id: no database id belongs in storefront markup.
-        form.QuerySelector("input[type=hidden][name=\x27sku\x27]")!
+        form.QuerySelector("input[type=hidden][name='sku']")!
             .GetAttribute("value").Should().Be("SKU1");
     }
 
@@ -90,10 +90,10 @@ public class ProductCardTests : Bunit.TestContext
             .Add(x => x.Product, Card())
             .Add(x => x.ReturnTo, "/catalog?cat=servers&page=3"));
 
-        // Otherwise adding from page 3 of a filtered listing loses the customer\x27s place in
+        // Otherwise adding from page 3 of a filtered listing loses the customer's place in
         // it, which turns browsing into a sequence of back buttons.
         cut.Find("form.product-card__add-form")
-            .QuerySelector("input[type=hidden][name=\x27returnUrl\x27]")!
+            .QuerySelector("input[type=hidden][name='returnUrl']")!
             .GetAttribute("value").Should().Be("/catalog?cat=servers&page=3");
     }
 

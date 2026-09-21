@@ -18,7 +18,7 @@ namespace SMDataManager.Library.DataAccess
         OrderModel GetOrderByReference(string reference, int siteId);
         List<OrderLineModel> GetOrderLines(int purchaseId, int siteId);
 
-        /// <summary>One account\x27s orders, for the customer\x27s own list.</summary>
+        /// <summary>One account's orders, for the customer's own list.</summary>
         /// <remarks>See <see cref="IQuoteData.GetQuotesForAccount"/>.</remarks>
         List<OrderModel> GetOrdersForAccount(int accountId, int siteId);
 

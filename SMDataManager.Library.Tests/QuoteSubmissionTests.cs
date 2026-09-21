@@ -171,7 +171,7 @@ public class QuoteSubmissionTests
             var strangersBasket = theirs.BasketWith((theirs.ProductId, 1));
             var basket = mine.BasketWith((mine.ProductId, 1));
 
-            // A valid request of this store\x27s own product, but naming a basket id that
+            // A valid request of this store's own product, but naming a basket id that
             // belongs to somebody else. @BasketId arrives from the caller, so the DELETE is
             // scoped to the site and the contact as well: a guessed id deletes nothing, and
             // the quote is still written because the lines were fine.
