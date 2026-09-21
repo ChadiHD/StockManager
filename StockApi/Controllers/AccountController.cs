@@ -223,6 +223,18 @@ namespace StockApi.Controllers
         [HttpPut("{id:int}/Terms")]
         public IActionResult UpdateTerms(int id, TermsChangeModel change)
         {
+            // Refused here because the terms label and PaymentTermsDays have to agree, and
+            // CK_Account_Terms enforcing that from inside a procedure would reach the caller
+            // as a 500. Same boundary check, same reason, as QuoteController's status guard.
+            if (!PaymentTerms.IsKnown(change.PaymentTerms))
+            {
+                return BadRequest(new
+                {
+                    change.PaymentTerms,
+                    Message = $"Payment terms are one of: {string.Join(", ", PaymentTerms.All)}."
+                });
+            }
+
             if (_accountData.GetAccountById(id, _site.SiteId) is null)
             {
                 return NotFound();

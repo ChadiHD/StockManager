@@ -38,7 +38,8 @@ namespace SMDataManager.Library.DataAccess
                 Currency = string.IsNullOrWhiteSpace(account.Currency) ? "EUR" : account.Currency,
                 account.CustomerGroupId,
                 PaymentMethod = string.IsNullOrWhiteSpace(account.PaymentMethod) ? "Card" : account.PaymentMethod,
-                PaymentTerms = string.IsNullOrWhiteSpace(account.PaymentTerms) ? "Prepaid" : account.PaymentTerms,
+                PaymentTerms = Terms(account.PaymentTerms),
+                PaymentTermsDays = PaymentTerms.DaysFor(Terms(account.PaymentTerms)),
                 account.CreditLimit,
                 Status = string.IsNullOrWhiteSpace(account.Status) ? "Pending" : account.Status,
                 SiteId = siteId
@@ -81,15 +82,26 @@ namespace SMDataManager.Library.DataAccess
 
         public void UpdateTerms(int id, int? customerGroupId, string paymentMethod, string paymentTerms, decimal creditLimit, int siteId)
         {
+            // Days are derived here rather than taken as a parameter, so the label and the
+            // number cannot arrive disagreeing. CK_Account_Terms would refuse the pair, and a
+            // constraint violation from inside a procedure reaches the caller as a 500 — which
+            // is why AccountController refuses an unknown label with a 400 first, exactly as
+            // QuoteController refuses an unknown status.
+            string terms = Terms(paymentTerms);
+
             _sqlDataAccess.SaveData("dbo.spAccount_UpdateTerms", new
             {
                 Id = id,
                 CustomerGroupId = customerGroupId,
                 PaymentMethod = paymentMethod,
-                PaymentTerms = paymentTerms,
+                PaymentTerms = terms,
+                PaymentTermsDays = PaymentTerms.DaysFor(terms),
                 CreditLimit = creditLimit,
                 SiteId = siteId
             }, "SMDatabase");
         }
+
+        private static string Terms(string paymentTerms) =>
+            string.IsNullOrWhiteSpace(paymentTerms) ? PaymentTerms.Prepaid : paymentTerms;
     }
 }

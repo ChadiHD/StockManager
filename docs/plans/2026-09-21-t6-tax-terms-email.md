@@ -308,13 +308,15 @@ it, and a link costs nothing to build and nothing to deploy.
 - **Against:** some finance departments file the attachment and will not click through, and a
   link expires with the account rather than with the document.
 
-**Recommendation: link, and revisit when a customer asks for the attachment.** If the answer
-is instead "attach from day one", the choice is QuestPDF's revenue-conditional Community
-licence — the ground FluentAssertions 8 was rejected on, so it needs a deliberate business
-answer rather than a developer's — or headless Chromium via the Playwright already in the
-solution, which is a browser in the deployment.
+**Decided: link, and revisit when a customer asks for the attachment.** The renderer stays
+unchosen for a third phase, and the reason it can is that nothing in T6 needs a file — only a
+document, which exists. If an attachment is ever required the choice is QuestPDF's
+revenue-conditional Community licence, which needs a business answer rather than a
+developer's, or headless Chromium via the Playwright already in the solution, which is a
+browser in the deployment and therefore T7's to weigh.
 
-**This is the one open question in this plan.**
+What T6 must not do is quietly make that decision by reaching for a library because a
+template wanted an attachment.
 
 ---
 

@@ -8,6 +8,9 @@ CREATE PROCEDURE [dbo].[spAccount_Insert]
 	@CustomerGroupId int,
 	@PaymentMethod nvarchar(50),
 	@PaymentTerms nvarchar(50),
+	-- Defaulted so the desktop and any older caller still insert a prepaid account rather
+	-- than failing CK_Account_Terms on a parameter they never knew about.
+	@PaymentTermsDays int = 0,
 	@CreditLimit money,
 	@Status nvarchar(20),
 	@SiteId int = NULL
@@ -28,11 +31,11 @@ BEGIN
 	DECLARE @Reference nvarchar(20) = CONCAT('AC-', FORMAT(NEXT VALUE FOR dbo.AccountReferenceSequence, '0000'));
 
 	INSERT INTO dbo.Account([Reference], [Company], [ContactName], [Email], [Country], [Currency],
-	                        [CustomerGroupId], [PaymentMethod], [PaymentTerms], [CreditLimit], [Status],
-	                        [SiteId])
+	                        [CustomerGroupId], [PaymentMethod], [PaymentTerms], [PaymentTermsDays],
+	                        [CreditLimit], [Status], [SiteId])
 	VALUES (@Reference, @Company, @ContactName, @Email, @Country, @Currency,
-	        @CustomerGroupId, @PaymentMethod, @PaymentTerms, @CreditLimit, @Status,
-	        @SiteId);
+	        @CustomerGroupId, @PaymentMethod, @PaymentTerms, @PaymentTermsDays,
+	        @CreditLimit, @Status, @SiteId);
 
 	SELECT @Id = SCOPE_IDENTITY();
 END

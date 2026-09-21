@@ -93,6 +93,18 @@ namespace StockApi.Controllers
         [HttpPut("{reference}/Status")]
         public IActionResult UpdateStatus(string reference, OrderStatusModel change)
         {
+            // CK_Purchase_Status refuses anything else, and a constraint violation raised
+            // inside a procedure reaches the caller as a 500. Refusing it here makes it an
+            // answer — the same guard QuoteController gained in T5, one table over.
+            if (!OrderStatus.IsKnown(change.Status))
+            {
+                return BadRequest(new
+                {
+                    change.Status,
+                    Message = $"An order status is one of: {string.Join(", ", OrderStatus.All)}."
+                });
+            }
+
             var order = _orderData.GetOrderByReference(reference, _site.SiteId);
             if (order is null)
             {

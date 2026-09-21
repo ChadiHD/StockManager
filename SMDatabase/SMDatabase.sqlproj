@@ -45,11 +45,13 @@
     <Build Remove="bin\**\*.sql" />
     <Build Remove="obj\**\*.sql" />
 
+    <PreDeploy Include="Scripts\PreDeployment\BackfillPaymentTermsDays.sql" />
     <PostDeploy Include="Scripts\PostDeployment\Seed.sql" />
     <RefactorLog Include="SMDatabase.refactorlog" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Scripts\" />
+    <Folder Include="Scripts\PreDeployment\" />
     <Folder Include="Scripts\PostDeployment\" />
   </ItemGroup>
 </Project>

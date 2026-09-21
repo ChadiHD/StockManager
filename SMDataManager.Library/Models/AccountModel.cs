@@ -15,6 +15,7 @@ namespace SMDataManager.Library.Models
         public string GroupName { get; set; }
         public string PaymentMethod { get; set; }
         public string PaymentTerms { get; set; }
+        public int PaymentTermsDays { get; set; }
         public decimal CreditLimit { get; set; }
         public string Status { get; set; }
         public DateTime CreatedDate { get; set; }

@@ -16,7 +16,6 @@ CREATE TABLE [dbo].[Purchase]
     [AccountId] INT NULL,
     [QuoteId] INT NULL,
     [Currency] NVARCHAR(3) NULL,
-    -- Awaiting payment | Processing | Fulfilled | Cancelled
     [Status] NVARCHAR(30) NULL,
     -- Set on portal orders only. Desktop POS sales have no site and keep it NULL — unlike the
     -- other scoped tables, this column is not backfilled, because a POS sale genuinely does not
@@ -54,6 +53,19 @@ CREATE TABLE [dbo].[Purchase]
     -- customer acceptance, and never both — an order attributed to two people answers the
     -- question "who placed this?" with a guess. Making StaffId nullable removed the only thing
     -- that was stopping a row with no placer at all, so this replaces it.
+    /*
+    The four states a portal order moves through, and NULL for a POS sale.
+
+    They had been a comment on the column since it was written, which is exactly where
+    CK_Quote_Status was before T5 — and the same thing followed from it: spOrder_UpdateStatus
+    stored whatever string arrived, so a typo produced an order that matched no filter and no
+    step in the progress bar. NULL is admitted rather than tolerated: spPurchase_Insert sets
+    no status at all, and a desktop sale genuinely has none.
+    */
+    CONSTRAINT [CK_Purchase_Status] CHECK (
+        [Status] IS NULL
+        OR [Status] IN (N'Awaiting payment', N'Processing', N'Fulfilled', N'Cancelled')),
+
     CONSTRAINT [CK_Purchase_Placer] CHECK (
         CASE WHEN [StaffId] IS NULL THEN 0 ELSE 1 END
       + CASE WHEN [PlacedByContactId] IS NULL THEN 0 ELSE 1 END = 1)
