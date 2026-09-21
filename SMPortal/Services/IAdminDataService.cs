@@ -95,6 +95,12 @@ public interface IAdminDataService
     /// <summary>Removes one line from a quote. Returns false when nothing was removed.</summary>
     Task<bool> DeleteQuoteLine(string quoteId, int lineId);
 
+    /// <summary>Re-prices one line. False when nothing was written — including an accepted quote.</summary>
+    Task<bool> UpdateQuoteLine(string quoteId, int lineId, int quantity, decimal discountPct);
+
+    /// <summary>Sends a priced quote to the customer, making it decidable.</summary>
+    Task<QuotePricing> SendQuoteToCustomer(string quoteId);
+
     Task<Account?> AddAccount(Account draft);
     Task<Product?> AddProduct(Product draft);
     Task UpdateProduct(Product edited);

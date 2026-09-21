@@ -98,8 +98,8 @@ namespace SMDataManager.Library.DataAccess
 
             // The reference comes back through a SELECT rather than the output parameter,
             // because SaveData passes an anonymous object and Dapper cannot write back
-            // through one. Re-querying for the store\x27s newest quote would hand this caller
-            // another customer\x27s under two concurrent submits.
+            // through one. Re-querying for the store's newest quote would hand this caller
+            // another customer's under two concurrent submits.
             var reference = _sqlDataAccess.LoadData<string, dynamic>(
                 "dbo.spQuote_SubmitRequest",
                 new
@@ -163,6 +163,34 @@ namespace SMDataManager.Library.DataAccess
                 SiteId = siteId,
                 NetPrice = netPrice
             }, "SMDatabase");
+        }
+
+        public bool UpdateQuoteLine(int quoteId, int lineId, int quantity, decimal discountPct,
+            int siteId, decimal? netPrice = null)
+        {
+            // Row count again, and for one more reason than the delete has: the procedure also
+            // refuses a line on an accepted quote, so "nothing changed" is an answer the portal
+            // has to be able to give rather than a silent no-op.
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spQuoteLine_Update", new
+            {
+                Id = lineId,
+                QuoteId = quoteId,
+                SiteId = siteId,
+                Quantity = quantity,
+                DiscountPct = discountPct,
+                NetPrice = netPrice
+            }, "SMDatabase").FirstOrDefault() > 0;
+        }
+
+        public bool Price(int quoteId, int siteId)
+        {
+            // A refused claim means the customer decided the quote first. Distinguished from a
+            // failure the whole way out, exactly as a refused conversion is.
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spQuote_Price", new
+            {
+                QuoteId = quoteId,
+                SiteId = siteId
+            }, "SMDatabase").FirstOrDefault() > 0;
         }
 
         public bool DeleteQuoteLine(int quoteId, int lineId, int siteId)

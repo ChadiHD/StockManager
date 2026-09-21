@@ -22,8 +22,10 @@ else
             <p class="detail-sub">Created @_q.Created · Valid until @_q.Expires · Priced in @_q.Currency</p>
         </div>
         <div class="head-actions">
-            <button class="btn btn-secondary" @onclick='() => Toast.Show("Draft saved")'>Save draft</button>
-            <button class="btn btn-secondary" @onclick="SendQuote">Send to customer</button>
+            <button class="btn btn-secondary quote-save" disabled="@(!HasEdits || _saving)" @onclick="SaveDraft">
+                @(HasEdits ? $"Save draft ({_edits.Count})" : "Save draft")
+            </button>
+            <button class="btn btn-secondary quote-send" disabled="@_saving" @onclick="SendQuote">Send to customer</button>
             <button class="btn btn-primary" @onclick="ConvertToOrder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>Convert to order
             </button>
@@ -38,7 +40,7 @@ else
                     <h2>@_q.LineItems.Count products</h2>
                     @if (!CanEditLines)
                     {
-                        <p class="lines-locked">Accepted and converted to an order — existing lines can no longer be removed.</p>
+                        <p class="lines-locked">Accepted and converted to an order — its lines can no longer be re-priced or removed.</p>
                     }
                 </div>
                 <div class="tbl-wrap">
@@ -47,11 +49,46 @@ else
                         <tbody>
                             @foreach (var l in _q.LineItems)
                             {
-                                <tr>
+                                <tr class="@(IsEdited(l) ? "row-edited" : null)">
                                     <td class="lead"><span class="cell-strong">@l.Name</span><span class="cell-sub mono">@l.Sku</span></td>
-                                    <td class="ctr">@l.Qty</td>
+                                    <td class="ctr">
+                                        @if (CanEditLines)
+                                        {
+                                            @* Keyed on the save stamp: once a user types into an input, Blazor
+                                               writing the value attribute no longer updates the DOM property, so
+                                               a saved row would keep showing the typed text even after the
+                                               snapshot moved. A new key forces a new element. *@
+                                            <input class="input line-edit" type="number" min="1" step="1"
+                                                   @key="@($"q{l.LineId}-{_editStamp}")"
+                                                   disabled="@_saving" value="@QtyOf(l)"
+                                                   aria-label="@($"Quantity for {l.Sku}")"
+                                                   @onchange="args => SetQty(l, args)" />
+                                        }
+                                        else
+                                        {
+                                            @l.Qty
+                                        }
+                                    </td>
                                     <td class="num strike">@AdminUi.Money(l.List, _q.Currency, 2)</td>
-                                    <td class="ctr"><span class="disc-chip">-@(l.Disc.ToString("0.##"))%</span></td>
+                                    <td class="ctr">
+                                        @if (CanEditLines)
+                                        {
+                                            <input class="input line-edit" type="number" min="0" max="100" step="0.01"
+                                                   @key="@($"d{l.LineId}-{_editStamp}")"
+                                                   disabled="@_saving" value="@DiscOf(l)"
+                                                   aria-label="@($"Discount for {l.Sku}")"
+                                                   @onchange="args => SetDisc(l, args)" />
+                                        }
+                                        else
+                                        {
+                                            <span class="disc-chip">-@(l.Disc.ToString("0.##"))%</span>
+                                        }
+                                    </td>
+                                    @* Net and the line total show what is stored, not a preview of the pending
+                                       edit. Previewing would mean a third copy of the net-price expression --
+                                       after fnCatalog_VisibleProducts and PriceResolver, which a parity test
+                                       exists to keep in step -- living in a page nothing tests against the
+                                       other two. The row is marked as edited instead. *@
                                     <td class="num">@AdminUi.Money(l.Net, _q.Currency, 2)</td>
                                     <td class="num"><strong>@AdminUi.Money(l.LineTotal, _q.Currency, 2)</strong></td>
                                     <td class="trail">
@@ -210,10 +247,6 @@ else
         _terms = acc?.Terms ?? "Prepaid";
         _disc = Data.DiscountFor(_group);
         Recalc();
-
-        var cur = _q.Status switch { "Requested" => 0, "Priced" => 1, "Accepted" => 2, "Rejected" => 1, _ => 0 };
-        var labels = new[] { "Requested", "Priced", "Accepted" };
-        _steps = labels.Select((l, i) => new Step(l, i <= cur, i == cur, i < cur ? "\u2713" : (i + 1).ToString())).ToList();
     }
 
     private void Recalc()
@@ -229,6 +262,13 @@ else
         var cost = _q.LineItems.Sum(l => (Data.GetProduct(l.Sku)?.Cost ?? 0) * l.Qty);
         var margin = _sub > 0 ? (1 - cost / _sub) * 100 : 0;
         _marginStr = margin.ToString("0.0") + "%";
+
+        // Recomputed here rather than in OnParametersSet, because "Send to customer" moves the
+        // status from this page: left where it was, the stepper would still read Requested
+        // beside a badge reading Priced.
+        var cur = _q.Status switch { "Requested" => 0, "Priced" => 1, "Accepted" => 2, "Rejected" => 1, _ => 0 };
+        var labels = new[] { "Requested", "Priced", "Accepted" };
+        _steps = labels.Select((l, i) => new Step(l, i <= cur, i == cur, i < cur ? "\u2713" : (i + 1).ToString())).ToList();
     }
 
     private bool _showAddLine;
@@ -362,7 +402,127 @@ else
         // Report what actually happened rather than assuming success.
         Toast.Show(added ? "Line item added" : "Could not add the line — pick a product that is in the catalogue.");
     }
-    private void SendQuote() => Toast.Show($"Quote sent to {_q?.Account}");
+    // ---- Re-pricing -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Edits waiting to be written, keyed by line id. Held here rather than on the line so a
+    /// refreshed snapshot — every mutation replaces it — cannot carry a half-typed number.
+    /// </summary>
+    private readonly Dictionary<int, LineEdit> _edits = new();
+
+    private sealed record LineEdit(int Qty, decimal Disc);
+
+    private int _editStamp;
+    private bool _saving;
+
+    private bool HasEdits => _edits.Count > 0;
+
+    private bool IsEdited(QuoteLine line) => _edits.ContainsKey(line.LineId);
+
+    private int QtyOf(QuoteLine line) =>
+        _edits.TryGetValue(line.LineId, out var edit) ? edit.Qty : line.Qty;
+
+    private decimal DiscOf(QuoteLine line) =>
+        _edits.TryGetValue(line.LineId, out var edit) ? edit.Disc : line.Disc;
+
+    /// <summary>
+    /// Records a pending edit, and drops it again when the value is back to what is stored —
+    /// so typing a number and undoing it does not leave a write queued that changes nothing.
+    /// </summary>
+    private void Stage(QuoteLine line, int qty, decimal disc)
+    {
+        if (qty == line.Qty && disc == line.Disc)
+        {
+            _edits.Remove(line.LineId);
+            return;
+        }
+
+        _edits[line.LineId] = new LineEdit(qty, disc);
+    }
+
+    private void SetQty(QuoteLine line, ChangeEventArgs args)
+    {
+        int parsed = int.TryParse(args.Value?.ToString(), out var value) ? value : line.Qty;
+
+        // Floored at one here and refused below one by the procedure. Not ceilinged: an admin
+        // quoting more than a distributor currently reports is a judgement the add-line dialog
+        // already lets them make against their own warehouse.
+        Stage(line, Math.Max(1, parsed), DiscOf(line));
+    }
+
+    private void SetDisc(QuoteLine line, ChangeEventArgs args)
+    {
+        decimal parsed = decimal.TryParse(args.Value?.ToString(), out var value) ? value : line.Disc;
+
+        // Two places, because QuoteLine.DiscountPct is DECIMAL(5, 2): a floored price's
+        // effective discount is not a whole number, and rounding it here would quietly
+        // re-price the line the operator was only looking at.
+        Stage(line, QtyOf(line), Math.Round(Math.Clamp(parsed, 0m, 100m), 2));
+    }
+
+    private async Task SaveDraft()
+    {
+        if (_q is null || !HasEdits) return;
+
+        _saving = true;
+        try
+        {
+            int written = 0, refused = 0;
+
+            foreach (var (lineId, edit) in _edits.ToList())
+            {
+                if (await Data.UpdateQuoteLine(Id, lineId, edit.Qty, edit.Disc))
+                {
+                    written++;
+                }
+                else
+                {
+                    refused++;
+                }
+            }
+
+            _edits.Clear();
+
+            // A new stamp re-keys the inputs, so they pick up the saved values rather than
+            // keeping what was typed.
+            _editStamp++;
+            Recalc();
+
+            Toast.Show(refused == 0
+                ? $"{written} line{(written == 1 ? "" : "s")} re-priced on {Id}"
+                : $"{written} saved, {refused} could not be — reload {Id} and try again.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task SendQuote()
+    {
+        if (_q is null) return;
+
+        // Unsaved edits would go out as a price the customer can accept while the operator
+        // still has different numbers on screen.
+        if (HasEdits)
+        {
+            Toast.Show("Save the draft first — there are line changes that have not been written.");
+            return;
+        }
+
+        string account = _q.Account;
+        var outcome = await Data.SendQuoteToCustomer(Id);
+        Recalc();
+
+        // Three outcomes, like the conversion. "Already decided" is the customer having
+        // accepted or rejected it while this screen was open, which is not a failure.
+        Toast.Show(outcome switch
+        {
+            QuotePricing.Sent => $"{Id} sent to {account} — they can accept it now.",
+            QuotePricing.AlreadyDecided => $"{Id} has already been decided — nothing was sent.",
+            _ => $"Could not send {Id} to the customer."
+        });
+    }
 
     private async Task ConvertToOrder()
     {

@@ -606,6 +606,55 @@ public class AdminDataService : IAdminDataService
         return true;
     }
 
+    public async Task<bool> UpdateQuoteLine(string quoteId, int lineId, int quantity, decimal discountPct)
+    {
+        if (string.IsNullOrWhiteSpace(quoteId) || lineId <= 0) return false;
+
+        await EnsureAuthHeaderAsync();
+
+        // No NetPrice: an admin edits a discount, and the procedure derives the price from the
+        // line's own list price. The storefront is the caller that states a net price, because
+        // it has one PriceResolver already produced.
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/Quote/{Uri.EscapeDataString(quoteId)}/Lines/{lineId}", new
+            {
+                Quantity = quantity < 1 ? 1 : quantity,
+                DiscountPct = discountPct
+            });
+
+        if (!response.IsSuccessStatusCode) return false;
+
+        await RefreshAsync();
+
+        return true;
+    }
+
+    public async Task<QuotePricing> SendQuoteToCustomer(string quoteId)
+    {
+        if (string.IsNullOrWhiteSpace(quoteId)) return QuotePricing.Failed;
+
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsync(
+            $"{_api}/api/Quote/{Uri.EscapeDataString(quoteId)}/Price", content: null);
+
+        // Not EnsureSuccessStatusCode, for the reason ConvertQuoteToOrder does not use it: a
+        // 409 is the customer having decided first, and a thrown exception cannot carry that
+        // apart from a real failure.
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            await RefreshAsync();
+
+            return QuotePricing.AlreadyDecided;
+        }
+
+        if (!response.IsSuccessStatusCode) return QuotePricing.Failed;
+
+        await RefreshAsync();
+
+        return QuotePricing.Sent;
+    }
+
     public async Task<bool> DeleteQuoteLine(string quoteId, int lineId)
     {
         if (string.IsNullOrWhiteSpace(quoteId) || lineId <= 0) return false;

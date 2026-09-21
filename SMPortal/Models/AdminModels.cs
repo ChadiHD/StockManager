@@ -239,6 +239,22 @@ public class HistoryItem
 /// claim means a customer accepted it — or another admin converted it — while this screen was
 /// open.
 /// </remarks>
+/// <summary>
+/// What "Send to customer" did.
+/// </summary>
+/// <remarks>
+/// Three outcomes for the reason <see cref="QuoteConversion"/> has three. Pricing claims the
+/// quote's status, so a refused claim means the customer accepted or rejected it while this
+/// screen was open — ordinary, not a fault. An operator told "that failed" about it learns to
+/// discount the message that matters.
+/// </remarks>
+public enum QuotePricing
+{
+    Sent,
+    AlreadyDecided,
+    Failed
+}
+
 public sealed class QuoteConversion
 {
     private QuoteConversion(Order? order, bool alreadyDecided)

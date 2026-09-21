@@ -68,6 +68,29 @@ namespace StockApi.Controllers
             return NoContent();
         }
 
+        public record EditQuoteLineModel(int Quantity, decimal DiscountPct, decimal? NetPrice = null);
+
+        // Re-pricing, which is what an admin does between a request arriving and going back out
+        // priced. The quote is resolved from its reference and passed down for the same reason
+        // the delete does it: a line id alone is not enough to address a line.
+        [HttpPut("{reference}/Lines/{lineId:int}")]
+        public IActionResult UpdateLine(string reference, int lineId, EditQuoteLineModel line)
+        {
+            var quote = _quoteData.GetQuoteByReference(reference, _site.SiteId);
+            if (quote is null)
+            {
+                return NotFound();
+            }
+
+            // NotFound covers two cases the caller cannot tell apart and does not need to: the
+            // line is not on this quote, or the quote is accepted and its lines are now an
+            // order's record. Either way nothing was written.
+            return _quoteData.UpdateQuoteLine(quote.Id, lineId, line.Quantity, line.DiscountPct,
+                _site.SiteId, line.NetPrice)
+                ? NoContent()
+                : NotFound();
+        }
+
         // The quote is resolved from its reference and passed down, so the line id alone is not
         // enough to remove a line: a guessed id that belongs to another quote deletes nothing.
         [HttpDelete("{reference}/Lines/{lineId:int}")]
@@ -80,6 +103,31 @@ namespace StockApi.Controllers
             }
 
             return _quoteData.DeleteQuoteLine(quote.Id, lineId, _site.SiteId) ? NoContent() : NotFound();
+        }
+
+        /// <summary>
+        /// "Send to customer" — the transition the customer's Accept button depends on.
+        /// </summary>
+        /// <remarks>
+        /// Its own action rather than a <c>Status</c> write, because the transition is a claim:
+        /// see spQuote_Price. A refused claim is a 409 and not a failure, exactly as a refused
+        /// conversion is — the customer deciding their own quote first is ordinary.
+        /// </remarks>
+        [HttpPost("{reference}/Price")]
+        public IActionResult Price(string reference)
+        {
+            var quote = _quoteData.GetQuoteByReference(reference, _site.SiteId);
+            if (quote is null)
+            {
+                return NotFound();
+            }
+
+            if (!_quoteData.Price(quote.Id, _site.SiteId))
+            {
+                return Conflict(new { Reference = reference, Message = "That quote has already been decided." });
+            }
+
+            return NoContent();
         }
 
         public record QuoteStatusModel(string Status);
