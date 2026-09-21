@@ -46,6 +46,14 @@ public class OrderConversionTests
     {
         _site.SiteId.Returns(42);
 
+        // The real context throws rather than returning null, so a substitute that hands back
+        // null is a fixture gap and not a case the controller has to survive.
+        _site.Site.Returns(new SiteModel
+        {
+            Id = 42, SiteKey = "test", Name = "Test store", Country = "IE",
+            TaxRuleSet = "eu-b2b", StandardTaxRatePct = 23m
+        });
+
         _quotes.GetQuoteByReference("QT-0041", 42).Returns(new QuoteModel
         {
             Id = 7,
@@ -85,7 +93,7 @@ public class OrderConversionTests
     [Fact]
     public void ConversionCreditsTheStaffMemberFromTheTokenAndNobodyElse()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>())
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.Converted(Order()));
 
         _controller.CreateFromQuote(new OrderController.ConvertQuoteModel("QT-0041"), _quotes, _accounts, Assessor);
@@ -102,7 +110,7 @@ public class OrderConversionTests
     [Fact]
     public void ThePurchaseOrderNumberReachesTheConversion()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>())
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.Converted(Order()));
 
         _controller.CreateFromQuote(
@@ -120,7 +128,7 @@ public class OrderConversionTests
     [Fact]
     public void AQuoteSomebodyElseDecidedAnswersConflictRatherThanSuccess()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>())
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.AlreadyDecided());
 
         var result = _controller.CreateFromQuote(
@@ -148,7 +156,7 @@ public class OrderConversionTests
     [Fact]
     public void ASuccessfulConversionReturnsTheOrder()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>())
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.Converted(Order()));
 
         var result = _controller.CreateFromQuote(
@@ -176,6 +184,14 @@ public class QuoteStatusTests
     public QuoteStatusTests()
     {
         _site.SiteId.Returns(42);
+
+        // The real context throws rather than returning null, so a substitute that hands back
+        // null is a fixture gap and not a case the controller has to survive.
+        _site.Site.Returns(new SiteModel
+        {
+            Id = 42, SiteKey = "test", Name = "Test store", Country = "IE",
+            TaxRuleSet = "eu-b2b", StandardTaxRatePct = 23m
+        });
 
         _quotes.GetQuoteByReference("QT-0041", 42).Returns(new QuoteModel
         {

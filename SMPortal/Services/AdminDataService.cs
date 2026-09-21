@@ -1066,6 +1066,10 @@ public class AdminDataService : IAdminDataService
         Placed = Date(dto.PurchaseDate),
         Items = dto.Items,
         From = dto.FromQuoteReference ?? "—",
+        SubTotal = dto.SubTotal,
+        Vat = dto.VAT,
+        TaxTreatment = dto.TaxTreatment ?? string.Empty,
+        TaxLegend = dto.TaxLegend ?? string.Empty,
         LineItems = lines.Select(line => new OrderLine
         {
             Sku = line.Sku ?? string.Empty,
@@ -1174,7 +1178,8 @@ public class AdminDataService : IAdminDataService
 
     private sealed record OrderDto(int Id, string? Reference, int? AccountId, string? AccountName,
         string? Currency, string? Status, DateTime PurchaseDate, decimal SubTotal, decimal VAT,
-        decimal FinalPrice, string? FromQuoteReference, int Items);
+        decimal FinalPrice, string? FromQuoteReference, int Items,
+        string? TaxTreatment, string? TaxLegend);
 
     private sealed record OrderLineDto(int Id, int PurchaseId, int ProductId, string? Sku, string? Name,
         int Quantity, decimal Price, decimal VAT);

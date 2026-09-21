@@ -24,3 +24,7 @@
 .slip-tbl thead th { background:transparent; padding:8px 0; }
 .slip-tbl tbody td { padding:10px 0; }
 .hint { margin:16px 0 0; color:var(--muted-3); font-size:.8rem; line-height:1.5; }
+
+/* The reverse-charge sentence, or whatever legend the order was raised under. Quiet, because
+   it is the small print an accountant looks for rather than a number the operator reads. */
+.tax-legend { margin:8px 0 0; color:var(--muted); font-size:.76rem; line-height:1.4; }

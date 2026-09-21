@@ -38,7 +38,8 @@ public class QuoteDecisionServiceTests
         var siteContext = Substitute.For<ISiteContext>();
         siteContext.Site.Returns(new SiteModel
         {
-            Id = SiteId, SiteKey = "test", Name = "Test store", OrderMode = "Rfq"
+            Id = SiteId, SiteKey = "test", Name = "Test store", OrderMode = "Rfq",
+            Country = "IE", TaxRuleSet = "eu-b2b", StandardTaxRatePct = 23m
         });
         siteContext.IsResolved.Returns(true);
 
@@ -72,7 +73,7 @@ public class QuoteDecisionServiceTests
         });
 
     private void ConversionProduces(QuoteAcceptanceResult result) =>
-        _orders.ConvertQuoteToOrder(3, Arg.Any<QuoteAcceptance>(), SiteId).Returns(result);
+        _orders.ConvertQuoteToOrder(3, Arg.Any<QuoteAcceptance>(), SiteId, Arg.Any<TaxAssessment>(), Arg.Any<bool>()).Returns(result);
 
     private QuoteAcceptance CapturedAcceptance() =>
         (QuoteAcceptance)_orders.ReceivedCalls()

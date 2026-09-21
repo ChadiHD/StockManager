@@ -107,6 +107,14 @@ public class Order
     public string Placed { get; set; } = "";
     public int Items { get; set; }
     public string From { get; set; } = "\u2014";
+    /// <summary>What the order actually carries, from spOrder_*, not recomputed in a page.</summary>
+    public decimal SubTotal { get; set; }
+    public decimal Vat { get; set; }
+
+    /// <summary>Why it was taxed that way, and the sentence the document prints.</summary>
+    public string TaxTreatment { get; set; } = "";
+    public string TaxLegend { get; set; } = "";
+
     public List<OrderLine> LineItems { get; set; } = new();
 }
 

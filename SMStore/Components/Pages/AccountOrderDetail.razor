@@ -83,13 +83,19 @@ else
                 }
                 <dt>Net</dt>
                 <dd>@_order.SubTotal</dd>
+                @* Labelled by treatment, so a zero on a reverse-charged order reads as a
+                   reason rather than as a number nobody filled in. *@
+                <dt>@(string.IsNullOrWhiteSpace(_order.TaxTreatment) ? "Tax" : _order.TaxTreatment)</dt>
+                <dd>@_order.Tax</dd>
                 <dt>Total</dt>
                 <dd>@_order.Total</dd>
             </dl>
-            @* Tax is zero on every order until T6 builds the rule engine, so the page says
-               what it knows rather than presenting a total as final. *@
             <p class="text-muted basket__note">
-                Tax and freight are confirmed on the invoice.
+                @if (!string.IsNullOrWhiteSpace(_order.TaxLegend))
+                {
+                    @_order.TaxLegend<text> </text>
+                }
+                Freight is confirmed on the invoice.
             </p>
 
             <a href="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}/print")"
