@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Blazored.LocalStorage;
@@ -502,16 +503,30 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
     }
 
-    public async Task<Order?> ConvertQuoteToOrder(string quoteId)
+    public async Task<QuoteConversion> ConvertQuoteToOrder(string quoteId)
     {
         var response = await _client.PostAsJsonAsync($"{_api}/api/Order/FromQuote",
             new { QuoteReference = quoteId });
-        response.EnsureSuccessStatusCode();
+
+        // Not EnsureSuccessStatusCode: a 409 means the quote was decided elsewhere while this
+        // screen was open, and a thrown exception cannot carry that apart from a real failure.
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            await RefreshAsync();
+
+            return QuoteConversion.Conflict();
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return QuoteConversion.Failed();
+        }
 
         var created = await response.Content.ReadFromJsonAsync<OrderDto>();
         await RefreshAsync();
 
-        return created is null ? null : GetOrder(created.Reference ?? string.Empty);
+        return QuoteConversion.Created(
+            created is null ? null : GetOrder(created.Reference ?? string.Empty));
     }
 
     public async Task<Quote?> AddQuote(string accountName, string currency)
@@ -589,6 +604,55 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
 
         return true;
+    }
+
+    public async Task<bool> UpdateQuoteLine(string quoteId, int lineId, int quantity, decimal discountPct)
+    {
+        if (string.IsNullOrWhiteSpace(quoteId) || lineId <= 0) return false;
+
+        await EnsureAuthHeaderAsync();
+
+        // No NetPrice: an admin edits a discount, and the procedure derives the price from the
+        // line's own list price. The storefront is the caller that states a net price, because
+        // it has one PriceResolver already produced.
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/Quote/{Uri.EscapeDataString(quoteId)}/Lines/{lineId}", new
+            {
+                Quantity = quantity < 1 ? 1 : quantity,
+                DiscountPct = discountPct
+            });
+
+        if (!response.IsSuccessStatusCode) return false;
+
+        await RefreshAsync();
+
+        return true;
+    }
+
+    public async Task<QuotePricing> SendQuoteToCustomer(string quoteId)
+    {
+        if (string.IsNullOrWhiteSpace(quoteId)) return QuotePricing.Failed;
+
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsync(
+            $"{_api}/api/Quote/{Uri.EscapeDataString(quoteId)}/Price", content: null);
+
+        // Not EnsureSuccessStatusCode, for the reason ConvertQuoteToOrder does not use it: a
+        // 409 is the customer having decided first, and a thrown exception cannot carry that
+        // apart from a real failure.
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            await RefreshAsync();
+
+            return QuotePricing.AlreadyDecided;
+        }
+
+        if (!response.IsSuccessStatusCode) return QuotePricing.Failed;
+
+        await RefreshAsync();
+
+        return QuotePricing.Sent;
     }
 
     public async Task<bool> DeleteQuoteLine(string quoteId, int lineId)
@@ -1106,7 +1170,7 @@ public class AdminDataService : IAdminDataService
         string? Currency, string? Status, DateTime CreatedDate, DateTime? ExpiresDate, int Lines, decimal Value);
 
     private sealed record QuoteLineDto(int Id, int QuoteId, int ProductId, string? Sku, string? Name,
-        int Quantity, decimal ListPrice, int DiscountPct, decimal NetPrice);
+        int Quantity, decimal ListPrice, decimal DiscountPct, decimal NetPrice);
 
     private sealed record OrderDto(int Id, string? Reference, int? AccountId, string? AccountName,
         string? Currency, string? Status, DateTime PurchaseDate, decimal SubTotal, decimal VAT,

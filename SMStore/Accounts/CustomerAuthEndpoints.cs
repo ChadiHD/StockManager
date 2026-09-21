@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
+using SMStore.Ordering;
 using SMStore.Sites;
 using StockManager.Identity;
 
@@ -44,6 +45,7 @@ public static class CustomerAuthEndpoints
         [FromServices] UserManager<IdentityUser> users,
         [FromServices] IContactData contacts,
         [FromServices] ISiteContext siteContext,
+        [FromServices] BasketService baskets,
         [FromServices] ILoggerFactory loggerFactory)
     {
         var logger = loggerFactory.CreateLogger(typeof(CustomerAuthEndpoints));
@@ -159,14 +161,38 @@ public static class CustomerAuthEndpoints
 
         await http.SignInAsync(CustomerAuthentication.Scheme, principal);
 
+        /*
+        Whatever they put in a basket before signing in comes with them.
+
+        Here rather than in CustomerSessionValidator, which runs on every authenticated
+        request: this has to happen exactly once, and the validator has no way to tell a
+        first request after sign-in from the thousandth. The contact id is passed in because
+        ICustomerContext is still empty on this request — the validator is what fills it, and
+        it does not run until the next one.
+
+        It cannot fail the sign-in. Somebody who has proved who they are gets in whether or
+        not their basket came with them, and a failure here would send them back to the login
+        page with the same message a wrong password produces.
+        */
+        baskets.ClaimFor(contact.Id);
+
         logger.LogInformation("Customer signed in at {SiteKey}.", site.SiteKey);
 
         return Results.Redirect(SafeReturnUrl(returnUrl));
     }
 
-    private static async Task<IResult> SignOutAsync(HttpContext http, [FromForm] string? returnUrl)
+    private static async Task<IResult> SignOutAsync(
+        HttpContext http,
+        [FromForm] string? returnUrl,
+        [FromServices] BasketService baskets)
     {
         await http.SignOutAsync(CustomerAuthentication.Scheme);
+
+        // The basket cookie goes too. A claimed basket keeps its token, so leaving the
+        // cookie behind would hand the next person at a shared machine a credential naming
+        // this customer's list. spBasket_Find refuses to serve a claimed basket to an
+        // anonymous caller as well; neither half is sufficient on its own.
+        baskets.Forget();
 
         return Results.Redirect(SafeReturnUrl(returnUrl));
     }

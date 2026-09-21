@@ -82,3 +82,17 @@
 @media (max-width: 900px) {
     .product { grid-template-columns: 1fr; }
 }
+
+/* The add control is a form under static SSR, so the quantity box and the button share a row
+   and the form itself must not become a flex item of the actions row. */
+.product__add {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.product__add-qty {
+    width: 5.5rem;
+    text-align: right;
+    font-feature-settings: 'tnum' 1;
+}

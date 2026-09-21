@@ -1,0 +1,91 @@
+@page "/account/quotes/{Reference}/print"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject CustomerOrderPresenter Documents
+@inject NavigationManager Navigation
+
+<PageTitle>@Reference · @SiteContext.Site.Name</PageTitle>
+
+@if (_quote is null || _party is null)
+{
+    @* Same answer for "not yours" and "not here" as the detail page gives, and for the same
+       reason: references come from a sequence, so a distinguishable refusal would confirm
+       which ones exist. *@
+    <div class="page-header">
+        <div>
+            <h1>Not found</h1>
+            <p class="page-lede">We have no @Label with that reference on your account.</p>
+        </div>
+    </div>
+
+    <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">Back to your @Label.ToLowerInvariant()s</a>
+}
+else
+{
+    <div class="sheet__actions">
+        <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}")" class="btn btn-secondary">
+            Back to the @Label.ToLowerInvariant()
+        </a>
+        @* The one inline handler in this storefront. It needs no circuit, no bundle and no
+           render round trip, and without JavaScript the browser's own print command still
+           does the same thing — so the page degrades to exactly what it was. *@
+        <button type="button" class="btn btn-primary" onclick="window.print()">Print or save as PDF</button>
+    </div>
+
+    <DocumentSheet Kind="@Label"
+                   Reference="@_quote.Reference"
+                   Party="_party"
+                   Meta="Meta"
+                   Lines="_quote.Lines"
+                   Totals="Totals"
+                   Note="@_quote.CustomerNote"
+                   NoteHeading="What you told us"
+                   FooterNote="@FooterNote" />
+}
+
+@code {
+    [Parameter] public string Reference { get; set; } = string.Empty;
+
+    private QuoteView? _quote;
+    private DocumentParty? _party;
+
+    private IOrderingMode Mode => Documents.Mode;
+
+    private string Label => Mode.BasketLabel;
+
+    private IReadOnlyList<(string, string)> Meta =>
+    [
+        ("Status", _quote!.Status),
+        ("Raised", _quote.Raised.ToString("d MMM yyyy")),
+        ("Valid until", _quote.Expires?.ToString("d MMM yyyy") ?? "No expiry set"),
+    ];
+
+    private IReadOnlyList<(string, string)> Totals =>
+    [
+        ("Lines", _quote!.Lines.Count.ToString()),
+        (Mode.ShowsPayableTotal ? "Total" : "Quoted value", _quote.Value),
+    ];
+
+    private string FooterNote => Mode.ShowsPayableTotal
+        ? "Excluding tax and freight, which are calculated at checkout."
+        : "Excluding tax and freight, which are calculated on the order.";
+
+    protected override void OnParametersSet()
+    {
+        if (!Customer.IsSignedIn)
+        {
+            var target = $"{QuoteDecisionEndpoints.QuotesPath}/{Uri.EscapeDataString(Reference)}/print";
+
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString(target)}");
+
+            return;
+        }
+
+        _quote = Documents.Quote(Reference);
+        _party = Documents.Party();
+    }
+}

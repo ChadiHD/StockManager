@@ -57,7 +57,7 @@ namespace StockApi.Controllers
             return _orderData.CreateOrder(staffId, order.AccountId, order.Currency, _site.SiteId);
         }
 
-        public record ConvertQuoteModel(string QuoteReference);
+        public record ConvertQuoteModel(string QuoteReference, string? PoNumber = null);
 
         [HttpPost("FromQuote")]
         public ActionResult<OrderModel> CreateFromQuote(ConvertQuoteModel conversion, [FromServices] IQuoteData quoteData)
@@ -68,9 +68,24 @@ namespace StockApi.Controllers
                 return NotFound();
             }
 
+            // Taken from the token rather than the request body so a conversion cannot be
+            // attributed to another member of staff. StaffId is a foreign key into dbo.[User],
+            // so a claim naming nobody fails in the database rather than at the boundary --
+            // which is how Account.ApprovedBy shipped broken in T3.
             string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            return _orderData.ConvertQuoteToOrder(quote.Id, staffId, _site.SiteId);
+            var outcome = _orderData.ConvertQuoteToOrder(
+                quote.Id, QuoteAcceptance.ByStaff(staffId, conversion.PoNumber), _site.SiteId);
+
+            // Somebody else accepted or rejected it while this screen was open. Reporting
+            // success would show a conversion this request did not make -- the same reasoning
+            // as spAccount_Approve's no-op answering Conflict.
+            if (outcome.NoLongerAwaitingAcceptance)
+            {
+                return Conflict(new { conversion.QuoteReference, Message = "That quote is no longer awaiting acceptance." });
+            }
+
+            return outcome.Order;
         }
 
         public record OrderStatusModel(string Status);

@@ -6,6 +6,7 @@ BEGIN
 
 	SELECT [q].[Id], [q].[Reference], [q].[AccountId], [a].[Company] AS [AccountName],
 	       [q].[Currency], [q].[Status], [q].[CreatedDate], [q].[ExpiresDate],
+	       [q].[CustomerNote], [q].[RejectedReason],
 	       COUNT([l].[Id]) AS [Lines],
 	       ISNULL(SUM([l].[Quantity] * [l].[NetPrice]), 0) AS [Value]
 	FROM [dbo].[Quote] q
@@ -15,6 +16,7 @@ BEGIN
 	LEFT JOIN [dbo].[QuoteLine] l ON l.[QuoteId] = q.[Id]
 	WHERE [q].[SiteId] = @SiteId
 	GROUP BY [q].[Id], [q].[Reference], [q].[AccountId], [a].[Company],
-	         [q].[Currency], [q].[Status], [q].[CreatedDate], [q].[ExpiresDate]
+	         [q].[Currency], [q].[Status], [q].[CreatedDate], [q].[ExpiresDate],
+	         [q].[CustomerNote], [q].[RejectedReason]
 	ORDER BY [q].[CreatedDate] DESC;
 END

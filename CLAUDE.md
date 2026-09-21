@@ -20,21 +20,27 @@ Two documents drive the work — read both before adding features to the admin p
 quotes, accounts, customer groups or distributor feeds:
 
 - `docs/plans/2026-07-24-aclitrade-b2b-ecommerce-design.md` — the target design
-- `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and current state
+- `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and phase scope
 
 **The template is finished before the first tenant is built.** The plan runs two tracks, T0–T7
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
-months. T0–T3 are merged; T3 — customer identity, per
+months. T0–T4 are merged; T3 — customer identity, per
 `docs/plans/2026-09-14-t3-customer-identity.md` — covered admin site scoping, the pricing
 decision, the schema, registration field sets, `spAccount_Register`, storefront sign-in,
 document upload, the mail seam, the approval flow, the account area, email confirmation and
 password reset.
 
-T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — is built: the sync
+T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — is merged: the sync
 claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
-and the delisted-SKU verification. **T5 is next: ordering.**
+and the delisted-SKU verification.
+
+**T5 — ordering is built**, per `docs/plans/2026-09-17-t5-ordering.md`: the accept claim and
+the placer, quote lines that record the price the customer was shown, the server-side basket,
+the basket pages, submit, the customer's own quote and order screens, admin re-pricing, the
+printable document, and one journey driving the whole round trip. The plan opens with the four
+decisions that had to be settled before any of it could be written.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -368,22 +374,16 @@ It still **refuses to start** if that DACPAC is missing or older than any `.sql`
 `AppendTargetFrameworkToOutputPath` is off in the sqlproj so the output does not nest under a
 target-framework folder.
 
-**The schema is published in process, on the database's `ResourceReadyEvent`.** It used to be
-a `CommunityToolkit` `AddSqlProject` resource that `stock-api` and `sm-store` both
-`WaitForCompletion`'d — and that resource never ran. It reported one `Waiting` snapshot and
-never another, so everything waiting on it waited for ever and **`dotnet run` could not start
-the apps at all**. Five explanations were checked and none held: the `ExplicitStartupAnnotation`
-the toolkit adds (stripping it changes nothing, and so does leaving it in), the resource's own
-`WaitAnnotation`s (removing every one changes nothing), `WithSkipWhenDeployed`, the Azure
-container app environment, and upgrading Aspire and the toolkit together to 13.5. The DACPAC
-was never at fault — `sqlpackage` applies it to the same container in about ten seconds.
+**The schema is published in process, on the database's `ResourceReadyEvent`.** `AppHost.cs`
+calls `DacServices.Deploy` directly. Aspire awaits `ResourceReadyEvent` subscribers before
+dependents that `WaitFor` the resource proceed, so a plain `WaitFor(stockDatabase)` is
+sufficient and neither app needs `WaitForCompletion`. The deploy costs about ten seconds a
+launch, has no dashboard row, and has no skip-when-unchanged fast path — all three are the
+price of an application that starts.
 
-So `AppHost.cs` calls `DacServices.Deploy` directly and the toolkit package is gone. Aspire
-awaits `ResourceReadyEvent` subscribers before dependents that `WaitFor` the resource proceed,
-which is what makes a plain `WaitFor(stockDatabase)` sufficient and is why
-`WaitForCompletion(smSchema)` is no longer on either app. Two things went with it: the
-dashboard row for the deploy, and the skip-when-unchanged fast path. Ten seconds a launch is
-cheaper than an application that will not start.
+**Do not reintroduce `CommunityToolkit`'s `AddSqlProject`.** That resource never ran here: it
+reported one `Waiting` snapshot and never another, so everything waiting on it waited for
+ever and `dotnet run` could not start the apps at all. The package is gone deliberately.
 
 Building `StockManager.AppHost.csproj` **alone** with Visual Studio's MSBuild from a clean `obj`
 fails with `CS0246: The type or namespace name 'Projects' could not be found` — the Aspire SDK
@@ -424,8 +424,8 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 303 tests, plus the 17 that need a
-database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
+**That filter is what a routine run wants**, and it passes green; a further set needs a
+database and skips without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
 have a container runtime it will start SQL Server and run, slowly, rather than skip. It skips
@@ -436,8 +436,8 @@ is missing.
 `JSInterop.SetupVoid("name", ...)` registers a handler and stops the strict-mode throw; the
 task behind the call stays pending until something calls `.SetVoidResult()`. A component that
 awaits that call therefore hangs forever, and a click that awaits the component hangs with it.
-This cost a day: with collections running sequentially, one such hang stalled everything
-scheduled after it, the runner eventually reported a crashed test host, and the run printed
+With collections running sequentially, one such hang stalls everything scheduled after it:
+the runner eventually reports a crashed test host. One run printed
 **31 green with 18 tests never executed**. A partial run that reports success is worse than a
 red one, so treat "declared tests equals executed tests" as something to check rather than
 assume — `--list-tests` gives the first number.
@@ -473,8 +473,27 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All five journeys pass**, in about a minute against a
-warm SQL container.
+`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about 80 seconds against a warm
+SQL container. The last two are the basket and the quote request, and they earn their place the
+way the approval journey did.
+A basket change is a form post plus a redirect, so the antiforgery token, the `Set-Cookie` and
+the next request's lookup all have to hold at once for a single click to work. And the quote
+request drives T5's whole round trip in one pass, across two browsers and both hosts: a basket
+built under a cookie, the merge that hands it to a contact at sign-in, one transaction that
+writes a quote and deletes the basket, an admin re-pricing a line in the WebAssembly portal,
+the claim that makes the quote decidable, and the acceptance that turns it into an order. The
+quantity the admin types is asserted on the order at the end, so every hop has to hold. No
+unit test spans even two of them.
+
+Two things that journey cost, both worth knowing before writing another:
+
+- **Playwright's `fill()` alone does not drive a Blazor `@onchange`.** It sets the value and
+  dispatches the events, and the control stayed disabled anyway; pressing `Tab` after it is
+  what a person typing into the box produces, and is what works.
+- **A reload of `SMPortal` is a cold WebAssembly boot plus `AdminLayout` awaiting its
+  snapshot.** That fits inside Playwright's five-second assertion default on an idle machine
+  and does not when seven journeys share it — a test that passes alone and fails in the suite
+  is this, not flakiness. Twenty seconds, like `AdminPortal.SignInAsync`.
 
 **The end-to-end suite earns its cost, and here is the evidence.** Its first complete run
 found a bug that four unit-test projects could not: `Account.ApprovedBy` is a foreign key into
@@ -520,6 +539,15 @@ SMDATABASE_TEST_CONNECTION="Server=127.0.0.1,<port>;Database=SMDatabase;User Id=
 
 Without that variable the tests skip rather than fail. Everything they write happens inside a
 transaction that is never committed.
+
+**A procedure's `ROLLBACK TRANSACTION` unwinds the test's rollback scope too.** T-SQL has no
+nested transactions: a bare `ROLLBACK` goes back to the outermost `BEGIN`, which in these tests
+is `TestDatabase.OpenRollbackScope`'s. So a test that provokes a transactional procedure's
+`CATCH` — `spOrder_ConvertFromQuote` refusing a claim, for one — must do it **last in its scope**
+and touch the connection no further; anything after it runs with `@@TRANCOUNT` at zero and would
+commit. Validation errors raised before the procedure opens its transaction are safe anywhere,
+and the two kinds are not distinguishable from the call site, so `QuoteAcceptanceTests` says
+which is which.
 
 Everything else in that project is a pure unit test and needs nothing.
 
@@ -603,6 +631,81 @@ writes will reach POS history.
 Portal orders never touch `dbo.Inventory`; only `spInventory_Insert` writes it. Order-level changes
 therefore have no stock side effects, but they do move `spReport_GetSales` and `spActivity_GetRecent`.
 
+**The predicate runs both ways.** `spPurchase_PurchaseReport` — the desktop POS's own report —
+filters `Reference IS NULL`. Without that it returns portal orders too, attributed to
+whichever admin converted them, and it matters more now `StaffId` is nullable: the report
+inner-joins `dbo.[User]`, so a customer-accepted order would drop out of it by accident
+rather than on purpose.
+
+### An order records exactly one placer
+
+`Purchase.StaffId` is nullable from T5 and `Purchase.PlacedByContactId` exists beside it, because
+`dbo.[User]` holds staff and a customer is a `dbo.Contact`. A customer accepting their own quote
+has nothing to put in `StaffId`, and an id-shaped string satisfies the compiler and fails
+`FK_Purchase_ToUser` — after the caller has been told it succeeded. That is the third time this
+shape has come up here, after `Account.ApprovedBy` in T3 and a test fixture in T4.
+
+- `CK_Purchase_Placer` demands exactly one of the two, on every row. A POS sale has `StaffId`;
+  making that column nullable removed the only thing stopping a row with no placer at all.
+- `QuoteAcceptance.ByStaff` / `.ByCustomer` are the only ways to build one in C#, so "both" and
+  "neither" are unreachable rather than merely wrong.
+- `FK_Purchase_ToContact` is composite over `(PlacedByContactId, AccountId)` — which is why
+  `UQ_Contact_IdAccount` exists — so another company's buyer cannot place this account's order.
+  The procedure says so first, because a foreign-key violation raised inside a transaction
+  reaches the API as a 500 rather than as an answer.
+- `Purchase.PoNumber` holds the customer's own purchase-order number, captured at acceptance.
+  On the order and not on the quote: a quote that was never accepted has none, and holding it
+  twice is holding a value that can disagree with itself.
+
+### A quote is claimed before it is converted, and a claim refused is not a failure
+
+`spOrder_ConvertFromQuote` opens its transaction with one atomic `UPDATE` moving the quote to
+`Accepted` only while it still reads `Requested` or `Priced`, and throws 50010 on a rowcount of
+zero. Before T5 that `UPDATE` sat at the end with no predicate on the current status, so two
+callers produced **two orders from one quote** — each with its own `SO-` reference and its own
+copy of every line. Reachable then by double-clicking Convert; ordinary once a customer has an
+Accept button and both paths land in the same procedure.
+
+- `UQ_Purchase_QuoteId` is the backstop, filtered to `WHERE QuoteId IS NOT NULL` because POS rows
+  leave it NULL and SQL Server treats NULL as one distinct value in a unique index.
+- **One procedure, not two.** The claim lives here rather than in a separate customer-facing
+  accept, because two procedures over one invariant are two guards that drift. Both `Requested`
+  and `Priced` pass: the procedure's job is to stop a double conversion, not to decide who may
+  convert when. A customer may only accept a *priced* quote, and that rule belongs on the
+  customer path where it can be answered with a page.
+- A refused claim is a 409 and a third toast, not a failure. `QuoteAcceptanceResult`
+  distinguishes it from `Succeeded == false` the whole way out, exactly as
+  `DistributorFeedResult.AlreadyRunning` does — an operator told "that failed" about a customer
+  accepting their own quote learns to discount the message that matters.
+- `OrderData` reads the new order back with `spOrder_GetByQuote`, not as the store's newest
+  order. Under two conversions at once, "newest" is the other caller's.
+- `CK_Quote_Status` enforces `Requested | Priced | Accepted | Rejected`, which the column had
+  carried in a comment since it was written. `QuoteStatus` names them in the library and
+  `QuoteController` refuses a fifth with a 400, because a constraint violation raised inside a
+  procedure reaches the caller as a 500.
+
+**Pricing is a claim too, and `spQuote_UpdateStatus` is the reason it had to be.** "Send to
+customer" is the `Requested → Priced` transition the customer's Accept button gates on, and
+`spQuote_Price` claims it: one atomic `UPDATE` over `Status IN ('Requested', 'Priced')`,
+reporting its row count.
+
+- `spQuote_UpdateStatus` stores whatever status it is handed with **no predicate on the
+  current one**. Wiring the button to it would mean pricing a quote the customer had just
+  rejected silently un-rejected it, and pricing one they had accepted put an order's own
+  source document back into `Priced`. It has no production caller — only tests — and it
+  should go rather than sit beside the safe procedure it would be mistaken for.
+- Both undecided statuses pass, so re-sending after an edit is ordinary work. A rowcount of
+  zero therefore means exactly one thing: the customer decided first. That is a 409 and a
+  different toast, like a refused conversion.
+- `spQuoteLine_Update` refuses a line on an `Accepted` quote, because
+  `spOrder_ConvertFromQuote` has already copied those lines onto a `Purchase` — a re-price
+  would leave the quote and the order disagreeing about what was sold, in money, with nothing
+  recording which one moved. `spQuoteLine_Delete` does **not** carry that predicate, and
+  should. The portal withdraws both controls, but a page is not a guard.
+- It reads `ListPrice` off the row rather than taking it as a parameter: a caller that could
+  send a list price could quote one the store never set. `@NetPrice` follows
+  `spQuoteLine_Insert`'s rule — stated, it is stored; absent, it is derived.
+
 ## Auth
 
 `StockApi` runs two schemes and picks per request: a bearer token means JWT, no bearer token means the
@@ -645,9 +748,14 @@ something.
 
 Two conventions worth keeping:
 
-- **Unfinished actions disable themselves.** `ProductCard`'s add button binds an
-  `EventCallback` and disables when nothing is wired, so later phases supply a handler rather
-  than replacing markup. Prefer that to a button that silently does nothing.
+- **Unfinished actions disable themselves**, and the control goes in before the behaviour
+  does. `Basket.razor`'s submit button is the current example: disabled with a title saying
+  why, so the control a customer will use is already where they will look for it.
+
+  Disable it with a stated reason rather than wiring an `EventCallback` that cannot fire:
+  static SSR has no circuit, so an `@onclick` never arrives. `ProductCard`'s add button is a
+  form posting to `BasketEndpoints.AddPath` for that reason. Prefer a form over an event
+  callback anywhere a customer is not already on an interactive island.
 - **Nothing store-specific belongs in a component.** Navigation is assembled in
   `StoreNavigation`; editorial copy resolves through `ISiteContentSource` from
   `dbo.SiteContent`, and a store with no row gets an explicit empty state rather than another
@@ -701,11 +809,213 @@ Three rules keep that duplication safe, and none is optional:
 - **`CatalogPriceParityTests` is the tripwire.** It drives a matrix of (list, cost, discount,
   margin) through both implementations and asserts they agree to the cent. It is the reason
   this duplication is allowed to exist; do not let it rot.
+- **And the price a customer was shown is the price that gets stored.** `spQuoteLine_Insert`
+  takes an optional `@NetPrice` and derives one only when it is absent, so the storefront
+  records what `CatalogPresenter` rendered while the admin portal keeps typing a list price
+  and a discount. Deriving it unconditionally was wrong twice over: a price held up by
+  `Site.MinMarginPct` has no integer discount that reproduces it, and the old expression did
+  no rounding at all, so 99.99 at 7% stored 92.9907 — `money` carries four decimal places
+  and that number reached the quote document. `QuoteLine.DiscountPct` is `DECIMAL(5, 2)` for
+  the same reason. `QuoteLinePriceTests` pins the derived path to `PriceResolver` the way
+  `CatalogPriceParityTests` pins the sort key.
 
 `CatalogItemModel.Cost` is a buy price and is currently selected on every catalog row.
 `ProductCardView` excludes it; the detail page binds the raw model, so it is one field
 reference away from publishing margin on a public page. Do not add it to a view record, and
 prefer removing it from the projection over relying on review.
+
+### The basket
+
+**`dbo.Basket` is its own table and not a `Quote` with a draft status.** `Quote.AccountId` is
+NOT NULL with a composite key to `Account`, so an anonymous visitor cannot have one at all;
+`Quote.Reference` comes from a sequence, so every abandoned basket would burn a `QT-` number;
+and `spQuote_GetAll` and `spActivity_GetRecent` would both show a request nobody made, which
+means a `Status <> 'Draft'` predicate in every query over that table for ever. That is
+`dbo.Purchase`'s double duty again.
+
+**A basket is found by its contact when somebody is signed in and by a token in a cookie when
+nobody is.** Not `localStorage`: this storefront is static SSR with no JavaScript of its own,
+so client storage would mean writing some, plus a render round trip, plus a handoff at sign-in
+where the browser posts product ids and prices the server has to distrust anyway. It would also
+put the prices somewhere the customer can edit. `BasketService` holds all of it, so no page or
+endpoint reasons about cookies and contacts together.
+
+- **The token is a bearer credential, so it is 256 bits from a cryptographic RNG.** Whoever
+  holds it holds the basket. `BasketToken.IsWellFormed` rejects anything that is not 43
+  base64url characters before it reaches a query, and the cookie is `HttpOnly`, `Secure`,
+  `SameSite=Lax` and essential. Lax rather than Strict because a customer arriving from an
+  emailed link is on a cross-site navigation, and Strict would hide their basket on exactly
+  the page they land on.
+- **Reading never creates.** A basket row exists once something has been added, so a crawler
+  walking the catalog leaves nothing behind. Only `spBasket_Ensure` creates, and only an add
+  calls it.
+- **`spBasket_Find` refuses to return a claimed basket to an anonymous caller.** A claimed
+  basket keeps its token, so the cookie left after sign-out names a basket that now belongs to
+  a customer, and the next person at a shared machine would be shown that list.
+  `BasketService.Forget` clears the cookie as well; neither half is sufficient alone. For the
+  same reason `spBasket_Ensure` never adopts a token's basket for a signed-in contact —
+  adopting is `spBasket_Claim`'s job, which runs once, at sign-in, and merges.
+- **The merge keeps the contact's basket, not the browser's**, so its id is stable across
+  browsers and a second sign-in is a no-op. Quantities add where both hold the same product,
+  and the source basket is deleted in the same transaction: left behind, it would be merged
+  again on the next sign-in and double what it contributed.
+- **`spBasket_AddLine` checks the product through `dbo.fnCatalog_VisibleProducts`.** A
+  `ProductId` arrives in a form post, so the page it came from is not evidence, and without
+  the check a basket could be filled with another tenant's catalog and then quoted from it.
+  Going through the function means "available" means here what it means on the listing, the
+  facet rail and the detail page.
+- **A line whose product later vanishes comes back with `Available = 0`, never dropped.** A
+  basket that silently loses rows is one the customer cannot reason about, and the submit path
+  has to be able to refuse the line explicitly rather than never learn it existed.
+- **`BasketLine` holds no price.** The price is resolved at submit, through `PriceResolver`
+  like every other. A price stored on a basket line is a price the customer keeps while the
+  catalog moves under it.
+- Quantities are capped at 9999 in the procedures, because `Quantity * NetPrice` is money
+  arithmetic and `int.MaxValue` of anything overflows a line total.
+- **Nothing sweeps abandoned anonymous baskets, and that is deliberate.** A row per visitor
+  who adds something, robots included, is the cost of the cookie. The sweep is **T7's**, with
+  the hosting decision that says where a scheduled job runs: written now it would have been
+  a procedure nothing calls, which is what `spProduct_SyncFeeds` was.
+  `Basket.UpdatedUtc` is maintained by every write so it has something to key off.
+- **Removal is `SetQuantity` with a quantity of zero**, not a procedure of its own — that is
+  what a customer typing 0 into the box means, and a second name over the same `DELETE` is
+  two things to keep in step.
+
+**Every basket change is a form post, because static SSR has no circuit for an event to
+arrive on.** `BasketEndpoints` takes them, validates antiforgery, and redirects to a local
+path only — `returnUrl` arrives in a post, so honouring it as given would make every basket
+button an open redirect. An add returns to the listing it came from rather than to the
+  basket, or browsing becomes a sequence of back buttons.
+
+- **The forms post a SKU, never a product id.** No database id appears in storefront markup,
+  and resolving the SKU through `spCatalog_GetBySku` is the first of two visibility checks:
+  `spBasket_AddLine` asks the same question again through the same function. A form post says
+  nothing about the page it came from, so one check is the minimum and two cost one indexed
+  read on a path nobody clicks in a loop.
+- **A quantity change resolves its SKU against the basket, not the catalog.** A line whose
+  product has since been delisted must still be removable, and `spCatalog_GetBySku` would no
+  longer return it.
+- **`BasketPresenter` is the basket's `CatalogPresenter`**, and prices go through
+  `CatalogPresenter.Resolve` so the basket cannot disagree with the page the customer added
+  from. `BasketLineView` has no `Cost` and no `ProductId`: the first is a buy price and this
+  is the boundary that keeps it off a public page, the second is what lets the forms post a
+  SKU. An unavailable line is rendered and excluded from the value.
+- **`FakeCheckoutMode` is what makes `IOrderingMode` a claim rather than a hope.**
+  `RfqOrderingMode` is the only mode the platform ships, so every other storefront test
+  renders the same words and a page that hard-coded "quote" would pass all of them.
+  `BasketPageTests` renders the basket twice under two modes and asserts the RFQ markup says
+  "quote" and "Indicative value" while the checkout markup says "cart" and "Total". Add to
+  that test when a page gains customer-facing wording.
+
+### Submitting a quote request
+
+**`spQuote_SubmitRequest` writes the quote, its lines and the deletion of the basket in one
+transaction.** The halfway states are all wrong: a quote with no lines is a request sales
+cannot answer, lines with no quote are orphans, and a basket left full after a successful
+submit sits there inviting the customer to send the same request again. The lines arrive as
+`dbo.QuoteRequestLine` — a basket is small, but a per-line round trip inside a transaction
+holds it open across the network for as many turns as the customer has products.
+
+- **The account is derived from the contact and the currency from the account.** Neither is
+  accepted from the caller: a session proves a contact, and everything else follows from it.
+- **Prices are resolved at submit, through `CatalogPresenter`, never posted by the browser.**
+  A price in a form is a client's opinion about what things cost, and the basket page may
+  have been open for hours. The resolved *effective* discount is what gets stored, which is
+  not the group's rate whenever the margin floor bound — see `QuoteLine.DiscountPct`.
+- **An unavailable line is dropped and named, never dropped silently.** The basket page has
+  already warned about it, and a submit that refuses until the customer tidies up puts the
+  store's supply problem in their way at the moment they were ready to buy. A basket where
+  nothing can be supplied produces no quote and says so.
+- **`spQuote_SubmitRequest` re-checks that every product is sold by this store**, through
+  `CategoryMapping`, even though the caller resolved the lines through
+  `fnCatalog_VisibleProducts` and `spBasket_AddLine` refused anything else. One atomic write
+  is checked on its own terms. The basket `DELETE` is scoped to the site *and* the contact
+  for the same reason: `@BasketId` arrives from the caller.
+- **Submitting needs a session, and `IOrderingMode.RequiresApprovedAccount` is currently
+  unreachable.** It reads false for RFQ, meaning a store may take a request from an
+  unapproved account. Nothing can reach an unapproved session: `CustomerAuthEndpoints` and
+  `CustomerSessionValidator` both admit Approved accounts only. The property stays because a
+  store that wants a pending applicant to ask for a price will change the sign-in gate, not
+  the submit. An anonymous submit redirects to sign-in and the basket follows, through
+  `spBasket_Claim`.
+- **The acknowledgement page shows the reference and nothing else.** References come from a
+  sequence and are guessable, so a page that rendered lines or prices from a `?ref=` would be
+  readable by anyone who changed a digit. The account-scoped view is the account area's.
+- **Submitting is rate limited even though it is authenticated** — the only path here that
+  is. One submit writes a quote and a line per product, burns a `QT-` number, and lands in a
+  queue a human works through.
+
+### A reference is not an authorisation
+
+**Every customer-facing read of a quote or an order carries the account in its predicate as
+well as the site.** References come from `dbo.QuoteReferenceSequence` and
+`dbo.OrderReferenceSequence` and read `QT-0041` and `SO-0012`, so scoping by site alone — which
+is right for an admin, who may see every quote in their store, and is what
+`spQuote_GetByReference` does — would let any signed-in customer read any other customer's
+lines and prices by changing a digit. Hence a second set of procedures rather than a parameter
+on the first: one shared procedure means one caller passing NULL for the predicate that protects
+the other.
+
+- `spQuote_GetByAccount`, `spQuote_GetForAccount`, `spQuoteLine_GetForAccount`, and the three
+  `spOrder_*` equivalents. **The line reads repeat the predicate** rather than relying on the
+  caller having resolved the parent first: defence that depends on call order survives until
+  somebody adds a second caller.
+- **"Not yours" and "not here" are one answer.** Empty, and the pages render the same "not
+  found" for both, for the reason `AccountDocumentController` answers 404 rather than 403.
+- The account comes from `ICustomerContext`, never from a route. Same rule as the absent
+  `/account/{id}`, applied to documents that carry prices.
+- `CustomerDocumentScopeTests` is what says the predicates are there. It has no failure mode
+  that looks like an error: leave the account out and every other test still passes, and the
+  only symptom is that the wrong person can read a price.
+
+### What a customer may decide
+
+**`QuoteDecisionService` requires a quote to be `Priced` and unexpired, and
+`spOrder_ConvertFromQuote` does not.** That is deliberate rather than an inconsistency: the
+procedure's job is to stop a double conversion, and an admin converting an unpriced quote
+because the customer rang up is a deliberate act. A customer accepting a price nobody has set
+is not.
+
+- **Expiry blocks.** `ExpiresDate` is a statement the store already made in writing, and
+  honouring it past its date is the store's choice rather than a button's. A quote with no
+  `ExpiresDate` is decidable — no date means the store did not set one, not that it has
+  passed. **The delisted-line warning is the other half of that rule and is not built**:
+  nothing on `DocumentLineView` carries availability, so the customer is not told and the
+  order does not record it. A delisted line does not block a decision either way.
+- **An acceptance records `PlacedByContactId` and no `StaffId`**, through the same procedure the
+  admin's Convert button uses. One procedure, one guard.
+- **A rejection requires a reason**, in the procedure as well as on the page, for the reason
+  `spAccount_Reject` requires one. It is a claim like the accept — one atomic `UPDATE` over the
+  two undecided statuses — so a reject racing an accept cannot both succeed, and a rowcount of
+  zero means a colleague decided it first, which for a company with two buyers is an ordinary
+  Tuesday rather than a fault.
+- **`Quote.CustomerNote` and `Quote.RejectedReason` originate with a customer**, so the
+  `SiteContent.BodyHtml` rule applies in reverse: neither may ever reach a `MarkupString`.
+  `AccountDocumentPageTests` asserts the note is escaped.
+- **The message after a decision comes from an allow-list.** `?decision=` arrives in a URL
+  anyone can write, inside a session; echoing it would put attacker-chosen text on a page beside
+  the customer's own prices. Same rule as the basket's `?basket=` notices.
+
+### The document, and the renderer that is not chosen yet
+
+`DocumentSheet` renders a quote or an order as the sheet a customer files or forwards, at
+`/account/quotes/{reference}/print` and `/account/orders/{reference}/print`. **There is no PDF
+library behind it, deliberately.** T5 needed the document; T6 decides whether an *attachable
+file* is needed, once there is an outbox to attach one to.
+
+- All three candidates — QuestPDF, a print-styled page, headless Chromium — render this same
+  markup, so the markup is the part that is the same under every one of them. Choosing now
+  would mean either a revenue-conditional licence this repository has already turned down once
+  (FluentAssertions 8), or a browser in the deployment, which is T7's to weigh.
+- **The print route is a second way in to the same document, so it carries the same
+  predicates.** The account comes from the session, "not yours" and "not here" are one answer,
+  and `CustomerNote` is escaped here as well as on the detail page — this is the copy that
+  gets forwarded.
+- Per-site templating is free: the sheet reads the site's own tokens, so a second tenant's
+  document is its own brand with no component change. `@media print` lives in `app.css`
+  because hiding navigation is platform, not brand.
+- `window.print()` is the one inline handler in this storefront. It needs no circuit and no
+  bundle, and without JavaScript the browser's own print command does the same thing.
 
 ## Distributor feeds and image enrichment
 
@@ -802,9 +1112,12 @@ lines, and the edit would read as a tightening rather than a regression. The sta
 predicate must not reach a quote line for the same reason: hiding stock from the shop window
 is not the same as withdrawing a price already quoted.
 
-- Whether a quote carrying a delisted line *should* be acceptable, or should be re-quoted
-  first, is **T5's** decision. The test records the current behaviour so that choice is made
-  deliberately rather than discovered.
+- **Expiry blocks, delisting warns.** A delisted line does not stop an acceptance: the price
+  was quoted, and withdrawing it at that moment pushes a supply problem the store owns onto
+  the customer, who would otherwise be stuck behind a button that cannot succeed until
+  somebody notices. The line is flagged to the customer and on the order instead. Both gates
+  belong on the customer accept path rather than in `spOrder_ConvertFromQuote`, which an
+  admin uses deliberately. See **What a customer may decide** for which half is built.
 
 - **`spProduct_SyncFeeds` was deleted, not kept for later.** It stamped
   `LastSynced = SYSUTCDATETIME()` on every distributor-sourced product **without fetching

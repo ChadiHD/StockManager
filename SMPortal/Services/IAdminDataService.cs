@@ -85,7 +85,8 @@ public interface IAdminDataService
     Task UpdateTerms(string id, string group, string payment, string terms, decimal credit);
 
     Task MarkOrderFulfilled(string id);
-    Task<Order?> ConvertQuoteToOrder(string quoteId);
+    /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
+    Task<QuoteConversion> ConvertQuoteToOrder(string quoteId);
     Task<Quote?> AddQuote(string accountName, string currency);
     Task<Order?> AddOrder(string accountName, string currency);
     /// <summary>Adds a line for a chosen product. Returns false when nothing was added.</summary>
@@ -93,6 +94,12 @@ public interface IAdminDataService
 
     /// <summary>Removes one line from a quote. Returns false when nothing was removed.</summary>
     Task<bool> DeleteQuoteLine(string quoteId, int lineId);
+
+    /// <summary>Re-prices one line. False when nothing was written — including an accepted quote.</summary>
+    Task<bool> UpdateQuoteLine(string quoteId, int lineId, int quantity, decimal discountPct);
+
+    /// <summary>Sends a priced quote to the customer, making it decidable.</summary>
+    Task<QuotePricing> SendQuoteToCustomer(string quoteId);
 
     Task<Account?> AddAccount(Account draft);
     Task<Product?> AddProduct(Product draft);

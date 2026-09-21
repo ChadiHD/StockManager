@@ -1,0 +1,119 @@
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+
+@*
+    A quote or an order laid out as the document a customer files, prints or sends to their
+    finance team.
+
+    There is no PDF renderer behind this, deliberately. T5 needed the document; it does not yet
+    need a file to attach to an email, which is T6's when the outbox exists. The three
+    candidates all end up rendering this same markup, so building the markup is the part that is
+    the same under every one of them — and picking a renderer now would mean either a
+    revenue-conditional licence this repository has already turned down once (FluentAssertions
+    8), or a headless browser in the deployment, which is T7's problem to weigh.
+
+    So: a themed page, printed by the browser. Per-site templating comes free, because the
+    tokens are the site's own.
+*@
+
+<article class="sheet">
+    <header class="sheet__head">
+        <div class="sheet__issuer">
+            <p class="sheet__store">@SiteContext.Site.Name</p>
+            <p class="sheet__store-meta">@SiteContext.Site.Domain</p>
+            <p class="sheet__store-meta">@SiteContext.Site.Country</p>
+        </div>
+        <div class="sheet__identity">
+            <p class="sheet__kind">@Kind</p>
+            <p class="sheet__reference mono">@Reference</p>
+        </div>
+    </header>
+
+    <section class="sheet__parties">
+        <div>
+            <h2 class="sheet__label">For</h2>
+            <p class="sheet__party-name">@Party.Company</p>
+            <p class="sheet__party-meta">@Party.Contact</p>
+            <p class="sheet__party-meta">@Party.Email</p>
+        </div>
+        <dl class="sheet__meta">
+            @foreach (var (label, value) in Meta)
+            {
+                <dt>@label</dt>
+                <dd>@value</dd>
+            }
+        </dl>
+    </section>
+
+    <table class="table sheet__lines">
+        <thead>
+            <tr>
+                <th scope="col">Product</th>
+                <th scope="col" class="document-list__num">Quantity</th>
+                <th scope="col" class="document-list__num">Unit</th>
+                <th scope="col" class="document-list__num">Line</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in Lines)
+            {
+                <tr>
+                    <td>
+                        <strong>@line.Name</strong>
+                        <span class="text-muted mono document__sku">@line.Sku</span>
+                    </td>
+                    <td class="document-list__num">@line.Quantity</td>
+                    <td class="document-list__num">@line.UnitPrice</td>
+                    <td class="document-list__num">@line.LineTotal</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <dl class="sheet__totals">
+        @foreach (var (label, value) in Totals)
+        {
+            <dt>@label</dt>
+            <dd>@value</dd>
+        }
+    </dl>
+
+    @if (!string.IsNullOrWhiteSpace(Note))
+    {
+        @* The customer's own words, rendered as text. dbo.Quote.CustomerNote is one of the two
+           columns whose contents originate with a customer, so nothing here may reach a
+           MarkupString — the SiteContent.BodyHtml rule in reverse, and it holds on a page
+           somebody may forward or print. *@
+        <section class="sheet__note">
+            <h2 class="sheet__label">@NoteHeading</h2>
+            <p>@Note</p>
+        </section>
+    }
+
+    <footer class="sheet__foot">
+        <p>@FooterNote</p>
+        <p class="sheet__issued">Produced @DateTime.UtcNow.ToString("d MMM yyyy") from @SiteContext.Site.Domain</p>
+    </footer>
+</article>
+
+@code {
+    /// <summary>"Quote" or "Order" — whatever the store's ordering mode calls this document.</summary>
+    [Parameter, EditorRequired] public string Kind { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Reference { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public DocumentParty Party { get; set; } = default!;
+
+    /// <summary>Dates and references: what differs between a quote and an order.</summary>
+    [Parameter] public IReadOnlyList<(string Label, string Value)> Meta { get; set; } = [];
+
+    [Parameter, EditorRequired] public IReadOnlyList<DocumentLineView> Lines { get; set; } = [];
+
+    [Parameter] public IReadOnlyList<(string Label, string Value)> Totals { get; set; } = [];
+
+    [Parameter] public string? Note { get; set; }
+
+    [Parameter] public string NoteHeading { get; set; } = "Your note";
+
+    [Parameter] public string? FooterNote { get; set; }
+}

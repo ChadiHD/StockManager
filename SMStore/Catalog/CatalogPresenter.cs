@@ -132,9 +132,20 @@ public sealed class CatalogPresenter
     /// <c>CatalogPriceParityTests</c> is what keeps the two implementations of the rule
     /// agreeing on what to do with them.
     /// </remarks>
-    public ResolvedPrice Resolve(CatalogItemModel item) => _pricing.Resolve(
-        item.RetailPrice,
-        item.Cost,
+    public ResolvedPrice Resolve(CatalogItemModel item) => Resolve(item.RetailPrice, item.Cost);
+
+    /// <summary>
+    /// The same resolution for a row that is not a catalog item.
+    /// </summary>
+    /// <remarks>
+    /// A basket line carries a list price and a cost and nothing else the rule needs, but it
+    /// is not a <see cref="CatalogItemModel"/>. This overload exists so the basket resolves
+    /// prices through the same two inputs as the catalog rather than reaching
+    /// <c>IPriceResolver</c> itself, which is the thing pages are forbidden to do.
+    /// </remarks>
+    public ResolvedPrice Resolve(decimal listPrice, decimal? cost) => _pricing.Resolve(
+        listPrice,
+        cost,
         groupDiscountPct: _customer.GroupDiscountPct,
         minMarginPct: _siteContext.Site.MinMarginPct);
 

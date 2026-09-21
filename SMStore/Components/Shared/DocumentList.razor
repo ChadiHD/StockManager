@@ -1,0 +1,61 @@
+@using SMStore.Ordering
+
+@* A list of quotes or a list of orders. One component, because the two differ only in what
+   their rows link to and what an empty one should suggest doing — and a second copy of this
+   table would be a second place for the currency column to stop lining up. *@
+
+@if (Items.Count == 0)
+{
+    <div class="stub">
+        <p>@EmptyMessage</p>
+        @if (!string.IsNullOrWhiteSpace(EmptyActionHref))
+        {
+            <a href="@EmptyActionHref" class="btn btn-secondary">@EmptyActionLabel</a>
+        }
+    </div>
+}
+else
+{
+    <table class="table document-list">
+        <thead>
+            <tr>
+                <th scope="col">Reference</th>
+                <th scope="col">Raised</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="document-list__num">Lines</th>
+                <th scope="col" class="document-list__num">Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Items)
+            {
+                <tr>
+                    <td>
+                        <a href="@Href(item.Reference)" class="mono">@item.Reference</a>
+                        @if (!string.IsNullOrWhiteSpace(item.Note))
+                        {
+                            <span class="text-muted document-list__note">@item.Note</span>
+                        }
+                    </td>
+                    <td>@item.Raised.ToString("d MMM yyyy")</td>
+                    <td><span class="tag tag-neutral">@item.Status</span></td>
+                    <td class="document-list__num">@item.Lines</td>
+                    <td class="document-list__num">@item.Value</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<DocumentSummary> Items { get; set; } = [];
+
+    /// <summary>Builds the link for a row, so this component knows nothing about routes.</summary>
+    [Parameter, EditorRequired] public Func<string, string> Href { get; set; } = default!;
+
+    [Parameter] public string EmptyMessage { get; set; } = "Nothing here yet.";
+
+    [Parameter] public string? EmptyActionHref { get; set; }
+
+    [Parameter] public string? EmptyActionLabel { get; set; }
+}

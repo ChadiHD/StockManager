@@ -69,7 +69,8 @@ public class QuoteLine
     public string Name { get; set; } = "";
     public int Qty { get; set; }
     public decimal List { get; set; }
-    public int Disc { get; set; }
+    /// <summary>Percentage off list, to two places: a floored price has a fractional one.</summary>
+    public decimal Disc { get; set; }
     public decimal Net { get; set; }
     public decimal LineTotal => Qty * Net;
 }
@@ -225,4 +226,53 @@ public class HistoryItem
     public string When { get; set; } = "";
     public string Text { get; set; } = "";
     public string Who { get; set; } = "";
+}
+
+/// <summary>
+/// What came of converting a quote to an order.
+/// </summary>
+/// <remarks>
+/// Three outcomes rather than two, shaped like <see cref="FeedSyncOutcome"/> and for the same
+/// reason: a quote somebody else already decided is not a fault in the request, and wording it
+/// as a failure teaches an operator to discount the message when a conversion really has
+/// broken. <c>spOrder_ConvertFromQuote</c> claims the quote's status transition, so a refused
+/// claim means a customer accepted it — or another admin converted it — while this screen was
+/// open.
+/// </remarks>
+/// <summary>
+/// What "Send to customer" did.
+/// </summary>
+/// <remarks>
+/// Three outcomes for the reason <see cref="QuoteConversion"/> has three. Pricing claims the
+/// quote's status, so a refused claim means the customer accepted or rejected it while this
+/// screen was open — ordinary, not a fault. An operator told "that failed" about it learns to
+/// discount the message that matters.
+/// </remarks>
+public enum QuotePricing
+{
+    Sent,
+    AlreadyDecided,
+    Failed
+}
+
+public sealed class QuoteConversion
+{
+    private QuoteConversion(Order? order, bool alreadyDecided)
+    {
+        Order = order;
+        AlreadyDecided = alreadyDecided;
+    }
+
+    public Order? Order { get; }
+
+    /// <summary>The quote had already been accepted or rejected. Nothing was created.</summary>
+    public bool AlreadyDecided { get; }
+
+    public bool Succeeded => Order is not null;
+
+    public static QuoteConversion Created(Order? order) => new(order, false);
+
+    public static QuoteConversion Conflict() => new(null, true);
+
+    public static QuoteConversion Failed() => new(null, false);
 }

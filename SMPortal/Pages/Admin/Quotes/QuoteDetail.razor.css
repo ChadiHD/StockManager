@@ -59,3 +59,16 @@
 .line-lock { color:var(--faint); }
 
 .tbl .trail { white-space:nowrap; }
+
+/* Narrow, quiet inputs: a dense table of prices should not read as a form, and the numbers
+   stay aligned with the columns they replaced. */
+.line-edit {
+  width:72px; padding:4px 6px; text-align:center;
+  font-size:.82rem; font-weight:700;
+}
+.line-edit:disabled { opacity:.5; }
+
+/* An edited row is marked rather than previewed. The net and line total beside it still show
+   what is stored, so without this the operator has no way to tell which rows are waiting. */
+.row-edited > td { background:var(--turq-tint-2); }
+.row-edited .line-edit { border-color:#1bc7ce; }

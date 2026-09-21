@@ -1,0 +1,95 @@
+@page "/account/orders/{Reference}/print"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject CustomerOrderPresenter Documents
+@inject NavigationManager Navigation
+
+<PageTitle>@Reference · @SiteContext.Site.Name</PageTitle>
+
+@if (_order is null || _party is null)
+{
+    <div class="page-header">
+        <div>
+            <h1>Not found</h1>
+            <p class="page-lede">We have no order with that reference on your account.</p>
+        </div>
+    </div>
+
+    <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">Back to your orders</a>
+}
+else
+{
+    <div class="sheet__actions">
+        <a href="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}")" class="btn btn-secondary">
+            Back to the order
+        </a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">Print or save as PDF</button>
+    </div>
+
+    <DocumentSheet Kind="Order"
+                   Reference="@_order.Reference"
+                   Party="_party"
+                   Meta="Meta"
+                   Lines="_order.Lines"
+                   Totals="Totals"
+                   FooterNote="Tax and freight are confirmed on the invoice." />
+}
+
+@code {
+    [Parameter] public string Reference { get; set; } = string.Empty;
+
+    private OrderView? _order;
+    private DocumentParty? _party;
+
+    private IReadOnlyList<(string, string)> Meta
+    {
+        get
+        {
+            var meta = new List<(string, string)>
+            {
+                ("Status", _order!.Status),
+                ("Placed", _order.Placed.ToString("d MMM yyyy")),
+            };
+
+            // Both are absent on a POS-shaped row and on an order raised without one, so
+            // neither gets an empty line on a document somebody files.
+            if (!string.IsNullOrWhiteSpace(_order.PoNumber))
+            {
+                meta.Add(("Your PO number", _order.PoNumber));
+            }
+
+            if (!string.IsNullOrWhiteSpace(_order.FromQuoteReference))
+            {
+                meta.Add(("From quote", _order.FromQuoteReference));
+            }
+
+            return meta;
+        }
+    }
+
+    private IReadOnlyList<(string, string)> Totals =>
+    [
+        ("Lines", _order!.Lines.Count.ToString()),
+        ("Subtotal", _order.SubTotal),
+        ("Total", _order.Total),
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (!Customer.IsSignedIn)
+        {
+            var target = $"{QuoteDecisionEndpoints.OrdersPath}/{Uri.EscapeDataString(Reference)}/print";
+
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString(target)}");
+
+            return;
+        }
+
+        _order = Documents.Order(Reference);
+        _party = Documents.Party();
+    }
+}

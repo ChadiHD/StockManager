@@ -17,6 +17,9 @@ namespace SMDataManager.Library.Models
         public decimal VAT { get; set; }
         public decimal FinalPrice { get; set; }
         public string FromQuoteReference { get; set; }
+
+        /// <summary>The customer's own purchase-order number, captured at acceptance.</summary>
+        public string PoNumber { get; set; }
         public int Items { get; set; }
     }
 }

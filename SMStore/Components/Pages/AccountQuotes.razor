@@ -1,0 +1,56 @@
+@page "/account/quotes"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject CustomerOrderPresenter Documents
+@inject NavigationManager Navigation
+
+<PageTitle>Your @Label · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="_crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>Your @Label</h1>
+        <p class="page-lede">Everything you have asked us to price, and what we sent back.</p>
+    </div>
+</div>
+
+<DocumentList Items="_quotes" Href="@(reference => $"/account/quotes/{reference}")"
+              EmptyMessage="@($"You have not submitted a {Mode.BasketLabel.ToLowerInvariant()} yet.")"
+              EmptyActionHref="@Mode.BasketRoute"
+              EmptyActionLabel="@($"Go to your {Mode.BasketLabel.ToLowerInvariant()}")" />
+
+@code {
+    private readonly NavItem[] _crumbs =
+    [
+        new("Home", "/"),
+        new("Your account", "/account"),
+        new("Quotes", "/account/quotes"),
+    ];
+
+    private IReadOnlyList<DocumentSummary> _quotes = [];
+
+    private IOrderingMode Mode => Documents.Mode;
+
+    /// <summary>Plural of the store's word for a basket, so a checkout store reads "carts".</summary>
+    private string Label => Mode.BasketLabel.ToLowerInvariant() + "s";
+
+    protected override void OnInitialized()
+    {
+        // Anonymous visitors are sent to sign in rather than shown an empty list, exactly as
+        // Account.razor does: a cookie alone is not entitlement here, so the gate is the
+        // resolved contact and not the authentication handler.
+        if (!Customer.IsSignedIn)
+        {
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString("/account/quotes")}");
+
+            return;
+        }
+
+        _quotes = Documents.Quotes();
+    }
+}

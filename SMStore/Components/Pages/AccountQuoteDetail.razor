@@ -1,0 +1,199 @@
+@page "/account/quotes/{Reference}"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@inject ISiteContext SiteContext
+@inject ICustomerContext Customer
+@inject CustomerOrderPresenter Documents
+@inject NavigationManager Navigation
+
+<PageTitle>@Reference · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+@if (_quote is null)
+{
+    @* "Not yours" and "not here" get the same answer. References come from a sequence, so a
+       distinguishable refusal would confirm which ones exist — the same reasoning as the
+       document download's 404. *@
+    <div class="page-header">
+        <div>
+            <h1>Not found</h1>
+            <p class="page-lede">We have no @Mode.BasketLabel.ToLowerInvariant() with that reference on your account.</p>
+        </div>
+    </div>
+
+    <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">
+        Back to your @Label
+    </a>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1 class="mono">@_quote.Reference</h1>
+            <p class="page-lede">
+                Raised @_quote.Raised.ToString("d MMM yyyy")
+                @if (_quote.Expires is not null)
+                {
+                    <text> · valid until @_quote.Expires.Value.ToString("d MMM yyyy")</text>
+                }
+            </p>
+        </div>
+        <span class="tag tag-neutral">@_quote.Status</span>
+    </div>
+
+    @if (DecisionMessage is not null)
+    {
+        <p class="document__notice" role="status">@DecisionMessage</p>
+    }
+
+    <div class="document">
+        <section class="document__lines">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Product</th>
+                        <th scope="col" class="document-list__num">Quantity</th>
+                        <th scope="col" class="document-list__num">Unit</th>
+                        <th scope="col" class="document-list__num">Line</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in _quote.Lines)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@line.Name</strong>
+                                <span class="text-muted mono document__sku">@line.Sku</span>
+                            </td>
+                            <td class="document-list__num">@line.Quantity</td>
+                            <td class="document-list__num">@line.UnitPrice</td>
+                            <td class="document-list__num">@line.LineTotal</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (!string.IsNullOrWhiteSpace(_quote.CustomerNote))
+            {
+                @* Their own words, rendered as text. This is the one column on dbo.Quote whose
+                   contents originate with a customer, so nothing here may reach a MarkupString
+                   — the SiteContent.BodyHtml rule in reverse. *@
+                <div class="document__note">
+                    <h5>What you told us</h5>
+                    <p>@_quote.CustomerNote</p>
+                </div>
+            }
+        </section>
+
+        <aside class="document__summary card blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>Summary</h5>
+            <dl class="basket__totals">
+                <dt>Lines</dt>
+                <dd>@_quote.Lines.Count</dd>
+                <dt>@ValueLabel</dt>
+                <dd>@_quote.Value</dd>
+            </dl>
+            <p class="text-muted basket__note">
+                Excluding tax and freight, which are calculated on the order.
+            </p>
+
+            <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}/print")"
+               class="btn btn-secondary btn-block">Print or save as PDF</a>
+
+            @if (_quote.CanDecide)
+            {
+                <form method="post" action="@QuoteDecisionEndpoints.AcceptPath" class="document__accept">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="reference" value="@_quote.Reference" />
+                    <label class="basket__note-label" for="po-number">
+                        Your purchase order number (optional)
+                    </label>
+                    <input class="input" type="text" id="po-number" name="poNumber" maxlength="50" />
+                    <button type="submit" class="btn btn-primary btn-block">Accept this quote</button>
+                </form>
+
+                @* Rejection asks for a reason, and the procedure requires one: "they said no"
+                   is not an answer to anybody asking what went wrong with the price. *@
+                <form method="post" action="@QuoteDecisionEndpoints.RejectPath" class="document__reject">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="reference" value="@_quote.Reference" />
+                    <label class="basket__note-label" for="reject-reason">
+                        Not for you? Tell us why
+                    </label>
+                    <textarea class="input" id="reject-reason" name="reason" rows="2"
+                              maxlength="500" placeholder="Too expensive, lead time too long, ordered elsewhere"></textarea>
+                    <button type="submit" class="btn btn-secondary btn-block">Turn it down</button>
+                </form>
+            }
+            else
+            {
+                <p class="text-muted basket__note">@_quote.WhyNotDecidable</p>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public string Reference { get; set; } = string.Empty;
+
+    /// <summary>
+    /// What the last decision did, as a known word. Bound as a string like every query
+    /// parameter here; see Catalog.razor for the 500 a typed binding produced.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "decision")]
+    public string? Decision { get; set; }
+
+    private QuoteView? _quote;
+
+    private IOrderingMode Mode => Documents.Mode;
+
+    private string Label => Mode.BasketLabel.ToLowerInvariant() + "s";
+
+    private string ValueLabel => Mode.ShowsPayableTotal ? "Total" : "Quoted value";
+
+    private NavItem[] Crumbs =>
+    [
+        new("Home", "/"),
+        new("Your account", "/account"),
+        new("Quotes", QuoteDecisionEndpoints.QuotesPath),
+        new(Reference, $"{QuoteDecisionEndpoints.QuotesPath}/{Reference}"),
+    ];
+
+    /// <summary>
+    /// What to say about the last decision, from an allow-list.
+    /// </summary>
+    /// <remarks>
+    /// Never the query value itself: it arrives in a URL anyone can write, and echoing it
+    /// would put attacker-chosen text on a page inside a session.
+    /// </remarks>
+    private string? DecisionMessage => Decision switch
+    {
+        "AlreadyDecided" =>
+            "Somebody at your company decided this quote while this page was open. "
+            + "Its current state is shown above.",
+        "NotDecidable" => "This quote is no longer awaiting a decision.",
+        "ReasonRequired" => "Please tell us why, so we know what to change.",
+        "Rejected" => "Thank you — we have recorded that and will follow up.",
+        "Failed" => "We could not record that. Nothing was changed, so please try again.",
+        _ => null
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (!Customer.IsSignedIn)
+        {
+            var target = $"{QuoteDecisionEndpoints.QuotesPath}/{Uri.EscapeDataString(Reference)}";
+
+            Navigation.NavigateTo(
+                $"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString(target)}");
+
+            return;
+        }
+
+        _quote = Documents.Quote(Reference);
+    }
+}
