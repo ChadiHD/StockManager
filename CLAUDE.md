@@ -20,7 +20,7 @@ Two documents drive the work — read both before adding features to the admin p
 quotes, accounts, customer groups or distributor feeds:
 
 - `docs/plans/2026-07-24-aclitrade-b2b-ecommerce-design.md` — the target design
-- `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and current state
+- `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and phase scope
 
 **The template is finished before the first tenant is built.** The plan runs two tracks, T0–T7
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
@@ -36,12 +36,12 @@ T4 — feed reliability, per `docs/plans/2026-09-17-t4-feed-reliability.md` — 
 claim, sync history, the nightly scheduler, staleness hiding, failure and staleness alerting,
 and the delisted-SKU verification.
 
-**T5 — ordering is in progress**, per `docs/plans/2026-09-17-t5-ordering.md`. Items 1 to 3
+**T5 — ordering is in progress**, per `docs/plans/2026-09-17-t5-ordering.md`. Items 1 to 6
 of nine are built: the accept claim and the placer, quote lines that record the price the
-customer was shown, and the server-side basket. The rest — the basket pages, submit, the
-customer's quote and order screens, admin re-pricing and the documents — is planned, and
-the plan opens with the four decisions that had to be settled before any of it could be
-written.
+customer was shown, the server-side basket, the basket pages, submit, and the customer's
+own quote and order screens. Admin re-pricing, the documents and the end-to-end pass are
+planned. The plan opens with the four decisions that had to be settled before any of it
+could be written.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -375,22 +375,16 @@ It still **refuses to start** if that DACPAC is missing or older than any `.sql`
 `AppendTargetFrameworkToOutputPath` is off in the sqlproj so the output does not nest under a
 target-framework folder.
 
-**The schema is published in process, on the database's `ResourceReadyEvent`.** It used to be
-a `CommunityToolkit` `AddSqlProject` resource that `stock-api` and `sm-store` both
-`WaitForCompletion`'d — and that resource never ran. It reported one `Waiting` snapshot and
-never another, so everything waiting on it waited for ever and **`dotnet run` could not start
-the apps at all**. Five explanations were checked and none held: the `ExplicitStartupAnnotation`
-the toolkit adds (stripping it changes nothing, and so does leaving it in), the resource's own
-`WaitAnnotation`s (removing every one changes nothing), `WithSkipWhenDeployed`, the Azure
-container app environment, and upgrading Aspire and the toolkit together to 13.5. The DACPAC
-was never at fault — `sqlpackage` applies it to the same container in about ten seconds.
+**The schema is published in process, on the database's `ResourceReadyEvent`.** `AppHost.cs`
+calls `DacServices.Deploy` directly. Aspire awaits `ResourceReadyEvent` subscribers before
+dependents that `WaitFor` the resource proceed, so a plain `WaitFor(stockDatabase)` is
+sufficient and neither app needs `WaitForCompletion`. The deploy costs about ten seconds a
+launch, has no dashboard row, and has no skip-when-unchanged fast path — all three are the
+price of an application that starts.
 
-So `AppHost.cs` calls `DacServices.Deploy` directly and the toolkit package is gone. Aspire
-awaits `ResourceReadyEvent` subscribers before dependents that `WaitFor` the resource proceed,
-which is what makes a plain `WaitFor(stockDatabase)` sufficient and is why
-`WaitForCompletion(smSchema)` is no longer on either app. Two things went with it: the
-dashboard row for the deploy, and the skip-when-unchanged fast path. Ten seconds a launch is
-cheaper than an application that will not start.
+**Do not reintroduce `CommunityToolkit`'s `AddSqlProject`.** That resource never ran here: it
+reported one `Waiting` snapshot and never another, so everything waiting on it waited for
+ever and `dotnet run` could not start the apps at all. The package is gone deliberately.
 
 Building `StockManager.AppHost.csproj` **alone** with Visual Studio's MSBuild from a clean `obj`
 fails with `CS0246: The type or namespace name 'Projects' could not be found` — the Aspire SDK
@@ -431,8 +425,8 @@ dotnet test StockManager.sln \
   --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI"
 ```
 
-**That filter is what a routine run wants**, and it passes: 389 tests, plus the 59 that need a
-database and skip without one. Both exclusions earn their place. `SMDesktopUI.UITests`
+**That filter is what a routine run wants**, and it passes green; a further set needs a
+database and skips without one. Both exclusions earn their place. `SMDesktopUI.UITests`
 drives a real WPF window and needs an interactive desktop. And the E2E project is in the
 solution, so a bare `dotnet test StockManager.sln` discovers it — on any machine that *does*
 have a container runtime it will start SQL Server and run, slowly, rather than skip. It skips
@@ -443,8 +437,8 @@ is missing.
 `JSInterop.SetupVoid("name", ...)` registers a handler and stops the strict-mode throw; the
 task behind the call stays pending until something calls `.SetVoidResult()`. A component that
 awaits that call therefore hangs forever, and a click that awaits the component hangs with it.
-This cost a day: with collections running sequentially, one such hang stalled everything
-scheduled after it, the runner eventually reported a crashed test host, and the run printed
+With collections running sequentially, one such hang stalls everything scheduled after it:
+the runner eventually reports a crashed test host. One run printed
 **31 green with 18 tests never executed**. A partial run that reports success is worse than a
 red one, so treat "declared tests equals executed tests" as something to check rather than
 assume — `--list-tests` gives the first number.
@@ -624,11 +618,11 @@ writes will reach POS history.
 Portal orders never touch `dbo.Inventory`; only `spInventory_Insert` writes it. Order-level changes
 therefore have no stock side effects, but they do move `spReport_GetSales` and `spActivity_GetRecent`.
 
-**The predicate now runs both ways, and until T5 it ran one.** `spPurchase_PurchaseReport` — the
-desktop POS's own report — filtered nothing at all, so it returned portal orders too, attributed
-to whichever admin converted them. It now filters `Reference IS NULL`. That matters more since
-`StaffId` became nullable: the report inner-joins `dbo.[User]`, so a customer-accepted order
-would have dropped out of it by accident rather than on purpose.
+**The predicate runs both ways.** `spPurchase_PurchaseReport` — the desktop POS's own report —
+filters `Reference IS NULL`. Without that it returns portal orders too, attributed to
+whichever admin converted them, and it matters more now `StaffId` is nullable: the report
+inner-joins `dbo.[User]`, so a customer-accepted order would drop out of it by accident
+rather than on purpose.
 
 ### An order records exactly one placer
 
@@ -723,12 +717,10 @@ Two conventions worth keeping:
   does. `Basket.razor`'s submit button is the current example: disabled with a title saying
   why, so the control a customer will use is already where they will look for it.
 
-  `ProductCard`'s add button used to follow that convention through an `EventCallback` that
-  disabled itself until a later phase supplied a handler. **That mechanism could never have
-  worked**: static SSR has no circuit, so an `@onclick` never fires. It is a form posting to
-  `BasketEndpoints.AddPath` from T5. The convention held; the mechanism was wrong. Prefer a
-  disabled control with a stated reason over one that silently does nothing, and prefer a
-  form over an event callback anywhere a customer is not already on an interactive island.
+  Disable it with a stated reason rather than wiring an `EventCallback` that cannot fire:
+  static SSR has no circuit, so an `@onclick` never arrives. `ProductCard`'s add button is a
+  form posting to `BasketEndpoints.AddPath` for that reason. Prefer a form over an event
+  callback anywhere a customer is not already on an interactive island.
 - **Nothing store-specific belongs in a component.** Navigation is assembled in
   `StoreNavigation`; editorial copy resolves through `ISiteContentSource` from
   `dbo.SiteContent`, and a store with no row gets an explicit empty state rather than another
@@ -949,10 +941,12 @@ procedure's job is to stop a double conversion, and an admin converting an unpri
 because the customer rang up is a deliberate act. A customer accepting a price nobody has set
 is not.
 
-- **Expiry blocks; a delisted line only warns.** `ExpiresDate` is a statement the store already
-  made in writing, and honouring it past its date is the store's choice rather than a button's.
-  A quote with no `ExpiresDate` is decidable — no date means the store did not set one, not
-  that it has passed.
+- **Expiry blocks.** `ExpiresDate` is a statement the store already made in writing, and
+  honouring it past its date is the store's choice rather than a button's. A quote with no
+  `ExpiresDate` is decidable — no date means the store did not set one, not that it has
+  passed. **The delisted-line warning is the other half of that rule and is not built**:
+  nothing on `DocumentLineView` carries availability, so the customer is not told and the
+  order does not record it. A delisted line does not block a decision either way.
 - **An acceptance records `PlacedByContactId` and no `StaffId`**, through the same procedure the
   admin's Convert button uses. One procedure, one guard.
 - **A rejection requires a reason**, in the procedure as well as on the page, for the reason
@@ -1062,14 +1056,12 @@ lines, and the edit would read as a tightening rather than a regression. The sta
 predicate must not reach a quote line for the same reason: hiding stock from the shop window
 is not the same as withdrawing a price already quoted.
 
-- **T5 decided it: expiry blocks, delisting warns.** A quote past its `ExpiresDate` cannot be
-  accepted — that is a statement the store already made in writing. A delisted line does not
-  block: the price was quoted, and withdrawing it at the moment of acceptance pushes a supply
-  problem the store owns onto the customer, who would otherwise be stuck behind a button that
-  cannot succeed until somebody notices. The line is flagged to the customer and on the order
-  instead. Neither gate is built yet — both belong to the customer accept path — and neither
-  belongs in `spOrder_ConvertFromQuote`, which an admin uses deliberately. See
-  `docs/plans/2026-09-17-t5-ordering.md` §5.
+- **Expiry blocks, delisting warns.** A delisted line does not stop an acceptance: the price
+  was quoted, and withdrawing it at that moment pushes a supply problem the store owns onto
+  the customer, who would otherwise be stuck behind a button that cannot succeed until
+  somebody notices. The line is flagged to the customer and on the order instead. Both gates
+  belong on the customer accept path rather than in `spOrder_ConvertFromQuote`, which an
+  admin uses deliberately. See **What a customer may decide** for which half is built.
 
 - **`spProduct_SyncFeeds` was deleted, not kept for later.** It stamped
   `LastSynced = SYSUTCDATETIME()` on every distributor-sourced product **without fetching
