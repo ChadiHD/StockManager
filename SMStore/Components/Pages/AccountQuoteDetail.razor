@@ -101,6 +101,9 @@ else
                 Excluding tax and freight, which are calculated on the order.
             </p>
 
+            <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}/print")"
+               class="btn btn-secondary btn-block">Print or save as PDF</a>
+
             @if (_quote.CanDecide)
             {
                 <form method="post" action="@QuoteDecisionEndpoints.AcceptPath" class="document__accept">

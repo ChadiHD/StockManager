@@ -15,7 +15,9 @@ using SMStore.Ordering;
 using SMStore.Sites;
 using Xunit;
 using AccountOrderDetail = SMStore.Components.Pages.AccountOrderDetail;
+using AccountOrderPrint = SMStore.Components.Pages.AccountOrderPrint;
 using AccountQuoteDetail = SMStore.Components.Pages.AccountQuoteDetail;
+using AccountQuotePrint = SMStore.Components.Pages.AccountQuotePrint;
 using AccountQuotes = SMStore.Components.Pages.AccountQuotes;
 
 namespace SMStore.Tests;
@@ -45,6 +47,7 @@ public class AccountDocumentPageTests : Bunit.TestContext
     private readonly IQuoteData _quotes = Substitute.For<IQuoteData>();
     private readonly IOrderData _orders = Substitute.For<IOrderData>();
     private readonly ICatalogData _catalog = Substitute.For<ICatalogData>();
+    private readonly IAccountData _accounts = Substitute.For<IAccountData>();
     private readonly ICustomerContext _customer = Substitute.For<ICustomerContext>();
 
     public AccountDocumentPageTests()
@@ -90,8 +93,13 @@ public class AccountDocumentPageTests : Bunit.TestContext
         Services.AddSingleton(_customer);
         Services.AddSingleton(ordering);
         Services.AddSingleton(new StoreNavigation(siteContext, ordering));
+        _accounts.GetAccountById(AccountId, SiteId).Returns(new AccountModel
+        {
+            Id = AccountId, Company = "Byron Instruments", Reference = "AC-0005"
+        });
+
         Services.AddSingleton(new CustomerOrderPresenter(
-            _quotes, _orders, catalogPresenter, siteContext, _customer, ordering,
+            _quotes, _orders, _accounts, catalogPresenter, siteContext, _customer, ordering,
             NullLogger<CustomerOrderPresenter>.Instance));
     }
 
@@ -302,5 +310,115 @@ public class AccountDocumentPageTests : Bunit.TestContext
 
         cut.Markup.Should().Contain("Not found");
         cut.FindAll("table").Should().BeEmpty();
+    }
+
+    // --- The printable document ---
+    //
+    // No PDF renderer sits behind these pages: T5 needed the document, and T6 decides whether
+    // an attachable file is needed once there is an outbox to attach it to. What is worth
+    // asserting is therefore the content, which is the same under every candidate renderer.
+
+    [Fact]
+    public void APrintedQuoteNamesTheStoreThatIssuedItAndTheCompanyItIsFor()
+    {
+        QuoteIs("QT-0041", "Priced", DateTime.UtcNow.AddDays(7));
+
+        var cut = RenderComponent<AccountQuotePrint>(p => p.Add(x => x.Reference, "QT-0041"));
+
+        // Both halves are per-tenant: the store comes from ISiteContext and the company from
+        // the account the session resolves to. A document carrying neither is a page of
+        // numbers nobody can file.
+        cut.Markup.Should().Contain("Test store");
+        cut.Markup.Should().Contain("Byron Instruments");
+        cut.Find(".sheet__reference").TextContent.Should().Be("QT-0041");
+    }
+
+    [Fact]
+    public void APrintedQuoteEscapesTheCustomersOwnWords()
+    {
+        QuoteIs("QT-0041", "Priced", DateTime.UtcNow.AddDays(7),
+            note: "<script>alert('x')</script> needed before month end");
+
+        var cut = RenderComponent<AccountQuotePrint>(p => p.Add(x => x.Reference, "QT-0041"));
+
+        // CustomerNote is one of the two columns whose contents originate with a customer, so
+        // the SiteContent.BodyHtml rule runs in reverse. Asserted here as well as on the
+        // detail page because this is the copy somebody forwards.
+        cut.Markup.Should().NotContain("<script>");
+        cut.Markup.Should().Contain("needed before month end");
+    }
+
+    [Fact]
+    public void APrintedQuoteCarriesTheWordTheStoreUsesForIt()
+    {
+        QuoteIs("QT-0041", "Priced", DateTime.UtcNow.AddDays(7));
+
+        var cut = RenderComponent<AccountQuotePrint>(p => p.Add(x => x.Reference, "QT-0041"));
+
+        // From IOrderingMode, like every other customer-facing word. A checkout store's
+        // document says Cart rather than Quote without this page changing.
+        cut.Find(".sheet__kind").TextContent.Should().Be(new RfqOrderingMode().BasketLabel);
+    }
+
+    [Fact]
+    public void APrintedOrderShowsThePurchaseOrderNumberAndTheQuoteItCameFrom()
+    {
+        OrderIs("SO-0012", poNumber: "PO-99123", fromQuote: "QT-0041");
+
+        var cut = RenderComponent<AccountOrderPrint>(p => p.Add(x => x.Reference, "SO-0012"));
+
+        cut.Markup.Should().Contain("PO-99123");
+        cut.Markup.Should().Contain("QT-0041");
+    }
+
+    [Fact]
+    public void APrintedOrderLeavesOutTheRowsItHasNothingToPutIn()
+    {
+        OrderIs("SO-0012", poNumber: null, fromQuote: null);
+
+        var cut = RenderComponent<AccountOrderPrint>(p => p.Add(x => x.Reference, "SO-0012"));
+
+        // An order placed by an admin has no PO number and one raised directly has no quote.
+        // A labelled empty row on a document somebody files reads as missing data.
+        cut.Markup.Should().NotContain("Your PO number");
+        cut.Markup.Should().NotContain("From quote");
+        cut.Find(".sheet__reference").TextContent.Should().Be("SO-0012");
+    }
+
+    [Fact]
+    public void AnotherAccountsReferenceCannotBePrintedEither()
+    {
+        var cut = RenderComponent<AccountQuotePrint>(p => p.Add(x => x.Reference, "QT-9999"));
+
+        // The print route is a second way in to the same document, so it answers the same way:
+        // "not yours" and "not here" are one answer.
+        cut.Markup.Should().Contain("Not found");
+        cut.FindAll(".sheet").Should().BeEmpty();
+    }
+
+    private void OrderIs(string reference, string? poNumber, string? fromQuote)
+    {
+        _orders.GetOrderForAccount(reference, AccountId, SiteId).Returns(new OrderModel
+        {
+            Id = 9,
+            Reference = reference,
+            AccountId = AccountId,
+            Currency = "EUR",
+            Status = "Awaiting payment",
+            PurchaseDate = new DateTime(2026, 9, 10, 0, 0, 0, DateTimeKind.Utc),
+            SubTotal = 200m,
+            FinalPrice = 200m,
+            PoNumber = poNumber,
+            FromQuoteReference = fromQuote,
+            Items = 1
+        });
+
+        _orders.GetOrderLinesForAccount(9, AccountId, SiteId).Returns([
+            new OrderLineModel
+            {
+                Id = 1, PurchaseId = 9, ProductId = 12, Sku = "SKU1", Name = "Widget",
+                Quantity = 2, Price = 100m
+            }
+        ]);
     }
 }

@@ -91,6 +91,9 @@ else
             <p class="text-muted basket__note">
                 Tax and freight are confirmed on the invoice.
             </p>
+
+            <a href="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}/print")"
+               class="btn btn-secondary btn-block">Print or save as PDF</a>
         </aside>
     </div>
 }

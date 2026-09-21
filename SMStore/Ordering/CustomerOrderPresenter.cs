@@ -27,6 +27,7 @@ public sealed class CustomerOrderPresenter
 {
     private readonly IQuoteData _quotes;
     private readonly IOrderData _orders;
+    private readonly IAccountData _accounts;
     private readonly CatalogPresenter _catalog;
     private readonly ISiteContext _siteContext;
     private readonly ICustomerContext _customer;
@@ -36,6 +37,7 @@ public sealed class CustomerOrderPresenter
     public CustomerOrderPresenter(
         IQuoteData quotes,
         IOrderData orders,
+        IAccountData accounts,
         CatalogPresenter catalog,
         ISiteContext siteContext,
         ICustomerContext customer,
@@ -44,6 +46,7 @@ public sealed class CustomerOrderPresenter
     {
         _quotes = quotes;
         _orders = orders;
+        _accounts = accounts;
         _catalog = catalog;
         _siteContext = siteContext;
         _customer = customer;
@@ -52,6 +55,32 @@ public sealed class CustomerOrderPresenter
     }
 
     public IOrderingMode Mode => _ordering.Current;
+
+    /// <summary>
+    /// Who a printed document is addressed to, or null when nobody is signed in.
+    /// </summary>
+    /// <remarks>
+    /// The company comes from the account the session resolves to, read with the site as well
+    /// as the id — the same predicate every other read here carries, for the same reason.
+    /// Only the printable pages need it, so it is fetched on demand rather than added to every
+    /// quote and order view.
+    /// </remarks>
+    public DocumentParty? Party()
+    {
+        if (_customer.AccountId is not { } accountId || _customer.Contact is not { } contact)
+        {
+            return null;
+        }
+
+        var account = _accounts.GetAccountById(accountId, _siteContext.Site.Id);
+
+        return account is null
+            ? null
+            : new DocumentParty(
+                account.Company,
+                $"{contact.FirstName} {contact.LastName}".Trim(),
+                contact.Email);
+    }
 
     public IReadOnlyList<DocumentSummary> Quotes()
     {
@@ -231,6 +260,9 @@ public sealed record DocumentSummary(
 /// </remarks>
 public sealed record DocumentLineView(
     string Sku, string Name, int Quantity, string UnitPrice, string LineTotal);
+
+/// <summary>The company and person a printed quote or order is addressed to.</summary>
+public sealed record DocumentParty(string Company, string Contact, string Email);
 
 public sealed record QuoteView(
     string Reference,

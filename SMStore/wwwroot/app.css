@@ -587,3 +587,174 @@ textarea.input { min-height: 90px; resize: vertical; }
         top: auto;
     }
 }
+
+/* ---------------------------------------------------------------------------
+   The printable document
+
+   A quote or an order as the sheet a customer files or sends to their finance
+   team. No renderer behind it: the browser prints it, so per-site templating is
+   whatever the site's tokens already say. T6 settles whether an attachable file
+   is needed, and that decision does not change this markup.
+   --------------------------------------------------------------------------- */
+
+.sheet__actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+    margin-bottom: var(--space-4);
+}
+
+.sheet {
+    background: var(--color-surface);
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.sheet__head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-bottom: var(--space-4);
+    border-bottom: 2px solid var(--color-accent-900);
+}
+
+.sheet__store {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 1.25rem;
+}
+
+.sheet__store-meta,
+.sheet__party-meta {
+    margin: 0;
+    color: var(--color-neutral-600);
+    font-size: 0.875rem;
+}
+
+.sheet__identity { text-align: right; }
+
+.sheet__kind {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    color: var(--color-neutral-600);
+}
+
+.sheet__reference {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.sheet__parties {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding: var(--space-4) 0;
+}
+
+.sheet__label {
+    margin: 0 0 var(--space-1);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    color: var(--color-neutral-600);
+}
+
+.sheet__party-name {
+    margin: 0;
+    font-weight: 700;
+}
+
+.sheet__meta {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: var(--space-1) var(--space-4);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.sheet__meta dt { color: var(--color-neutral-600); }
+.sheet__meta dd { margin: 0; text-align: right; font-weight: 600; }
+
+.sheet__totals {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: var(--space-1) var(--space-4);
+    justify-content: end;
+    margin: var(--space-4) 0 0;
+}
+
+.sheet__totals dt { color: var(--color-neutral-600); }
+.sheet__totals dd { margin: 0; text-align: right; font-weight: 700; }
+
+.sheet__note {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-divider);
+}
+
+.sheet__note p { margin: 0; }
+
+.sheet__foot {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-divider);
+    color: var(--color-neutral-600);
+    font-size: 0.8125rem;
+}
+
+.sheet__foot p { margin: 0; }
+.sheet__issued { margin-top: var(--space-1); }
+
+@media print {
+    /* Everything that is navigation rather than document. A printed sheet with a
+       menu down the side is the reason people photograph screens instead. */
+    .site-header,
+    .site-footer,
+    .breadcrumb,
+    .sheet__actions {
+        display: none !important;
+    }
+
+    body {
+        background: #fff;
+        color: #000;
+    }
+
+    .container,
+    .page {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .sheet {
+        border: 0;
+        border-radius: 0;
+        padding: 0;
+    }
+
+    /* A line split across a page break is a line somebody has to reconcile by hand. */
+    .sheet__lines tr {
+        break-inside: avoid;
+    }
+
+    .sheet__totals,
+    .sheet__note {
+        break-inside: avoid;
+    }
+
+    /* Print defaults drop backgrounds, which would take the header rule with them —
+       and that rule is what separates the issuer from the document. */
+    .sheet__head {
+        border-bottom: 2px solid #000;
+    }
+
+    a[href]::after {
+        content: "";
+    }
+}
