@@ -64,9 +64,9 @@ BEGIN
 		SET @Reference = CONCAT('QT-', FORMAT(NEXT VALUE FOR dbo.QuoteReferenceSequence, '0000'));
 
 		INSERT INTO dbo.Quote([Reference], [AccountId], [Currency], [Status], [ExpiresDate],
-		                      [CustomerNote], [SiteId])
+		                      [CustomerNote], [SiteId], [RequestedByContactId])
 		VALUES (@Reference, @AccountId, ISNULL(@Currency, N'EUR'), 'Requested', @ExpiresDate,
-		        NULLIF(LTRIM(RTRIM(@CustomerNote)), N''), @SiteId);
+		        NULLIF(LTRIM(RTRIM(@CustomerNote)), N''), @SiteId, @ContactId);
 
 		SET @Id = SCOPE_IDENTITY();
 
@@ -84,6 +84,25 @@ BEGIN
 			WHERE [Id] = @BasketId
 			  AND [SiteId] = @SiteId
 			  AND [ContactId] = @ContactId;
+		END
+
+		-- The acknowledgement, in the same transaction as the request it acknowledges, to the
+		-- buyer who sent it. See spAccount_Approve for why here rather than in the caller.
+		DECLARE @MailTo nvarchar(256), @MailName nvarchar(200);
+
+		SELECT @MailTo = [Email], @MailName = [Name]
+		FROM dbo.fnQuote_Recipient(@Id, @ContactId);
+
+		IF @MailTo IS NOT NULL
+		BEGIN
+			DECLARE @Payload nvarchar(max) = (
+				SELECT @Reference AS [reference],
+				       (SELECT COUNT(*) FROM dbo.QuoteLine WHERE [QuoteId] = @Id) AS [lines]
+				FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+
+			EXEC dbo.spEmailOutbox_Enqueue
+				@SiteId = @SiteId, @ToAddress = @MailTo, @ToName = @MailName,
+				@TemplateKey = N'quote.received', @PayloadJson = @Payload;
 		END
 
 		COMMIT TRANSACTION;

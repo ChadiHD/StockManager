@@ -336,6 +336,68 @@ public class EmailOutboxTests
             ("@email", (object?)email ?? DBNull.Value),
             ("@site", SiteId));
 
+        public int Contact(int accountId, string email, string status = "Active") => Scalar("""
+            INSERT INTO dbo.Contact (AccountId, FirstName, LastName, Email, RoleInAccount, IsPrimary, [Status])
+            OUTPUT INSERTED.Id
+            VALUES (@account, N'Buyer', @last, @email, N'Buyer', 0, @status);
+            """,
+            ("@account", accountId), ("@last", email.Split('@')[0]), ("@email", email), ("@status", status));
+
+        /// <summary>A taxable product this store sells, through a category mapping.</summary>
+        public int Product()
+        {
+            var feedValue = $"MailCategory-{_runId}";
+
+            if (Scalar("SELECT COUNT(*) FROM dbo.CategoryMapping WHERE SiteId = @site AND FeedValue = @value",
+                    ("@site", SiteId), ("@value", feedValue)) == 0)
+            {
+                var categoryId = Scalar("""
+                    INSERT INTO dbo.SiteCategory (SiteId, Slug, Name, SortOrder, IsActive)
+                    OUTPUT INSERTED.Id
+                    VALUES (@site, @slug, N'Mail test category', 1, 1);
+                    """, ("@site", SiteId), ("@slug", $"mail-{_runId}"));
+
+                Execute("INSERT INTO dbo.CategoryMapping (SiteId, FeedValue, SiteCategoryId) VALUES (@site, @value, @category)",
+                    ("@site", SiteId), ("@value", feedValue), ("@category", categoryId));
+            }
+
+            return Scalar("""
+                INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
+                                         QuantityInStock, Published, Delisted, IsTaxable)
+                OUTPUT INSERTED.Id
+                VALUES (N'Mail fixture', N'Mail fixture.', 100, @sku, @category, 50, 1, 0, 1);
+                """, ("@sku", $"MAIL-{_runId}-{Guid.NewGuid():N}"[..40]), ("@category", feedValue));
+        }
+
+        /// <summary>A priced quote of 2 x 100, raised for the account by the given contact.</summary>
+        public int Quote(int accountId, int? requestedBy, DateTime? expires = null)
+        {
+            var quoteId = Scalar("""
+                INSERT INTO dbo.Quote (Reference, AccountId, Currency, [Status], SiteId,
+                                       RequestedByContactId, ExpiresDate)
+                OUTPUT INSERTED.Id
+                VALUES (@reference, @account, N'EUR', N'Priced', @site, @requestedBy, @expires);
+                """,
+                ("@reference", $"QT-M{Guid.NewGuid():N}"[..12]),
+                ("@account", accountId), ("@site", SiteId),
+                ("@requestedBy", (object?)requestedBy ?? DBNull.Value),
+                ("@expires", (object?)expires ?? DBNull.Value));
+
+            Execute("""
+                INSERT INTO dbo.QuoteLine (QuoteId, ProductId, Quantity, ListPrice, DiscountPct, NetPrice)
+                VALUES (@quote, @product, 2, 100, 0, 100);
+                """, ("@quote", quoteId), ("@product", Product()));
+
+            return quoteId;
+        }
+
+        public string Reference(string table, int id)
+        {
+            using var command = Command($"SELECT Reference FROM dbo.[{table}] WHERE Id = @id", ("@id", id));
+
+            return (string)command.ExecuteScalar()!;
+        }
+
         public List<OutboxRow> Claim(Guid token)
         {
             using var command = Command(

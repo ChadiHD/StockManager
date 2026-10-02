@@ -28,6 +28,7 @@ public class EmailDispatcherTests
     private readonly IEmailOutboxData _outbox = Substitute.For<IEmailOutboxData>();
     private readonly IEmailOutbox _queue = Substitute.For<IEmailOutbox>();
     private readonly ISiteData _sites = Substitute.For<ISiteData>();
+    private readonly ISiteEmailTemplateData _wording = Substitute.For<ISiteEmailTemplateData>();
     private readonly IEmailSender _transport = Substitute.For<IEmailSender>();
     private readonly OutboxPayloadProtector _protector =
         new(new EphemeralDataProtectionProvider());
@@ -50,7 +51,7 @@ public class EmailDispatcherTests
             .Returns(true);
 
         return new EmailDispatcher(
-            _outbox, _queue, _sites, _transport, _protector, NullLogger<EmailDispatcher>.Instance);
+            _outbox, _queue, _sites, _wording, _transport, _protector, NullLogger<EmailDispatcher>.Instance);
     }
 
     private void Claims(params EmailOutboxModel[] rows) =>
@@ -264,6 +265,63 @@ public class EmailDispatcherTests
         await dispatcher.DispatchBatchAsync();
 
         _outbox.Received(1).RecordSent(12, Claim);
+    }
+
+    [Fact]
+    public async Task AStoresOwnWordingIsUsedForItsOwnCustomers()
+    {
+        _wording.Get(3, EmailTemplates.AccountApproved.Key).Returns(new SiteEmailTemplateModel
+        {
+            SiteId = 3,
+            TemplateKey = EmailTemplates.AccountApproved.Key,
+            Subject = "Welcome aboard, {Company}",
+            Body = "Sign in at {SignInLink}.\n\n— The {SiteName} team",
+        });
+
+        var dispatcher = Dispatcher();
+        Claims(Approval());
+
+        await dispatcher.DispatchBatchAsync();
+
+        await _transport.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(message =>
+                message.Subject == "Welcome aboard, Acme Trading"
+                && message.Body.StartsWith("Sign in at https://shop.test.example/login.")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WordingThatCannotWorkFallsBackToThePlatformsAndTheMessageStillGoes()
+    {
+        // A store's typo is not a reason to leave its customer untold. The platform's words go,
+        // and the warning is how somebody fixes the row.
+        _wording.Get(3, EmailTemplates.AccountApproved.Key).Returns(new SiteEmailTemplateModel
+        {
+            SiteId = 3,
+            TemplateKey = EmailTemplates.AccountApproved.Key,
+            Subject = "Welcome, {Compnay}",
+        });
+
+        var dispatcher = Dispatcher();
+        Claims(Approval());
+
+        await dispatcher.DispatchBatchAsync();
+
+        await _transport.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(message => message.Subject == "Your trade account is open — Test Store"),
+            Arg.Any<CancellationToken>());
+        _outbox.Received(1).RecordSent(11, Claim);
+    }
+
+    [Fact]
+    public async Task OneStoresWordingIsReadOncePerBatch()
+    {
+        var dispatcher = Dispatcher();
+        Claims(Approval(11), Approval(12), Approval(13));
+
+        await dispatcher.DispatchBatchAsync();
+
+        _wording.Received(1).Get(3, EmailTemplates.AccountApproved.Key);
     }
 
     [Fact]

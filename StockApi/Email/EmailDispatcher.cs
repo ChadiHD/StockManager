@@ -32,6 +32,7 @@ namespace StockApi.Email
         private readonly IEmailOutboxData _outbox;
         private readonly IEmailOutbox _queue;
         private readonly ISiteData _sites;
+        private readonly ISiteEmailTemplateData _wording;
         private readonly IEmailSender _transport;
         private readonly OutboxPayloadProtector _protector;
         private readonly ILogger<EmailDispatcher> _logger;
@@ -40,6 +41,7 @@ namespace StockApi.Email
             IEmailOutboxData outbox,
             IEmailOutbox queue,
             ISiteData sites,
+            ISiteEmailTemplateData wording,
             IEmailSender transport,
             OutboxPayloadProtector protector,
             ILogger<EmailDispatcher> logger)
@@ -47,6 +49,7 @@ namespace StockApi.Email
             _outbox = outbox;
             _queue = queue;
             _sites = sites;
+            _wording = wording;
             _transport = transport;
             _protector = protector;
             _logger = logger;
@@ -65,6 +68,7 @@ namespace StockApi.Email
 
             var sites = _sites.GetSites().ToDictionary(site => site.Id);
             var givenUp = new List<UndeliverableRow>();
+            _wordingThisBatch.Clear();
 
             foreach (var row in claimed)
             {
@@ -84,6 +88,21 @@ namespace StockApi.Email
         }
 
         private sealed record UndeliverableRow(EmailOutboxModel Row, string Error);
+
+        // Per batch: a backlog of one store's confirmations reads its wording once, not twenty
+        // times, and a row edited mid-batch reaches the next batch.
+        private readonly Dictionary<(int SiteId, string Key), SiteEmailTemplateModel?> _wordingThisBatch = [];
+
+        private SiteEmailTemplateModel? Wording(int siteId, string key)
+        {
+            if (!_wordingThisBatch.TryGetValue((siteId, key), out var wording))
+            {
+                wording = _wording.Get(siteId, key);
+                _wordingThisBatch[(siteId, key)] = wording;
+            }
+
+            return wording;
+        }
 
         /// <summary>One message. Returns it when it has just been given up on.</summary>
         private async Task<UndeliverableRow?> DeliverAsync(
@@ -127,7 +146,16 @@ namespace StockApi.Email
                         $"No template is registered as '{row.TemplateKey}'. A host older than " +
                         "the row may be dispatching; it is retried in case a newer one arrives.");
 
-                var rendered = EmailRenderer.Render(template, site, payload);
+                var rendered = EmailRenderer.Render(template, site, payload, Wording(site.Id, template.Key));
+
+                if (rendered.WordingRefused is { } reason)
+                {
+                    // Sent anyway, in the platform's words: a store's typo is not a reason to
+                    // leave its customer untold. The warning is how somebody fixes the row.
+                    _logger.LogWarning(
+                        "Site {SiteKey}'s own wording for {TemplateKey} was not used: {Reason}.",
+                        site.SiteKey, template.Key, reason);
+                }
 
                 await _transport.SendAsync(
                     new EmailMessage(site.SiteKey, row.ToAddress, row.ToName, rendered.Subject, rendered.Body),

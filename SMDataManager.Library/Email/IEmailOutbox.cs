@@ -5,8 +5,9 @@ namespace SMDataManager.Library.Email
     /// </summary>
     /// <remarks>
     /// The call sites' seam since T6. <c>IEmailSender</c> is now the transport behind the
-    /// dispatcher; a call site that sends through it directly skips the retry, the
-    /// dead-letter and the alert, and waits on a relay inside its own request.
+    /// dispatcher and nothing else calls it; a call site that sent through it directly would
+    /// skip the retry, the dead-letter and the alert, and wait on a relay inside its own
+    /// request. <c>TransportCallerTests</c> holds that.
     /// </remarks>
     public interface IEmailOutbox
     {

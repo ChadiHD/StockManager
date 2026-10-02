@@ -121,6 +121,7 @@ builder.AddEmail();
 builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
 builder.Services.AddSingleton<OutboxPayloadProtector>();
 builder.Services.AddScoped<IEmailOutbox, EmailOutbox>();
+builder.Services.AddTransient<ISiteEmailTemplateData, SiteEmailTemplateData>();
 builder.Services.AddScoped<EmailDispatcher>();
 
 // Here and not in SMStore: one dispatcher is all the volume needs. On by default, unlike the

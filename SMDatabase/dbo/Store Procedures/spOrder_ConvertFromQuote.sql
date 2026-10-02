@@ -218,6 +218,43 @@ BEGIN
 		    [CreditLimitExceeded] = @Exceeded
 		WHERE [Id] = @Id;
 
+		/*
+		The confirmation, in the transaction that raises the order, so an order cannot exist
+		that nobody was told about. To the buyer who pressed Accept, or -- when staff converted
+		it -- to whoever asked for the quote. Both paths send it: an order on a customer's
+		account is theirs to hear about whoever keyed it in.
+
+		Built from the row just totalled rather than from the variables above, so the mail
+		carries exactly what the order stores. It links to the order document rather than
+		attaching one; see EmailTemplates.OrderConfirmed.
+		*/
+		DECLARE @MailTo nvarchar(256), @MailName nvarchar(200);
+
+		SELECT @MailTo = [Email], @MailName = [Name]
+		FROM dbo.fnQuote_Recipient(@QuoteId, @PlacedByContactId);
+
+		IF @MailTo IS NOT NULL
+		BEGIN
+			DECLARE @Payload nvarchar(max) = (
+				SELECT [p].[Reference] AS [reference],
+				       [q].[Reference] AS [quoteReference],
+				       [p].[PoNumber] AS [poNumber],
+				       [p].[SubTotal] AS [subTotal],
+				       [p].[VAT] AS [tax],
+				       [p].[FinalPrice] AS [total],
+				       [p].[TaxTreatment] AS [taxTreatment],
+				       [p].[TaxLegend] AS [taxLegend],
+				       [p].[DueDate] AS [dueDate]
+				FROM dbo.Purchase p
+				INNER JOIN dbo.Quote q ON q.[Id] = [p].[QuoteId]
+				WHERE [p].[Id] = @Id
+				FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+
+			EXEC dbo.spEmailOutbox_Enqueue
+				@SiteId = @SiteId, @ToAddress = @MailTo, @ToName = @MailName,
+				@TemplateKey = N'order.confirmed', @PayloadJson = @Payload;
+		END
+
 		COMMIT TRANSACTION;
 	END TRY
 	BEGIN CATCH

@@ -75,13 +75,16 @@ CREATE TABLE [dbo].[Site]
 
 	TaxRegistrationNumber is the store's own VAT number, printed on the document. A customer
 	cannot reclaim against an invoice that does not carry one.
+
+	After CreatedDate, deliberately: DacFx rebuilds a table to insert a column anywhere but
+	the end, and every scoped table in the schema points at this one.
 	*/
+	[IsActive] BIT NOT NULL DEFAULT 1,
+	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
+
 	[TaxRuleSet] NVARCHAR(50) NOT NULL DEFAULT 'eu-b2b',
 	[StandardTaxRatePct] DECIMAL(5, 2) NOT NULL DEFAULT 0,
 	[TaxRegistrationNumber] NVARCHAR(30) NULL,
-
-	[IsActive] BIT NOT NULL DEFAULT 1,
-	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
 	-- Host resolution looks a site up by domain, so a domain must name exactly one site.

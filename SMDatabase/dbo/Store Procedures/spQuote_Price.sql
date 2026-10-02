@@ -25,11 +25,61 @@ AS
 BEGIN
 	SET NOCOUNT ON;
 
-	UPDATE dbo.Quote
-	SET [Status] = 'Priced'
-	WHERE [Id] = @QuoteId
-	  AND [SiteId] = @SiteId
-	  AND [Status] IN ('Requested', 'Priced');
+	DECLARE @Priced int;
 
-	SELECT @@ROWCOUNT AS [Priced];
+	BEGIN TRY
+		BEGIN TRANSACTION;
+
+		UPDATE dbo.Quote
+		SET [Status] = 'Priced'
+		WHERE [Id] = @QuoteId
+		  AND [SiteId] = @SiteId
+		  AND [Status] IN ('Requested', 'Priced');
+
+		SET @Priced = @@ROWCOUNT;
+
+		/*
+		"Send to customer" sends, in the transaction that makes the quote decidable.
+
+		Every press queues one, re-sends included: re-sending after an edit is ordinary work, and
+		the customer should hear the new price rather than act on the old one. A refused claim
+		queues nothing -- the customer decided first, and does not need telling about a price
+		they have already answered.
+
+		The value is the lines' net total, the same figure the customer's quote page shows. No
+		tax: that is assessed when an order is raised, and a quote that asserted a rate would
+		be asserting something nobody has decided.
+		*/
+		IF @Priced = 1
+		BEGIN
+			DECLARE @MailTo nvarchar(256), @MailName nvarchar(200);
+
+			SELECT @MailTo = [Email], @MailName = [Name]
+			FROM dbo.fnQuote_Recipient(@QuoteId, NULL);
+
+			IF @MailTo IS NOT NULL
+			BEGIN
+				DECLARE @Payload nvarchar(max) = (
+					SELECT [q].[Reference] AS [reference],
+					       (SELECT ISNULL(SUM([l].[Quantity] * [l].[NetPrice]), 0)
+					        FROM dbo.QuoteLine l WHERE [l].[QuoteId] = [q].[Id]) AS [value],
+					       [q].[ExpiresDate] AS [expiresDate]
+					FROM dbo.Quote q
+					WHERE [q].[Id] = @QuoteId
+					FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+
+				EXEC dbo.spEmailOutbox_Enqueue
+					@SiteId = @SiteId, @ToAddress = @MailTo, @ToName = @MailName,
+					@TemplateKey = N'quote.priced', @PayloadJson = @Payload;
+			END
+		END
+
+		COMMIT TRANSACTION;
+	END TRY
+	BEGIN CATCH
+		IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+		THROW;
+	END CATCH
+
+	SELECT @Priced AS [Priced];
 END

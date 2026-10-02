@@ -70,8 +70,11 @@ builder.AddDocumentStore();
 
 // Outbound customer mail is queued here and sent by StockApi's dispatcher. Queueing is a row in
 // dbo.EmailOutbox, so a mail relay that is down can no longer fail a registration; see
-// EmailOutbox. AddEmail stays for the call sites T6's later items have not moved yet.
-builder.AddEmail();
+// EmailOutbox.
+//
+// No AddEmail, deliberately: this host has no transport to register. A page or endpoint that
+// injected IEmailSender here would be skipping the retry, the dead-letter and the alert, and
+// failing to resolve is the loudest way to say so. TransportCallerTests says it more quietly.
 builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
 builder.Services.AddSingleton<OutboxPayloadProtector>();
 builder.Services.AddScoped<IEmailOutbox, EmailOutbox>();

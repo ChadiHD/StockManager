@@ -13,29 +13,25 @@ namespace StockManager.Notifications;
 /// <param name="ToName">Their name, for the display part of the address.</param>
 /// <param name="Subject">Subject line.</param>
 /// <param name="Body">
-/// Plain text. Deliberately not HTML: T3 defines the seam and T6 owns templates, and a body
-/// that arrives as markup now is markup T6 has to unpick rather than a value it can render.
+/// Plain text. Deliberately not HTML: customers' own words are substituted into several of
+/// these messages, and plain text is what makes that substitution safe without an escaper.
 /// </param>
 public sealed record EmailMessage(
     string SiteKey, string To, string? ToName, string Subject, string Body);
 
 /// <summary>
-/// The seam every outbound customer email goes through.
+/// The mail transport: hands one rendered message to whatever delivers it.
 /// </summary>
 /// <remarks>
-/// T3 has three messages to send — an application acknowledgement, an approval and a
-/// rejection — and no infrastructure to send them with. This is that gap named rather than
-/// papered over: the development implementation writes to the log, so the copy can be read
-/// and the call sites can be wired, and nothing pretends mail is being delivered.
+/// Since T6 this has exactly one caller, <c>EmailDispatcher</c> in StockApi. Everything else
+/// queues through <c>IEmailOutbox</c> or, inside a procedure, <c>spEmailOutbox_Enqueue</c>,
+/// and the dispatcher renders, sends, retries and dead-letters. A call site that came here
+/// directly would skip all four and wait on a relay inside its own request;
+/// <c>TransportCallerTests</c> is what keeps it to one.
 ///
-/// **T6 owns the outbox, the retry policy and the per-site templates.** What it will replace
-/// is the implementation behind this interface. What it should not have to replace is the
-/// call sites, which is why they are being written now — a registration that does not even
-/// attempt to acknowledge itself is a registration T6 has to go hunting for.
-///
-/// Sending must not fail the operation that triggered it. An approval that rolled back
-/// because a mail server was briefly unreachable would be a worse system than one that
-/// approves and logs a failed notification.
+/// The only implementation is still <see cref="LoggingEmailSender"/>, so nothing is delivered
+/// anywhere. Choosing a real one — a provider and a sending domain per store — is T7's, with
+/// the hosting decision, and it is now a registration rather than a rewrite.
 /// </remarks>
 public interface IEmailSender
 {

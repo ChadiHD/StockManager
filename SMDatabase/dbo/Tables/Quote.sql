@@ -30,6 +30,15 @@ CREATE TABLE [dbo].[Quote]
     -- because a composite foreign key stops being enforced the moment one of its columns is
     -- NULL — FK_Quote_ToAccount below would become advisory.
     [SiteId] INT NOT NULL,
+
+    -- The buyer who asked for this quote, so "your quote is ready" goes to them rather than to
+    -- whoever registered the company. Two buyers at one account raising quotes of their own is
+    -- the ordinary case. NULL for a quote staff keyed in, where the account's own address is
+    -- the fallback -- see fnQuote_Recipient.
+    --
+    -- Last, deliberately: DacFx rebuilds a table to insert a column anywhere else, and a
+    -- rebuild of a table every order points at is not something to do for a nullable column.
+    [RequestedByContactId] INT NULL,
     CONSTRAINT [UQ_Quote_Reference] UNIQUE ([Reference]),
     -- Lets Purchase reference a quote together with its site.
     CONSTRAINT [UQ_Quote_IdSite] UNIQUE ([Id], [SiteId]),
@@ -39,6 +48,10 @@ CREATE TABLE [dbo].[Quote]
     CONSTRAINT [FK_Quote_ToAccount] FOREIGN KEY ([AccountId], [SiteId])
         REFERENCES [Account]([Id], [SiteId]),
     CONSTRAINT [FK_Quote_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id]),
+    -- Composite, like FK_Purchase_ToContact: another company's buyer cannot be recorded as
+    -- having asked for this account's quote, and so cannot be mailed its price.
+    CONSTRAINT [FK_Quote_ToRequestedByContact] FOREIGN KEY ([RequestedByContactId], [AccountId])
+        REFERENCES [Contact]([Id], [AccountId]),
     -- Documented in a comment since this table was written, enforced from T5 because the
     -- accept path now gates on it: spOrder_ConvertFromQuote converts a quote only while it
     -- still reads 'Priced', and a status nobody spells the same way twice makes that guard a

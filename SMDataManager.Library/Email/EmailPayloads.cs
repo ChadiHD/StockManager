@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace SMDataManager.Library.Email
@@ -23,6 +24,35 @@ namespace SMDataManager.Library.Email
 
     /// <summary>Written by <c>spAccount_Reject</c>, which reads the reason back off the row.</summary>
     public sealed record AccountRejectedPayload(string Company, string Reason);
+
+    public sealed record ConfirmationReminderPayload(string ConfirmationLink);
+
+    public sealed record PasswordResetPayload(string ResetLink);
+
+    /// <summary>Nothing to carry: the message is that it happened.</summary>
+    public sealed record PasswordChangedPayload;
+
+    /// <summary>Written by <c>spQuote_SubmitRequest</c>.</summary>
+    public sealed record QuoteReceivedPayload(string Reference, int Lines);
+
+    /// <summary>Written by <c>spQuote_Price</c>, every time the quote is sent.</summary>
+    public sealed record QuotePricedPayload(string Reference, decimal Value, DateTime? ExpiresDate);
+
+    /// <summary>Written by <c>spOrder_ConvertFromQuote</c>, from the order it has just totalled.</summary>
+    public sealed record OrderConfirmedPayload(
+        string Reference,
+        string QuoteReference,
+        string PoNumber,
+        decimal SubTotal,
+        decimal Tax,
+        decimal Total,
+        string TaxTreatment,
+        string TaxLegend,
+        DateTime? DueDate);
+
+    public sealed record FeedFailedPayload(string FeedName, string Message);
+
+    public sealed record FeedsStalePayload(IReadOnlyList<string> FeedNames);
 
     /// <summary>One message the dispatcher gave up on, as the operator is told about it.</summary>
     public sealed record UndeliverableMessage(
