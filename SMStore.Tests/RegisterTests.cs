@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using NSubstitute;
+using SMDataManager.Library.Email;
 using SMDataManager.Library.Models;
 using SMStore.Accounts;
 using SMStore.Registration;
@@ -150,6 +151,46 @@ public class RegisterTests
         cut.Find("#reg-firstname").GetAttribute("value").Should().Be("Ada");
 
         cut.Find("div.alert.error").TextContent.Should().Contain("The two passwords do not match.");
+    }
+
+    [Theory]
+    [InlineData("AC-0042", "https://test.example/confirm-email?userId=u&token=t")]
+    // The neutral answer to an address already registered here: accepted, with nothing
+    // created. The acknowledgement still goes — not sending one would be the tell — and it
+    // carries no reference and no link, so it reads the same as any other.
+    [InlineData(null, null)]
+    public void AnAcceptedApplicationIsAcknowledgedThroughTheOutbox(string? reference, string? link)
+    {
+        var fieldSet = new FakeRegistrationFieldSet("fake", new Dictionary<RegistrationField, RegistrationRequirement>
+        {
+            [RegistrationField.FirstName] = RegistrationRequirement.Required
+        });
+        var registrations = Substitute.For<IRegistrationService>();
+        registrations.RegisterAsync(Arg.Any<RegistrationSubmission>(), Arg.Any<CancellationToken>())
+            .Returns(new RegistrationOutcome(
+                true, [], reference, reference is null ? null : 7, null, link));
+        var outbox = Substitute.For<IEmailOutbox>();
+
+        var httpContext = FormPost(new Dictionary<string, StringValues>
+        {
+            ["FirstName"] = "Ada",
+            ["LastName"] = "Byron",
+            ["Email"] = " ada@example.com ",
+        });
+
+        using var context = new Bunit.TestContext();
+        var cut = RegisterPageHarness.Render(
+            context, SiteWith(fieldSet.Key), fieldSet,
+            registrations: registrations, httpContext: httpContext, outbox: outbox);
+
+        cut.Find("form.register").Submit();
+
+        // Queued, not sent: StockApi's dispatcher renders and sends it, with retries, so a
+        // relay that is down can no longer cost the applicant their only confirmation link.
+        outbox.Received(1).Enqueue(
+            1, "ada@example.com", "Ada Byron", EmailTemplates.RegistrationReceived,
+            Arg.Is<RegistrationReceivedPayload>(payload =>
+                payload.Reference == reference && payload.ConfirmationLink == link));
     }
 
     [Fact]

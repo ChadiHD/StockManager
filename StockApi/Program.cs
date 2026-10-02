@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Email;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using SMDataManager.Library.Tax;
+using StockApi.Email;
 using StockApi.Feeds;
 using StockApi.Security;
 using StockApi.Sites;
@@ -112,8 +114,18 @@ builder.AddSharedDataProtection();
 // store — see AddDocumentStore.
 builder.AddDocumentStore();
 
-// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
+// Outbound mail. The transport is still the logger — see AddEmail — and since T6 nothing
+// calls it but the dispatcher: call sites queue through IEmailOutbox, procedures queue inside
+// their own transactions, and EmailDispatcher renders and sends with retry and dead-letter.
 builder.AddEmail();
+builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
+builder.Services.AddSingleton<OutboxPayloadProtector>();
+builder.Services.AddScoped<IEmailOutbox, EmailOutbox>();
+builder.Services.AddScoped<EmailDispatcher>();
+
+// Here and not in SMStore: one dispatcher is all the volume needs. On by default, unlike the
+// feed sync, for the reason EmailDispatchBackgroundService gives.
+builder.Services.AddHostedService<EmailDispatchBackgroundService>();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 

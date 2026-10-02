@@ -12,7 +12,7 @@ using SMStore.Documents;
 using SMStore.Registration;
 using SMStore.Sites;
 using StockManager.Documents;
-using StockManager.Notifications;
+using SMDataManager.Library.Email;
 using RegisterPage = SMStore.Components.Pages.Register;
 
 namespace SMStore.Tests.TestSupport;
@@ -35,7 +35,8 @@ internal static class RegisterPageHarness
         IRegistrationFieldSet fieldSet,
         ICustomerContext? customer = null,
         IRegistrationService? registrations = null,
-        HttpContext? httpContext = null)
+        HttpContext? httpContext = null,
+        IEmailOutbox? outbox = null)
     {
         var siteContext = Substitute.For<ISiteContext>();
         siteContext.Site.Returns(site);
@@ -60,7 +61,7 @@ internal static class RegisterPageHarness
         context.Services.AddSingleton(new RegistrationFieldSetProvider(siteContext, [fieldSet]));
         context.Services.AddSingleton(registrations);
         context.Services.AddSingleton(uploads);
-        context.Services.AddSingleton(Substitute.For<IEmailSender>());
+        context.Services.AddSingleton(outbox ?? Substitute.For<IEmailOutbox>());
 
         // The generic argument has to be spelled out: without it, type inference registers
         // this under NullLogger<RegisterPage> rather than ILogger<RegisterPage>, which is the

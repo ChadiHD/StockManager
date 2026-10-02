@@ -267,19 +267,58 @@ nobody serves.
   reviewer opening an application whose documents all 404. `/app-data/` is gitignored:
   real applicants' paperwork must never reach a commit.
 
-### Outbound mail is a seam and nothing more
+### Outbound mail goes through an outbox
 
-`IEmailSender` in `StockManager.ServiceDefaults/Email/`, registered by `AddEmail()` on both
-hosts, with `LoggingEmailSender` writing the whole message to the log. **T6 owns the outbox,
-the retry policy and the per-site templates** — T3 wrote the three call sites so T6 has
-something to fill rather than something to find: the application acknowledgement in
-`SMStore/Registration/RegistrationEmails.cs`, and the approval and rejection in
-`StockApi/Accounts/AccountDecisionEmails.cs`.
+Every message the platform owes somebody is a row in `dbo.EmailOutbox` before it is anything
+else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands them to
+`IEmailSender` — which is the transport, still `LoggingEmailSender`, and which call sites do
+not touch. A real transport is a provider and a sending domain per store, which is T7's
+hosting decision; until then nothing is delivered anywhere, and the outbox is what makes the
+day it is a configuration change rather than a rewrite.
 
-- **Sending never fails the operation that triggered it.** The write has already committed by
-  the time the mail goes out. An approval rolled back because a mail server blinked would
-  leave the portal re-issuing a decision that had in fact been made, and landing on the
-  conflict response. Failures are logged with the account id and chased operationally.
+- **Where there is a procedure, it queues the message in its own transaction.**
+  `spAccount_Approve` and `spAccount_Reject` call `spEmailOutbox_Enqueue` beside the `UPDATE`,
+  so a decision and the intent to tell somebody commit together, and a host dying after the
+  commit can no longer lose the message. Where there is none — a registration spans two
+  databases, a password reset is Identity's — the call site queues through `IEmailOutbox`
+  after the write. That leaves a one-insert window, on the database the write just reached;
+  the window that actually lost mail was the relay's, and that one is closed.
+- **Sending never fails the operation that triggered it**, and now that is true by
+  construction: nothing on a request path talks to a mail server. Queueing is part of the
+  write, so an enqueue that fails rolls the change back with it — which is right, because it
+  means the database the change was going to is failing too.
+- **The payload is values, not a body.** Rendering happens at dispatch from
+  `EmailTemplates` in `SMDataManager.Library/Email/`, which both hosts reference — so a
+  template corrected after a row was queued applies to the rows still waiting, and the
+  storefront can queue what `StockApi` writes out. Procedures build their payloads with
+  `FOR JSON`, so the property names are a contract between T-SQL and the payload records;
+  `EmailOutboxTests` reads each procedure's JSON back through its record.
+- **A substituted value is never read as template.** One pass, left to right. A rejection
+  reason or a company name containing `{SignInLink}` arrives as those characters. Plain text
+  only: this is the `SiteContent.BodyHtml` rule in reverse, since customers' words reach
+  several of these messages.
+- **A payload that carries a link is encrypted.** `EmailTemplate.CarriesCredential` makes
+  `EmailOutbox` protect it with Data Protection under `OutboxPayloadProtector.Purpose`, and
+  the procedures null it once the message is sent or given up on. A row here is backed up and
+  restored like any other, and the key ring is in `ApiAuthDb`, so a copy of `SMDatabase` alone
+  does not carry the means to read a reset link. A payload the ring can no longer read is
+  dead-lettered at once rather than retried, for the reason feed passwords cannot be recovered.
+- **The claim is `spDistributorFeed_ClaimForSync`'s shape.** One `UPDATE` with `READPAST`,
+  a five-minute lease, and `Attempts` counted at claim — so a message that kills the host on
+  every attempt still runs out of them. Delivery is therefore at least once: a host that dies
+  after handing a message to the transport and before recording it sends it twice.
+- **Eight attempts, doubling from a minute and capped at an hour, then dead-letter**
+  (`OutboxRetryPolicy`). Dead letters become one `operator.mail-undeliverable` alert per store
+  per batch, to `Site.OperatorEmail`, with no platform-wide fallback. Operator mail never
+  raises one — the alert would go to the address that just refused it — so an undeliverable
+  operator message is an Error in the log and goes no further.
+- **The dispatcher is on by default**, unlike the feed sync (`Email:DispatchEnabled`,
+  `Email:DispatchIntervalSeconds`). The sync opens a session to a real distributor; this
+  hands messages to a logger. Off by default would silently stop the confirmation link
+  reaching the dashboard — which, since T6, is **`stock-api`'s log, not `sm-store`'s**.
+- The claim is deliberately not scoped to a site: one dispatcher drains every store, and
+  renders each row with its own store's values. Nothing sweeps `Sent` rows yet; that belongs
+  with T7's basket sweep.
 - **`LoggingEmailSender` logs the body in Development only.** Bodies now carry confirmation
   and password-reset links, and a reset link is a credential — whoever reads the log can take
   the account, and logs are copied, shipped to a telemetry backend and read by people with no

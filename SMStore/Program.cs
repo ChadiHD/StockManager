@@ -1,4 +1,5 @@
 using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Email;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Pricing;
 using SMDataManager.Library.Tax;
@@ -67,8 +68,13 @@ builder.AddSharedDataProtection();
 // can read what an applicant sent.
 builder.AddDocumentStore();
 
-// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
+// Outbound customer mail is queued here and sent by StockApi's dispatcher. Queueing is a row in
+// dbo.EmailOutbox, so a mail relay that is down can no longer fail a registration; see
+// EmailOutbox. AddEmail stays for the call sites T6's later items have not moved yet.
 builder.AddEmail();
+builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
+builder.Services.AddSingleton<OutboxPayloadProtector>();
+builder.Services.AddScoped<IEmailOutbox, EmailOutbox>();
 
 // Data access. The storefront reads the same stored procedures the API does, in process —
 // see the note on the project reference in SMStore.csproj.

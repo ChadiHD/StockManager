@@ -6,7 +6,6 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using StockApi.Controllers;
 using StockApi.Sites;
-using StockManager.Notifications;
 using Xunit;
 
 namespace StockApi.Tests.Controllers;
@@ -86,7 +85,7 @@ public class PaymentTermsGuardTests
             Id = 5, Reference = "AC-0005", Company = "Acme Trading", Status = "Approved"
         });
 
-        _controller = new AccountController(_accounts, _site, Substitute.For<IEmailSender>(), NullLogger<AccountController>.Instance);
+        _controller = new AccountController(_accounts, _site, NullLogger<AccountController>.Instance);
     }
 
     [Theory]
