@@ -395,6 +395,11 @@ T5's journey is the model — the assertion that spans every hop, not a screensh
 
 ## 10. Not in T6
 
+- **A real mail transport.** The outbox, the dispatcher, the retry and the dead-letter are
+  built; `IEmailSender` is still `LoggingEmailSender`, so nothing is delivered anywhere. A
+  provider and a sending domain per store is a hosting decision with DNS in it, which is T7's.
+  The outbox is what makes that day a registration rather than a rewrite.
+
 - **VIES validation** of a customer's VAT number. §2 says why: a network call with no
   availability guarantee on the path that raises an order.
 - **Invoices as a document type.** An order confirmation is not an invoice; an invoice has a

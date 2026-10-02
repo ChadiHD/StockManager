@@ -221,6 +221,62 @@ public static class SqlTestData
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Sets a store's standard tax rate and returns the one it replaced, so a journey can put
+    /// it back.
+    /// </summary>
+    /// <remarks>
+    /// Reference data with no screen: <c>Site</c> has no admin page, so a tenant's rate is a
+    /// row update today. The seeded store's rate is zero by default — a store nobody has
+    /// configured charges nothing, visibly — so a journey about tax has to set one. The
+    /// storefront caches a site; <see cref="AspireAppFixture"/> shortens that cache to a
+    /// second for exactly this.
+    /// </remarks>
+    public static async Task<decimal> SetStandardTaxRateAsync(
+        string connectionString, int siteId, decimal ratePct, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            """
+            DECLARE @previous decimal(5, 2) = (SELECT [StandardTaxRatePct] FROM dbo.Site WHERE [Id] = @SiteId);
+            UPDATE dbo.Site SET [StandardTaxRatePct] = @Rate WHERE [Id] = @SiteId;
+            SELECT @previous;
+            """, connection);
+
+        command.Parameters.AddWithValue("@SiteId", siteId);
+        command.Parameters.AddWithValue("@Rate", ratePct);
+
+        return (decimal)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    /// <summary>
+    /// Records where a customer's company is and whether it gave a VAT number — the two facts
+    /// the tax rule set decides from.
+    /// </summary>
+    /// <remarks>
+    /// Registration collects both, and RegistrationApprovalJourneyTests drives that form; a
+    /// journey about what the order is charged starts from an account that already has them.
+    /// </remarks>
+    public static async Task SetAccountTaxIdentityAsync(
+        string connectionString, string email, string country, string? vatNumber,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            "UPDATE dbo.Account SET [Country] = @Country, [VatNumber] = @VatNumber WHERE [Email] = @Email;",
+            connection);
+
+        command.Parameters.AddWithValue("@Country", country);
+        command.Parameters.AddWithValue("@VatNumber", (object?)vatNumber ?? DBNull.Value);
+        command.Parameters.AddWithValue("@Email", email);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public static async Task CreateApprovedAccountAndContactAsync(
         string connectionString, int siteId, string identityUserId, string email,
         CancellationToken cancellationToken = default)

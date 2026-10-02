@@ -123,6 +123,18 @@ public sealed class AspireAppFixture : IAsyncLifetime
             var desktop = appHostBuilder.Resources.FirstOrDefault(resource => resource.Name == "sm-desktop");
             desktop?.Annotations.Add(new ExplicitStartupAnnotation());
 
+            /*
+            The storefront caches a site row for five minutes (SiteOptions.CacheDuration), which
+            is right for production — a site changes when somebody edits it — and wrong for a
+            journey that configures its store in the database and then expects the storefront
+            to act on it. The tax journey sets a standard rate; with the default it would be
+            served whatever the previous journey left in the cache. One second keeps the cache
+            in the path, so a journey still goes through it, while letting a change land.
+            */
+            var store = appHostBuilder.Resources.First(resource => resource.Name == "sm-store");
+            store.Annotations.Add(new EnvironmentCallbackAnnotation((EnvironmentCallbackContext context) =>
+                context.EnvironmentVariables["Sites__CacheDuration"] = "00:00:01"));
+
             _app = await appHostBuilder.BuildAsync();
 
 

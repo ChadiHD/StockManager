@@ -42,6 +42,14 @@ the basket pages, submit, the customer's own quote and order screens, admin re-p
 printable document, and one journey driving the whole round trip. The plan opens with the four
 decisions that had to be settled before any of it could be written.
 
+**T6 — tax, terms and email is built**, per `docs/plans/2026-09-21-t6-tax-terms-email.md`: a
+tax rule set chosen by `Site.TaxRuleSet`, the treatment and legend snapshotted onto each order
+at acceptance, payment terms as days, a credit check inside the acceptance transaction, every
+surface reading the stored tax rather than computing 23% in markup, the email outbox and its
+dispatcher, every message on it in per-site wording, the quote-expiry sweep, and one journey
+where two customers are charged differently for the same product. The plan opens with the four
+things that were already wrong — three numbers for one tax among them.
+
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
 
@@ -545,8 +553,14 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about 80 seconds against a warm
-SQL container. The last two are the basket and the quote request, and they earn their place the
+`E2E_REQUIRE_APPHOST=1` for CI. **All eight journeys pass**, in under two minutes against a
+warm SQL container. The newest is T6's: two customers — one German with a VAT number, one Irish
+without — ask for the same product, an admin sends both quotes, and each accepts. The orders
+carry the reverse charge and 23% respectively, each page says why, and every message the round
+trip owed both of them is `Sent` in the outbox, which is the dispatcher in the other host
+claiming, rendering and handing each one over. The fixture shortens `sm-store`'s site cache to
+one second for it: a journey that sets a store's tax rate in the database must not be served
+the row another journey cached. The basket and the quote request before it earn their place the
 way the approval journey did.
 A basket change is a form post plus a redirect, so the antiforgery token, the `Set-Cookie` and
 the next request's lookup all have to hold at once for a single click to work. And the quote
