@@ -79,5 +79,11 @@ namespace SMDataManager.Library.DataAccess
         /// <see cref="UpdateStatus"/> with a string.
         /// </remarks>
         bool Price(int quoteId, int siteId);
+
+        /// <summary>
+        /// Queues "your quote expires soon" for this store's priced quotes expiring within
+        /// <paramref name="withinDays"/>, once each. Returns how many were queued.
+        /// </summary>
+        int QueueExpiryNotices(int siteId, int withinDays);
     }
 }

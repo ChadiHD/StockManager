@@ -186,6 +186,20 @@ public class EmailTemplateTests
     }
 
     [Fact]
+    public void AnExpiryReminderSaysWhenAndWhatHappensAfter()
+    {
+        var payload = EmailTemplates.QuoteExpiring.Serialize(
+            new QuoteExpiringPayload("QT-0041", 200m, new DateTime(2026, 10, 30, 17, 0, 0)));
+
+        var rendered = EmailRenderer.Render(EmailTemplates.QuoteExpiring, Site, payload);
+
+        rendered.Subject.Should().Be("Your quote QT-0041 expires on 30 Oct 2026 — Test Store");
+        // Expiry blocks acceptance, so the way back has to be in the message that warns of it.
+        rendered.Body.Should().Contain("can no longer be accepted");
+        rendered.Body.Should().Contain("https://shop.test.example/account/quotes/QT-0041");
+    }
+
+    [Fact]
     public void AStoresOwnWordingReplacesThePlatforms()
     {
         var wording = Wording(EmailTemplates.AccountRejected,

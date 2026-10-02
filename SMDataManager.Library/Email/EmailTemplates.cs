@@ -264,6 +264,39 @@ namespace SMDataManager.Library.Email
             carriesCredential: false,
             "QuoteLink");
 
+        /// <summary>A priced quote nobody has answered, a few days before it lapses.</summary>
+        /// <remarks>
+        /// The one message triggered by nothing happening, so it comes from a sweep rather than
+        /// a transition — <c>QuoteExpiryBackgroundService</c>. It says what happens after the
+        /// date because expiry blocks acceptance: a customer who meant to accept and finds the
+        /// button gone should already know the way back is to ask again.
+        /// </remarks>
+        public static readonly EmailTemplate<QuoteExpiringPayload> QuoteExpiring = new(
+            "quote.expiring",
+            EmailAudience.Customer,
+            "Your quote {Reference} expires on {Expires} — {SiteName}",
+            """
+            Your quote {Reference}, priced at {Value} before tax, is valid until {Expires}.
+
+            If you want to go ahead, accept it before then, here once you have signed in:
+
+            {QuoteLink}
+
+            After that date it can no longer be accepted, and we will need to price it again —
+            just ask, and we will.
+
+            — {SiteName}
+            """,
+            (site, payload) => new Dictionary<string, string>
+            {
+                ["Reference"] = payload.Reference ?? string.Empty,
+                ["Value"] = SiteMoney.Format(site, payload.Value),
+                ["Expires"] = payload.ExpiresDate is { } expires ? Date(expires) : "soon",
+                ["QuoteLink"] = AccountLink(site, "quotes", payload.Reference),
+            },
+            carriesCredential: false,
+            "QuoteLink");
+
         /// <summary>
         /// An order raised from a quote, whether the customer accepted it or staff converted it.
         /// </summary>
@@ -459,6 +492,7 @@ namespace SMDataManager.Library.Email
             PasswordChanged,
             QuoteReceived,
             QuotePriced,
+            QuoteExpiring,
             OrderConfirmed,
             FeedFailed,
             FeedsStale,

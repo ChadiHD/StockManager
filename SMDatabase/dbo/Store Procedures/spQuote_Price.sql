@@ -31,7 +31,9 @@ BEGIN
 		BEGIN TRANSACTION;
 
 		UPDATE dbo.Quote
-		SET [Status] = 'Priced'
+		SET [Status] = 'Priced',
+		    -- A re-priced quote is a new statement with its own date, and gets its own notice.
+		    [ExpiryNoticeSentUtc] = NULL
 		WHERE [Id] = @QuoteId
 		  AND [SiteId] = @SiteId
 		  AND [Status] IN ('Requested', 'Priced');

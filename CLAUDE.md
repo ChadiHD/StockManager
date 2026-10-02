@@ -342,6 +342,16 @@ day it is a configuration change rather than a rewrite.
 - The claim is deliberately not scoped to a site: one dispatcher drains every store, and
   renders each row with its own store's values. Nothing sweeps `Sent` rows yet; that belongs
   with T7's basket sweep.
+- **"Your quote expires soon" is the one message nothing happening triggers**, so it comes
+  from `QuoteExpiryBackgroundService` in `StockApi`, beside the feed sync, **off by default**
+  (`Quotes:ExpiryNoticeEnabled`, `Quotes:ExpiryNoticeAtUtc`, `Quotes:ExpiryNoticeDays`). It
+  is the only job that writes to customers with nobody having done anything, and a
+  development database is usually a copy of a real one. `spQuote_QueueExpiryNotices` claims
+  each priced, unexpired quote inside the window with one `UPDATE` on
+  `Quote.ExpiryNoticeSentUtc`, so two replicas cannot both remind; `spQuote_Price` clears the
+  stamp, because a re-sent price is a new statement with its own date. Both schedulers read
+  their time of day through `DailySchedule`, and if T7 decides scheduled work belongs
+  elsewhere they move together — with the dispatcher, that is three loops in one host.
 - **`LoggingEmailSender` logs the body in Development only.** Bodies now carry confirmation
   and password-reset links, and a reset link is a credential — whoever reads the log can take
   the account, and logs are copied, shipped to a telemetry backend and read by people with no

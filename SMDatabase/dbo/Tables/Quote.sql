@@ -39,6 +39,10 @@ CREATE TABLE [dbo].[Quote]
     -- Last, deliberately: DacFx rebuilds a table to insert a column anywhere else, and a
     -- rebuild of a table every order points at is not something to do for a nullable column.
     [RequestedByContactId] INT NULL,
+
+    -- When "your quote expires soon" was queued, so the nightly sweep sends it once. Cleared by
+    -- spQuote_Price, because re-pricing is a new statement to the customer with its own date.
+    [ExpiryNoticeSentUtc] DATETIME2 NULL,
     CONSTRAINT [UQ_Quote_Reference] UNIQUE ([Reference]),
     -- Lets Purchase reference a quote together with its site.
     CONSTRAINT [UQ_Quote_IdSite] UNIQUE ([Id], [SiteId]),

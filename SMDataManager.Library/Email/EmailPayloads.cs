@@ -38,6 +38,9 @@ namespace SMDataManager.Library.Email
     /// <summary>Written by <c>spQuote_Price</c>, every time the quote is sent.</summary>
     public sealed record QuotePricedPayload(string Reference, decimal Value, DateTime? ExpiresDate);
 
+    /// <summary>Written by <c>spQuote_QueueExpiryNotices</c>, the nightly sweep.</summary>
+    public sealed record QuoteExpiringPayload(string Reference, decimal Value, DateTime? ExpiresDate);
+
     /// <summary>Written by <c>spOrder_ConvertFromQuote</c>, from the order it has just totalled.</summary>
     public sealed record OrderConfirmedPayload(
         string Reference,

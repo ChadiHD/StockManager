@@ -10,6 +10,7 @@ using SMDataManager.Library.Models;
 using SMDataManager.Library.Tax;
 using StockApi.Email;
 using StockApi.Feeds;
+using StockApi.Quotes;
 using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
@@ -127,6 +128,11 @@ builder.Services.AddScoped<EmailDispatcher>();
 // Here and not in SMStore: one dispatcher is all the volume needs. On by default, unlike the
 // feed sync, for the reason EmailDispatchBackgroundService gives.
 builder.Services.AddHostedService<EmailDispatchBackgroundService>();
+
+// "Your quote expires soon", once a day, off unless Quotes:ExpiryNoticeEnabled says otherwise —
+// the one job here that writes to customers without anybody having done anything. Beside the
+// feed sync, and moving with it if T7 decides scheduled work belongs elsewhere.
+builder.Services.AddHostedService<QuoteExpiryBackgroundService>();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 
