@@ -11,6 +11,7 @@ using SMDataManager.Library.Tax;
 using StockApi.Email;
 using StockApi.Feeds;
 using StockApi.Quotes;
+using StockApi.Scheduling;
 using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
@@ -155,6 +156,10 @@ builder.Services.AddHostedService<EmailDispatchBackgroundService>();
 // the one job here that writes to customers without anybody having done anything. Beside the
 // feed sync, and moving with it if T7 decides scheduled work belongs elsewhere.
 builder.Services.AddHostedService<QuoteExpiryBackgroundService>();
+
+// Abandoned anonymous baskets and old sent mail, once a day, on by default; see the service.
+builder.Services.AddTransient<IHousekeepingData, HousekeepingData>();
+builder.Services.AddHostedService<HousekeepingBackgroundService>();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 
