@@ -137,6 +137,8 @@ per-site configuration**.
 - Customer sign-in, account area, addresses
 - RFQ ordering mode: cart → submitted quote → admin prices → customer accepts → order
 - Per-group flat discount pricing, per-group product visibility
+- Per-store product selection in the admin portal; prices visible to signed-in customers only,
+  per store (T8)
 - Tax rule engine, configured for Ireland (23% standard, zero-rate EU reverse charge)
 - Invoice / credit-terms payment path (Net-30 on approved accounts)
 - Transactional email for every state change
@@ -285,7 +287,62 @@ Everything in §6 plus:
 
 **Exit:** deployed to a staging domain, monitored, restorable, rebuilt from a clean checkout by CI.
 
-**Template track total: ~13–16 weeks.**
+### T8 — Store catalog control (1.5–2 weeks)
+
+Detail plan: `docs/plans/2026-10-05-t8-store-catalog-control.md`, which supersedes the bullets
+below where they differ.
+
+Added 2026-10-05 as a requirement: the operator chooses what each store sells, and a store can
+keep its prices from anyone who has not signed in. Both are platform mechanisms; what
+aclitrade selects and sets is tenant configuration (A0, A2). Comes before T7 in §6, because T7
+hardens what exists.
+
+**1. The admin chooses which products appear on which store.**
+
+Today a product is on a store if its feed `Category` string maps through `CategoryMapping` to
+one of that store's `SiteCategory` rows. Nothing in the portal edits either table, and
+`ProductDetail`'s category dropdown is a hardcoded seven-item list that can silently move a
+product off every store (see CLAUDE.md). There is no per-product choice at all.
+
+- **Decide first: an allow-list, or an override on top of the category mapping.** An allow-list
+  ("only the ticked products") hides every new SKU a nightly feed adds until somebody ticks it.
+  The recommendation is a per-store, per-product override (`Show` / `Hide`) over the category
+  mapping, so the mapping stays the default and the admin handles the exceptions. Bulk
+  show/hide by category is the same override applied to many rows.
+- **Enforce it in `dbo.fnCatalog_VisibleProducts` and nowhere else.** Search, facets, the
+  detail page, `spBasket_AddLine` and `spQuote_SubmitRequest` all go through that function, so
+  "on this store" means the same thing everywhere. A filter applied after the query breaks
+  paging and facet counts (the reason the function exists).
+- **Hiding is not withdrawing.** A hidden product stays on any quote or order that already
+  contains it, as a delisted one does: `DelistedProductHistoryTests` is the model.
+- Scoped by `SiteId` with a composite key, per the multi-store rules.
+- Portal: a products screen with a per-store toggle and bulk actions, working on the store the
+  admin's site switcher is acting for. A screen mapping feed categories to the store's own
+  categories, replacing the hardcoded dropdown.
+- Admins are global and act for one store at a time through `X-Site-Key`, with reads and
+  writes scoped (T3). Restricting an admin to some stores is a prerequisite for a second
+  tenant, not for this.
+
+**2. Prices are shown to signed-in customers only.**
+
+The mechanism exists: `Site.PriceDisplay = 'Authenticated'`, read by
+`CatalogPresenter.ShowPrices`. What is missing:
+
+- **A bug:** `ShowPrices` tests `CustomerGroupId is not null`, not whether somebody is signed
+  in. An approved customer whose account has no pricing group sees no prices on an
+  `Authenticated` store. The fix is to also allow `ICustomerContext.IsSignedIn`, with a test
+  for a signed-in customer who has no group.
+- **Check every surface an anonymous visitor reaches:** product cards, the detail page, the
+  basket's indicative value, sorting by price (the order alone ranks the prices), and the
+  anonymous output cache T2 planned, which must not serve priced pages to anonymous visitors.
+- An admin control for `PriceDisplay`. `Site` has no admin screen yet, so it is a row update.
+- A journey: an anonymous visitor sees no price on any of those surfaces; a signed-in customer
+  with no group sees list price.
+
+**Exit:** an admin hides one product and shows another on one store without touching the
+other; an anonymous visitor to an `Authenticated` store sees no price anywhere.
+
+**Template track total: ~15–18 weeks.**
 
 ## 5. Tenant track — aclitrade.ie
 
@@ -294,7 +351,8 @@ template has a gap — fix the template rather than special-casing the tenant.
 
 ### A0 — Site registration and brand (0.5 week, needs T0)
 
-- `Site` row: domain `aclitrade.ie`, country IE, currency EUR
+- `Site` row: domain `aclitrade.ie`, country IE, currency EUR, `PriceDisplay = 'Authenticated'`
+  (prices for registered customers only)
 - ACL token file from `_ds` + `brand.css`, logo and favicon set as site assets
 - **Start `.ie` registration and IEDR identity verification now** — it has real lead time and is
   the classic launch blocker
@@ -312,6 +370,7 @@ template has a gap — fix the template rather than special-casing the tenant.
   brand facet
 - Decide and implement the long-tail rule for SKUs matching none of the six
 - Curate featured products and badges
+- Choose which products aclitrade sells, with T8's per-store selection
 
 This is data work, not code work, and it is the most underestimated item in the plan (§8).
 
@@ -341,7 +400,8 @@ This is data work, not code work, and it is the most underestimated item in the 
 | 5 | T4 Feed reliability | — |
 | 6 | T5 Ordering | — |
 | 7 | T6 Tax, terms, email | A3 Irish configuration |
-| 8 | T7 Production hardening | A4 Launch |
+| 8 | T8 Store catalog control | A2 product selection |
+| 9 | T7 Production hardening | A4 Launch |
 
 **Calendar: ~15–19 weeks to aclitrade.ie live**, with the platform reusable at that point.
 

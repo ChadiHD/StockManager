@@ -22,7 +22,7 @@ quotes, accounts, customer groups or distributor feeds:
 - `docs/plans/2026-07-24-aclitrade-b2b-ecommerce-design.md` — the target design
 - `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and phase scope
 
-**The template is finished before the first tenant is built.** The plan runs two tracks, T0–T7
+**The template is finished before the first tenant is built.** The plan runs two tracks, T0–T8
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
@@ -49,6 +49,13 @@ surface reading the stored tax rather than computing 23% in markup, the email ou
 dispatcher, every message on it in per-site wording, the quote-expiry sweep, and one journey
 where two customers are charged differently for the same product. The plan opens with the four
 things that were already wrong — three numbers for one tax among them.
+
+**T8 — store catalog control is planned, not built**, and runs before T7: the admin choosing
+which products each store sells, and prices shown to signed-in customers only, per
+`docs/plans/2026-10-05-t8-store-catalog-control.md`. Until it lands, `CategoryMapping` alone
+decides what a store sells, `Product.Published` / `Featured` / `Badge` are one setting for every
+store, and `CatalogPresenter.ShowPrices` has a known bug: it checks for a pricing group, so a
+signed-in customer without one sees no prices on an `Authenticated` store.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -107,17 +114,20 @@ before anything else runs. Consequences that are easy to get wrong:
 - `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
   start with it set outside Development.
 
-### Scoping is done on writes and not on admin reads
+### An admin acts for one store at a time, and admins are global
 
-**Read scoping in the admin API is not implemented, and the storefront's is.** `SMStore`
-resolves a site per request and every storefront query filters on it. `StockApi` and `SMPortal`
-have no site concept at all: no controller, service or data class mentions `SiteId`, and
-`spAccount_GetAll`, `spQuote_GetAll`, `spOrder_GetAll`, `spCustomerGroup_GetAll` and
-`spDistributorFeed_GetAll` return every store's rows. That is correct only while an admin is
-global. It stops being correct the moment an admin belongs to one store — and
-`spDistributorFeed_GetAll` returning every tenant's `SecretRef` is the sharpest edge of it,
-since `StockApi` holds the key ring that decrypts them. **Deciding whether an admin is global
-or per-site is a prerequisite for a second tenant, not a later refinement.**
+The storefront resolves its store from the host; the admin API cannot, because one host serves
+an operator who may run several. So the portal names the store in an `X-Site-Key` header,
+`AdminSiteResolutionMiddleware` resolves it, and `IAdminSiteContext.Site` **throws** when a
+request named none — a controller cannot read a scoped row without being told which store is
+asking. Reads are scoped as well as writes: `spAccount_GetAll`, `spQuote_GetAll`,
+`spOrder_GetAll`, `spCustomerGroup_GetAll` and `spDistributorFeed_GetAll` all take `@SiteId`.
+Products are the deliberate exception — `dbo.Product` is shared, the desktop POS has no site,
+so `ProductController` injects the context per action rather than through its constructor.
+
+**Admins are global**: any admin may act for any active store, and the header is trusted once
+it names one. **Restricting an admin to some stores is a prerequisite for a second tenant**,
+and the change is a "may this user select this site" check in the middleware, nothing else.
 
 The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
 `spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
