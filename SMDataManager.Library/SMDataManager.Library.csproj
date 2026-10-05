@@ -7,6 +7,9 @@
 	<ItemGroup>
 	  <PackageReference Include="Dapper" Version="2.1.79" />
 	  <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+	  <!-- The outbox protects payloads that carry a sign-in link. Abstractions only: the key ring
+	       itself is configured by AddSharedDataProtection in each host. -->
+	  <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" Version="10.0.10" />
 	  <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
 	  <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
 	  <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />

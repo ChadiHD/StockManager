@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using NSubstitute.Core;
 using SMDataManager.Library.Models;
 using SMStore.Accounts;
 using SMStore.Sites;
@@ -10,7 +9,7 @@ using StockManager.Notifications;
 namespace SMStore.Tests.TestSupport;
 
 /// <summary>
-/// A real <see cref="PasswordResetService"/> over a substituted user store and mail sender.
+/// A real <see cref="PasswordResetService"/> over a substituted user store and a recording outbox.
 /// </summary>
 /// <remarks>
 /// The service is built rather than substituted, here and in the page tests, for the same
@@ -46,10 +45,10 @@ internal sealed class PasswordResetHarness
             Substitute.For<IUserStore<IdentityUser>>(),
             null, null, null, null, null, null, null, null);
 
-        Sender = Substitute.For<IEmailSender>();
+        Outbox = new RecordingEmailOutbox(Site);
 
         Service = new PasswordResetService(
-            Users, SiteContext, Sender, NullLogger<PasswordResetService>.Instance);
+            Users, SiteContext, Outbox, NullLogger<PasswordResetService>.Instance);
     }
 
     public SiteModel Site { get; }
@@ -58,16 +57,12 @@ internal sealed class PasswordResetHarness
 
     public UserManager<IdentityUser> Users { get; }
 
-    public IEmailSender Sender { get; }
+    public RecordingEmailOutbox Outbox { get; }
 
     public PasswordResetService Service { get; }
 
-    /// <summary>The one message the service sent, or a failure if it sent none.</summary>
-    public EmailMessage SentMessage() =>
-        Sender.ReceivedCalls()
-            .Where(call => call.GetMethodInfo().Name == nameof(IEmailSender.SendAsync))
-            .Select(call => (EmailMessage)call.GetArguments()[0]!)
-            .Single();
+    /// <summary>The one message the service queued, rendered, or a failure if it queued none.</summary>
+    public EmailMessage SentMessage() => Outbox.Rendered().Single();
 
     /// <summary>A confirmed customer login at this harness's store.</summary>
     public IdentityUser WithConfirmedUser(string email = "buyer@example.test", string? siteKey = null)

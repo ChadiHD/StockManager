@@ -2,12 +2,13 @@
 @using SMStore.Accounts
 @using SMStore.Documents
 @using SMStore.Registration
+@using SMDataManager.Library.Email
 @inject ISiteContext SiteContext
 @inject ICustomerContext Customer
 @inject RegistrationFieldSetProvider FieldSets
 @inject IRegistrationService Registrations
 @inject DocumentUploadService Uploads
-@inject StockManager.Notifications.IEmailSender Email
+@inject IEmailOutbox Outbox
 @inject ILogger<Register> Logger
 
 <PageTitle>Open an account · @SiteContext.Site.Name</PageTitle>
@@ -361,17 +362,28 @@ else
             }
         }
 
-        await AcknowledgeAsync(submission);
+        Acknowledge(submission);
     }
 
-    private async Task AcknowledgeAsync(RegistrationSubmission submission)
+    /// <summary>
+    /// Queues the acknowledgement, which StockApi's dispatcher sends.
+    /// </summary>
+    /// <remarks>
+    /// Queued after the account is written rather than inside the same transaction, because
+    /// there is no one transaction: the login is in ApiAuthDb and the confirmation token is
+    /// minted after the account exists. What the outbox buys here is the retry — a relay that
+    /// is down for an hour no longer loses the only message carrying the confirmation link.
+    /// </remarks>
+    private void Acknowledge(RegistrationSubmission submission)
     {
         try
         {
-            await Email.SendAsync(RegistrationEmails.Acknowledgement(
-                SiteContext.Site, submission.Email!.Trim(),
-                $"{submission.FirstName} {submission.LastName}".Trim(), _reference, _confirmationLink),
-                Http!.RequestAborted);
+            Outbox.Enqueue(
+                SiteContext.Site.Id,
+                submission.Email!.Trim(),
+                $"{submission.FirstName} {submission.LastName}".Trim(),
+                EmailTemplates.RegistrationReceived,
+                new RegistrationReceivedPayload(_reference, _confirmationLink));
         }
         catch (Exception exception)
         {
@@ -379,7 +391,7 @@ else
             // submit again and be answered neutrally the second time, which is the worst of
             // both — so the acknowledgement is best-effort and the failure is ours to chase.
             Logger.LogError(exception,
-                "Could not acknowledge registration {Reference} at {SiteKey}.",
+                "Could not queue the acknowledgement for registration {Reference} at {SiteKey}.",
                 _reference, SiteContext.Site.SiteKey);
         }
     }

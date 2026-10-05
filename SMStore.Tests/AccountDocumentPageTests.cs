@@ -386,6 +386,51 @@ public class AccountDocumentPageTests : Bunit.TestContext
     }
 
     [Fact]
+    public void APrintedOrderNamesItsTaxByTreatmentRatherThanAsVat()
+    {
+        OrderIs("SO-0012", poNumber: null, fromQuote: null,
+            vat: 0m,
+            treatment: "Intra-EU reverse charge",
+            legend: "VAT reverse charge: the customer accounts for VAT under Article 196.");
+
+        var cut = RenderComponent<AccountOrderPrint>(p => p.Add(x => x.Reference, "SO-0012"));
+
+        // A zero beside the word "VAT" reads as a number nobody filled in. Beside the
+        // treatment it reads as a reason, and the legend is what the customer's accountant
+        // is looking for — an invoice zero-rating a sale without saying why comes back.
+        cut.Markup.Should().Contain("Intra-EU reverse charge");
+        cut.Markup.Should().Contain("Article 196");
+    }
+
+    [Fact]
+    public void APrintedOrderShowsTheTaxItWasActuallyCharged()
+    {
+        OrderIs("SO-0012", poNumber: null, fromQuote: null,
+            vat: 46m, treatment: "Domestic standard", legend: "VAT at 23%.");
+
+        var cut = RenderComponent<AccountOrderPrint>(p => p.Add(x => x.Reference, "SO-0012"));
+
+        // The figure comes off the order rather than out of the page. Until T6 the portal
+        // multiplied by a hardcoded 0.23 while the database stored zero, so the customer and
+        // the admin saw different totals for the same order.
+        cut.Markup.Should().Contain("Domestic standard");
+        cut.Markup.Should().Contain("246.00");
+    }
+
+    [Fact]
+    public void AnOrderRaisedBeforeTaxWasRecordedStillRenders()
+    {
+        OrderIs("SO-0012", poNumber: null, fromQuote: null);
+
+        var cut = RenderComponent<AccountOrderPrint>(p => p.Add(x => x.Reference, "SO-0012"));
+
+        // Treatment and legend are null on every order raised before this phase, and a
+        // document somebody filed must still open.
+        cut.Markup.Should().Contain("Tax");
+        cut.Find(".sheet__reference").TextContent.Should().Be("SO-0012");
+    }
+
+    [Fact]
     public void AnotherAccountsReferenceCannotBePrintedEither()
     {
         var cut = RenderComponent<AccountQuotePrint>(p => p.Add(x => x.Reference, "QT-9999"));
@@ -396,7 +441,9 @@ public class AccountDocumentPageTests : Bunit.TestContext
         cut.FindAll(".sheet").Should().BeEmpty();
     }
 
-    private void OrderIs(string reference, string? poNumber, string? fromQuote)
+    private void OrderIs(
+        string reference, string? poNumber, string? fromQuote,
+        decimal vat = 0m, string? treatment = null, string? legend = null)
     {
         _orders.GetOrderForAccount(reference, AccountId, SiteId).Returns(new OrderModel
         {
@@ -407,9 +454,12 @@ public class AccountDocumentPageTests : Bunit.TestContext
             Status = "Awaiting payment",
             PurchaseDate = new DateTime(2026, 9, 10, 0, 0, 0, DateTimeKind.Utc),
             SubTotal = 200m,
-            FinalPrice = 200m,
+            VAT = vat,
+            FinalPrice = 200m + vat,
             PoNumber = poNumber,
             FromQuoteReference = fromQuote,
+            TaxTreatment = treatment,
+            TaxLegend = legend,
             Items = 1
         });
 

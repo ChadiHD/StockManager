@@ -178,7 +178,10 @@ public sealed class CustomerOrderPresenter
             order.Status,
             order.PurchaseDate,
             Money(order.SubTotal),
+            Money(order.VAT),
             Money(order.FinalPrice),
+            order.TaxTreatment,
+            order.TaxLegend,
             order.PoNumber,
             order.FromQuoteReference,
             lines);
@@ -280,7 +283,15 @@ public sealed record OrderView(
     string Status,
     DateTime Placed,
     string SubTotal,
+    string Tax,
     string Total,
+
+    /// <summary>
+    /// Why it was taxed that way, and the sentence the store put in writing. Both null on an
+    /// order raised before the treatment was recorded, so a document has to cope.
+    /// </summary>
+    string? TaxTreatment,
+    string? TaxLegend,
     string? PoNumber,
     string? FromQuoteReference,
     IReadOnlyList<DocumentLineView> Lines);

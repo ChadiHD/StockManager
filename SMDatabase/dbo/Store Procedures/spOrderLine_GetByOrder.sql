@@ -7,7 +7,7 @@ BEGIN
 
 	SELECT [d].[Id], [d].[PurchaseId], [d].[ProductId],
 	       [p].[Sku], [p].[ProductName] AS [Name],
-	       [d].[Quantity], [d].[PurchasePrice] AS [Price], [d].[VAT]
+	       [d].[Quantity], [d].[PurchasePrice] AS [Price], [d].[VAT], [d].[TaxRatePct]
 	FROM [dbo].[PurchaseDetail] d
 	-- PurchaseDetail is shared with POS receipts and carries no site of its own. Joining the
 	-- order gates this on both facts at once: the row is a portal order, and it is this

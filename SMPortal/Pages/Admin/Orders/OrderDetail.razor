@@ -49,9 +49,20 @@ else
                 </div>
                 <div class="totals">
                     <div class="kv"><span class="k">Subtotal (net)</span><span class="v-strong">@AdminUi.Money(_sub, _o.Currency, 2)</span></div>
-                    <div class="kv mt"><span class="k">VAT (23%)</span><span class="v-strong">@AdminUi.Money(_vat, _o.Currency, 2)</span></div>
+                    @* The treatment rather than a hardcoded rate: this store's standard rate
+                       is a Site column, and a reverse-charged or exported order is taxed at
+                       nothing for a reason worth naming on the screen an admin answers
+                       questions from. *@
+                    <div class="kv mt">
+                        <span class="k">@(string.IsNullOrWhiteSpace(_o.TaxTreatment) ? "Tax" : _o.TaxTreatment)</span>
+                        <span class="v-strong">@AdminUi.Money(_vat, _o.Currency, 2)</span>
+                    </div>
                     <div class="divider"></div>
                     <div class="total-row"><span>Total</span><strong>@AdminUi.Money(_total, _o.Currency, 2)</strong></div>
+                    @if (!string.IsNullOrWhiteSpace(_o.TaxLegend))
+                    {
+                        <p class="tax-legend">@_o.TaxLegend</p>
+                    }
                 </div>
             </div>
         </div>
@@ -127,8 +138,12 @@ else
         _o = Data.GetOrder(Id);
 
         if (_o is null) return;
-        _sub = _o.LineItems.Sum(l => l.LineTotal);
-        _vat = Math.Round(_sub * 0.23m, 2);
+        // Read, not recomputed. Until T6 this page multiplied the net by a hardcoded 0.23
+        // while spOrder_ConvertFromQuote stored zero, so an admin saw a total 23% above the
+        // one on the customer's own copy of the same order. The rate is per site now, and
+        // the figure the document shows is the figure the order carries.
+        _sub = _o.SubTotal;
+        _vat = _o.Vat;
         _total = _sub + _vat;
 
         var cancelled = _o.Status == "Cancelled";

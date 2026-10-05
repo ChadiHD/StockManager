@@ -16,7 +16,6 @@ CREATE TABLE [dbo].[Purchase]
     [AccountId] INT NULL,
     [QuoteId] INT NULL,
     [Currency] NVARCHAR(3) NULL,
-    -- Awaiting payment | Processing | Fulfilled | Cancelled
     [Status] NVARCHAR(30) NULL,
     -- Set on portal orders only. Desktop POS sales have no site and keep it NULL — unlike the
     -- other scoped tables, this column is not backfilled, because a POS sale genuinely does not
@@ -32,6 +31,39 @@ CREATE TABLE [dbo].[Purchase]
     -- every document. Theirs, not ours: many B2B buyers cannot pay an invoice that does not
     -- carry it, which is why it is on the order and not a note somewhere.
     [PoNumber] NVARCHAR(50) NULL,
+
+    /*
+    Why this order was taxed the way it was, snapshotted rather than re-derived.
+
+    The rate can change by statute, the rule set can be corrected, a customer can supply a
+    VAT number they did not have at the time, and a store can move country. None of that may
+    silently rewrite a document somebody has already acted on — the same argument T5 settled
+    for price, one table over.
+
+    TaxLegend is the sentence printed on the document. It is stored rather than rendered from
+    the treatment because it is a legal statement, and improving the wording next year must
+    not restate what last year's orders said.
+
+    Both NULL on a POS row, like every other portal-only column here: a till sale has no
+    account to assess.
+    */
+    [TaxTreatment] NVARCHAR(30) NULL,
+    [TaxLegend] NVARCHAR(200) NULL,
+
+    -- When payment is due: the order date plus Account.PaymentTermsDays, snapshotted because
+    -- an account's terms can be renegotiated and an invoice already sent must not move.
+    -- Equal to the order date for a prepaid account, which is what prepaid means.
+    [DueDate] DATE NULL,
+
+    /*
+    Whether this order went past the account's credit limit.
+
+    Recorded on every order and refused on only one path. A customer accepting their own quote
+    is stopped; an admin converting one for somebody who rang up is making a commercial
+    decision with their name on it, and the flag is how it stays visible afterwards. Same
+    shape as T5's decidability rules, which gate the customer and not the procedure.
+    */
+    [CreditLimitExceeded] BIT NOT NULL DEFAULT 0,
 
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
     -- Composite, like Quote's. A POS sale leaves AccountId, QuoteId and SiteId all NULL, and
@@ -54,6 +86,19 @@ CREATE TABLE [dbo].[Purchase]
     -- customer acceptance, and never both — an order attributed to two people answers the
     -- question "who placed this?" with a guess. Making StaffId nullable removed the only thing
     -- that was stopping a row with no placer at all, so this replaces it.
+    /*
+    The four states a portal order moves through, and NULL for a POS sale.
+
+    They had been a comment on the column since it was written, which is exactly where
+    CK_Quote_Status was before T5 — and the same thing followed from it: spOrder_UpdateStatus
+    stored whatever string arrived, so a typo produced an order that matched no filter and no
+    step in the progress bar. NULL is admitted rather than tolerated: spPurchase_Insert sets
+    no status at all, and a desktop sale genuinely has none.
+    */
+    CONSTRAINT [CK_Purchase_Status] CHECK (
+        [Status] IS NULL
+        OR [Status] IN (N'Awaiting payment', N'Processing', N'Fulfilled', N'Cancelled')),
+
     CONSTRAINT [CK_Purchase_Placer] CHECK (
         CASE WHEN [StaffId] IS NULL THEN 0 ELSE 1 END
       + CASE WHEN [PlacedByContactId] IS NULL THEN 0 ELSE 1 END = 1)

@@ -1,6 +1,7 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
+using StockApi.Scheduling;
 
 namespace StockApi.Feeds
 {
@@ -182,59 +183,21 @@ namespace StockApi.Feeds
         /// UTC, and deliberately not per site. A store's right hour is whenever its distributor
         /// finishes dropping the file, which the platform has no way to know and cannot infer
         /// from the store's country — so one value, documented, and a per-feed column when a
-        /// second distributor actually wants one.
-        ///
-        /// Not a cron expression either. Cron would buy "twice a day" and "weekdays only" at
-        /// the cost of a dependency and a syntax to get wrong, and nothing has asked for either.
+        /// second distributor actually wants one. The reading itself is
+        /// <see cref="DailySchedule"/>'s, shared with the quote-expiry sweep.
         /// </remarks>
-        public static bool TryReadSyncTime(IConfiguration config, ILogger logger, out TimeSpan syncTime)
-        {
-            const string key = "Feeds:SyncAtUtc";
-            const string fallback = "02:00";
-
-            var configured = config.GetValue<string?>(key);
-
-            if (string.IsNullOrWhiteSpace(configured))
-            {
-                syncTime = TimeSpan.Parse(fallback);
-                return true;
-            }
-
-            if (TimeSpan.TryParse(configured, out syncTime)
-                && syncTime >= TimeSpan.Zero
-                && syncTime < TimeSpan.FromDays(1))
-            {
-                return true;
-            }
-
-            logger.LogError(
-                "{Key} is '{Configured}', which is not a time of day between 00:00 and 23:59. " +
-                "No feeds will be synced on a schedule until it is corrected.", key, configured);
-
-            syncTime = default;
-            return false;
-        }
+        public static bool TryReadSyncTime(IConfiguration config, ILogger logger, out TimeSpan syncTime) =>
+            DailySchedule.TryRead(config, "Feeds:SyncAtUtc", "02:00", logger, out syncTime);
 
         private bool TryReadSyncTime(out TimeSpan syncTime) =>
             TryReadSyncTime(_config, _logger, out syncTime);
 
-        /// <summary>How long from <paramref name="now"/> until the next run.</summary>
+        /// <summary>How long from <paramref name="nowUtc"/> until the next run.</summary>
         /// <remarks>
-        /// Today's slot if it has not passed, otherwise tomorrow's. A host that starts after the
-        /// hour therefore waits a day rather than syncing immediately, which is the right way
-        /// round: a restart loop would otherwise re-import every feed on every restart, and a
-        /// missed night is what the staleness alert exists to surface.
+        /// A missed night is what the staleness alert exists to surface; see
+        /// <see cref="DailySchedule.UntilNext"/> for why a late start waits for tomorrow.
         /// </remarks>
-        public static TimeSpan UntilNext(TimeSpan syncTime, DateTime nowUtc)
-        {
-            var next = nowUtc.Date + syncTime;
-
-            if (next <= nowUtc)
-            {
-                next = next.AddDays(1);
-            }
-
-            return next - nowUtc;
-        }
+        public static TimeSpan UntilNext(TimeSpan syncTime, DateTime nowUtc) =>
+            DailySchedule.UntilNext(syncTime, nowUtc);
     }
 }

@@ -35,7 +35,7 @@ else
                    Meta="Meta"
                    Lines="_order.Lines"
                    Totals="Totals"
-                   FooterNote="Tax and freight are confirmed on the invoice." />
+                   FooterNote="@FooterNote" />
 }
 
 @code {
@@ -74,8 +74,22 @@ else
     [
         ("Lines", _order!.Lines.Count.ToString()),
         ("Subtotal", _order.SubTotal),
+        // Named by treatment rather than "VAT", because a reverse-charged or exported order
+        // carries nothing and saying "VAT 0.00" without saying why is what an accountant
+        // sends back.
+        (string.IsNullOrWhiteSpace(_order.TaxTreatment) ? "Tax" : _order.TaxTreatment, _order.Tax),
         ("Total", _order.Total),
     ];
+
+    /// <summary>
+    /// The legend the order was raised under, which is the part a customer's accountant
+    /// looks for — a zero-rated line with no statement of why is a query back to the store.
+    /// Snapshotted at acceptance, so an order raised before T6 has none and says the older
+    /// thing instead.
+    /// </summary>
+    private string FooterNote => string.IsNullOrWhiteSpace(_order!.TaxLegend)
+        ? "Tax and freight are confirmed on the invoice."
+        : $"{_order.TaxLegend} Freight is confirmed on the invoice.";
 
     protected override void OnParametersSet()
     {

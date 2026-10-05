@@ -282,9 +282,9 @@ public class CustomerDocumentScopeTests
             int siteId, string runId, string suffix) =>
             Scalar(connection, transaction, """
                 INSERT INTO dbo.Account (Reference, Company, Currency, PaymentMethod,
-                                         PaymentTerms, CreditLimit, Status, SiteId)
+                                         PaymentTerms, PaymentTermsDays, CreditLimit, Status, SiteId)
                 OUTPUT INSERTED.Id
-                VALUES (@reference, @company, N'EUR', N'Credit', N'Net 30', 10000,
+                VALUES (@reference, @company, N'EUR', N'Credit', N'Net 30', 30, 10000,
                         N'Approved', @siteId);
                 """,
                 ("@reference", $"AC-{suffix}{runId[..6]}"),

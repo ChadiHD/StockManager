@@ -1,5 +1,6 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using SMStore.Accounts;
 using SMStore.Sites;
 
@@ -25,6 +26,8 @@ public sealed class QuoteDecisionService
 {
     private readonly IQuoteData _quotes;
     private readonly IOrderData _orders;
+    private readonly IAccountData _accounts;
+    private readonly TaxAssessor _taxAssessor;
     private readonly ISiteContext _siteContext;
     private readonly ICustomerContext _customer;
     private readonly ILogger<QuoteDecisionService> _logger;
@@ -32,12 +35,16 @@ public sealed class QuoteDecisionService
     public QuoteDecisionService(
         IQuoteData quotes,
         IOrderData orders,
+        IAccountData accounts,
+        TaxAssessor taxAssessor,
         ISiteContext siteContext,
         ICustomerContext customer,
         ILogger<QuoteDecisionService> logger)
     {
         _quotes = quotes;
         _orders = orders;
+        _accounts = accounts;
+        _taxAssessor = taxAssessor;
         _siteContext = siteContext;
         _customer = customer;
         _logger = logger;
@@ -57,10 +64,27 @@ public sealed class QuoteDecisionService
             return QuoteDecision.NotDecidable;
         }
 
+        // The same assessor the admin's Convert button uses, so one sale cannot be taxed two
+        // ways depending on who pressed the button.
+        var assessment = _taxAssessor.ForOrder(
+            _siteContext.Site,
+            _accounts.GetAccountById(_customer.AccountId!.Value, _siteContext.Site.Id));
+
         var outcome = _orders.ConvertQuoteToOrder(
             quote.Id,
             QuoteAcceptance.ByCustomer(_customer.Contact!.Id, poNumber),
-            _siteContext.Site.Id);
+            _siteContext.Site.Id,
+            assessment,
+            // The customer is stopped at the limit; the admin's Convert is not. Nobody is
+            // making a commercial decision on this path.
+            enforceCreditLimit: true);
+
+        if (outcome.OverCreditLimit)
+        {
+            // Something they can act on by ringing the store, so it gets its own words
+            // rather than being folded into "that did not work".
+            return QuoteDecision.OverCreditLimit;
+        }
 
         if (outcome.NoLongerAwaitingAcceptance)
         {
@@ -161,10 +185,10 @@ public sealed class QuoteDecisionService
 /// What came of a customer's decision.
 /// </summary>
 /// <remarks>
-/// Six outcomes, and only one of them is a fault. The others each need different words: a
-/// quote that is not yours, one nobody has priced yet, one a colleague already decided, and a
-/// rejection with no reason are all things the customer can act on, and a single "that did not
-/// work" would tell them nothing about which.
+/// Seven outcomes, and only one of them is a fault. The others each need different words: a
+/// quote that is not yours, one nobody has priced yet, one a colleague already decided, one
+/// larger than the credit the account has, and a rejection with no reason are all things the
+/// customer can act on, and a single "that did not work" would tell them nothing about which.
 /// </remarks>
 public sealed class QuoteDecision
 {
@@ -186,6 +210,9 @@ public sealed class QuoteDecision
     public static readonly QuoteDecision AlreadyDecided = new("AlreadyDecided");
     public static readonly QuoteDecision ReasonRequired = new("ReasonRequired");
     public static readonly QuoteDecision Failed = new("Failed");
+
+    /// <summary>Larger than the credit limit on the account. Nothing was created.</summary>
+    public static readonly QuoteDecision OverCreditLimit = new("OverCreditLimit");
     public static readonly QuoteDecision Rejected = new("Rejected");
 
     public static QuoteDecision Accepted(string orderReference) =>

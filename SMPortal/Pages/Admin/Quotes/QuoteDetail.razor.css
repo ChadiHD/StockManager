@@ -72,3 +72,6 @@
    what is stored, so without this the operator has no way to tell which rows are waiting. */
 .row-edited > td { background:var(--turq-tint-2); }
 .row-edited .line-edit { border-color:#1bc7ce; }
+
+/* Says why there is no tax line. A quote is net; the treatment is decided at acceptance. */
+.quote-tax-note { margin:8px 0 0; color:var(--muted); font-size:.76rem; }

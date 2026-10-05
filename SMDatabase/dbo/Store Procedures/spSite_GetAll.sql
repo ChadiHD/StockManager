@@ -7,7 +7,9 @@ BEGIN
 
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
-	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail], [IsActive], [CreatedDate]
+	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail],
+	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber],
+	       [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	ORDER BY [Name];
 END

@@ -4,6 +4,7 @@ using NSubstitute;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using StockApi.Feeds;
+using StockApi.Tests.TestSupport;
 using StockManager.Notifications;
 using Xunit;
 
@@ -22,12 +23,12 @@ namespace StockApi.Tests.Feeds;
 public class FeedAlertServiceTests
 {
     private readonly IDistributorFeedData _feeds = Substitute.For<IDistributorFeedData>();
-    private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
+    private readonly RecordingEmailOutbox _outbox = new(Site());
     private readonly FeedAlertService _alerts;
 
     public FeedAlertServiceTests()
     {
-        _alerts = new FeedAlertService(_feeds, _sender, NullLogger<FeedAlertService>.Instance);
+        _alerts = new FeedAlertService(_feeds, _outbox, NullLogger<FeedAlertService>.Instance);
 
         _feeds.GetStaleFeeds(Arg.Any<int>()).Returns([]);
         _feeds.GetSyncHistory(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns([]);
@@ -62,14 +63,16 @@ public class FeedAlertServiceTests
     private static DistributorFeedResult Busy(string name = "Main") =>
         new() { Distributor = name, AlreadyRunning = true };
 
-    private async Task<List<EmailMessage>> SentBy(Func<Task> act)
+    /// <summary>What a pass queued, rendered as the dispatcher would render it.</summary>
+    /// <param name="renderAs">
+    /// The store as the dispatcher will read it. Staleness wording reads the store's settings at
+    /// send time, so a test about those settings renders against the store it passed in.
+    /// </param>
+    private async Task<List<EmailMessage>> SentBy(Func<Task> act, SiteModel? renderAs = null)
     {
         await act();
 
-        return _sender.ReceivedCalls()
-            .Where(call => call.GetMethodInfo().Name == nameof(IEmailSender.SendAsync))
-            .Select(call => (EmailMessage)call.GetArguments()[0]!)
-            .ToList();
+        return _outbox.Rendered(renderAs);
     }
 
     [Fact]
@@ -201,7 +204,8 @@ public class FeedAlertServiceTests
         FeedExists();
         _feeds.GetStaleFeeds(7).Returns([new DistributorFeedModel { Id = 3, SiteId = 7, Name = "Main" }]);
 
-        var hiding = await SentBy(() => _alerts.ReportAsync(Site(hideStale: true), []));
+        var hiding = await SentBy(
+            () => _alerts.ReportAsync(Site(hideStale: true), []), renderAs: Site(hideStale: true));
 
         // "Your products have disappeared" and "you are selling on unconfirmed figures" call
         // for different urgency, and an operator should not have to read a column to find out
@@ -214,11 +218,10 @@ public class FeedAlertServiceTests
     {
         FeedExists();
         HistoryIs(3, succeededNewestFirst: [false, true]);
-        _sender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("no transport")));
+        _outbox.Fails = new InvalidOperationException("database unreachable");
 
-        // The import has already committed by the time this runs. An alert that failed to send
-        // must not be reported as a sync that did not happen.
+        // The import has already committed by the time this runs. An alert that could not be
+        // queued must not be reported as a sync that did not happen.
         await _alerts.ReportAsync(Site(), [Failed()]);
     }
 }

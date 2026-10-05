@@ -1,4 +1,5 @@
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using System.Collections.Generic;
 
 namespace SMDataManager.Library.DataAccess
@@ -35,7 +36,9 @@ namespace SMDataManager.Library.DataAccess
         /// The procedure claims the quote's status transition, so a second caller creates
         /// nothing and gets <c>NoLongerAwaitingAcceptance</c> rather than a duplicate order.
         /// </remarks>
-        QuoteAcceptanceResult ConvertQuoteToOrder(int quoteId, QuoteAcceptance acceptance, int siteId);
+        QuoteAcceptanceResult ConvertQuoteToOrder(
+            int quoteId, QuoteAcceptance acceptance, int siteId, TaxAssessment assessment = null,
+            bool enforceCreditLimit = false);
         void UpdateStatus(int purchaseId, string status, int siteId);
         List<SalesReportModel> GetSalesReport(int siteId);
         List<ActivityModel> GetRecentActivity(int take, int siteId);

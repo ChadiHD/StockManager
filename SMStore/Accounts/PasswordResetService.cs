@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using SMStore.Sites;
 using StockManager.Identity;
-using StockManager.Notifications;
+using SMDataManager.Library.Email;
 
 namespace SMStore.Accounts;
 
@@ -64,18 +64,18 @@ public sealed class PasswordResetService
 
     private readonly UserManager<IdentityUser> _users;
     private readonly ISiteContext _siteContext;
-    private readonly IEmailSender _sender;
+    private readonly IEmailOutbox _outbox;
     private readonly ILogger<PasswordResetService> _logger;
 
     public PasswordResetService(
         UserManager<IdentityUser> users,
         ISiteContext siteContext,
-        IEmailSender sender,
+        IEmailOutbox outbox,
         ILogger<PasswordResetService> logger)
     {
         _users = users;
         _siteContext = siteContext;
-        _sender = sender;
+        _outbox = outbox;
         _logger = logger;
     }
 
@@ -127,14 +127,12 @@ public sealed class PasswordResetService
         {
             var token = await _users.GeneratePasswordResetTokenAsync(user);
 
-            await _sender.SendAsync(
-                PasswordResetEmails.ResetLink(
-                    site, user.Email,
-                    MailedTokenLink.For(
-                        site, CustomerAuthentication.ResetPasswordPath, user.Id, token)),
-                cancellationToken);
+            _outbox.Enqueue(
+                site.Id, user.Email, null, EmailTemplates.PasswordReset,
+                new PasswordResetPayload(MailedTokenLink.For(
+                    site, CustomerAuthentication.ResetPasswordPath, user.Id, token)));
 
-            _logger.LogInformation("Sent a password reset link at {SiteKey}.", site.SiteKey);
+            _logger.LogInformation("Queued a password reset link at {SiteKey}.", site.SiteKey);
         }
         catch (Exception exception)
         {
@@ -219,14 +217,15 @@ public sealed class PasswordResetService
             // chased rather than reported as a reset that did not happen.
             if (!string.IsNullOrWhiteSpace(user.Email))
             {
-                await _sender.SendAsync(
-                    PasswordResetEmails.PasswordChanged(site, user.Email), cancellationToken);
+                _outbox.Enqueue(
+                    site.Id, user.Email, null, EmailTemplates.PasswordChanged,
+                    new PasswordChangedPayload());
             }
         }
         catch (Exception exception)
         {
             _logger.LogError(exception,
-                "Changed a password at {SiteKey} but could not send the notification.",
+                "Changed a password at {SiteKey} but could not queue the notification.",
                 site.SiteKey);
         }
 

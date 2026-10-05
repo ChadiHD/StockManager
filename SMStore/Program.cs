@@ -1,6 +1,8 @@
 using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Email;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Pricing;
+using SMDataManager.Library.Tax;
 using SMStore.Accounts;
 using SMStore.Components;
 using SMStore.Catalog;
@@ -66,8 +68,16 @@ builder.AddSharedDataProtection();
 // can read what an applicant sent.
 builder.AddDocumentStore();
 
-// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
-builder.AddEmail();
+// Outbound customer mail is queued here and sent by StockApi's dispatcher. Queueing is a row in
+// dbo.EmailOutbox, so a mail relay that is down can no longer fail a registration; see
+// EmailOutbox.
+//
+// No AddEmail, deliberately: this host has no transport to register. A page or endpoint that
+// injected IEmailSender here would be skipping the retry, the dead-letter and the alert, and
+// failing to resolve is the loudest way to say so. TransportCallerTests says it more quietly.
+builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
+builder.Services.AddSingleton<OutboxPayloadProtector>();
+builder.Services.AddScoped<IEmailOutbox, EmailOutbox>();
 
 // Data access. The storefront reads the same stored procedures the API does, in process —
 // see the note on the project reference in SMStore.csproj.
@@ -80,6 +90,13 @@ builder.Services.AddTransient<ICatalogData, CatalogData>();
 // their quote.
 builder.Services.AddSingleton<IPriceResolver, PriceResolver>();
 builder.Services.AddScoped<CatalogPresenter>();
+
+// One tax rule set per store, selected by Site.TaxRuleSet. Registered on both hosts because
+// an order can be raised from either — the customer accepting their own quote here, and an
+// admin converting one through StockApi — and two engines would disagree about the same sale.
+builder.Services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
+builder.Services.AddSingleton<TaxRuleSetProvider>();
+builder.Services.AddSingleton<TaxAssessor>();
 
 // Multi-store plumbing. SiteContext is registered as itself and behind the interface so
 // middleware can write to it while everything else only reads.

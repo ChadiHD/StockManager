@@ -1,6 +1,7 @@
 using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,6 +11,9 @@ namespace SMDataManager.Library.DataAccess
     {
         /// <summary>The number spOrder_ConvertFromQuote THROWs when the claim is refused.</summary>
         private const int QuoteAlreadyDecided = 50010;
+
+        /// <summary>The number spOrder_ConvertFromQuote THROWs when the order is over the limit.</summary>
+        private const int CreditLimitExceeded = 50040;
 
         private readonly ISqlDataAccess _sqlDataAccess;
 
@@ -87,7 +91,8 @@ namespace SMDataManager.Library.DataAccess
         }
 
         public QuoteAcceptanceResult ConvertQuoteToOrder(
-            int quoteId, QuoteAcceptance acceptance, int siteId)
+            int quoteId, QuoteAcceptance acceptance, int siteId, TaxAssessment assessment = null,
+            bool enforceCreditLimit = false)
         {
             try
             {
@@ -99,8 +104,22 @@ namespace SMDataManager.Library.DataAccess
                     SiteId = siteId,
                     acceptance.StaffId,
                     acceptance.PlacedByContactId,
-                    acceptance.PoNumber
+                    acceptance.PoNumber,
+                    // Null means untaxed, which is what every order raised before T6 was.
+                    // The procedure defaults the same way, so an untaxed order is visible on
+                    // the document rather than a failure somewhere behind it.
+                    TaxTreatment = assessment?.Treatment,
+                    TaxLegend = assessment?.Legend,
+                    TaxRatePct = assessment?.RatePct ?? 0m,
+                    EnforceCreditLimit = enforceCreditLimit
                 }, "SMDatabase");
+            }
+            catch (SqlException ex) when (ex.Number == CreditLimitExceeded)
+            {
+                // Refused rather than failed, like a refused claim: the customer can act on
+                // it by calling the store, and telling them it broke would send them looking
+                // for a fault that is not there.
+                return QuoteAcceptanceResult.RefusedOnCredit();
             }
             catch (SqlException ex) when (ex.Number == QuoteAlreadyDecided)
             {

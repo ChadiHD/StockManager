@@ -1,4 +1,3 @@
-using System.Globalization;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using SMDataManager.Library.Pricing;
@@ -149,12 +148,9 @@ public sealed class CatalogPresenter
         groupDiscountPct: _customer.GroupDiscountPct,
         minMarginPct: _siteContext.Site.MinMarginPct);
 
-    public string Money(decimal amount)
-    {
-        var culture = ResolveCulture();
-
-        return amount.ToString("C", culture);
-    }
+    // Through SiteMoney, which the mail templates use too, so a total on a page and the same
+    // total in a confirmation are written by one rule.
+    public string Money(decimal amount) => SiteMoney.Format(_siteContext.Site, amount);
 
     /// <summary>
     /// The feed carries no lead time, so availability is derived from stock rather than
@@ -180,45 +176,6 @@ public sealed class CatalogPresenter
             Page = page < 1 ? 1 : page > 100000 ? 100000 : page,
             PageSize = 24
         };
-
-    private CultureInfo ResolveCulture()
-    {
-        CultureInfo culture;
-
-        try
-        {
-            culture = CultureInfo.GetCultureInfo(_siteContext.Site.Locale ?? "en-IE");
-        }
-        catch (CultureNotFoundException)
-        {
-            // A misconfigured locale must not take the catalog down; fall back and let the
-            // currency override below still get the symbol right.
-            culture = CultureInfo.InvariantCulture;
-        }
-
-        var code = _siteContext.Site.CurrencyCode;
-
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            return culture;
-        }
-
-        // The site's currency wins over whatever the locale implies: a store can trade in a
-        // currency that is not its locale's default, and showing the wrong symbol on a price
-        // is worse than showing an unfamiliar format.
-        var withCurrency = (CultureInfo)culture.Clone();
-        withCurrency.NumberFormat.CurrencySymbol = CurrencySymbol(code);
-
-        return withCurrency;
-    }
-
-    private static string CurrencySymbol(string code) => code.ToUpperInvariant() switch
-    {
-        "EUR" => "€",
-        "GBP" => "£",
-        "USD" => "$",
-        _ => code + " "
-    };
 }
 
 public sealed record CatalogResult(

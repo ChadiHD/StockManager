@@ -8,9 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
-using StockApi.Accounts;
 using StockApi.Sites;
-using StockManager.Notifications;
 
 namespace StockApi.Controllers
 {
@@ -22,18 +20,15 @@ namespace StockApi.Controllers
     {
         private readonly IAccountData _accountData;
         private readonly IAdminSiteContext _site;
-        private readonly IEmailSender _email;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
             IAccountData accountData,
             IAdminSiteContext site,
-            IEmailSender email,
             ILogger<AccountController> logger)
         {
             _accountData = accountData;
             _site = site;
-            _email = email;
             _logger = logger;
         }
 
@@ -95,8 +90,7 @@ namespace StockApi.Controllers
         /// approver it did not record.
         /// </remarks>
         [HttpPost("{id:int}/Approve")]
-        public async Task<IActionResult> Approve(
-            int id, ApprovalModel approval, CancellationToken cancellationToken)
+        public IActionResult Approve(int id, ApprovalModel approval)
         {
             var account = _accountData.GetAccountById(id, _site.SiteId);
 
@@ -115,9 +109,7 @@ namespace StockApi.Controllers
                 return Conflict("That account is not awaiting a decision.");
             }
 
-            await NotifyAsync(
-                AccountDecisionEmails.Approved(_site.Site, Reread(id) ?? account),
-                id, cancellationToken);
+            WarnIfUnaddressed(account);
 
             return NoContent();
         }
@@ -125,8 +117,7 @@ namespace StockApi.Controllers
         public record RejectionModel(string Reason);
 
         [HttpPost("{id:int}/Reject")]
-        public async Task<IActionResult> Reject(
-            int id, RejectionModel rejection, CancellationToken cancellationToken)
+        public IActionResult Reject(int id, RejectionModel rejection)
         {
             // The procedure refuses a blank reason too. Checking here as well turns a
             // THROW into a 400 the portal can render against the textarea.
@@ -152,9 +143,7 @@ namespace StockApi.Controllers
                 return Conflict("That account is not awaiting a decision.");
             }
 
-            await NotifyAsync(
-                AccountDecisionEmails.Rejected(_site.Site, account, rejection.Reason.Trim()),
-                id, cancellationToken);
+            WarnIfUnaddressed(account);
 
             return NoContent();
         }
@@ -180,37 +169,24 @@ namespace StockApi.Controllers
         /// </remarks>
         private string? Decider() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        private AccountModel Reread(int id) => _accountData.GetAccountById(id, _site.SiteId);
-
         /// <summary>
-        /// Sends the decision mail without letting it undo the decision.
+        /// Says so when a decision was recorded and nobody can be told about it.
         /// </summary>
         /// <remarks>
-        /// The write has already committed. Throwing here would return a failure for a
-        /// decision that was in fact made, and the portal would re-issue it — landing on the
-        /// Conflict above and reading as a bug. So a failed notification is logged with the
-        /// account id and swallowed, and chasing it is an operational job rather than the
-        /// customer's problem. T6's outbox is what turns this into a retry.
+        /// The message itself is no longer this controller's: <c>spAccount_Approve</c> and
+        /// <c>spAccount_Reject</c> queue it in the transaction that makes the decision, so a
+        /// host dying after the commit can no longer lose it, and a mail relay that is down
+        /// can no longer fail the request. What the procedures cannot do is log, and an
+        /// account with no address — keyed in by hand rather than registered — gets no row at
+        /// all. This is the record of that.
         /// </remarks>
-        private async Task NotifyAsync(EmailMessage message, int accountId, CancellationToken cancellationToken)
+        private void WarnIfUnaddressed(AccountModel account)
         {
-            if (string.IsNullOrWhiteSpace(message.To))
+            if (string.IsNullOrWhiteSpace(account.Email))
             {
                 _logger.LogWarning(
-                    "Account {AccountId} has no email address; the decision was not sent.", accountId);
-
-                return;
-            }
-
-            try
-            {
-                await _email.SendAsync(message, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception,
-                    "The decision on account {AccountId} was recorded but could not be emailed.",
-                    accountId);
+                    "Account {AccountId} has no email address; the decision was recorded and " +
+                    "nobody was told.", account.Id);
             }
         }
 
@@ -223,6 +199,18 @@ namespace StockApi.Controllers
         [HttpPut("{id:int}/Terms")]
         public IActionResult UpdateTerms(int id, TermsChangeModel change)
         {
+            // Refused here because the terms label and PaymentTermsDays have to agree, and
+            // CK_Account_Terms enforcing that from inside a procedure would reach the caller
+            // as a 500. Same boundary check, same reason, as QuoteController's status guard.
+            if (!PaymentTerms.IsKnown(change.PaymentTerms))
+            {
+                return BadRequest(new
+                {
+                    change.PaymentTerms,
+                    Message = $"Payment terms are one of: {string.Join(", ", PaymentTerms.All)}."
+                });
+            }
+
             if (_accountData.GetAccountById(id, _site.SiteId) is null)
             {
                 return NotFound();

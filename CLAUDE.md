@@ -42,6 +42,14 @@ the basket pages, submit, the customer's own quote and order screens, admin re-p
 printable document, and one journey driving the whole round trip. The plan opens with the four
 decisions that had to be settled before any of it could be written.
 
+**T6 — tax, terms and email is built**, per `docs/plans/2026-09-21-t6-tax-terms-email.md`: a
+tax rule set chosen by `Site.TaxRuleSet`, the treatment and legend snapshotted onto each order
+at acceptance, payment terms as days, a credit check inside the acceptance transaction, every
+surface reading the stored tax rather than computing 23% in markup, the email outbox and its
+dispatcher, every message on it in per-site wording, the quote-expiry sweep, and one journey
+where two customers are charged differently for the same product. The plan opens with the four
+things that were already wrong — three numbers for one tax among them.
+
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
 
@@ -82,7 +90,9 @@ before anything else runs. Consequences that are easy to get wrong:
   tenant's catalog and prices get served on another tenant's domain.
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
   leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
-  (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`.
+  (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`,
+  `SiteEmailTemplate`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
+  dispatcher drains every store and renders each row with its own store's values.
 - **A join to a scoped table needs the predicate even when the join path looks safe.** A
   `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
   mapping's own `SiteId` says nothing about the category it points at. The catalog procedures
@@ -267,19 +277,89 @@ nobody serves.
   reviewer opening an application whose documents all 404. `/app-data/` is gitignored:
   real applicants' paperwork must never reach a commit.
 
-### Outbound mail is a seam and nothing more
+### Outbound mail goes through an outbox
 
-`IEmailSender` in `StockManager.ServiceDefaults/Email/`, registered by `AddEmail()` on both
-hosts, with `LoggingEmailSender` writing the whole message to the log. **T6 owns the outbox,
-the retry policy and the per-site templates** — T3 wrote the three call sites so T6 has
-something to fill rather than something to find: the application acknowledgement in
-`SMStore/Registration/RegistrationEmails.cs`, and the approval and rejection in
-`StockApi/Accounts/AccountDecisionEmails.cs`.
+Every message the platform owes somebody is a row in `dbo.EmailOutbox` before it is anything
+else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands them to
+`IEmailSender` — which is the transport, still `LoggingEmailSender`, and which call sites do
+not touch. A real transport is a provider and a sending domain per store, which is T7's
+hosting decision; until then nothing is delivered anywhere, and the outbox is what makes the
+day it is a configuration change rather than a rewrite.
 
-- **Sending never fails the operation that triggered it.** The write has already committed by
-  the time the mail goes out. An approval rolled back because a mail server blinked would
-  leave the portal re-issuing a decision that had in fact been made, and landing on the
-  conflict response. Failures are logged with the account id and chased operationally.
+- **Where there is a procedure, it queues the message in its own transaction.**
+  `spAccount_Approve`, `spAccount_Reject`, `spQuote_SubmitRequest`, `spQuote_Price` and
+  `spOrder_ConvertFromQuote` call `spEmailOutbox_Enqueue` beside the write, so a change and
+  the intent to tell somebody commit together, and a host dying after the commit can no
+  longer lose the message. Where there is none — a registration spans two databases, a
+  password reset is Identity's, a feed alert follows an import — the call site queues through
+  `IEmailOutbox` after the write. That leaves a one-insert window, on the database the write
+  just reached; the window that actually lost mail was the relay's, and that one is closed.
+- **Nothing but `EmailDispatcher` holds `IEmailSender`.** `SMStore` does not register a
+  transport at all, and `TransportCallerTests` in both test projects looks for the type on
+  every constructor, method, field and property. A page that sent directly would skip the
+  retry, the dead-letter and the alert, and the change would read as a simplification.
+- **Quote and order mail goes to a person, through `dbo.fnQuote_Recipient`.** The buyer who
+  pressed Accept, then the buyer who asked (`Quote.RequestedByContactId`, set by
+  `spQuote_SubmitRequest`), then `Account.Email` — skipping a contact who is no longer
+  `Active`. One function, so the three procedures cannot disagree about who the customer is.
+  A staff conversion confirms to the customer too: an order on their account is theirs to
+  hear about.
+- **A store's own wording lives in `dbo.SiteEmailTemplate`**, the `SiteContent` precedent:
+  staff-authored rows, a NULL half keeps the platform's, and a store with no row gets the
+  platform's words rather than another store's. `EmailRenderer.WhyRefused` checks a row
+  before using it — a placeholder the message has no value for, or a required one left out
+  (`EmailTemplate.RequiredTokens`: the link in a reset, the reason in a rejection, the legend
+  on an order) — and the dispatcher sends the platform's wording with a warning rather than a
+  broken mail. Like `Site`, it has no admin screen.
+- Prices in mail go through `SiteMoney.Format`, which `CatalogPresenter.Money` now calls too,
+  so a confirmation and the order page cannot write one total two ways. Dates are invariant
+  culture, because the copy is English and the dispatcher's culture is its server's.
+- **Sending never fails the operation that triggered it**, and now that is true by
+  construction: nothing on a request path talks to a mail server. Queueing is part of the
+  write, so an enqueue that fails rolls the change back with it — which is right, because it
+  means the database the change was going to is failing too.
+- **The payload is values, not a body.** Rendering happens at dispatch from
+  `EmailTemplates` in `SMDataManager.Library/Email/`, which both hosts reference — so a
+  template corrected after a row was queued applies to the rows still waiting, and the
+  storefront can queue what `StockApi` writes out. Procedures build their payloads with
+  `FOR JSON`, so the property names are a contract between T-SQL and the payload records;
+  `EmailOutboxTests` reads each procedure's JSON back through its record.
+- **A substituted value is never read as template.** One pass, left to right. A rejection
+  reason or a company name containing `{SignInLink}` arrives as those characters. Plain text
+  only: this is the `SiteContent.BodyHtml` rule in reverse, since customers' words reach
+  several of these messages.
+- **A payload that carries a link is encrypted.** `EmailTemplate.CarriesCredential` makes
+  `EmailOutbox` protect it with Data Protection under `OutboxPayloadProtector.Purpose`, and
+  the procedures null it once the message is sent or given up on. A row here is backed up and
+  restored like any other, and the key ring is in `ApiAuthDb`, so a copy of `SMDatabase` alone
+  does not carry the means to read a reset link. A payload the ring can no longer read is
+  dead-lettered at once rather than retried, for the reason feed passwords cannot be recovered.
+- **The claim is `spDistributorFeed_ClaimForSync`'s shape.** One `UPDATE` with `READPAST`,
+  a five-minute lease, and `Attempts` counted at claim — so a message that kills the host on
+  every attempt still runs out of them. Delivery is therefore at least once: a host that dies
+  after handing a message to the transport and before recording it sends it twice.
+- **Eight attempts, doubling from a minute and capped at an hour, then dead-letter**
+  (`OutboxRetryPolicy`). Dead letters become one `operator.mail-undeliverable` alert per store
+  per batch, to `Site.OperatorEmail`, with no platform-wide fallback. Operator mail never
+  raises one — the alert would go to the address that just refused it — so an undeliverable
+  operator message is an Error in the log and goes no further.
+- **The dispatcher is on by default**, unlike the feed sync (`Email:DispatchEnabled`,
+  `Email:DispatchIntervalSeconds`). The sync opens a session to a real distributor; this
+  hands messages to a logger. Off by default would silently stop the confirmation link
+  reaching the dashboard — which, since T6, is **`stock-api`'s log, not `sm-store`'s**.
+- The claim is deliberately not scoped to a site: one dispatcher drains every store, and
+  renders each row with its own store's values. Nothing sweeps `Sent` rows yet; that belongs
+  with T7's basket sweep.
+- **"Your quote expires soon" is the one message nothing happening triggers**, so it comes
+  from `QuoteExpiryBackgroundService` in `StockApi`, beside the feed sync, **off by default**
+  (`Quotes:ExpiryNoticeEnabled`, `Quotes:ExpiryNoticeAtUtc`, `Quotes:ExpiryNoticeDays`). It
+  is the only job that writes to customers with nobody having done anything, and a
+  development database is usually a copy of a real one. `spQuote_QueueExpiryNotices` claims
+  each priced, unexpired quote inside the window with one `UPDATE` on
+  `Quote.ExpiryNoticeSentUtc`, so two replicas cannot both remind; `spQuote_Price` clears the
+  stamp, because a re-sent price is a new statement with its own date. Both schedulers read
+  their time of day through `DailySchedule`, and if T7 decides scheduled work belongs
+  elsewhere they move together — with the dispatcher, that is three loops in one host.
 - **`LoggingEmailSender` logs the body in Development only.** Bodies now carry confirmation
   and password-reset links, and a reset link is a credential — whoever reads the log can take
   the account, and logs are copied, shipped to a telemetry backend and read by people with no
@@ -473,8 +553,14 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All seven journeys pass**, in about 80 seconds against a warm
-SQL container. The last two are the basket and the quote request, and they earn their place the
+`E2E_REQUIRE_APPHOST=1` for CI. **All eight journeys pass**, in under two minutes against a
+warm SQL container. The newest is T6's: two customers — one German with a VAT number, one Irish
+without — ask for the same product, an admin sends both quotes, and each accepts. The orders
+carry the reverse charge and 23% respectively, each page says why, and every message the round
+trip owed both of them is `Sent` in the outbox, which is the dispatcher in the other host
+claiming, rendering and handing each one over. The fixture shortens `sm-store`'s site cache to
+one second for it: a journey that sets a store's tax rate in the database must not be served
+the row another journey cached. The basket and the quote request before it earn their place the
 way the approval journey did.
 A basket change is a form post plus a redirect, so the antiforgery token, the `Set-Cookie` and
 the next request's lookup all have to hold at once for a single click to work. And the quote
@@ -620,6 +706,20 @@ idempotent. Its job is to guarantee a `dbo.Site` row exists — multi-store scop
 database with no site renders nothing — and to backfill `SiteId` on rows that predate it. The
 site it seeds is deliberately generic; a real store is inserted as tenant configuration, not
 baked into the platform schema.
+
+**A new column goes at the end of its table's column list.** DacFx compares column order, and
+a column declared anywhere else makes the publish rebuild the table — a copy into a temporary
+table, every foreign key into it dropped and recreated — on every existing database. T6 found
+this after the fact: `Account.PaymentTermsDays` beside `PaymentTerms` and the three `Site` tax
+columns before `IsActive` rebuilt both tables on publish, and moving them to the end stopped it.
+A pre-deployment `ALTER TABLE ... ADD` appends, so a column added there has to be declared last
+or the publish rebuilds the table to move what the script just added. Check a schema change
+with `sqlpackage /Action:Publish ... | grep -i "rebuilding table"`, which should print nothing.
+
+**A NOT NULL column whose value depends on another column needs a pre-deployment backfill.**
+The schema diff runs before `Seed.sql`, so a column added with a default and constrained in
+the same publish fails the constraint on every existing row and stops the publish with the
+column already applied. `Scripts/PreDeployment/BackfillPaymentTermsDays.sql` is the example.
 
 ### `dbo.Purchase` does double duty
 
@@ -1000,8 +1100,11 @@ is not.
 
 `DocumentSheet` renders a quote or an order as the sheet a customer files or forwards, at
 `/account/quotes/{reference}/print` and `/account/orders/{reference}/print`. **There is no PDF
-library behind it, deliberately.** T5 needed the document; T6 decides whether an *attachable
-file* is needed, once there is an outbox to attach one to.
+library behind it, deliberately.** T5 needed the document and deferred the renderer to T6, and
+**T6 decided: link, not attachment.** `EmailTemplates.OrderConfirmed` links to the print route,
+which already carries the account predicate, so nothing in T6 needs a file. Revisit when a
+customer asks for the attachment — and do not let a template quietly make the choice by
+reaching for a library.
 
 - All three candidates — QuestPDF, a print-styled page, headless Chromium — render this same
   markup, so the markup is the part that is the same under every one of them. Choosing now
@@ -1099,9 +1202,10 @@ history modal, which is the pull half. Neither is enough alone: nobody watches a
   distributor and quotes its status text; delivering that to another tenant's operator because
   a column was blank would be a disclosure. NULL logs at Warning instead.
 - **`Site` has no admin screen**, so `OperatorEmail`, `FeedStaleAfterHours`,
-  `HideStaleProducts`, `MinMarginPct` and `PriceDisplay` are all set by updating the row. That
-  is a gap, not a design: a tenant cannot configure its own staleness policy without database
-  access.
+  `HideStaleProducts`, `MinMarginPct`, `PriceDisplay` and — since T6 — `TaxRuleSet`,
+  `StandardTaxRatePct` and `TaxRegistrationNumber` are all set by updating the row, as is a
+  store's own mail wording in `dbo.SiteEmailTemplate`. That is a gap, not a design: a tenant
+  cannot configure its own staleness policy, tax rate or customer mail without database access.
 
 **Delisting is flagged, never deleted, and `DelistedProductHistoryTests` is what holds that.**
 A product the distributor dropped still resolves on the quote that already contains it —

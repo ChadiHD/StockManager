@@ -59,8 +59,32 @@ CREATE TABLE [dbo].[Site]
 	-- distributor and A's hostname.
 	[OperatorEmail] NVARCHAR(320) NULL,
 
+	/*
+	Which tax rules this store trades under, and the rate they apply.
+
+	The rule set is a key into ITaxRuleSet, the same shape as OrderMode and
+	RegistrationFieldSet, because reverse charge is a decision tree rather than a number:
+	whether the customer is in this country, elsewhere in the EU, or outside it, whether
+	they gave a VAT number, and a different legend on the document for each answer. A JSON
+	column of rules would be a program in a column.
+
+	The rate is here rather than in the rule set because it changes by statute without the
+	logic changing, and because a second store in a second country is meant to be a row.
+	Zero by default: a store that has not been configured charges nothing, which is visibly
+	wrong on the first order rather than quietly wrong at whatever rate another store uses.
+
+	TaxRegistrationNumber is the store's own VAT number, printed on the document. A customer
+	cannot reclaim against an invoice that does not carry one.
+
+	After CreatedDate, deliberately: DacFx rebuilds a table to insert a column anywhere but
+	the end, and every scoped table in the schema points at this one.
+	*/
 	[IsActive] BIT NOT NULL DEFAULT 1,
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
+
+	[TaxRuleSet] NVARCHAR(50) NOT NULL DEFAULT 'eu-b2b',
+	[StandardTaxRatePct] DECIMAL(5, 2) NOT NULL DEFAULT 0,
+	[TaxRegistrationNumber] NVARCHAR(30) NULL,
 
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
 	-- Host resolution looks a site up by domain, so a domain must name exactly one site.

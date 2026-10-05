@@ -56,10 +56,12 @@ namespace SMDataManager.Library.Models
     /// </remarks>
     public sealed class QuoteAcceptanceResult
     {
-        private QuoteAcceptanceResult(OrderModel order, bool noLongerAwaitingAcceptance)
+        private QuoteAcceptanceResult(
+            OrderModel order, bool noLongerAwaitingAcceptance, bool overCreditLimit)
         {
             Order = order;
             NoLongerAwaitingAcceptance = noLongerAwaitingAcceptance;
+            OverCreditLimit = overCreditLimit;
         }
 
         /// <summary>The order that now exists, or null.</summary>
@@ -70,12 +72,28 @@ namespace SMDataManager.Library.Models
         /// </summary>
         public bool NoLongerAwaitingAcceptance { get; }
 
+        /// <summary>
+        /// The order was larger than the account's credit limit, and this caller asked for
+        /// that to be refused. Nothing was created.
+        /// </summary>
+        /// <remarks>
+        /// A third refusal rather than a failure, for the reason
+        /// <see cref="NoLongerAwaitingAcceptance"/> is one: the customer can act on it by
+        /// calling the store, and "that did not work" sends them looking for a fault instead.
+        /// Only the customer's own accept asks for enforcement; an admin converting past the
+        /// limit is a commercial decision and the order records that it happened.
+        /// </remarks>
+        public bool OverCreditLimit { get; }
+
         public bool Succeeded => Order != null;
 
         public static QuoteAcceptanceResult Converted(OrderModel order) =>
-            new QuoteAcceptanceResult(order, false);
+            new QuoteAcceptanceResult(order, false, false);
 
         public static QuoteAcceptanceResult AlreadyDecided() =>
-            new QuoteAcceptanceResult(null, true);
+            new QuoteAcceptanceResult(null, true, false);
+
+        public static QuoteAcceptanceResult RefusedOnCredit() =>
+            new QuoteAcceptanceResult(null, false, true);
     }
 }

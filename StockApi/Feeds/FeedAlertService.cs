@@ -1,6 +1,6 @@
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
-using StockManager.Notifications;
+using SMDataManager.Library.Email;
 
 namespace StockApi.Feeds
 {
@@ -20,16 +20,16 @@ namespace StockApi.Feeds
     public class FeedAlertService
     {
         private readonly IDistributorFeedData _feeds;
-        private readonly IEmailSender _sender;
+        private readonly IEmailOutbox _outbox;
         private readonly ILogger<FeedAlertService> _logger;
 
         public FeedAlertService(
             IDistributorFeedData feeds,
-            IEmailSender sender,
+            IEmailOutbox outbox,
             ILogger<FeedAlertService> logger)
         {
             _feeds = feeds;
-            _sender = sender;
+            _outbox = outbox;
             _logger = logger;
         }
 
@@ -37,33 +37,36 @@ namespace StockApi.Feeds
         /// Reports whatever this pass turned up for one store.
         /// </summary>
         /// <remarks>
-        /// Never throws. An alert that failed to send must not cost the sync that triggered it,
-        /// and by the time this runs the import has already committed — the same rule every
-        /// other call site of <c>IEmailSender</c> follows.
+        /// Never throws. An alert that could not be queued must not cost the sync that
+        /// triggered it, and by the time this runs the import has already committed.
+        ///
+        /// Queued rather than sent, since T6: the outbox retries an alert a relay refused, and
+        /// these are operator mail, so one that is finally undeliverable is logged and goes no
+        /// further rather than raising an alert about itself.
         /// </remarks>
-        public async Task ReportAsync(
+        public Task ReportAsync(
             SiteModel site,
             IReadOnlyCollection<DistributorFeedResult> results,
             CancellationToken cancellationToken = default)
         {
             try
             {
-                var failedNow = await ReportFailuresAsync(site, results, cancellationToken);
+                var failedNow = ReportFailures(site, results);
 
-                await ReportStalenessAsync(site, failedNow, cancellationToken);
+                ReportStaleness(site, failedNow);
             }
             catch (Exception exception)
             {
                 _logger.LogError(exception,
-                    "Could not send feed alerts for site {SiteKey}.", site.SiteKey);
+                    "Could not queue feed alerts for site {SiteKey}.", site.SiteKey);
             }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>Mails the feeds that just started failing. Returns every feed that failed.</summary>
-        private async Task<HashSet<string>> ReportFailuresAsync(
-            SiteModel site,
-            IReadOnlyCollection<DistributorFeedResult> results,
-            CancellationToken cancellationToken)
+        private HashSet<string> ReportFailures(
+            SiteModel site, IReadOnlyCollection<DistributorFeedResult> results)
         {
             var failed = results
                 .Where(result => !result.Succeeded && !result.AlreadyRunning)
@@ -109,9 +112,8 @@ namespace StockApi.Feeds
                     continue;
                 }
 
-                await _sender.SendAsync(
-                    FeedAlertEmails.SyncFailed(site, feed.Name, result.Error ?? "No detail was recorded."),
-                    cancellationToken);
+                _outbox.Enqueue(site.Id, site.OperatorEmail, null, EmailTemplates.FeedFailed,
+                    new FeedFailedPayload(feed.Name, result.Error));
 
                 _logger.LogInformation(
                     "Alerted {SiteKey} that feed {Distributor} has started failing.",
@@ -160,10 +162,7 @@ namespace StockApi.Feeds
         /// the ones that were mailed. A feed failing for the third night is deliberately silent
         /// on the failure path, and letting the staleness path mail it instead would undo that.
         /// </remarks>
-        private async Task ReportStalenessAsync(
-            SiteModel site,
-            HashSet<string> alreadyReported,
-            CancellationToken cancellationToken)
+        private void ReportStaleness(SiteModel site, HashSet<string> alreadyReported)
         {
             var stale = _feeds.GetStaleFeeds(site.Id)
                 .Select(feed => feed.Name)
@@ -180,7 +179,8 @@ namespace StockApi.Feeds
                 return;
             }
 
-            await _sender.SendAsync(FeedAlertEmails.FeedsAreStale(site, stale), cancellationToken);
+            _outbox.Enqueue(site.Id, site.OperatorEmail, null, EmailTemplates.FeedsStale,
+                new FeedsStalePayload(stale));
 
             _logger.LogInformation(
                 "Alerted {SiteKey} that {Count} feed(s) have gone stale.", site.SiteKey, stale.Count);

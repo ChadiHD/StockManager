@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using NSubstitute;
 using SMStore.Accounts;
 using SMStore.Tests.TestSupport;
-using StockManager.Notifications;
 using Xunit;
 
 namespace SMStore.Tests;
@@ -49,7 +48,7 @@ public class PasswordResetServiceTests
 
         await harness.Service.RequestAsync("stranger@example.test");
 
-        await harness.Sender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+        harness.Outbox.Messages.Should().BeEmpty();
     }
 
     [Fact]
@@ -77,18 +76,17 @@ public class PasswordResetServiceTests
         // A reset token sent to an unconfirmed address is a credential handed to whoever typed
         // that address into the registration form. The route for that person is /confirm-email.
         await harness.Users.DidNotReceive().GeneratePasswordResetTokenAsync(Arg.Any<IdentityUser>());
-        await harness.Sender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+        harness.Outbox.Messages.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task RequestSwallowsASendFailureRatherThanReportingIt()
+    public async Task RequestSwallowsAQueueingFailureRatherThanReportingIt()
     {
         var harness = new PasswordResetHarness();
         var user = harness.WithConfirmedUser();
 
         harness.Users.GeneratePasswordResetTokenAsync(user).Returns("reset-token");
-        harness.Sender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("no transport")));
+        harness.Outbox.Fails = new InvalidOperationException("database unreachable");
 
         // Not merely "does not crash": a thrown or reported failure would distinguish a real
         // address from one that produced no mail, which is the entire disclosure this method is
@@ -130,15 +128,14 @@ public class PasswordResetServiceTests
     }
 
     [Fact]
-    public async Task ResetStillReportsSuccessWhenTheNotificationCannotBeSent()
+    public async Task ResetStillReportsSuccessWhenTheNotificationCannotBeQueued()
     {
         var harness = new PasswordResetHarness();
         var user = harness.WithConfirmedUser();
 
         harness.Users.ResetPasswordAsync(user, Arg.Any<string>(), Arg.Any<string>())
             .Returns(IdentityResult.Success);
-        harness.Sender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("no transport")));
+        harness.Outbox.Fails = new InvalidOperationException("database unreachable");
 
         var outcome = await harness.Service.ResetAsync(user.Id, EncodedToken, "N3w-Passw0rd!");
 

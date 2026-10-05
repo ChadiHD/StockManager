@@ -48,7 +48,30 @@ CREATE TABLE [dbo].[Account]
     -- when any of its columns is NULL, so FK_Quote_ToAccount and FK_Purchase_ToAccount only
     -- bite while this has a value.
     [SiteId] INT NOT NULL,
+
+    /*
+    PaymentTerms as a number, because a due date is arithmetic and "Net 30" is not.
+
+    The label stays because it is what a buyer's finance department recognises and what the
+    portal has always shown. Parsing it back into a number wherever a due date is needed
+    would be the same parse written several times, and it holds only while nobody types
+    "NET30", "net 30" or "30 days" into a column with no constraint on it.
+
+    Zero means prepaid, and CK_Account_Terms keeps the two from drifting apart.
+
+    Last, deliberately, and not beside PaymentTerms where it reads best: DacFx rebuilds a table
+    to insert a column anywhere but the end, and BackfillPaymentTermsDays adds it with ALTER
+    TABLE, which appends. Declared mid-table, every publish to an existing database would
+    rebuild Account to move the column the pre-deployment script had just added.
+    */
+    [PaymentTermsDays] INT NOT NULL CONSTRAINT [DF_Account_PaymentTermsDays] DEFAULT 0,
     CONSTRAINT [UQ_Account_Reference] UNIQUE ([Reference]),
+    -- Prepaid and a term in days are the same fact stated twice, so they are constrained to
+    -- agree. Without this an account can read "Prepaid" on every screen while the credit
+    -- check gives it thirty days, or carry "Net 30" and be billed immediately.
+    CONSTRAINT [CK_Account_Terms] CHECK (
+        ([PaymentTermsDays] = 0 AND [PaymentTerms] = N'Prepaid')
+        OR ([PaymentTermsDays] > 0 AND [PaymentTerms] <> N'Prepaid')),
     -- Lets Quote and Purchase reference an account together with its site.
     CONSTRAINT [UQ_Account_IdSite] UNIQUE ([Id], [SiteId]),
     -- Composite: an account may only sit in a group belonging to the same store. Keyed on

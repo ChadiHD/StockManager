@@ -193,6 +193,15 @@ namespace SMDataManager.Library.DataAccess
             }, "SMDatabase").FirstOrDefault() > 0;
         }
 
+        public int QueueExpiryNotices(int siteId, int withinDays)
+        {
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spQuote_QueueExpiryNotices", new
+            {
+                SiteId = siteId,
+                WithinDays = withinDays
+            }, "SMDatabase").FirstOrDefault();
+        }
+
         public bool DeleteQuoteLine(int quoteId, int lineId, int siteId)
         {
             // The procedure returns its row count, and takes the quote and the site as part of

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
 using StockApi.Controllers;
 using StockApi.Sites;
 using Xunit;
@@ -32,12 +33,26 @@ public class OrderConversionTests
 
     private readonly IOrderData _orders = Substitute.For<IOrderData>();
     private readonly IQuoteData _quotes = Substitute.For<IQuoteData>();
+    private readonly IAccountData _accounts = Substitute.For<IAccountData>();
+
+    /// <summary>The real rule set: tax is not what these tests are about, but a null one
+    /// would make the controller throw before reaching what they are about.</summary>
+    private static readonly TaxAssessor Assessor =
+        new(new TaxRuleSetProvider(new ITaxRuleSet[] { new EuB2bTaxRuleSet() }));
     private readonly IAdminSiteContext _site = Substitute.For<IAdminSiteContext>();
     private readonly OrderController _controller;
 
     public OrderConversionTests()
     {
         _site.SiteId.Returns(42);
+
+        // The real context throws rather than returning null, so a substitute that hands back
+        // null is a fixture gap and not a case the controller has to survive.
+        _site.Site.Returns(new SiteModel
+        {
+            Id = 42, SiteKey = "test", Name = "Test store", Country = "IE",
+            TaxRuleSet = "eu-b2b", StandardTaxRatePct = 23m
+        });
 
         _quotes.GetQuoteByReference("QT-0041", 42).Returns(new QuoteModel
         {
@@ -78,10 +93,10 @@ public class OrderConversionTests
     [Fact]
     public void ConversionCreditsTheStaffMemberFromTheTokenAndNobodyElse()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42)
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.Converted(Order()));
 
-        _controller.CreateFromQuote(new OrderController.ConvertQuoteModel("QT-0041"), _quotes);
+        _controller.CreateFromQuote(new OrderController.ConvertQuoteModel("QT-0041"), _quotes, _accounts, Assessor);
 
         var acceptance = (QuoteAcceptance)_orders.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IOrderData.ConvertQuoteToOrder))
@@ -95,11 +110,11 @@ public class OrderConversionTests
     [Fact]
     public void ThePurchaseOrderNumberReachesTheConversion()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42)
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.Converted(Order()));
 
         _controller.CreateFromQuote(
-            new OrderController.ConvertQuoteModel("QT-0041", "PO-99123"), _quotes);
+            new OrderController.ConvertQuoteModel("QT-0041", "PO-99123"), _quotes, _accounts, Assessor);
 
         var acceptance = (QuoteAcceptance)_orders.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IOrderData.ConvertQuoteToOrder))
@@ -113,11 +128,11 @@ public class OrderConversionTests
     [Fact]
     public void AQuoteSomebodyElseDecidedAnswersConflictRatherThanSuccess()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42)
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.AlreadyDecided());
 
         var result = _controller.CreateFromQuote(
-            new OrderController.ConvertQuoteModel("QT-0041"), _quotes);
+            new OrderController.ConvertQuoteModel("QT-0041"), _quotes, _accounts, Assessor);
 
         // Not a 200 with a null body and not a 502: nothing is wrong with the request or the
         // quote. The same reasoning as spAccount_Approve's no-op answering Conflict — reporting
@@ -129,7 +144,7 @@ public class OrderConversionTests
     public void AQuoteBelongingToAnotherStoreIsNotFoundRatherThanForbidden()
     {
         var result = _controller.CreateFromQuote(
-            new OrderController.ConvertQuoteModel("QT-9999"), _quotes);
+            new OrderController.ConvertQuoteModel("QT-9999"), _quotes, _accounts, Assessor);
 
         // References are sequential, so a distinguishable refusal would confirm which ones
         // exist in other stores. Nothing is converted either.
@@ -141,11 +156,11 @@ public class OrderConversionTests
     [Fact]
     public void ASuccessfulConversionReturnsTheOrder()
     {
-        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42)
+        _orders.ConvertQuoteToOrder(7, Arg.Any<QuoteAcceptance>(), 42, Arg.Any<TaxAssessment>(), Arg.Any<bool>())
             .Returns(QuoteAcceptanceResult.Converted(Order()));
 
         var result = _controller.CreateFromQuote(
-            new OrderController.ConvertQuoteModel("QT-0041"), _quotes);
+            new OrderController.ConvertQuoteModel("QT-0041"), _quotes, _accounts, Assessor);
 
         result.Value!.Reference.Should().Be("SO-0012");
     }
@@ -169,6 +184,14 @@ public class QuoteStatusTests
     public QuoteStatusTests()
     {
         _site.SiteId.Returns(42);
+
+        // The real context throws rather than returning null, so a substitute that hands back
+        // null is a fixture gap and not a case the controller has to survive.
+        _site.Site.Returns(new SiteModel
+        {
+            Id = 42, SiteKey = "test", Name = "Test store", Country = "IE",
+            TaxRuleSet = "eu-b2b", StandardTaxRatePct = 23m
+        });
 
         _quotes.GetQuoteByReference("QT-0041", 42).Returns(new QuoteModel
         {

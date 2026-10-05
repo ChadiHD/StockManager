@@ -310,10 +310,10 @@ public class QuoteAcceptanceTests
 
             var accountId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Account (Reference, Company, Currency, PaymentMethod,
-                                         PaymentTerms, CreditLimit, Status, SiteId)
+                                         PaymentTerms, PaymentTermsDays, CreditLimit, Status, SiteId)
                 OUTPUT INSERTED.Id
                 VALUES (@reference, N'Acceptance test customer', N'EUR', N'Credit',
-                        N'Net 30', 10000, N'Approved', @siteId);
+                        N'Net 30', 30, 10000, N'Approved', @siteId);
                 """,
                 ("@reference", $"AC-A{runId[..6]}"),
                 ("@siteId", siteId));

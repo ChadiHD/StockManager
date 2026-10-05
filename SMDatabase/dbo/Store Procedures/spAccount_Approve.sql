@@ -28,17 +28,62 @@ BEGIN
 		THROW 50003, 'That customer group does not belong to this store.', 1;
 	END
 
-	UPDATE dbo.Account
-	SET [Status] = 'Approved',
-	    [ApprovedUtc] = SYSUTCDATETIME(),
-	    [ApprovedBy] = @ApprovedBy,
-	    -- Cleared: a rejection reason left behind an approval would be quoted back by the
-	    -- next email that renders it.
-	    [RejectionReason] = NULL,
-	    [CustomerGroupId] = COALESCE(@CustomerGroupId, [CustomerGroupId])
-	WHERE [Id] = @Id
-	  AND [SiteId] = @SiteId
-	  AND [Status] IN ('Pending', 'Rejected');
+	DECLARE @Approved int;
 
-	SELECT @@ROWCOUNT AS [Approved];
+	BEGIN TRY
+		BEGIN TRANSACTION;
+
+		UPDATE dbo.Account
+		SET [Status] = 'Approved',
+		    [ApprovedUtc] = SYSUTCDATETIME(),
+		    [ApprovedBy] = @ApprovedBy,
+		    -- Cleared: a rejection reason left behind an approval would be quoted back by the
+		    -- next email that renders it.
+		    [RejectionReason] = NULL,
+		    [CustomerGroupId] = COALESCE(@CustomerGroupId, [CustomerGroupId])
+		WHERE [Id] = @Id
+		  AND [SiteId] = @SiteId
+		  AND [Status] IN ('Pending', 'Rejected');
+
+		SET @Approved = @@ROWCOUNT;
+
+		/*
+		The applicant is told in the same transaction that lets them in.
+
+		Before T6 the controller sent this after the commit, and a host that died in between
+		approved an account whose owner was never told -- they would wait, ring, and be told
+		it had been open for a week. Here the decision and the message commit together. Only
+		on a real transition: a no-op means somebody else decided first, and they sent theirs.
+
+		An account with no address gets no row rather than one that can only dead-letter.
+		Registration always records one; an account keyed in by hand may not, and the
+		controller logs that case.
+		*/
+		IF @Approved = 1
+		BEGIN
+			DECLARE @Email nvarchar(256), @ContactName nvarchar(100), @Payload nvarchar(max);
+
+			SELECT @Email = [a].[Email],
+			       @ContactName = [a].[ContactName],
+			       @Payload = (SELECT [a].[Company] AS [company]
+			                   FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+			FROM dbo.Account a
+			WHERE [a].[Id] = @Id;
+
+			IF NULLIF(LTRIM(RTRIM(@Email)), N'') IS NOT NULL
+			BEGIN
+				EXEC dbo.spEmailOutbox_Enqueue
+					@SiteId = @SiteId, @ToAddress = @Email, @ToName = @ContactName,
+					@TemplateKey = N'account.approved', @PayloadJson = @Payload;
+			END
+		END
+
+		COMMIT TRANSACTION;
+	END TRY
+	BEGIN CATCH
+		IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+		THROW;
+	END CATCH
+
+	SELECT @Approved AS [Approved];
 END

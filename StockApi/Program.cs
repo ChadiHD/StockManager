@@ -3,10 +3,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Email;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Tax;
+using StockApi.Email;
 using StockApi.Feeds;
+using StockApi.Quotes;
 using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
@@ -47,6 +51,12 @@ builder.Services.AddTransient<ISqlDataAccess, SqlDataAccess>();
 builder.Services.AddTransient<IProductData, ProductData>();
 builder.Services.AddTransient<IPurchaseData, PurchaseData>();
 builder.Services.AddTransient<IUserData, UserData>();
+
+// Same rule set the storefront uses: an admin converting a quote and a customer accepting
+// one must not reach different answers about the same sale.
+builder.Services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
+builder.Services.AddSingleton<TaxRuleSetProvider>();
+builder.Services.AddSingleton<TaxAssessor>();
 // Distributor stock feeds are defined in the database and managed from the admin portal.
 // Credentials never live in appsettings or in the feed table — an IFeedSecretStore holds them
 // and the row keeps only a reference. FeedSecrets:Provider selects the store per environment.
@@ -105,8 +115,24 @@ builder.AddSharedDataProtection();
 // store — see AddDocumentStore.
 builder.AddDocumentStore();
 
-// Outbound customer mail. A logger until T6 supplies a transport — see AddEmail.
+// Outbound mail. The transport is still the logger — see AddEmail — and since T6 nothing
+// calls it but the dispatcher: call sites queue through IEmailOutbox, procedures queue inside
+// their own transactions, and EmailDispatcher renders and sends with retry and dead-letter.
 builder.AddEmail();
+builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
+builder.Services.AddSingleton<OutboxPayloadProtector>();
+builder.Services.AddScoped<IEmailOutbox, EmailOutbox>();
+builder.Services.AddTransient<ISiteEmailTemplateData, SiteEmailTemplateData>();
+builder.Services.AddScoped<EmailDispatcher>();
+
+// Here and not in SMStore: one dispatcher is all the volume needs. On by default, unlike the
+// feed sync, for the reason EmailDispatchBackgroundService gives.
+builder.Services.AddHostedService<EmailDispatchBackgroundService>();
+
+// "Your quote expires soon", once a day, off unless Quotes:ExpiryNoticeEnabled says otherwise —
+// the one job here that writes to customers without anybody having done anything. Beside the
+// feed sync, and moving with it if T7 decides scheduled work belongs elsewhere.
+builder.Services.AddHostedService<QuoteExpiryBackgroundService>();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 

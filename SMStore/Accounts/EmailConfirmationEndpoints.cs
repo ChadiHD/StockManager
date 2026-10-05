@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SMDataManager.Library.Email;
 using SMStore.Registration;
 using SMStore.Sites;
 using StockManager.Identity;
-using StockManager.Notifications;
 
 namespace SMStore.Accounts;
 
@@ -32,7 +32,7 @@ public static class EmailConfirmationEndpoints
         [FromForm] string? email,
         [FromServices] UserManager<IdentityUser> users,
         [FromServices] ISiteContext siteContext,
-        [FromServices] IEmailSender sender,
+        [FromServices] IEmailOutbox outbox,
         [FromServices] ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -70,21 +70,19 @@ public static class EmailConfirmationEndpoints
         {
             var token = await users.GenerateEmailConfirmationTokenAsync(user);
 
-            await sender.SendAsync(
-                RegistrationEmails.ConfirmationReminder(
-                    site, user.Email,
-                    MailedTokenLink.For(
-                        site, CustomerAuthentication.ConfirmEmailPath, user.Id, token)),
-                cancellationToken);
+            outbox.Enqueue(
+                site.Id, user.Email, null, EmailTemplates.ConfirmationReminder,
+                new ConfirmationReminderPayload(MailedTokenLink.For(
+                    site, CustomerAuthentication.ConfirmEmailPath, user.Id, token)));
 
-            logger.LogInformation("Sent a fresh confirmation link at {SiteKey}.", site.SiteKey);
+            logger.LogInformation("Queued a fresh confirmation link at {SiteKey}.", site.SiteKey);
         }
         catch (Exception exception)
         {
             // Still the same answer. A failure here is ours to chase, and reporting it would
             // distinguish a real address from one that produced no mail at all.
             logger.LogError(exception,
-                "Could not send a confirmation link at {SiteKey}.", site.SiteKey);
+                "Could not queue a confirmation link at {SiteKey}.", site.SiteKey);
         }
 
         return acknowledged;

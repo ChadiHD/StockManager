@@ -3,6 +3,10 @@ CREATE PROCEDURE [dbo].[spAccount_UpdateTerms]
 	@CustomerGroupId int,
 	@PaymentMethod nvarchar(50),
 	@PaymentTerms nvarchar(50),
+	-- Sent rather than parsed from the label: the portal offers a fixed list and therefore
+	-- knows the number. CK_Account_Terms refuses a pair that disagrees, so a caller that
+	-- sends one without the other fails at the write instead of granting terms nobody chose.
+	@PaymentTermsDays int,
 	@CreditLimit money,
 	@SiteId int
 AS
@@ -22,6 +26,7 @@ BEGIN
 	SET [CustomerGroupId] = @CustomerGroupId,
 	    [PaymentMethod] = @PaymentMethod,
 	    [PaymentTerms] = @PaymentTerms,
+	    [PaymentTermsDays] = @PaymentTermsDays,
 	    [CreditLimit] = @CreditLimit
 	WHERE [Id] = @Id
 	  AND [SiteId] = @SiteId;
