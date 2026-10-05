@@ -1278,14 +1278,19 @@ application at a time and pulling every customer's staff list and paperwork into
 would be the wrong trade. A page using them needs `OnParametersSetAsync`, not
 `OnParametersSet`.
 
-**`ProductDetail`'s category dropdown is a hardcoded seven-item list and does not know what
-decides storefront visibility.** `_cats` is `Servers, Networking, Laptops, Components,
-Security, Power, Peripherals`, with no relationship to `dbo.CategoryMapping` or
-`dbo.SiteCategory` — and it is the mapping, joined in `fnCatalog_VisibleProducts`, that
-decides whether a product appears on a storefront at all. Saving that form on a product whose
-real `Category` string is not one of the seven silently rewrites it to one that may have no
-mapping, and the product disappears from every store with no warning anywhere. Do not add
-features on top of that control; it needs to read the site's own taxonomy first.
+**What a store sells is set in three places, all reading `fnSite_ProductPlacement`'s answer
+for the acting store.** The products list shows each row's place on the store and hides or
+restores a selection; the product page's "On this store" panel shows, hides, files under a
+store category, features and badges one product; `/admin/categories` maps whole feed
+categories. `Product.Cat` is the **feed's** category and the form shows it read-only — the form
+used to offer a hardcoded seven-item list that rewrote it, which moved products off every store
+mapping the real value.
+
+**`spProduct_Update` writes every column it is given, so the portal sends back what it does
+not edit.** `UpdateProduct` used to send an empty description and `IsTaxable = true`, which
+wiped the description and made an exempt product taxable on every save. `Product` in the
+portal now carries `Desc`, `Cat` and `IsTaxable` through, and `StoreCatalogTests` holds that.
+A new column on that procedure needs the same treatment, or the form erases it.
 
 **A fresh deployment has no admin and no way to make one.** `POST /api/User/Admin/AddRole` is
 `[Authorize(Roles = "Admin")]`, and the only anonymous endpoint, `POST /api/User/Register`,

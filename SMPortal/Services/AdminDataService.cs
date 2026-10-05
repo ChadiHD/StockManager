@@ -702,25 +702,108 @@ public class AdminDataService : IAdminDataService
 
     public async Task UpdateProduct(Product edited)
     {
+        // spProduct_Update writes every column it is given, so anything the form does not edit
+        // has to be sent back as it was. This used to send an empty description and
+        // IsTaxable = true, which wiped the first and made an exempt product taxable on every
+        // save, and a category from a hardcoded list, which moved the product off any store
+        // that mapped the real one.
         var response = await _client.PutAsJsonAsync(
             $"{_api}/api/Product/Catalog/{Uri.EscapeDataString(edited.Sku)}", new
             {
                 Sku = edited.Sku,
                 ProductName = edited.Name,
-                Description = string.Empty,
-                Category = edited.Cat,
+                Description = edited.Desc,
+                Category = string.IsNullOrWhiteSpace(edited.Cat) ? null : edited.Cat,
                 Source = edited.Source,
                 Distributor = edited.Dist == "—" ? null : edited.Dist,
                 DistributorSku = edited.DistSku == "—" ? null : edited.DistSku,
                 Cost = edited.Cost,
                 RetailPrice = edited.Price,
                 QuantityInStock = edited.Avail,
-                IsTaxable = true,
+                IsTaxable = edited.IsTaxable,
                 ProductImage = edited.Image
             });
         response.EnsureSuccessStatusCode();
 
         await RefreshAsync();
+    }
+
+    public async Task<string?> SetPlacement(
+        string sku, string? visibility, int? storeCategoryId, bool featured, string? badge)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/Product/Catalog/{Uri.EscapeDataString(sku)}/Placement",
+            new { Visibility = visibility, SiteCategoryId = storeCategoryId, Featured = featured, Badge = badge });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That change could not be saved.");
+        }
+
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"{_api}/api/Product/Catalog/Placement", new { Skus = skus, Visibility = visibility });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "Those products could not be changed.");
+        }
+
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<CategoryMappingView> GetCategoryMappings()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.GetAsync($"{_api}/api/CategoryMapping");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"GET api/CategoryMapping failed with {(int)response.StatusCode} {response.ReasonPhrase}.");
+        }
+
+        var dto = await response.Content.ReadFromJsonAsync<CategoryMappingDto>();
+
+        return new CategoryMappingView(
+            (dto?.Categories ?? []).Select(c => new StoreCategoryOption(c.Id, c.Name ?? string.Empty, c.IsActive)).ToList(),
+            (dto?.FeedCategories ?? []).Select(f => new FeedCategoryRow(
+                f.FeedValue ?? string.Empty, f.Products, f.SiteCategoryId, f.SiteCategoryName)).ToList());
+    }
+
+    public async Task<string?> MapCategory(string feedValue, int? storeCategoryId)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/CategoryMapping", new { FeedValue = feedValue, SiteCategoryId = storeCategoryId });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That category could not be mapped.");
+        }
+
+        // Mapping moves every product in the category on or off the store.
+        await RefreshAsync();
+
+        return null;
     }
 
     public async Task<IReadOnlyList<FeedSyncLogView>> GetFeedHistory(int feedId)
@@ -1087,7 +1170,9 @@ public class AdminDataService : IAdminDataService
         {
             Sku = dto.Sku ?? dto.Id.ToString(),
             Name = dto.ProductName ?? string.Empty,
-            Cat = dto.Category ?? "Components",
+            // Not defaulted to a made-up category: the save sends this back, and an invented
+            // value would become the product's feed category.
+            Cat = dto.Category ?? string.Empty,
             Source = string.IsNullOrWhiteSpace(dto.Source) ? "Own" : dto.Source,
             Dist = dto.Distributor ?? "—",
             DistSku = dto.DistributorSku ?? "—",
@@ -1102,7 +1187,15 @@ public class AdminDataService : IAdminDataService
             Desc = dto.Description ?? string.Empty,
             Manufacturer = dto.Manufacturer ?? string.Empty,
             Mpn = dto.ManufacturerPartNumber ?? string.Empty,
-            Ean = dto.Ean ?? string.Empty
+            Ean = dto.Ean ?? string.Empty,
+            IsTaxable = dto.IsTaxable,
+            OnStore = dto.OnStore,
+            Placement = dto.Placement ?? string.Empty,
+            StoreCategory = dto.StoreCategory ?? string.Empty,
+            Visibility = dto.Visibility,
+            OverrideCategoryId = dto.OverrideCategoryId,
+            Featured = dto.Featured,
+            Badge = dto.Badge ?? string.Empty
         };
     }
 
@@ -1187,7 +1280,17 @@ public class AdminDataService : IAdminDataService
     private sealed record ProductDto(int Id, string? ProductName, string? Description, decimal RetailPrice,
         int QuantityInStock, bool IsTaxable, string? ProductImage, string? Sku, string? Category,
         decimal? Cost, string? Source, string? Distributor, string? DistributorSku, DateTime? LastSynced,
-        string? Manufacturer, string? ManufacturerPartNumber, string? Ean);
+        string? Manufacturer, string? ManufacturerPartNumber, string? Ean,
+        bool OnStore, string? Placement, string? StoreCategory, string? Visibility,
+        int? OverrideCategoryId, bool Featured, string? Badge);
+
+    private sealed record CategoryMappingDto(
+        List<SiteCategoryDto>? Categories, List<FeedCategoryDto>? FeedCategories);
+
+    private sealed record SiteCategoryDto(int Id, string? Name, bool IsActive);
+
+    private sealed record FeedCategoryDto(
+        string? FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);
 
     private sealed record ReportDto(DateTime Date, string? Account, string? Ref, string? Currency,
         decimal Net, decimal Vat, decimal Total);

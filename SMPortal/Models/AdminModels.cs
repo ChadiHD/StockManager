@@ -122,7 +122,11 @@ public class Product
 {
     public string Sku { get; set; } = "";
     public string Name { get; set; } = "";
-    public string Cat { get; set; } = "Components";
+
+    // The category the feed filed it under — the string a store's category mapping matches.
+    // Not the store's own category (that is StoreCategory), and not something the product
+    // form edits: rewriting it moved products off every store that mapped the old value.
+    public string Cat { get; set; } = "";
     public string Source { get; set; } = "Own";
     public string Dist { get; set; } = "\u2014";
     public string DistSku { get; set; } = "\u2014";
@@ -143,6 +147,30 @@ public class Product
     public string Manufacturer { get; set; } = "";
     public string Mpn { get; set; } = "";
     public string Ean { get; set; } = "";
+
+    // Carried so a save can send back what it was given. The form edits neither, and the
+    // save used to send an empty description and IsTaxable = true — wiping the first and
+    // making an exempt product taxable every time somebody corrected its price.
+    public bool IsTaxable { get; set; } = true;
+
+    // Where it sits on the store the portal is acting for, from the same placement function
+    // the storefront reads. See dbo.fnSite_ProductPlacement.
+    public bool OnStore { get; set; }
+
+    /// <summary>Mapped, Shown, Hidden or Unmapped.</summary>
+    public string Placement { get; set; } = "";
+
+    /// <summary>The store's category it is listed under; empty when it is not on sale.</summary>
+    public string StoreCategory { get; set; } = "";
+
+    /// <summary>The store's own choice: Show, Hide, or null to follow the category mapping.</summary>
+    public string? Visibility { get; set; }
+
+    /// <summary>The category a shown product was filed under by hand.</summary>
+    public int? OverrideCategoryId { get; set; }
+
+    public bool Featured { get; set; }
+    public string Badge { get; set; } = "";
 
     public bool IsDistributor => Source == "Distributor";
     public int MarginPct => Price > 0 ? (int)Math.Round((1 - Cost / Price) * 100) : 0;
@@ -284,3 +312,12 @@ public sealed class QuoteConversion
 
     public static QuoteConversion Failed() => new(null, false);
 }
+
+/// <summary>One of the acting store's own categories, for filing products under.</summary>
+public sealed record StoreCategoryOption(int Id, string Name, bool IsActive);
+
+/// <summary>A category string from the feeds, and where the acting store files it.</summary>
+public sealed record FeedCategoryRow(string FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);
+
+public sealed record CategoryMappingView(
+    IReadOnlyList<StoreCategoryOption> Categories, IReadOnlyList<FeedCategoryRow> FeedCategories);

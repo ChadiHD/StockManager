@@ -36,6 +36,16 @@ public static class AdminUi
     public static string SourceClass(string source) =>
         source == "Distributor" ? "src--dist" : "src--own";
 
+    /// <summary>What dbo.fnSite_ProductPlacement's reason means, in the admin's words.</summary>
+    public static string PlacementLabel(string reason) => reason switch
+    {
+        "Mapped" => "Listed",
+        "Shown" => "Shown by hand",
+        "Hidden" => "Hidden",
+        "Unmapped" => "Not listed: its category is not mapped",
+        _ => "Unknown"
+    };
+
     public static string CatClass(string cat) => cat switch
     {
         "Servers" => "tile--servers",

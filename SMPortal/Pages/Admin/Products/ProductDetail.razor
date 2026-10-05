@@ -45,7 +45,10 @@ else
                 <span class="card-kicker">Edit product</span>
                 <div class="form-grid">
                     <div class="field span2"><label>Product name</label><InputText class="input" @bind-Value="_edit.Name" /></div>
-                    <div class="field"><label>Category</label><InputSelect class="input" @bind-Value="_edit.Cat">@foreach (var c in _cats) { <option>@c</option> }</InputSelect></div>
+                    @* The feed's category, shown and not edited. It is the string a store's
+                       mapping matches; which of a store's categories the product appears under
+                       is set per store, in the panel beside this one. *@
+                    <div class="field"><label>Feed category</label><span class="input input--readonly feed-category">@(string.IsNullOrWhiteSpace(_p.Cat) ? "None" : _p.Cat)</span></div>
                     <div class="field"><label>Stock source</label><InputSelect class="input" @bind-Value="_edit.Source"><option>Own</option><option>Distributor</option></InputSelect></div>
                     <div class="field"><label>Feed cost (EUR)</label><InputNumber class="input" @bind-Value="_edit.Cost" /></div>
                     <div class="field"><label>Sell price (EUR)</label><InputNumber class="input" @bind-Value="_edit.Price" /></div>
@@ -59,6 +62,43 @@ else
         </div>
 
         <div class="stack">
+            <div class="panel panel-pad store-placement">
+                <span class="card-kicker">On this store</span>
+                <p class="placement-status @(_p.OnStore ? "placement-status--on" : "placement-status--off")">
+                    @AdminUi.PlacementLabel(_p.Placement)@(string.IsNullOrWhiteSpace(_p.StoreCategory) ? "" : $" · {_p.StoreCategory}")
+                </p>
+                <div class="field">
+                    <label for="placement-visibility">Visibility</label>
+                    <select id="placement-visibility" class="input" @bind="_visibility">
+                        <option value="">Follow the category mapping</option>
+                        <option value="Show">Show on this store</option>
+                        <option value="Hide">Hide from this store</option>
+                    </select>
+                </div>
+                @if (_visibility == "Show")
+                {
+                    <div class="field mt">
+                        <label for="placement-category">List under</label>
+                        <select id="placement-category" class="input" @bind="_categoryId">
+                            <option value="">Where the mapping files it</option>
+                            @foreach (var category in _categories.Where(c => c.IsActive))
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+                <div class="field mt">
+                    <label for="placement-badge">Badge <span class="label-optional">optional</span></label>
+                    <input id="placement-badge" class="input" maxlength="40" @bind="_badge" placeholder="New, Best seller…" />
+                </div>
+                <label class="check mt"><input type="checkbox" @bind="_featured" /> Featured on this store</label>
+                @if (_placementError is not null)
+                {
+                    <p class="field-note field-note--warn placement-error">@_placementError</p>
+                }
+                <button class="btn btn-secondary mt placement-save" @onclick="SavePlacement" disabled="@_savingPlacement">Save for this store</button>
+            </div>
             <div class="panel panel-pad">
                 <span class="card-kicker">Pricing</span>
                 <div class="kv"><span class="k">Feed cost</span><span class="v-strong">@AdminUi.Money(_p.Cost, "EUR")</span></div>
@@ -82,24 +122,50 @@ else
     [Parameter] public string Sku { get; set; } = "";
     [CascadingParameter] public AdminLayout? Layout { get; set; }
 
-    private readonly string[] _cats = { "Servers", "Networking", "Laptops", "Components", "Security", "Power", "Peripherals" };
     private Product? _p;
     private Product _edit = new();
+
+    // The store-placement form. Strings because a <select> binds strings, and "" is the
+    // "follow the mapping" / "where the mapping files it" choice.
+    private string _visibility = "";
+    private string _categoryId = "";
+    private string _badge = "";
+    private bool _featured;
+    private string? _placementError;
+    private bool _savingPlacement;
+    private IReadOnlyList<StoreCategoryOption> _categories = [];
 
     private string SyncLabel => _p is null ? "" :
         (_p.IsDistributor ? (_p.Stale ? "Feed out of date" : "Synced " + _p.Synced) : "Own warehouse");
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         _p = Data.GetProduct(Sku);
         Layout?.SetPage("Product", "Catalogue item detail and pricing");
         if (_p is null) return;
+
+        // Everything the form does not edit is copied too, because the save sends it all back:
+        // leaving Desc, Cat or IsTaxable out is how a save wiped a description, rewrote a feed
+        // category and made an exempt product taxable.
         _edit = new()
         {
-            Sku = _p.Sku, Name = _p.Name, Cat = _p.Cat, Source = _p.Source,
-            Cost = _p.Cost, Price = _p.Price, Avail = _p.Avail,
+            Sku = _p.Sku, Name = _p.Name, Cat = _p.Cat, Desc = _p.Desc, IsTaxable = _p.IsTaxable,
+            Source = _p.Source, Cost = _p.Cost, Price = _p.Price, Avail = _p.Avail,
             Dist = _p.Dist, DistSku = _p.DistSku, Image = _p.Image
         };
+
+        LoadPlacement(_p);
+
+        _categories = (await Data.GetCategoryMappings()).Categories;
+    }
+
+    private void LoadPlacement(Product product)
+    {
+        _visibility = product.Visibility ?? "";
+        _categoryId = product.OverrideCategoryId?.ToString() ?? "";
+        _badge = product.Badge;
+        _featured = product.Featured;
+        _placementError = null;
     }
 
     private async Task Save()
@@ -107,5 +173,31 @@ else
         await Data.UpdateProduct(_edit);
         _p = Data.GetProduct(Sku);
         Toast.Show("Product saved");
+    }
+
+    private async Task SavePlacement()
+    {
+        _savingPlacement = true;
+
+        try
+        {
+            _placementError = await Data.SetPlacement(
+                Sku,
+                _visibility == "" ? null : _visibility,
+                int.TryParse(_categoryId, out var id) ? id : null,
+                _featured,
+                string.IsNullOrWhiteSpace(_badge) ? null : _badge.Trim());
+
+            if (_placementError is not null) return;
+
+            // Re-read: the snapshot was refreshed, and the object captured on load is stale.
+            _p = Data.GetProduct(Sku);
+            if (_p is not null) LoadPlacement(_p);
+            Toast.Show("Saved for this store");
+        }
+        finally
+        {
+            _savingPlacement = false;
+        }
     }
 }
