@@ -45,8 +45,13 @@
     <Build Remove="bin\**\*.sql" />
     <Build Remove="obj\**\*.sql" />
 
-    <PreDeploy Include="Scripts\PreDeployment\BackfillPaymentTermsDays.sql" />
+    <!-- One script per phase is all a project may have, so each phase's script includes its
+         steps with :r and the steps themselves are listed as None. -->
+    <PreDeploy Include="Scripts\PreDeployment\PreDeployment.sql" />
+    <None Include="Scripts\PreDeployment\BackfillPaymentTermsDays.sql" />
+    <None Include="Scripts\PreDeployment\HoldProductFlags.sql" />
     <PostDeploy Include="Scripts\PostDeployment\Seed.sql" />
+    <None Include="Scripts\PostDeployment\MoveProductFlagsToSites.sql" />
     <RefactorLog Include="SMDatabase.refactorlog" />
   </ItemGroup>
   <ItemGroup>

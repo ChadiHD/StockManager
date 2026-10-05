@@ -62,3 +62,8 @@ LEFT JOIN [dbo].[Quote] q   ON q.[Id] = p.[QuoteId]
 LEFT JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId]
 WHERE [p].[Reference] IS NOT NULL
   AND [p].[SiteId] IS NULL;
+
+-- Product.Published, Featured and Badge, saved aside by the pre-deployment script before the
+-- schema diff dropped them, filed under each store. A no-op once moved.
+:r .\MoveProductFlagsToSites.sql
+GO

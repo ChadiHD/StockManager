@@ -166,9 +166,9 @@ public class CreditLimitTests
 
             int productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted, IsTaxable)
+                                         QuantityInStock, Delisted, IsTaxable)
                 OUTPUT INSERTED.Id
-                VALUES (N'Credit fixture', N'Credit fixture.', 100, @sku, N'Credit', 50, 1, 0, 0);
+                VALUES (N'Credit fixture', N'Credit fixture.', 100, @sku, N'Credit', 50, 0, 0);
                 """, ("@sku", $"CRD-{runId}"));
 
             int accountId = Scalar(connection, transaction, """

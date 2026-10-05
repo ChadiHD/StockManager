@@ -252,9 +252,9 @@ public class CustomerDocumentScopeTests
 
             var productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted)
+                                         QuantityInStock, Delisted)
                 OUTPUT INSERTED.Id
-                VALUES (N'Scope fixture', N'Scope fixture.', 100, @sku, N'Scope', 5, 1, 0);
+                VALUES (N'Scope fixture', N'Scope fixture.', 100, @sku, N'Scope', 5, 0);
                 """,
                 ("@sku", $"SCP-{runId}"));
 

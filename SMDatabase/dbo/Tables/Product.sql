@@ -33,28 +33,25 @@ CREATE TABLE [dbo].[Product]
     -- When an image was last resolved, so enrichment can skip what it already has and retry
     -- what it could not find.
     [ImageSourcedUtc] DATETIME2 NULL,
-    [ImageLookupUtc] DATETIME2 NULL,
+    [ImageLookupUtc] DATETIME2 NULL
 
-    -- Operator control over storefront visibility, distinct from Delisted: Delisted means the
-    -- distributor stopped supplying it, Published=0 means we choose not to sell it. Defaults
-    -- on so a synced feed is sellable without a per-row action.
-    [Published] BIT NOT NULL DEFAULT 1,
-
-    -- Curated by the operator, not supplied by any feed. Featured drives the home page's
-    -- selection; Badge is the ribbon on the product tile ("Best seller", "New").
-    [Featured] BIT NOT NULL DEFAULT 0,
-    [Badge] NVARCHAR(40) NULL
+    /*
+    No Published, Featured or Badge. They were here until T8, and they were store decisions on a
+    table every store shares: unpublishing a product for one store took it off all of them.
+    They live on dbo.SiteProduct now, per store. Delisted stays, because it is the distributor's
+    fact about the product rather than any store's choice.
+    */
 )
 GO
 
 -- The catalog query filters on these before anything else, and pages over the result, so the
--- gate columns lead and Category follows for the mapping join.
+-- gate column leads and Category follows for the mapping lookup.
 CREATE NONCLUSTERED INDEX [IX_Product_CatalogGate]
-	ON [dbo].[Product] ([Published], [Delisted], [Category])
-	-- ManufacturerPartNumber and Featured are here for reasons the other columns are not.
-	-- The relevance ladder tests MPN before any prefix match, and that ladder runs for every
-	-- row the query has to *rank*, not just the page it returns — leaving it out costs a key
-	-- lookup per visible row on every search. Featured is the default sort key, and unlike a
-	-- select-list column a sort key cannot be deferred until after the page is trimmed.
+	ON [dbo].[Product] ([Delisted], [Category])
+	-- ManufacturerPartNumber is here for a reason the other columns are not. The relevance
+	-- ladder tests MPN before any prefix match, and that ladder runs for every row the query
+	-- has to *rank*, not just the page it returns — leaving it out costs a key lookup per
+	-- visible row on every search. Featured, the default sort key, left with the column: it is
+	-- on dbo.SiteProduct now, reached through the placement join.
 	INCLUDE ([Sku], [ProductName], [ManufacturerPartNumber], [RetailPrice], [QuantityInStock],
-	         [Featured], [Distributor], [Manufacturer]);
+	         [Distributor], [Manufacturer]);

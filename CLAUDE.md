@@ -52,9 +52,14 @@ things that were already wrong — three numbers for one tax among them.
 
 **T8 — store catalog control is planned, not built**, and runs before T7: the admin choosing
 which products each store sells, and prices shown to signed-in customers only, per
-`docs/plans/2026-10-05-t8-store-catalog-control.md`. Until it lands, `CategoryMapping` alone
-decides what a store sells and `Product.Published` / `Featured` / `Badge` are one setting for
-every store. **Prices on an `Authenticated` store follow the sign-in, not the pricing group** —
+`docs/plans/2026-10-05-t8-store-catalog-control.md`. **What a store sells is
+`dbo.fnSite_ProductPlacement`**: its category mapping, overridden per product by
+`dbo.SiteProduct` (`Show` under a category, or `Hide`), which also holds the store's own
+`Featured` and `Badge`. `Product` no longer has `Published`, `Featured` or `Badge` — they were
+one setting for every store. `fnCatalog_VisibleProducts` and `spQuote_SubmitRequest` both read
+placement, and the admin screens will, so the shop and the screen cannot disagree. Hiding is not
+withdrawing: a hidden product stays on any quote or order that has it, as a delisted one does.
+**Prices on an `Authenticated` store follow the sign-in, not the pricing group** —
 `CatalogPresenter.ShowPrices` used to test the group, which hid prices from every approved
 customer nobody had grouped — and a price sort is dropped for a viewer who cannot see prices,
 because the order alone ranks them.
@@ -100,7 +105,7 @@ before anything else runs. Consequences that are easy to get wrong:
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
   leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
   (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`,
-  `SiteEmailTemplate`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
+  `SiteEmailTemplate`, `SiteProduct`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
   dispatcher drains every store and renders each row with its own store's values.
 - **A join to a scoped table needs the predicate even when the join path looks safe.** A
   `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
@@ -732,6 +737,13 @@ with `sqlpackage /Action:Publish ... | grep -i "rebuilding table"`, which should
 The schema diff runs before `Seed.sql`, so a column added with a default and constrained in
 the same publish fails the constraint on every existing row and stops the publish with the
 column already applied. `Scripts/PreDeployment/BackfillPaymentTermsDays.sql` is the example.
+
+**A project gets one pre-deployment and one post-deployment script**, so each is a wrapper that
+`:r`-includes its steps, and the steps are `None` items in the sqlproj. Data that a column drop
+would lose is saved aside before the diff and filed afterwards: `HoldProductFlags.sql` copies
+`Product.Published` / `Featured` / `Badge` into a holding table, and `MoveProductFlagsToSites.sql`,
+included from `Seed.sql`, turns them into `SiteProduct` rows and drops it. Both use dynamic SQL,
+because a static reference to a column that is already gone fails the batch at compile time.
 
 ### `dbo.Purchase` does double duty
 

@@ -273,10 +273,10 @@ public class QuoteRepricingTests
             // that divides cleanly would pass whether it rounded or not.
             var productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted)
+                                         QuantityInStock, Delisted)
                 OUTPUT INSERTED.Id
                 VALUES (N'Repricing fixture', N'Repricing fixture.', 99.99, @sku, N'Repricing',
-                        5, 1, 0);
+                        5, 0);
                 """,
                 ("@sku", $"RPR-{runId}"));
 
