@@ -74,8 +74,10 @@ jobs:
           echo "SQL_PASSWORD=$password" >> "$GITHUB_ENV"
           docker run -d --name sql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$password" -p 1433:1433 \
             mcr.microsoft.com/mssql/server:2022-latest
+          # --skipApiVersionCheck, as Aspire's own emulator passes it: the blob client speaks a
+          # newer service version than this Azurite knows, and refuses every call without it.
           docker run -d --name azurite -p 10000:10000 \
-            mcr.microsoft.com/azure-storage/azurite:3.35.0 azurite-blob --blobHost 0.0.0.0
+            mcr.microsoft.com/azure-storage/azurite:3.35.0 azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
           for i in $(seq 1 60); do
             docker exec sql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$password" -Q "SELECT 1" >/dev/null 2>&1 && exit 0
             sleep 2
@@ -137,8 +139,23 @@ jobs:
       - name: Build
         run: dotnet build StockManager.E2ETests/StockManager.E2ETests.csproj
 
+      # Trusted, not only created: the app host health-checks stock-api and sm-store over HTTPS,
+      # and on Linux an untrusted development certificate fails that check. --trust writes to
+      # ~/.aspnet/dev-certs/trust, which OpenSSL reads only through SSL_CERT_DIR. It also warns
+      # about browser stores it cannot reach; Playwright ignores certificate errors anyway.
       - name: Development certificate
-        run: dotnet dev-certs https
+        run: |
+          dotnet dev-certs https --trust || true
+          echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
+
+      # The app host's one parameter with no generated default. Locally it is in the app host's
+      # user secrets, which a runner does not have, and without it stock-api cannot start — so
+      # every journey failed in seconds. Generated per run, like the SQL password above.
+      - name: App host parameters
+        run: |
+          key=$(openssl rand -base64 48)
+          echo "::add-mask::$key"
+          echo "Parameters__jwt-signing-key=$key" >> "$GITHUB_ENV"
 
       - name: Install Chromium
         run: pwsh StockManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
