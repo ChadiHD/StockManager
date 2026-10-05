@@ -114,7 +114,7 @@
 
             <div class="catalog__sort">
                 <span class="text-muted">Sort</span>
-                @foreach (var option in SortOptions)
+                @foreach (var option in SortOptions.Where(option => Presenter.SortFor(option.Key) is not null))
                 {
                     <a href="@FacetHref("sort", option.Key)"
                        class="@(CurrentSort == option.Key ? "is-current" : null)">@option.Label</a>
@@ -173,7 +173,7 @@
 
     private bool InStock => Stock == "1";
 
-    private string CurrentSort => string.IsNullOrWhiteSpace(Sort) ? "featured" : Sort;
+    private string CurrentSort => Presenter.SortFor(Sort) ?? "featured";
 
     private bool HasFilters =>
         Cat is not null || Brand is not null || !string.IsNullOrWhiteSpace(Q) || InStock;

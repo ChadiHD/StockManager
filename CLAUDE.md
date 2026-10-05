@@ -53,9 +53,11 @@ things that were already wrong — three numbers for one tax among them.
 **T8 — store catalog control is planned, not built**, and runs before T7: the admin choosing
 which products each store sells, and prices shown to signed-in customers only, per
 `docs/plans/2026-10-05-t8-store-catalog-control.md`. Until it lands, `CategoryMapping` alone
-decides what a store sells, `Product.Published` / `Featured` / `Badge` are one setting for every
-store, and `CatalogPresenter.ShowPrices` has a known bug: it checks for a pricing group, so a
-signed-in customer without one sees no prices on an `Authenticated` store.
+decides what a store sells and `Product.Published` / `Featured` / `Badge` are one setting for
+every store. **Prices on an `Authenticated` store follow the sign-in, not the pricing group** —
+`CatalogPresenter.ShowPrices` used to test the group, which hid prices from every approved
+customer nobody had grouped — and a price sort is dropped for a viewer who cannot see prices,
+because the order alone ranks them.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
