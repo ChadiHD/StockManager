@@ -64,6 +64,17 @@ withdrawing: a hidden product stays on any quote or order that has it, as a deli
 customer nobody had grouped — and a price sort is dropped for a viewer who cannot see prices,
 because the order alone ranks them.
 
+**T7 — production hardening is built, and the staging deploy is a person's step**, per
+`docs/plans/2026-10-05-t7-production-hardening.md` and `docs/runbooks/production.md`. The API
+host lost its anonymous staff registration, the Identity UI and the cookie scheme, and `/token`
+takes staff only; the portal is served by `StockApi`, so CORS is gone; both hosts send a CSP and
+map health in every environment; documents are blobs; mail goes through ACS from each store's
+`Site.MailFromAddress`; abandoned baskets and sent mail are swept; a fresh deployment gets its
+first admin from `Admin:Bootstrap*`; and `ProductionTopology` describes Azure for `aspire
+publish`. **Nothing here deploys to Azure** (`.github/copilot-instructions.md`): the
+`deploy-staging` workflow is run by hand. The load check at 50,000 products fails its target on
+the whole-catalog browse, and that is recorded as a decision in the plan's §7, not fixed.
+
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
 
@@ -76,7 +87,7 @@ template gap.** Fix the template and let the tenant consume it, rather than spec
 | `SMDataManager.Library` | Dapper + stored-procedure data access. Shared by `StockApi` and `SMStore` |
 | `SMDatabase` | SDK-style `.sqlproj` (`Microsoft.Build.Sql`) — tables, procedures, functions |
 | `SMStore` | Blazor **Web App** (SSR) customer storefront. Serves every site from one deployment |
-| `SMPortal` | Blazor **WebAssembly** admin portal (`/admin/*`) |
+| `SMPortal` | Blazor **WebAssembly** admin portal (`/admin/*`), **served by `StockApi`** from one origin |
 | `SMDesktopUI` + `.Library` | WPF POS desktop app (legacy, still shipped) |
 | `SMDesktopUI.UITests` | xunit + FlaUI UI automation for the WPF app |
 | `StockManager.Identity` | `ApplicationDbContext` — ASP.NET Identity's schema, shared by `StockApi` and `SMStore` |
@@ -227,9 +238,16 @@ account blocks that person from registering again and nothing else would surface
   `IdentityOptions.Lockout`, so nothing else here slows a password guess down.
   - Partitioned by IP only, deliberately: adding the site to the key would hand an attacker
     one allowance per store.
-  - **T7 must configure forwarded headers before these mean anything in production**, or every
-    customer shares the proxy's partition and the cap protects nobody while throttling
-    everybody.
+  - **They depend on forwarded headers in production**, which `ProductionTopology` turns on
+    (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`) for both hosts; Aspire's output did not. Without it
+    every customer shares the ingress's partition and the cap protects nobody while throttling
+    everybody — and `UseHttpsRedirection` loops behind the TLS-terminating ingress.
+  - **The storefront's sign-in is no longer the only door.** Until T7 `StockApi`'s `/token`
+    accepted a customer's password too (it found users by email), with no limit and no
+    lockout. It now refuses any site-qualified name before checking a password, counts
+    failures toward lockout and is limited to twenty per five minutes per IP
+    (`StaffSignIn`). A new endpoint that checks a password must do the same, or it reopens
+    the bypass.
   - The rejection writes a body. `UseStatusCodePagesWithReExecute` re-executes to `/not-found`
     for any bodiless 400–599, so a silent 429 would tell the customer the page does not exist.
 - **Registration answers the same way whether or not the address is already registered.**
@@ -287,21 +305,35 @@ nobody serves.
 - **Antivirus scanning is not done anywhere.** Recorded as accepted risk in the T3 plan, not
   overlooked. The mitigation is the narrow allow-list and that nothing is executed
   server-side.
-- **Both hosts must resolve the same root, and in development they do so by accident.** The
-  default is `<content root>/../app-data/documents`, which lands on the repository root for
-  both `SMStore` and `StockApi` because they sit side by side. Containers do not, so set
-  `Documents:RootPath` on both when they stop sharing a filesystem — the symptom is a
-  reviewer opening an application whose documents all 404. `/app-data/` is gitignored:
-  real applicants' paperwork must never reach a commit.
+- **The bytes are blobs, in one private container both hosts reference** (`documents`, from
+  the app host; Azurite locally on a persistent volume). Until T7 they were files on each
+  host's own disk, which in Container Apps is per app and per revision: the storefront's upload
+  was invisible to the reviewer and gone on the next deploy. `BlobDocumentStore` prefixes
+  every name with the site key and `DocumentNames` holds the shape checks, so a stored name
+  that came out of a URL is checked before it names anything. The registration journey
+  downloads the applicant's certificate in the portal and compares it byte for byte — that is
+  the step that fails if the two hosts stop reading one store. The Blob tests need
+  `DOCUMENTS_TEST_BLOB_CONNECTION` and skip without it. `/app-data/` is still gitignored, for
+  documents uploaded before T7.
 
 ### Outbound mail goes through an outbox
 
 Every message the platform owes somebody is a row in `dbo.EmailOutbox` before it is anything
 else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands them to
-`IEmailSender` — which is the transport, still `LoggingEmailSender`, and which call sites do
-not touch. A real transport is a provider and a sending domain per store, which is T7's
-hosting decision; until then nothing is delivered anywhere, and the outbox is what makes the
-day it is a configuration change rather than a rewrite.
+`IEmailSender` — the transport, which call sites do not touch. **Development logs
+(`LoggingEmailSender`); a deployment sends through Azure Communication Services**
+(`AcsEmailSender`, `Email:Transport = Acs`, signed in with the managed identity).
+
+- **A store's mail comes from `Site.MailFromAddress`**, on a domain verified for that store
+  with the provider. A store with none sends nothing through ACS: the message is dead-lettered
+  at once with the reason, never sent from another store's address. The logger ignores it, so
+  a development database needs none.
+- **`PermanentEmailFailureException` is how a transport says no retry can help** — no sender,
+  or a 4xx from the provider — and the dispatcher gives up on the first attempt instead of
+  backing off for eight hours. Throttling, timeouts and outages are ordinary failures and
+  retried.
+- ACS is waited on until it *accepts* a message. A bounce after that is not seen here; it needs
+  ACS's delivery events, which are not built.
 
 - **Where there is a procedure, it queues the message in its own transaction.**
   `spAccount_Approve`, `spAccount_Reject`, `spQuote_SubmitRequest`, `spQuote_Price` and
@@ -365,8 +397,9 @@ day it is a configuration change rather than a rewrite.
   hands messages to a logger. Off by default would silently stop the confirmation link
   reaching the dashboard — which, since T6, is **`stock-api`'s log, not `sm-store`'s**.
 - The claim is deliberately not scoped to a site: one dispatcher drains every store, and
-  renders each row with its own store's values. Nothing sweeps `Sent` rows yet; that belongs
-  with T7's basket sweep.
+  renders each row with its own store's values. `Sent` rows older than ninety days are
+  deleted by `HousekeepingBackgroundService` (below, under *The basket*); dead letters are kept,
+  because an operator has to see them.
 - **"Your quote expires soon" is the one message nothing happening triggers**, so it comes
   from `QuoteExpiryBackgroundService` in `StockApi`, beside the feed sync, **off by default**
   (`Quotes:ExpiryNoticeEnabled`, `Quotes:ExpiryNoticeAtUtc`, `Quotes:ExpiryNoticeDays`). It
@@ -419,6 +452,14 @@ recovery but re-entering the password on the feed, which re-encrypts against the
 cryptographic error. Before changing where keys live again, remember that every `SecretRef` in
 `dbo.DistributorFeed` is ciphertext bound to the ring that wrote it.
 
+**A deployment wraps the ring with a Key Vault key** (`DataProtection:KeyVaultKeyUri`, from
+`ProductionTopology`); locally it is unwrapped XML in `ApiAuthDb`, and a copy of that database
+alone could forge sessions for both hosts, decrypt the feed credentials and read the reset links
+waiting in the outbox. Wrapping applies to keys created from then on, and nothing moves or
+re-encrypts an existing key — do not "migrate" a ring to get it. The vault key must never be
+purged; purge protection is on for that reason. Restoring `ApiAuthDb` to before a key existed
+loses it and everything encrypted with it; `docs/runbooks/production.md` §4.
+
 ## Build and run
 
 Run everything through the app host:
@@ -431,6 +472,14 @@ Aspire provisions SQL Server as a **persistent container** (`AddAzureSqlServer("
 with volume `stockmanager-sql-data`) holding `ApiAuthDb` and `SMDatabase`. The connection strings in
 `StockApi/appsettings.json` are overridden by Aspire at run time — the `SITIHAPIB` value there is not
 what a running app uses.
+
+**Azurite runs beside it** since T7 (`storage`, image `azure-storage/azurite:3.35.0`, volume
+`stockmanager-documents`), for the documents container. If the app host sits in *Starting* on
+`storage` with no container appearing, the image is not pulled: on this machine Podman's VM has
+at times had no outbound network while the host did (`podman machine ssh curl ...` times out),
+so `podman pull` cannot reach `mcr.microsoft.com`. The E2E suite then skips every journey after
+its timeout. Loading the image from the host (`podman load -i <docker-archive>.tar`) gets past
+it without touching the VM.
 
 ### SMDatabase builds with the dotnet CLI
 
@@ -570,7 +619,9 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All nine journeys pass.** T8's runs across both stores the
+`E2E_REQUIRE_APPHOST=1` for CI. **All ten journeys pass.** T7's tenth has an admin add a
+colleague, who signs in with the first password and changes it, after which `/token` refuses
+the old one. T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
 unmapped one there under a store category, through the portal, and the other store does not
 change; then the first store hides prices until sign-in, and a signed-in customer with no
@@ -661,8 +712,22 @@ which is which.
 
 Everything else in that project is a pure unit test and needs nothing.
 
-`.claude/launch.json` has entries for `preview_start`. `sm-portal-standalone` runs the portal alone on
-7250, which avoids fighting the app host for ports when iterating on UI.
+`.claude/launch.json` has entries for `preview_start`. There is no standalone portal entry any
+more: `StockApi` serves the portal, so iterating on it is the app host at
+`https://localhost:7042/`.
+
+**The load check** (`CatalogLoadCheck`) runs the catalog queries at 50,000 products against a
+database of its own, `SMDATABASE_LOAD_CONNECTION`, and skips without it; CI excludes it with
+`Category!=Load`. Publish the DACPAC to an empty database first. Its numbers are in the T7
+plan's §7, and the default browse misses its 100 ms target — by design of the query, not for
+want of an index.
+
+**CI runs all of it** (`.github/workflows/ci.yml`): the routine filter on Windows, failing on
+fewer than four `Passed!` lines; the database and blob tests on Linux against throwaway SQL
+Server and Azurite containers, failing if any of them skipped; and the E2E suite with
+`E2E_REQUIRE_APPHOST=1`. The database job publishes the DACPAC to an **empty** database first —
+that is the only place a pre-deployment script's assumption that a table exists can fail
+before production does.
 
 ## Data access
 
@@ -744,6 +809,19 @@ with `sqlpackage /Action:Publish ... | grep -i "rebuilding table"`, which should
 The schema diff runs before `Seed.sql`, so a column added with a default and constrained in
 the same publish fails the constraint on every existing row and stops the publish with the
 column already applied. `Scripts/PreDeployment/BackfillPaymentTermsDays.sql` is the example.
+
+**A pre-deployment script must do nothing on an empty database**, because there pre-deployment
+runs before any table exists. `COL_LENGTH` is NULL for a missing table as well as a missing
+column, so `IF COL_LENGTH(...) IS NULL ALTER TABLE` alters a table that is not there:
+`BackfillPaymentTermsDays.sql` did exactly that until T7, and the first publish of every new
+database — every production deployment's first — failed on it. Test `OBJECT_ID` first. The
+development database and the E2E container both had the table, which is why only a publish to
+an empty database (CI's `database` job, the load check) could find it.
+
+**Production publishes with `BlockOnPossibleDataLoss` on**, from `.github/scripts/publish-schema.sh`,
+after writing a deploy report. The app host's in-process publish turns it off and runs in run
+mode only. A change the production path refuses needs a pre-deployment step that keeps the data,
+never the flag.
 
 **A project gets one pre-deployment and one post-deployment script**, so each is a wrapper that
 `:r`-includes its steps, and the steps are `None` items in the sqlproj. Data that a column drop
@@ -839,10 +917,37 @@ reporting its row count.
 
 ## Auth
 
-`StockApi` runs two schemes and picks per request: a bearer token means JWT, no bearer token means the
-Identity application cookie for the Razor UI. `SMPortal` and the WPF app `POST /token`
+`StockApi` is **bearer tokens only**. `SMPortal` and the WPF app `POST /token`
 (`TokenController`) and hold the JWT in local storage under the key from
 `SMPortal/wwwroot/appsettings.json`. Admin API controllers are `[Authorize(Roles = "Admin")]`.
+
+It used to run a cookie scheme as well, for the Identity UI's Razor pages that
+`AddDefaultIdentity` mapped on the API's domain — `/Identity/Account/Register`, `/Login` and the
+rest, which nothing used, whose Login did not lock out and accepted a customer's
+site-qualified name. T7 removed them, the MVC home page and the policy scheme; the host is
+`AddIdentityCore` with roles and the sign-in manager, and `Stores.MaxLengthForKeys = 128`
+stays because the Identity migrations were generated under it — without it EF's pending-model
+check stops the host starting.
+
+- **`/token` is staff only** (`StaffSignIn`): a site-qualified name is refused before any
+  password is checked, users are found by name (emails are not unique across stores, and
+  `FindByEmailAsync` threw on a shared one), failures count toward lockout, and it is rate
+  limited per IP.
+- **Every action names its roles.** `AuthorizationSurfaceTests` fails for any API action that
+  is open or merely `[Authorize]`, outside a two-entry allow-list (`/token`, `GET api/User`). A
+  roleless token must open nothing, and this is what says so.
+- **`POST api/User/Register` is Admin-only.** It was anonymous, added a confirmed login to the
+  staff list, and its 409 told a stranger which addresses were customers of any store.
+- **The portal is served by `StockApi`**, from its `SMPortal` reference, so the two are one
+  origin: there is no CORS policy, and the portal's API address is its own base address. Only
+  the portal's routes (`/`, `/login`, `/logout`, `/admin/*`) fall back to its `index.html` — a
+  new top-level portal route needs a fallback line in `StockApi/Program.cs`, or a reload of it
+  404s.
+- **A deployment's first admin comes from `Admin:BootstrapEmail` and
+  `Admin:BootstrapPassword`** (`AdminBootstrap`), which act only while no user holds Admin.
+  Staff after that are added in the portal with a first password the admin hands over, and
+  change it at `/admin/password`.
+- Swagger is mapped in Development only.
 
 `AdminDataService.EnsureAuthHeaderAsync` reads the token straight from storage rather than trusting
 `AuthStateProvider` to have set it — on a full page reload the service can run first, and every call
@@ -850,10 +955,28 @@ Identity application cookie for the Razor UI. `SMPortal` and the WPF app `POST /
 
 ## SMStore architecture
 
-Static SSR by default. There is no interactive render mode on any page yet, and adding one
-should be a deliberate decision about a specific island rather than a reflex — the mobile menu
-is a CSS-only disclosure (hidden checkbox plus a sibling selector) precisely to avoid a circuit
-on every page.
+Static SSR only. There is no interactive render mode on any page, and since T7 none is
+registered — Interactive Server was, with no page using it, which left its SignalR hub open and
+serving nothing. Adding one should be a deliberate decision about a specific island rather than
+a reflex — the mobile menu is a CSS-only disclosure (hidden checkbox plus a sibling selector)
+precisely to avoid a circuit on every page.
+
+**Everything comes from this origin, and the CSP says so.** Both hosts send
+`UseSecurityHeaders` (ServiceDefaults): nosniff, a strict-origin referrer policy, framing
+refused, and a Content-Security-Policy per host. The storefront's allows `'self'` only, plus
+`https:` images — enrichment links product images from Icecat, the one third party left, which
+A4 decides about. So:
+
+- **No inline script and no inline style attribute** in storefront markup. `<ImportMap />` was
+  removed for that reason; a script is a file under `wwwroot`.
+- **Fonts are self-hosted per theme** (`wwwroot/sites/{SiteKey}/fonts/`). They were imported
+  from Google Fonts, which sent every visitor's IP address to Google — the reason a consent
+  banner would otherwise be needed. A new theme imports its own files, never a font service.
+- **The E2E fixture fails the run on any CSP violation** the browser reports, the catalog
+  journey on any non-image request to another host, and the quote journey on any cookie but
+  the customer session, the basket and antiforgery. Those three are strictly necessary, which
+  is why there is no consent banner; a fourth cookie is a consent decision, and the test says so.
+- `/cookies` joins `/terms` and `/privacy` as a `SiteContent` page in the footer.
 
 The design system came from the Template artboards' `_ds/styles.css` and is split in two:
 
@@ -1003,11 +1126,15 @@ endpoint reasons about cookies and contacts together.
   catalog moves under it.
 - Quantities are capped at 9999 in the procedures, because `Quantity * NetPrice` is money
   arithmetic and `int.MaxValue` of anything overflows a line total.
-- **Nothing sweeps abandoned anonymous baskets, and that is deliberate.** A row per visitor
-  who adds something, robots included, is the cost of the cookie. The sweep is **T7's**, with
-  the hosting decision that says where a scheduled job runs: written now it would have been
-  a procedure nothing calls, which is what `spProduct_SyncFeeds` was.
-  `Basket.UpdatedUtc` is maintained by every write so it has something to key off.
+- **Abandoned anonymous baskets are swept after thirty days**, by `spHousekeeping_Sweep` from
+  `HousekeepingBackgroundService` in `StockApi`, daily and **on by default**
+  (`Housekeeping:Enabled`, `AtUtc`, `AbandonedBasketDays`, `SentMailDays`). A row per visitor
+  who adds something, robots included, is the cost of the cookie; T5 deferred the sweep to T7
+  with the hosting decision, which put scheduled work in `StockApi` with one replica minimum.
+  Anonymous only — a contact's one basket is what they see when they come back — keyed off
+  `Basket.UpdatedUtc`, which every write maintains, and in batches that each commit, so a first
+  run over a backlog holds no long lock on a table every Add writes. A window under a day is
+  refused: zero would delete the basket a visitor is filling right now.
 - **Removal is `SetQuantity` with a quantity of zero**, not a procedure of its own — that is
   what a customer typing 0 into the box means, and a second name over the same `DELETE` is
   two things to keep in step.
@@ -1148,8 +1275,9 @@ reaching for a library.
 - Per-site templating is free: the sheet reads the site's own tokens, so a second tenant's
   document is its own brand with no component change. `@media print` lives in `app.css`
   because hiding navigation is platform, not brand.
-- `window.print()` is the one inline handler in this storefront. It needs no circuit and no
-  bundle, and without JavaScript the browser's own print command does the same thing.
+- The print button is `data-print`, handled by `wwwroot/print.js` from the document — not an
+  inline `onclick`, which the storefront's CSP refuses. It needs no circuit, and without
+  JavaScript the browser's own print command does the same thing.
 
 ## Distributor feeds and image enrichment
 
@@ -1299,12 +1427,14 @@ wiped the description and made an exempt product taxable on every save. `Product
 portal now carries `Desc`, `Cat` and `IsTaxable` through, and `StoreCatalogTests` holds that.
 A new column on that procedure needs the same treatment, or the form erases it.
 
-**A fresh deployment has no admin and no way to make one.** `POST /api/User/Admin/AddRole` is
-`[Authorize(Roles = "Admin")]`, and the only anonymous endpoint, `POST /api/User/Register`,
-grants no role. Standing up tenant number two therefore means someone writing an
-`AspNetUserRoles` row by hand. `StockManager.E2ETests` bootstraps its operator directly
-against `ApiAuthDb` for exactly this reason — that is a workaround for a gap, not a pattern to
-copy, and the gap should close before a second store ships.
+**A fresh deployment gets its first admin from `AdminBootstrap`** (see *Auth*), which also
+creates the Admin, Manager and Staff roles; until T7 it had no way to make one at all.
+`StockManager.E2ETests` still bootstraps its own operator directly against `ApiAuthDb`, because
+a development database already has admins and the bootstrap does nothing once one exists.
+
+**The users page used to invent "Last active" times** from a dictionary of made-up
+aclitrade.ie addresses — the rule below, broken in a second place, and tenant data in shared
+code besides. The column went in T7.
 
 **Nothing in the portal may invent data.** `AccountDetail` used to fabricate contacts, three
 documents and an approval timeline — plausible-looking panels of nothing, rendered beside the

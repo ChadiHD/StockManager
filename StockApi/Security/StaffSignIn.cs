@@ -37,8 +37,8 @@ public static class StaffSignIn
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Per IP, which is the ingress's address until forwarded headers are on; see the
-            // T7 plan, item 10.
+            // Per IP, which behind the ingress is the caller's only because ProductionTopology
+            // turns forwarded headers on.
             options.AddPolicy(RateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions

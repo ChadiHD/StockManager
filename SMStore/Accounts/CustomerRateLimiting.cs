@@ -189,10 +189,10 @@ public static class CustomerRateLimiting
     /// </summary>
     /// <remarks>
     /// The connection's remote address, which is the proxy's address once there is a proxy in
-    /// front of this. **T7 must configure forwarded headers before relying on these limits in
-    /// production**, or every customer shares one partition and the cap becomes a
-    /// denial-of-service against the whole store rather than a defence for it. Unknown
-    /// addresses share a partition rather than escaping the limit.
+    /// front of this unless forwarded headers are on. **A deployment must turn them on**
+    /// (ProductionTopology sets ASPNETCORE_FORWARDEDHEADERS_ENABLED), or every customer shares
+    /// one partition and the cap becomes a denial-of-service against the whole store rather than
+    /// a defence for it. Unknown addresses share a partition rather than escaping the limit.
     /// </remarks>
     private static string Caller(HttpContext context) =>
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown";

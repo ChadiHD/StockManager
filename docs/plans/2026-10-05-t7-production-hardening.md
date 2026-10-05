@@ -15,7 +15,12 @@ the Aspire setup Azure-ready but not deploy to Azure, and nothing here changes t
 everything up to the deployment: the Azure topology in the app host, the pipeline, the runbook.
 Running the staging deploy is a person's step with a subscription (§2, D1).
 
-**Status: planned.** Branch `t7-production-hardening`, from `80ad9dd`.
+**Status: built, items 1–12**, on `t7-production-hardening` from `80ad9dd`. What remains is
+the person's half of the exit: run `deploy-staging`, bind the staging domains, and run the
+restore drill once (`docs/runbooks/production.md`). Two deviations from the items as written:
+ACS is a parameter rather than a Bicep module (its sender domains are DNS work by hand anyway),
+and the load check (item 9) fails its target on the whole-catalog browse, which §7 records as a
+decision rather than a fix.
 
 ---
 
