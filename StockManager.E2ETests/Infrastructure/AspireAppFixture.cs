@@ -3,6 +3,7 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using Xunit;
 
@@ -248,7 +249,7 @@ public sealed class AspireAppFixture : IAsyncLifetime
             */
             if (RequireAppHost)
             {
-                throw;
+                throw new InvalidOperationException(exception.Message + await DescribeResourcesAsync(), exception);
             }
 
             StartupFailure = $"Could not start the Aspire app host: {exception}";
@@ -268,6 +269,60 @@ public sealed class AspireAppFixture : IAsyncLifetime
                 "pwsh bin/Debug/net10.0/playwright.ps1 install chromium -- " +
                 $"original error: {exception.Message}";
         }
+    }
+
+    /// <summary>
+    /// The tail of every resource's own console log, for a startup failure.
+    /// </summary>
+    /// <remarks>
+    /// Aspire's exception says which resource failed and not why: "failed to start" is all a
+    /// pipeline gets, and the crashed host's stack trace is in a log nothing here printed. On a
+    /// workstation the dashboard has it; in CI this is the only place it surfaces, which is how
+    /// the first E2E runs there failed with nothing to read.
+    /// </remarks>
+    private async Task<string> DescribeResourcesAsync()
+    {
+        if (_app is null)
+        {
+            return "";
+        }
+
+        var logs = _app.Services.GetRequiredService<ResourceLoggerService>();
+        var model = _app.Services.GetRequiredService<DistributedApplicationModel>();
+        var text = new System.Text.StringBuilder("\n\nThe last lines each resource logged:\n");
+
+        foreach (var resource in model.Resources)
+        {
+            var lines = new List<string>();
+
+            // WatchAsync replays the backlog and then waits for more; two seconds is the backlog.
+            using var replay = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+            try
+            {
+                await foreach (var batch in logs.WatchAsync(resource.Name).WithCancellation(replay.Token))
+                {
+                    lines.AddRange(batch.Select(line => line.Content));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            if (lines.Count == 0)
+            {
+                continue;
+            }
+
+            text.AppendLine($"--- {resource.Name}");
+
+            foreach (var line in lines.TakeLast(30))
+            {
+                text.AppendLine("    " + line);
+            }
+        }
+
+        return text.ToString();
     }
 
     public async Task DisposeAsync()

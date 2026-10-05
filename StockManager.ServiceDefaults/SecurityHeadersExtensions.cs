@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -18,8 +19,22 @@ public static class SecurityHeadersExtensions
     /// no WebAssembly, the portal needs 'wasm-unsafe-eval'. Both refuse framing, so neither can be
     /// laid under another site's page to have its buttons clicked.
     /// </remarks>
-    public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app, string contentSecurityPolicy) =>
-        app.Use((context, next) =>
+    public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app, string contentSecurityPolicy)
+    {
+        /*
+        In Development, connections to other localhost ports too. Visual Studio injects Browser
+        Link and hot reload's browser-refresh script into every page, and both connect back to
+        the IDE on a port of their own — refused under connect-src 'self', which broke hot reload
+        and filled the console with violations. Development only, and localhost only.
+        */
+        if (app.ApplicationServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+        {
+            contentSecurityPolicy = contentSecurityPolicy.Replace(
+                "connect-src 'self'",
+                "connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*");
+        }
+
+        return app.Use((context, next) =>
         {
             context.Response.OnStarting(() =>
             {
@@ -34,4 +49,5 @@ public static class SecurityHeadersExtensions
 
             return next(context);
         });
+    }
 }

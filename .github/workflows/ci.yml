@@ -165,4 +165,34 @@ jobs:
       - name: End-to-end journeys
         env:
           E2E_REQUIRE_APPHOST: '1'
-        run: dotnet test StockManager.E2ETests/StockManager.E2ETests.csproj --no-build
+        run: >-
+          dotnet test StockManager.E2ETests/StockManager.E2ETests.csproj --no-build
+          --logger "trx;LogFileName=e2e.trx" --results-directory e2e-results
+
+      # The first failure as an annotation on the run, so the reason is on the PR's checks page
+      # rather than inside a log only a signed-in reader can open. The fixture puts every
+      # resource's last log lines into its message when the app host will not start.
+      - name: Report the first failure
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+          for path in glob.glob("e2e-results/*.trx"):
+              for result in ET.parse(path).getroot().iterfind(".//t:UnitTestResult", ns):
+                  if result.get("outcome") != "Failed":
+                      continue
+                  message = result.find(".//t:Message", ns)
+                  text = (message.text if message is not None else "no message")[:6000]
+                  text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::error title=E2E::{result.get('testName')}%0A{text}")
+                  raise SystemExit
+          PY
+
+      - name: Test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: e2e-results
+          if-no-files-found: ignore
