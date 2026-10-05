@@ -24,27 +24,44 @@ builder.AddServiceDefaults();
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.AddCors(policy =>
-{
-    policy.AddPolicy("OpenCorsPolicy", opt =>
-        opt.AllowAnyOrigin()
-        .AllowAnyHeader()
-        .AllowAnyMethod());
-});
 // ApplicationDbContext now lives in StockManager.Identity, shared with SMStore, but its
 // migrations stayed here — EF looks for them in the context's own assembly unless told
 // otherwise, and moving generated files to keep a default happy is a poor trade. StockApi
 // remains the only host that migrates; see the remarks on ApplicationDbContext.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("StockApi")));
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+/*
+AddIdentityCore, not AddDefaultIdentity: this host needs the user and role managers and a
+password check that counts failures, and nothing else.
+
+AddDefaultIdentity brought the Identity UI's Razor pages — /Identity/Account/Register, Login,
+ForgotPassword — onto the API's own domain, and nothing used them. Their Login signs in with
+lockoutOnFailure: false, and a customer login name ({SiteKey}|{email}) passes its
+[EmailAddress] check, so it was an unlimited password oracle for every store's customers that
+answered with a cookie this host accepted.
+*/
+builder.Services.AddIdentityCore<IdentityUser>(options =>
+    {
+        options.SignIn.RequireConfirmedAccount = true;
+
+        // Both hosts share one user store; see SiteQualifiedUserName.
+        options.User.AllowedUserNameCharacters = SiteQualifiedUserName.AllowedUserNameCharacters;
+        options.User.RequireUniqueEmail = false;
+
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
     .AddRoles<IdentityRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
-builder.Services.AddControllersWithViews();
-builder.Services.AddRazorPages();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddSignInManager();
+
+// Controllers only. Views, Razor pages and the MVC home page were the project template's, and
+// an API host serving HTML is surface nobody reviews.
+builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+
+// /token is the staff sign-in, and the only password check on this host.
+builder.Services.AddStaffRateLimiting();
 
 builder.Services.AddTransient<IInventoryData, InventoryData>();
 builder.Services.AddTransient<ISqlDataAccess, SqlDataAccess>();
@@ -167,14 +184,10 @@ var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException("Missing configuration value: Jwt:SigningKey");
 var jwtSigningKeyBytes = Encoding.UTF8.GetBytes(jwtSigningKey);
 
-builder.Services.AddAuthentication(options =>
-{
-    // The interactive Razor UI signs in with the Identity application cookie, while API
-    // clients (desktop / Blazor) send a JWT bearer token. Selecting one scheme as the global
-    // default breaks the other, so route per-request via a policy scheme (see below).
-    options.DefaultScheme = "SmartScheme";
-    options.DefaultChallengeScheme = "SmartScheme";
-})
+// Bearer tokens only. There was a policy scheme here routing cookie-carrying requests to the
+// Identity cookie, for the Razor UI that is gone; with it, a cookie from that UI's Login
+// authenticated API calls.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(jwtBearerOptions =>
 {
     jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters
@@ -185,24 +198,6 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = false,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(5)
-    };
-})
-// Null display name keeps this internal routing scheme out of the Identity UI's
-// external-login provider list.
-.AddPolicyScheme("SmartScheme", displayName: null, options =>
-{
-    options.ForwardDefaultSelector = context =>
-    {
-        string authorization = context.Request.Headers.Authorization.ToString();
-        if (!string.IsNullOrEmpty(authorization) &&
-            authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return JwtBearerDefaults.AuthenticationScheme;
-        }
-
-        // No bearer token -> browser request -> use the Identity cookie so the Razor UI
-        // stays signed in after login.
-        return IdentityConstants.ApplicationScheme;
     };
 });
 
@@ -224,20 +219,14 @@ using (var scope = app.Services.CreateScope())
 await app.EnsureDataProtectionKeyStoreAsync();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (!app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
-    app.UseMigrationsEndPoint();
-}
-else
-{
-    app.UseExceptionHandler("/Home/Error");
+    app.UseExceptionHandler();
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
-app.UseCors("OpenCorsPolicy");
 app.UseStaticFiles();
 
 app.UseRouting();
@@ -245,20 +234,24 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// After routing, so the endpoint's [EnableRateLimiting] is visible to it.
+app.UseRateLimiter();
+
 // After authorization: resolving a store is only meaningful for a caller that got this far,
 // and an anonymous request has no business learning whether a given site key exists.
 app.UseMiddleware<AdminSiteResolutionMiddleware>();
 
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// A map of every endpoint and its parameters is a development tool, not something to publish.
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "StockManager API v1");
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "StockManager API v1");
+    });
+}
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-app.MapRazorPages();
+app.MapControllers();
 app.MapDefaultEndpoints();
 
 app.Run();

@@ -6,8 +6,8 @@ namespace SMStore.Accounts;
 public static class CustomerAuthentication
 {
     /// <summary>
-    /// Distinct from <c>IdentityConstants.ApplicationScheme</c>, which StockApi uses for the
-    /// Razor admin UI.
+    /// Distinct from <c>IdentityConstants.ApplicationScheme</c>, which StockApi used for its
+    /// Razor UI until T7 removed it.
     /// </summary>
     public const string Scheme = "SMStore.Customer";
 

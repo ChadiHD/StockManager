@@ -174,8 +174,8 @@ builder.Services.AddScoped<DocumentUploadService>();
 /*
 Customer sign-in: a cookie scheme of this storefront's own.
 
-Not IdentityConstants.ApplicationScheme, and not the Identity cookie name. StockApi uses
-those for the Razor admin UI, the two hosts share a hostname in development, and cookies
+Not IdentityConstants.ApplicationScheme, and not the Identity cookie name. StockApi used
+those for its Razor UI until T7, the two hosts share a hostname in development, and cookies
 ignore ports — so identical names would have the two sessions overwriting each other, and the
 shared key ring means each can read what the other wrote.
 

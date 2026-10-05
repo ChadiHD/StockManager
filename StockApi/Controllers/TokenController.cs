@@ -1,59 +1,74 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
-using StockManager.Identity;
+using StockApi.Security;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
 namespace StockApi.Controllers
 {
-    public class TokenController : Controller
+    public class TokenController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly SignInManager<IdentityUser> _signInManager;
         private readonly IConfiguration _configuration;
 
         public TokenController(
-            ApplicationDbContext context,
             UserManager<IdentityUser> userManager,
+            SignInManager<IdentityUser> signInManager,
             IConfiguration configuration)
         {
-            _context = context;
             _userManager = userManager;
+            _signInManager = signInManager;
             _configuration = configuration;
         }
 
         [Route("/token")]
         [HttpPost]
+        [EnableRateLimiting(StaffSignIn.RateLimitPolicy)]
         public async Task<IActionResult> Create(string username, string password, string grant_type)
         {
-            if (await IsValidUsernameAndPassword(username, password))
-            {
-                // create the token
-                return new ObjectResult(await GenerateToken(username));
-            }
-            else
+            var user = await FindStaffAsync(username, password);
+
+            // One answer for every refusal: an unknown name, a customer's, a wrong password
+            // and a locked-out account must not be told apart from outside.
+            if (user is null)
             {
                 return BadRequest("Could not create token");
             }
+
+            return new ObjectResult(await GenerateToken(user));
         }
 
-        private async Task<bool> IsValidUsernameAndPassword(string username, string password)
+        private async Task<IdentityUser?> FindStaffAsync(string username, string password)
         {
-            var user = await _userManager.FindByEmailAsync(username);
+            if (!StaffSignIn.IsStaffName(username) || string.IsNullOrEmpty(password))
+            {
+                return null;
+            }
 
-            return user is not null && await _userManager.CheckPasswordAsync(user, password);
+            // By name, not by email. Emails are not unique in this store — a customer of two
+            // shops has two logins with one address — and FindByEmailAsync throws on that,
+            // which answered an admin sharing an address with a customer with a 500.
+            var user = await _userManager.FindByNameAsync(username);
+
+            if (user is null)
+            {
+                return null;
+            }
+
+            // Counts failures toward lockout, which CheckPasswordAsync does not.
+            var result = await _signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: true);
+
+            return result.Succeeded ? user : null;
         }
 
-        private async Task<dynamic> GenerateToken(string username)
+        private async Task<dynamic> GenerateToken(IdentityUser user)
         {
-            var user = await _userManager.FindByEmailAsync(username);
-            var roles = from ur in _context.UserRoles
-                        join r in _context.Roles on ur.RoleId equals r.Id
-                        where ur.UserId == user.Id
-                        select new { ur.UserId, ur.RoleId, r.Name };
+            var username = user.UserName!;
+            var roles = await _userManager.GetRolesAsync(user);
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, username),
@@ -64,7 +79,7 @@ namespace StockApi.Controllers
 
             foreach (var role in roles)
             {
-                claims.Add(new Claim(ClaimTypes.Role, role.Name));
+                claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
             var signingKey = _configuration["Jwt:SigningKey"]
