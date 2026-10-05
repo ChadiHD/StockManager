@@ -17,6 +17,15 @@ var identityDatabase = sql.AddDatabase("DefaultConnection", "ApiAuthDb");
 var stockDatabase = sql.AddDatabase("SMDatabase", "SMDatabase");
 var jwtSigningKey = builder.AddParameter("jwt-signing-key", secret: true);
 
+// Customer documents: one private blob container both hosts read, since a container app's own
+// filesystem is neither shared nor kept across revisions. Azurite locally, on a volume and
+// persistent like SQL, because the database rows that name these blobs outlive a restart too.
+var documents = builder.AddAzureStorage("storage")
+	.RunAsEmulator(emulator => emulator
+		.WithDataVolume("stockmanager-documents")
+		.WithLifetime(ContainerLifetime.Persistent))
+	.AddBlobContainer("documents");
+
 // Distributor feeds are no longer configured here. They are created in the admin portal and
 // stored in dbo.DistributorFeed, with credentials held by an IFeedSecretStore (Data Protection
 // locally, Key Vault in production) — see FeedSecrets in the API's appsettings.
@@ -160,8 +169,10 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithReference(identityDatabase)
 	.WithReference(stockDatabase)
 	.WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+	.WithReference(documents)
 	.WaitFor(identityDatabase)
 	.WaitFor(stockDatabase)
+	.WaitFor(documents)
 	.WithEndpoint("https", endpoint => endpoint.Port = 7042)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints()
@@ -180,8 +191,10 @@ builder.AddProject<Projects.SMStore>("sm-store")
 	// Identity user store it creates customer logins in. It reads and writes that store but
 	// never migrates it — StockApi owns the migrations, and both start together.
 	.WithReference(identityDatabase)
+	.WithReference(documents)
 	.WaitFor(stockDatabase)
 	.WaitFor(identityDatabase)
+	.WaitFor(documents)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints()
 	.PublishAsAzureContainerApp((_, _) => { });
