@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
@@ -283,20 +284,48 @@ public sealed class AspireAppFixture : IAsyncLifetime
             await _app.StopAsync();
             await _app.DisposeAsync();
         }
+
+        if (!_policyViolations.IsEmpty)
+        {
+            throw new InvalidOperationException(
+                "The browser reported Content-Security-Policy violations during the run. Each is " +
+                "something a page tried to load and was refused, so fix the page or, deliberately, " +
+                "the policy in SMStore/Program.cs or StockApi/Program.cs:\n  " +
+                string.Join("\n  ", _policyViolations.Distinct()));
+        }
     }
 
     /// <summary>
     /// A fresh, isolated browsing session. Every journey gets its own so a cookie from one
     /// test can never leak into another.
     /// </summary>
-    public Task<IBrowserContext> NewContextAsync() => Browser.NewContextAsync(new BrowserNewContextOptions
+    public async Task<IBrowserContext> NewContextAsync()
     {
-        // The ASP.NET Core dev certificate covers "localhost" and nothing else.
-        // CrossTenantRefusalJourneyTests deliberately reaches the same sm-store endpoint as
-        // "127.0.0.1" to get a second Host header out of a real browser without editing a
-        // hosts file, which fails certificate hostname validation by design -- this waives
-        // that check for every context these tests open, dev-only exactly as the certificate
-        // it is waiving is.
-        IgnoreHTTPSErrors = true
-    });
+        var context = await Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            // The ASP.NET Core dev certificate covers "localhost" and nothing else.
+            // CrossTenantRefusalJourneyTests deliberately reaches the same sm-store endpoint as
+            // "127.0.0.1" to get a second Host header out of a real browser without editing a
+            // hosts file, which fails certificate hostname validation by design -- this waives
+            // that check for every context these tests open, dev-only exactly as the certificate
+            // it is waiving is.
+            IgnoreHTTPSErrors = true
+        });
+
+        // A script or style the Content-Security-Policy blocks is a console line, not an
+        // exception, and the page usually still renders enough for an assertion to pass. So
+        // every violation in every journey is collected, and DisposeAsync fails the run on any.
+        context.Console += (_, message) =>
+        {
+            if (message.Type == "error"
+                && message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase))
+            {
+                _policyViolations.Enqueue($"{message.Location}: {message.Text}");
+            }
+        };
+
+        return context;
+    }
+
+    private readonly ConcurrentQueue<string> _policyViolations = new();
 }

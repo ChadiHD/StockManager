@@ -15,14 +15,15 @@
     <link rel="stylesheet" href="@_theme.StylesheetPath" />
     <link rel="stylesheet" href="@Assets["SMStore.styles.css"]" />
     <link rel="icon" href="@_theme.FaviconPath" />
-    <ImportMap />
+    @* No <ImportMap />: nothing here imports a JavaScript module, and it renders an inline
+       script the Content-Security-Policy would refuse. *@
     <HeadOutlet />
 </head>
 
 <body>
     <Routes />
-    <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["print.js"]"></script>
 </body>
 
 </html>

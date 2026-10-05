@@ -241,6 +241,16 @@ else
 
 app.UseHttpsRedirection();
 
+// For the portal, since this host serves its pages: WebAssembly needs 'wasm-unsafe-eval', and
+// the portal's markup sets style attributes. Swagger's UI is inline script and Development-only,
+// so it is left out rather than loosening the policy for everything else.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/swagger"),
+    branch => branch.UseSecurityHeaders(
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; " +
+        "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"));
+
 // The admin portal's WebAssembly bundle, from the SMPortal project reference. Served here
 // rather than from a host of its own, so the portal and the API are one origin: no CORS
 // policy to get wrong, and no API address to configure per environment — the portal calls
@@ -258,7 +268,13 @@ app.UseRateLimiter();
 
 // After authorization: resolving a store is only meaningful for a caller that got this far,
 // and an anonymous request has no business learning whether a given site key exists.
-app.UseMiddleware<AdminSiteResolutionMiddleware>();
+//
+// For api/ only. Without a header it reads the site list, so on the health probes it made
+// liveness depend on the database — a database blip would have had the platform restart every
+// healthy replica — and on the portal's own pages it was a query to serve a static file.
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/api"),
+    branch => branch.UseMiddleware<AdminSiteResolutionMiddleware>());
 
 // A map of every endpoint and its parameters is a development tool, not something to publish.
 if (app.Environment.IsDevelopment())
@@ -278,6 +294,7 @@ app.MapDefaultEndpoints();
 // POS or a script to get back instead of a 404.
 app.MapFallbackToFile("", "index.html");
 app.MapFallbackToFile("login", "index.html");
+app.MapFallbackToFile("logout", "index.html");
 app.MapFallbackToFile("admin/{*path:nonfile}", "index.html");
 
 app.Run();
