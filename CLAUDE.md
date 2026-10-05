@@ -50,14 +50,14 @@ dispatcher, every message on it in per-site wording, the quote-expiry sweep, and
 where two customers are charged differently for the same product. The plan opens with the four
 things that were already wrong — three numbers for one tax among them.
 
-**T8 — store catalog control is planned, not built**, and runs before T7: the admin choosing
-which products each store sells, and prices shown to signed-in customers only, per
+**T8 — store catalog control is built**, ahead of T7: the admin choosing which products each
+store sells, and prices shown to signed-in customers only, per
 `docs/plans/2026-10-05-t8-store-catalog-control.md`. **What a store sells is
 `dbo.fnSite_ProductPlacement`**: its category mapping, overridden per product by
 `dbo.SiteProduct` (`Show` under a category, or `Hide`), which also holds the store's own
 `Featured` and `Badge`. `Product` no longer has `Published`, `Featured` or `Badge` — they were
 one setting for every store. `fnCatalog_VisibleProducts` and `spQuote_SubmitRequest` both read
-placement, and the admin screens will, so the shop and the screen cannot disagree. Hiding is not
+placement, and so do the admin screens, so the shop and the screen cannot disagree. Hiding is not
 withdrawing: a hidden product stays on any quote or order that has it, as a delisted one does.
 **Prices on an `Authenticated` store follow the sign-in, not the pricing group** —
 `CatalogPresenter.ShowPrices` used to test the group, which hid prices from every approved
@@ -570,8 +570,15 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All eight journeys pass**, in under two minutes against a
-warm SQL container. The newest is T6's: two customers — one German with a VAT number, one Irish
+`E2E_REQUIRE_APPHOST=1` for CI. **All nine journeys pass.** T8's runs across both stores the
+suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
+unmapped one there under a store category, through the portal, and the other store does not
+change; then the first store hides prices until sign-in, and a signed-in customer with no
+pricing group still sees list price. **Anything a portal page shows after a change waits on
+`AdminPortal.AfterReload` (twenty seconds)**: every mutation ends in `RefreshAsync`, which
+re-fetches every list in the snapshot, and the development database grows with every run of
+this suite. Five seconds held through T6 and stopped holding in T8 with the write landing on
+the server well inside it. T6's journey: two customers — one German with a VAT number, one Irish
 without — ask for the same product, an admin sends both quotes, and each accepts. The orders
 carry the reverse charge and 23% respectively, each page says why, and every message the round
 trip owed both of them is `Sent` in the outbox, which is the dispatcher in the other host

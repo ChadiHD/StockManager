@@ -14,7 +14,7 @@ store, and both the storefront and the admin screen agree on what that store sel
 anonymous visitor to a store set to `Authenticated` sees no price and no price ordering
 anywhere. A signed-in customer sees prices whether or not their account has a pricing group.
 
-**Status: planned.** Nothing built.
+**Status: built.** Items 1–6, on `t8-store-catalog-control`.
 
 ---
 
