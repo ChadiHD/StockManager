@@ -27,11 +27,24 @@ jobs:
       - name: Build
         run: dotnet build StockManager.sln --configuration Release --no-restore
 
-      # SMDesktopUI.UITests drives a real WPF window with FlaUI and needs an interactive
-      # desktop session, so it cannot run on a hosted runner. It is deliberately not invoked
-      # here. StockApi, SMDataManager.Library, SMStore and SMPortal have no tests yet — the
-      # implementation plan calls for coverage of the price resolver, the tax engine,
-      # spOrder_ConvertFromQuote and site scoping first.
+      # The routine filter from CLAUDE.md. SMDesktopUI.UITests drives a real WPF window and needs
+      # an interactive desktop; the E2E suite has a job of its own. The database-backed tests skip
+      # here and run in the next job.
+      #
+      # Four "Passed!" lines, counted, because a project that fails to compile is dropped from a
+      # solution run that still exits 0 — the build step above catches that today, and this
+      # catches it if the two steps ever drift apart.
+      - name: Unit tests
+        shell: bash
+        run: |
+          dotnet test StockManager.sln --configuration Release --no-build \
+            --filter "FullyQualifiedName!~StockManager.E2ETests&FullyQualifiedName!~SMDesktopUI" \
+            | tee unit-tests.log
+          passed=$(grep -c "Passed!" unit-tests.log || true)
+          if [ "$passed" -ne 4 ]; then
+            echo "::error::Expected 4 test projects to pass, saw $passed."
+            exit 1
+          fi
 
       - name: Publish DACPAC
         uses: actions/upload-artifact@v4
@@ -39,3 +52,100 @@ jobs:
           name: SMDatabase-dacpac
           path: SMDatabase/bin/Release/SMDatabase.dacpac
           if-no-files-found: error
+
+  database:
+    # The tests that need real T-SQL and a real blob service, against throwaway containers.
+    # Linux, because hosted Windows runners cannot run Linux containers.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Start SQL Server and Azurite
+        run: |
+          # Generated per run: the container lives for this job only, and a fixed password in
+          # the repository would be one more thing a scanner rightly complains about.
+          password="Ci-$(openssl rand -hex 16)!"
+          echo "::add-mask::$password"
+          echo "SQL_PASSWORD=$password" >> "$GITHUB_ENV"
+          docker run -d --name sql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$password" -p 1433:1433 \
+            mcr.microsoft.com/mssql/server:2022-latest
+          docker run -d --name azurite -p 10000:10000 \
+            mcr.microsoft.com/azure-storage/azurite:3.35.0 azurite-blob --blobHost 0.0.0.0
+          for i in $(seq 1 60); do
+            docker exec sql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$password" -Q "SELECT 1" >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "::error::SQL Server did not start."
+          docker logs sql
+          exit 1
+
+      - name: Install sqlpackage
+        run: dotnet tool install -g microsoft.sqlpackage
+
+      - name: Build the schema
+        run: dotnet build SMDatabase/SMDatabase.sqlproj --configuration Release
+
+      # Twice. The first publish is to an empty database, which is what every production
+      # deployment's first publish is — and which failed until T7, because a pre-deployment
+      # script assumed dbo.Account existed. The second must change nothing.
+      - name: Publish the schema to an empty database, then again
+        run: |
+          target="Server=127.0.0.1,1433;Database=SMDatabase;User Id=sa;Password=$SQL_PASSWORD;TrustServerCertificate=True;Encrypt=False"
+          for pass in first second; do
+            sqlpackage /Action:Publish /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
+              "/TargetConnectionString:$target" /p:BlockOnPossibleDataLoss=true | tee "publish-$pass.log"
+          done
+          if grep -qi "rebuilding table" publish-second.log; then
+            echo "::error::Republishing an unchanged schema rebuilt a table."
+            exit 1
+          fi
+
+      # No test may skip here: these are the tests that skip when their connection is missing,
+      # so a broken connection string would otherwise pass all of them by running none. The load
+      # check is excluded; it needs a database of its own and minutes of seeding.
+      - name: Database and blob tests
+        env:
+          SMDATABASE_TEST_CONNECTION: Server=127.0.0.1,1433;Database=SMDatabase;User Id=sa;Password=${{ env.SQL_PASSWORD }};TrustServerCertificate=True;Encrypt=False
+          DOCUMENTS_TEST_BLOB_CONNECTION: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+        run: |
+          set -o pipefail
+          dotnet test SMDataManager.Library.Tests/SMDataManager.Library.Tests.csproj --filter "Category!=Load" | tee library.log
+          dotnet test StockApi.Tests/StockApi.Tests.csproj --filter "FullyQualifiedName~Documents" | tee documents.log
+          if grep -E "Skipped: +[1-9]" library.log documents.log; then
+            echo "::error::A database or blob test skipped, so it did not run."
+            exit 1
+          fi
+
+  e2e:
+    # The whole app host under Aspire.Hosting.Testing, with Playwright. Linux for the container
+    # runtime; the app host registers the WPF POS on Windows only.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build StockManager.E2ETests/StockManager.E2ETests.csproj
+
+      - name: Development certificate
+        run: dotnet dev-certs https
+
+      - name: Install Chromium
+        run: pwsh StockManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      # E2E_REQUIRE_APPHOST turns "no container runtime" from a skip into a failure: on this
+      # runner there is one, so a skip would mean something else broke.
+      - name: End-to-end journeys
+        env:
+          E2E_REQUIRE_APPHOST: '1'
+        run: dotnet test StockManager.E2ETests/StockManager.E2ETests.csproj --no-build
