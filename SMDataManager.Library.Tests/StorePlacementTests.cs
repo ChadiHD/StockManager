@@ -190,6 +190,154 @@ public class StorePlacementTests
         }
     }
 
+    // --- The admin's writes -------------------------------------------------------------------
+
+    [SkippableFact]
+    public void AStoreCannotFileAProductUnderAnotherStoresCategory()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+
+            // Store B naming store A's category. The composite key would refuse it as well,
+            // from inside the procedure, as a 500; this is the sentence the admin is shown.
+            var set = () => f.Set(f.StoreB, f.UnmappedSku, "Show", f.OtherCategoryA);
+
+            set.Should().Throw<SqlException>().Which.Number.Should().Be(50072);
+        }
+    }
+
+    [SkippableFact]
+    public void ShowingAProductWithNowhereToFileItIsRefused()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+
+            // Accepted, it would be stored and do nothing: "Show" on a product no customer finds.
+            var set = () => f.Set(f.StoreA, f.UnmappedSku, "Show", null);
+
+            set.Should().Throw<SqlException>().Which.Number.Should().Be(50073);
+        }
+    }
+
+    [SkippableFact]
+    public void AChoiceThatMatchesTheDefaultsLeavesNoRowBehind()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+
+            f.Set(f.StoreA, f.MappedSku, "Hide", null);
+            f.RowCount(f.StoreA).Should().Be(1);
+
+            // The table holds exceptions; a row saying "follow the mapping" says nothing.
+            f.Set(f.StoreA, f.MappedSku, null, null);
+            f.RowCount(f.StoreA).Should().Be(0);
+            f.Placement(f.StoreA, f.Mapped).Should().Be(("Mapped", true));
+        }
+    }
+
+    [SkippableFact]
+    public void ABulkChangeAppliesToTheSelectionAndKeepsEachProductsRibbon()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+            f.Set(f.StoreA, f.SecondSku, null, null, featured: true, badge: "New");
+
+            f.SetVisibility(f.StoreA, "Hide", null, f.MappedSku, f.SecondSku, "NO-SUCH-SKU").Should().Be(2);
+            f.Placement(f.StoreA, f.Mapped).Should().Be(("Hidden", false));
+            f.Placement(f.StoreA, f.Second).Should().Be(("Hidden", false));
+
+            // Handed back to the mapping. The plain one leaves no row; the one with a ribbon
+            // keeps it, because a selection is about what is on sale, not how it is featured.
+            f.SetVisibility(f.StoreA, null, null, f.MappedSku, f.SecondSku).Should().Be(2);
+            f.Placement(f.StoreA, f.Second).Should().Be(("Mapped", true));
+            f.RowCount(f.StoreA).Should().Be(1);
+            f.Search(f.StoreA).Should().Contain((f.SecondSku, "New"));
+        }
+    }
+
+    [SkippableFact]
+    public void MappingAFeedCategoryPutsEveryProductInItOnTheStore_AndUnmappingTakesThemOff()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+
+            f.Map(f.StoreA, f.UnmappedFeed, f.OtherCategoryA);
+            f.SearchSkus(f.StoreA, f.OtherCategorySlugA).Should().Equal(f.UnmappedSku);
+
+            f.Map(f.StoreA, f.MappedFeed, null);
+            f.SearchSkus(f.StoreA).Should().NotContain(f.MappedSku).And.NotContain(f.SecondSku);
+            // Store B's mapping is its own.
+            f.SearchSkus(f.StoreB).Should().Contain(f.MappedSku);
+        }
+    }
+
+    [SkippableFact]
+    public void AStoreCannotMapAFeedCategoryToAnotherStoresCategory()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+
+            var map = () => f.Map(f.StoreB, f.UnmappedFeed, f.OtherCategoryA);
+
+            map.Should().Throw<SqlException>().Which.Number.Should().Be(50072);
+        }
+    }
+
+    [SkippableFact]
+    public void TheAdminsListSaysWhatTheStorefrontDoes()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var f = PlacementFixture.Create(connection, transaction);
+            f.Set(f.StoreA, f.MappedSku, "Hide", null);
+            f.Set(f.StoreA, f.UnmappedSku, "Show", f.OtherCategoryA);
+
+            var list = f.AdminList(f.StoreA);
+
+            list[f.MappedSku].Should().Be(("Hidden", false, null));
+            list[f.SecondSku].Should().Be(("Mapped", true, "Mapped"));
+            list[f.UnmappedSku].Should().Be(("Shown", true, "Other"));
+
+            // And the shop agrees, row for row.
+            f.SearchSkus(f.StoreA).Should().BeEquivalentTo(
+                list.Where(row => row.Value.OnStore).Select(row => row.Key));
+        }
+    }
+
     /// <summary>Two stores, the same three products, and a category each.</summary>
     private sealed class PlacementFixture
     {
@@ -220,10 +368,13 @@ public class StorePlacementTests
         public string SecondSku => $"PLC-{_runId}-2";
         public string UnmappedSku => $"PLC-{_runId}-3";
 
+        public string MappedFeed => $"PlcMapped-{_runId}";
+        public string UnmappedFeed => $"PlcUnmapped-{_runId}";
+
         public static PlacementFixture Create(SqlConnection connection, SqlTransaction transaction)
         {
             var f = new PlacementFixture(connection, transaction, Guid.NewGuid().ToString("N")[..10]);
-            var mappedFeed = $"PlcMapped-{f._runId}";
+            var mappedFeed = f.MappedFeed;
 
             f.StoreA = f.Store("a", mappedFeed);
             f.StoreB = f.Store("b", mappedFeed);
@@ -235,9 +386,62 @@ public class StorePlacementTests
 
             f.Mapped = f.Product(f.MappedSku, mappedFeed);
             f.Second = f.Product(f.SecondSku, mappedFeed);
-            f.Unmapped = f.Product(f.UnmappedSku, $"PlcUnmapped-{f._runId}");
+            f.Unmapped = f.Product(f.UnmappedSku, f.UnmappedFeed);
 
             return f;
+        }
+
+        public void Set(int siteId, string sku, string? visibility, int? categoryId,
+            bool featured = false, string? badge = null) => Execute("""
+            EXEC dbo.spSiteProduct_Set @SiteId = @site, @Sku = @sku, @Visibility = @visibility,
+                 @SiteCategoryId = @category, @Featured = @featured, @Badge = @badge;
+            """,
+            ("@site", siteId), ("@sku", sku), ("@visibility", (object?)visibility ?? DBNull.Value),
+            ("@category", (object?)categoryId ?? DBNull.Value), ("@featured", featured),
+            ("@badge", (object?)badge ?? DBNull.Value));
+
+        public int SetVisibility(int siteId, string? visibility, int? categoryId, params string[] skus)
+        {
+            // Built in T-SQL rather than passed as a table, as QuoteSubmissionTests does: what
+            // is under test is the procedure, not Dapper's binding of the type.
+            var values = string.Join(", ", skus.Select(sku => $"(N'{sku}')"));
+
+            return Scalar($"""
+                DECLARE @skus dbo.SkuList;
+                INSERT INTO @skus VALUES {values};
+                EXEC dbo.spSiteProduct_SetVisibility @SiteId = @site, @Skus = @skus,
+                     @Visibility = @visibility, @SiteCategoryId = @category;
+                """,
+                ("@site", siteId), ("@visibility", (object?)visibility ?? DBNull.Value),
+                ("@category", (object?)categoryId ?? DBNull.Value));
+        }
+
+        public void Map(int siteId, string feedValue, int? categoryId) => Execute(
+            "EXEC dbo.spCategoryMapping_Set @SiteId = @site, @FeedValue = @feed, @SiteCategoryId = @category;",
+            ("@site", siteId), ("@feed", feedValue), ("@category", (object?)categoryId ?? DBNull.Value));
+
+        public int RowCount(int siteId) => Scalar(
+            "SELECT COUNT(*) FROM dbo.SiteProduct WHERE SiteId = @site;", ("@site", siteId));
+
+        public Dictionary<string, (string Placement, bool OnStore, string? StoreCategory)> AdminList(int siteId)
+        {
+            using var command = Command("EXEC dbo.spProduct_GetCatalogForSite @SiteId = @site;", ("@site", siteId));
+            using var reader = command.ExecuteReader();
+            var rows = new Dictionary<string, (string, bool, string?)>();
+
+            while (reader.Read())
+            {
+                var sku = reader.GetString(reader.GetOrdinal("Sku"));
+
+                if (!sku.Contains(_runId)) continue;
+
+                var category = reader.GetOrdinal("StoreCategory");
+                rows[sku] = (reader.GetString(reader.GetOrdinal("Placement")),
+                             reader.GetBoolean(reader.GetOrdinal("OnStore")),
+                             reader.IsDBNull(category) ? null : reader.GetString(category));
+            }
+
+            return rows;
         }
 
         private int Store(string letter, string mappedFeed)

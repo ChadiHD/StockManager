@@ -1,5 +1,6 @@
 using Dapper;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
 using System;
@@ -33,10 +34,71 @@ namespace SMDataManager.Library.DataAccess
             return output;
         }
 
-        public List<AdminProductModel> GetCatalog()
+        public List<AdminProductModel> GetCatalog(int siteId)
         {
             return _sqlDataAccess.LoadData<AdminProductModel, dynamic>(
-                "dbo.spProduct_GetAll", new { }, "SMDatabase");
+                "dbo.spProduct_GetCatalogForSite", new { SiteId = siteId }, "SMDatabase");
+        }
+
+        /// <summary>
+        /// The THROW numbers spSiteProduct_Set and spSiteProduct_SetVisibility refuse with:
+        /// unknown SKU, bad visibility, foreign category, nowhere to file a shown product.
+        /// </summary>
+        private static bool IsPlacementRefusal(SqlException ex) => ex.Number is >= 50070 and <= 50073;
+
+        public PlacementResult SetPlacement(
+            int siteId, string sku, string visibility, int? siteCategoryId, bool featured, string badge)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spSiteProduct_Set", new
+                {
+                    SiteId = siteId,
+                    Sku = sku,
+                    Visibility = visibility,
+                    SiteCategoryId = siteCategoryId,
+                    Featured = featured,
+                    Badge = badge
+                }, "SMDatabase");
+
+                return new PlacementResult(1, null);
+            }
+            catch (SqlException ex) when (IsPlacementRefusal(ex))
+            {
+                return new PlacementResult(0, ex.Message);
+            }
+        }
+
+        public PlacementResult SetVisibility(
+            int siteId, IEnumerable<string> skus, string visibility, int? siteCategoryId)
+        {
+            var table = new DataTable();
+            table.Columns.Add("Sku", typeof(string));
+
+            // dbo.SkuList is keyed, so a selection naming a product twice would fail the batch.
+            foreach (var sku in skus.Where(sku => !string.IsNullOrWhiteSpace(sku))
+                         .Select(sku => sku.Trim())
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                table.Rows.Add(sku);
+            }
+
+            try
+            {
+                var matched = _sqlDataAccess.LoadData<int, dynamic>("dbo.spSiteProduct_SetVisibility", new
+                {
+                    SiteId = siteId,
+                    Skus = table.AsTableValuedParameter("dbo.SkuList"),
+                    Visibility = visibility,
+                    SiteCategoryId = siteCategoryId
+                }, "SMDatabase").FirstOrDefault();
+
+                return new PlacementResult(matched, null);
+            }
+            catch (SqlException ex) when (IsPlacementRefusal(ex))
+            {
+                return new PlacementResult(0, ex.Message);
+            }
         }
 
         public AdminProductModel GetProductBySku(string sku)
