@@ -5,6 +5,7 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using StockManager.Identity;
 using StockApi.Models;
+using StockApi.Security;
 using System.Security.Claims;
 
 namespace StockApi.Controllers
@@ -12,7 +13,7 @@ namespace StockApi.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class UserController : Controller
+    public class UserController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
@@ -57,9 +58,12 @@ namespace StockApi.Controllers
             string Email,
             string Password);
 
+        // Admin only. It was anonymous, so anyone could add a confirmed login to the staff list,
+        // and its 409 — looked up by email across the whole user store — told a stranger which
+        // addresses were customers of any store here.
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         [Route("Register")]
-        [AllowAnonymous]
         // POST: User/Register
         public async Task<IActionResult> Register(UserRegistrationModel user)
         {
@@ -68,7 +72,16 @@ namespace StockApi.Controllers
                 return BadRequest(ModelState);
             }
 
-            var existingUser = await _userManager.FindByEmailAsync(user.Email);
+            // A staff name is never site-qualified; that is how /token tells staff from
+            // customers. See StaffSignIn.
+            if (!StaffSignIn.IsStaffName(user.Email))
+            {
+                return BadRequest($"A staff email address cannot contain '{SiteQualifiedUserName.Separator}'.");
+            }
+
+            // By name, which is the email for staff: customers' logins are named differently, so
+            // a customer's address neither collides with this nor can be probed through it.
+            var existingUser = await _userManager.FindByNameAsync(user.Email);
             if (existingUser is not null)
             {
                 return Conflict("A user with this email address already exists.");
@@ -84,7 +97,9 @@ namespace StockApi.Controllers
             IdentityResult result = await _userManager.CreateAsync(newUser, user.Password);
             if (!result.Succeeded)
             {
-                return BadRequest(result.Errors);
+                // Sentences, not IdentityError objects: the portal shows this to the admin who
+                // typed the password, and they need to read which rule it broke.
+                return BadRequest(Describe(result));
             }
 
             try
@@ -109,6 +124,40 @@ namespace StockApi.Controllers
 
             return Ok();
         }
+
+        public record PasswordChangeModel(string CurrentPassword, string NewPassword);
+
+        // Any member of staff, for their own login only — the user comes from the token, never
+        // from the request. An admin sets a new colleague's first password, so until this is
+        // used two people know it.
+        [Authorize(Roles = "Admin,Manager,Staff")]
+        [HttpPut]
+        [Route("Me/Password")]
+        public async Task<IActionResult> ChangeOwnPassword(PasswordChangeModel change)
+        {
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = string.IsNullOrEmpty(userId) ? null : await _userManager.FindByIdAsync(userId);
+
+            if (user is null)
+            {
+                return Unauthorized();
+            }
+
+            var result = await _userManager.ChangePasswordAsync(
+                user, change.CurrentPassword ?? string.Empty, change.NewPassword ?? string.Empty);
+
+            if (!result.Succeeded)
+            {
+                return BadRequest(Describe(result));
+            }
+
+            _logger.LogInformation("User {User} changed their password.", user.Id);
+
+            return NoContent();
+        }
+
+        private static string Describe(IdentityResult result) =>
+            string.Join(" ", result.Errors.Select(error => error.Description));
 
         [Authorize(Roles = "Admin")]
         [HttpGet]

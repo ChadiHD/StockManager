@@ -22,8 +22,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+// Static SSR only. Interactive Server was registered and no page used it, so it was a SignalR
+// hub open to anyone and serving nothing; an island that needs one should add it deliberately.
+builder.Services.AddRazorComponents();
 
 builder.Services.AddMemoryCache();
 
@@ -174,8 +175,8 @@ builder.Services.AddScoped<DocumentUploadService>();
 /*
 Customer sign-in: a cookie scheme of this storefront's own.
 
-Not IdentityConstants.ApplicationScheme, and not the Identity cookie name. StockApi uses
-those for the Razor admin UI, the two hosts share a hostname in development, and cookies
+Not IdentityConstants.ApplicationScheme, and not the Identity cookie name. StockApi used
+those for its Razor UI until T7, the two hosts share a hostname in development, and cookies
 ignore ports — so identical names would have the two sessions overwriting each other, and the
 shared key ring means each can read what the other wrote.
 
@@ -245,6 +246,17 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+/*
+Everything from this origin and nothing inline. The storefront has two scripts of its own
+(blazor.web.js for enhanced navigation, print.js), its fonts are self-hosted, and no style
+attribute appears in its markup — so the one thing a third party gets is product images, which
+enrichment links from the content provider's own servers.
+*/
+app.UseSecurityHeaders(
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; " +
+    "font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; " +
+    "base-uri 'self'; object-src 'none'");
+
 // Health probes are addressed by container host or IP, which no Site row claims, so they must
 // not go through host-based resolution or Aspire would see every instance as unhealthy.
 app.UseWhen(
@@ -271,8 +283,7 @@ app.MapQuoteDecisions();
 app.MapAccountDocuments();
 app.MapEmailConfirmation();
 app.MapPasswordReset();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>();
 
 app.MapDefaultEndpoints();
 

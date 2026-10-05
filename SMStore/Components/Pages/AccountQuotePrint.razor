@@ -29,10 +29,10 @@ else
         <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}")" class="btn btn-secondary">
             Back to the @Label.ToLowerInvariant()
         </a>
-        @* The one inline handler in this storefront. It needs no circuit, no bundle and no
-           render round trip, and without JavaScript the browser's own print command still
-           does the same thing — so the page degrades to exactly what it was. *@
-        <button type="button" class="btn btn-primary" onclick="window.print()">Print or save as PDF</button>
+        @* data-print, handled by wwwroot/print.js, and not an inline onclick: the storefront's
+           Content-Security-Policy allows no inline script. It needs no circuit and no render
+           round trip, and without JavaScript the browser's own print command does the same. *@
+        <button type="button" class="btn btn-primary" data-print>Print or save as PDF</button>
     </div>
 
     <DocumentSheet Kind="@Label"

@@ -6,6 +6,11 @@
 @page "/contact"
 @page "/terms"
 @page "/privacy"
+@* What the store's cookies are and why each is needed. The words are the store's, from
+   SiteContent; the platform sets only strictly necessary cookies, so this is a notice rather
+   than a consent form. A non-essential cookie would change that, and QuoteRequestJourneyTests
+   fails the day one appears. *@
+@page "/cookies"
 
 @using SMStore.Content
 @inject ISiteContext SiteContext

@@ -107,8 +107,15 @@ public interface IAdminDataService
     Task<Group?> AddGroup(Group draft);
     Task UpdateGroup(string name, int discount, string terms, string note);
 
-    Task<User?> AddUser(string name, string email, string role);
+    /// <summary>
+    /// Creates a staff login with the password the admin chose, and the given role. Returns why
+    /// it was refused — the password rules, usually — or null once it exists.
+    /// </summary>
+    Task<string?> AddUser(string name, string email, string role, string password);
     Task UpdateUserRoles(string email, IEnumerable<string> roles);
+
+    /// <summary>The signed-in user's own password. Returns why it was refused, or null.</summary>
+    Task<string?> ChangePassword(string currentPassword, string newPassword);
 
     Task SyncFeeds();
 

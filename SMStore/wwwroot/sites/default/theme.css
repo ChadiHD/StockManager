@@ -8,10 +8,13 @@ edit this file.
 Every token app.css reads must be defined here, because SiteThemeResolver falls back to this
 theme for any asset a site has not supplied.
 
-Typefaces belong to a theme, not to the platform, so each theme imports its own.
+Typefaces belong to a theme, not to the platform, so each theme imports its own — from its own
+folder, never from a font service: a third-party font host is a request carrying every
+visitor's IP address, and the storefront's Content-Security-Policy refuses it anyway. See
+fonts/fonts.css.
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600&display=swap');
+@import url('fonts/fonts.css');
 
 :root {
     --color-bg: #f2f2f3;

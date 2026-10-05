@@ -124,6 +124,14 @@ public sealed class RegistrationApprovalJourneyTests
         // rather than a database id (CLAUDE.md: "The UI models key on human references"), so
         // the reference the acknowledgement page gave the applicant is a real deep link.
         await adminPage.GotoAsync(new Uri(_fixture.SmPortalBaseUrl, $"/admin/accounts/{reference}").ToString());
+
+        // The reviewer reads the certificate. The storefront wrote it and the API serves it, so
+        // this is the step that fails if the two hosts are not reading one store -- the
+        // symptom a per-container filesystem produced, which is why documents are blobs.
+        var download = await adminPage.RunAndWaitForDownloadAsync(() =>
+            adminPage.Locator(".doc-view", new() { HasText = "Download" }).First.ClickAsync(new() { Timeout = 20_000 }));
+        (await File.ReadAllBytesAsync(await download.PathAsync())).Should().Equal(TinyPdf.Bytes);
+
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Approve account" }).ClickAsync();
         await adminPage.Locator(".modal select").SelectOptionAsync([new SelectOptionValue { Label = groupName }]);
         // Scoped to .modal-foot: the pending-application banner behind the now-open modal has

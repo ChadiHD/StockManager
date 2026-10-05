@@ -10,7 +10,7 @@ BEGIN
 	SELECT [Id], [SiteKey], [Name], [Domain], [Country], [CurrencyCode], [Locale],
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
 	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail],
-	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber],
+	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber], [MailFromAddress],
 	       [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	-- Inactive sites are excluded here as they are in spSite_GetByDomain. Without it the two

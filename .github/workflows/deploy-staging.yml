@@ -1,0 +1,90 @@
+name: Deploy to staging
+
+# By hand only, and through a GitHub environment that needs a reviewer: a deploy creates billable
+# resources in somebody's subscription. Nothing here runs on a push. The first deploy and what
+# has to exist before it are in docs/runbooks/production.md.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # OIDC to Azure: no client secret is stored anywhere.
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 60
+
+    env:
+      Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      Azure__Location: ${{ vars.AZURE_LOCATION }}
+      Azure__ResourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+      Azure__CredentialSource: AzureCli
+
+      # App host parameters. Domains come from the app host's own settings
+      # (Deployment:StoreDomains, Deployment:AdminDomain); certificate names are empty until
+      # the runbook's certificate step has run for each one.
+      Parameters__jwt-signing-key: ${{ secrets.JWT_SIGNING_KEY }}
+      Parameters__admin-bootstrap-email: ${{ vars.ADMIN_BOOTSTRAP_EMAIL }}
+      Parameters__admin-bootstrap-password: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
+      Parameters__dataprotection-key-uri: ${{ vars.DATAPROTECTION_KEY_URI }}
+      Parameters__acs-endpoint: ${{ vars.ACS_ENDPOINT }}
+      Parameters__admin-certificate-0: ${{ vars.ADMIN_CERTIFICATE_0 }}
+      Parameters__store-certificate-0: ${{ vars.STORE_CERTIFICATE_0 }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Tools
+        run: |
+          dotnet tool install -g Aspire.Cli
+          dotnet tool install -g microsoft.sqlpackage
+
+      - name: Build the schema
+        run: dotnet build SMDatabase/SMDatabase.sqlproj --configuration Release
+
+      # Schema before code on every deploy after the first, so new code never starts against
+      # procedures it expects and the database lacks. On the first deploy there is no server
+      # yet; the step after the deploy covers it.
+      - name: Schema (before)
+        id: before
+        run: ./.github/scripts/publish-schema.sh before
+
+      - name: Deploy
+        run: aspire deploy --project StockManager.AppHost/StockManager.AppHost.csproj --non-interactive
+
+      - name: Schema (after)
+        run: ./.github/scripts/publish-schema.sh after
+
+      # Only on the first deploy: the apps started before their schema existed, so StockApi's
+      # first-admin bootstrap failed and it is waiting on a restart.
+      - name: Restart after a first deploy
+        if: steps.before.outputs.published == 'false'
+        run: |
+          for app in stock-api sm-store; do
+            revision=$(az containerapp revision list -g "$Azure__ResourceGroup" -n "$app" --query "[0].name" -o tsv)
+            az containerapp revision restart -g "$Azure__ResourceGroup" -n "$app" --revision "$revision"
+          done
+
+      - name: Deploy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-deploy-report
+          path: schema-*.xml
+          if-no-files-found: ignore

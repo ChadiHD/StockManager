@@ -12,6 +12,11 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
+// StockApi serves this app, so the API is wherever the app was loaded from. A configured
+// address used to say https://localhost:7042, which a deployed portal would have called on
+// the visitor's own machine.
+builder.Configuration["api"] ??= builder.HostEnvironment.BaseAddress.TrimEnd('/');
+
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();

@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using Xunit;
 
@@ -62,7 +64,8 @@ public sealed class AspireAppFixture : IAsyncLifetime
     public Uri StockApiBaseUrl { get; } = new("https://localhost:7042");
 
     public Uri SmStoreBaseUrl { get; private set; } = null!;
-    public Uri SmPortalBaseUrl { get; private set; } = null!;
+    /// <summary>StockApi serves the portal (T7), so this is the API's own address.</summary>
+    public Uri SmPortalBaseUrl => StockApiBaseUrl;
 
     public string SmDatabaseConnectionString { get; private set; } = "";
     public string ApiAuthConnectionString { get; private set; } = "";
@@ -136,6 +139,7 @@ public sealed class AspireAppFixture : IAsyncLifetime
                 context.EnvironmentVariables["Sites__CacheDuration"] = "00:00:01"));
 
             _app = await appHostBuilder.BuildAsync();
+            RecordResourceLogs();
 
 
             /*
@@ -174,16 +178,10 @@ public sealed class AspireAppFixture : IAsyncLifetime
                     "E2E_RESOURCE_TIMEOUT_MINUTES only once you have ruled that out.");
             }
 
-            // stock-api and sm-store both carry WithHttpHealthCheck; sm-portal is a static
-            // WASM host with no health endpoint of its own, so Running -- not Healthy, which
-            // it would never reach -- is the corresponding signal for it.
             await _app.ResourceNotifications.WaitForResourceHealthyAsync("stock-api", timeout.Token);
             await _app.ResourceNotifications.WaitForResourceHealthyAsync("sm-store", timeout.Token);
-            await _app.ResourceNotifications.WaitForResourceAsync(
-                "sm-portal", KnownResourceStates.Running, timeout.Token);
 
             SmStoreBaseUrl = _app.GetEndpoint("sm-store", "https");
-            SmPortalBaseUrl = _app.GetEndpoint("sm-portal", "https");
 
             SmDatabaseConnectionString = await _app.GetConnectionStringAsync("SMDatabase")
                 ?? throw new InvalidOperationException("The SMDatabase resource published no connection string.");
@@ -252,7 +250,7 @@ public sealed class AspireAppFixture : IAsyncLifetime
             */
             if (RequireAppHost)
             {
-                throw;
+                throw new InvalidOperationException(exception.Message + await DescribeResourcesAsync(), exception);
             }
 
             StartupFailure = $"Could not start the Aspire app host: {exception}";
@@ -274,8 +272,74 @@ public sealed class AspireAppFixture : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// The last 30 console lines of every resource, watched from the moment the app is built.
+    /// </summary>
+    /// <remarks>
+    /// Aspire's exception says which resource failed and not why: "failed to start" is all a
+    /// pipeline gets, and the crashed host's stack trace is in its console log. On a workstation
+    /// the dashboard has it; in CI this is the only place it surfaces. Watched from the start
+    /// because a reader arriving after the failure is handed no backlog — the first version read
+    /// the logs at the point of failure and printed nothing.
+    /// </remarks>
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _resourceLogs = new();
+    private readonly CancellationTokenSource _stopWatchingLogs = new();
+
+    private void RecordResourceLogs()
+    {
+        var logs = _app!.Services.GetRequiredService<ResourceLoggerService>();
+
+        foreach (var resource in _app.Services.GetRequiredService<DistributedApplicationModel>().Resources)
+        {
+            var tail = _resourceLogs.GetOrAdd(resource.Name, _ => new ConcurrentQueue<string>());
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var batch in logs.WatchAsync(resource.Name).WithCancellation(_stopWatchingLogs.Token))
+                    {
+                        foreach (var line in batch)
+                        {
+                            tail.Enqueue(line.Content);
+
+                            while (tail.Count > 30 && tail.TryDequeue(out _))
+                            {
+                            }
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            });
+        }
+    }
+
+    private async Task<string> DescribeResourcesAsync()
+    {
+        // A moment for the lines the failure itself just wrote to arrive.
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        var text = new System.Text.StringBuilder("\n\nThe last lines each resource logged:\n");
+
+        foreach (var (name, tail) in _resourceLogs.Where(entry => !entry.Value.IsEmpty))
+        {
+            text.AppendLine($"--- {name}");
+
+            foreach (var line in tail)
+            {
+                text.AppendLine("    " + line);
+            }
+        }
+
+        return text.ToString();
+    }
+
     public async Task DisposeAsync()
     {
+        _stopWatchingLogs.Cancel();
+
         if (Browser is not null)
         {
             await Browser.CloseAsync();
@@ -288,20 +352,48 @@ public sealed class AspireAppFixture : IAsyncLifetime
             await _app.StopAsync();
             await _app.DisposeAsync();
         }
+
+        if (!_policyViolations.IsEmpty)
+        {
+            throw new InvalidOperationException(
+                "The browser reported Content-Security-Policy violations during the run. Each is " +
+                "something a page tried to load and was refused, so fix the page or, deliberately, " +
+                "the policy in SMStore/Program.cs or StockApi/Program.cs:\n  " +
+                string.Join("\n  ", _policyViolations.Distinct()));
+        }
     }
 
     /// <summary>
     /// A fresh, isolated browsing session. Every journey gets its own so a cookie from one
     /// test can never leak into another.
     /// </summary>
-    public Task<IBrowserContext> NewContextAsync() => Browser.NewContextAsync(new BrowserNewContextOptions
+    public async Task<IBrowserContext> NewContextAsync()
     {
-        // The ASP.NET Core dev certificate covers "localhost" and nothing else.
-        // CrossTenantRefusalJourneyTests deliberately reaches the same sm-store endpoint as
-        // "127.0.0.1" to get a second Host header out of a real browser without editing a
-        // hosts file, which fails certificate hostname validation by design -- this waives
-        // that check for every context these tests open, dev-only exactly as the certificate
-        // it is waiving is.
-        IgnoreHTTPSErrors = true
-    });
+        var context = await Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            // The ASP.NET Core dev certificate covers "localhost" and nothing else.
+            // CrossTenantRefusalJourneyTests deliberately reaches the same sm-store endpoint as
+            // "127.0.0.1" to get a second Host header out of a real browser without editing a
+            // hosts file, which fails certificate hostname validation by design -- this waives
+            // that check for every context these tests open, dev-only exactly as the certificate
+            // it is waiving is.
+            IgnoreHTTPSErrors = true
+        });
+
+        // A script or style the Content-Security-Policy blocks is a console line, not an
+        // exception, and the page usually still renders enough for an assertion to pass. So
+        // every violation in every journey is collected, and DisposeAsync fails the run on any.
+        context.Console += (_, message) =>
+        {
+            if (message.Type == "error"
+                && message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase))
+            {
+                _policyViolations.Enqueue($"{message.Location}: {message.Text}");
+            }
+        };
+
+        return context;
+    }
+
+    private readonly ConcurrentQueue<string> _policyViolations = new();
 }

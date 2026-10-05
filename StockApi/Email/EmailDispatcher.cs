@@ -158,7 +158,8 @@ namespace StockApi.Email
                 }
 
                 await _transport.SendAsync(
-                    new EmailMessage(site.SiteKey, row.ToAddress, row.ToName, rendered.Subject, rendered.Body),
+                    new EmailMessage(site.SiteKey, row.ToAddress, row.ToName, rendered.Subject, rendered.Body,
+                        From: site.MailFromAddress),
                     cancellationToken);
 
                 if (!_outbox.RecordSent(row.Id, row.ClaimToken))
@@ -171,6 +172,12 @@ namespace StockApi.Email
                 }
 
                 return null;
+            }
+            catch (PermanentEmailFailureException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // A store with no sender address, or a message the provider refused outright.
+                // Eight attempts over eight hours would end the same way, later.
+                return GiveUp(row, exception.Message);
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {

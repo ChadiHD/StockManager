@@ -44,6 +44,25 @@ public sealed class AnonymousCatalogJourneyTests
         await using var context = await _fixture.NewContextAsync();
         var page = await context.NewPageAsync();
 
+        /*
+        Nothing on the shop window may call another host. The fonts used to come from Google,
+        which sent every visitor's address there, and that is the reason a consent banner would
+        be needed at all (T7 plan, 1n and item 8). Images are the one exception, and a known
+        one: enrichment links product images from the content provider's servers, which A4
+        decides before launch.
+        */
+        var thirdParty = new List<string>();
+        page.Request += (_, request) =>
+        {
+            if (request.ResourceType != "image"
+                && !string.Equals(new Uri(request.Url).Host, _fixture.SmStoreBaseUrl.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                thirdParty.Add($"{request.ResourceType} {request.Url}");
+            }
+        };
+
+        await page.GotoAsync(_fixture.SmStoreBaseUrl.ToString());
+
         var catalogUrl = new Uri(_fixture.SmStoreBaseUrl, $"/catalog?cat={category.Slug}").ToString();
 
         var firstPageResponse = await page.GotoAsync(catalogUrl);
@@ -62,5 +81,7 @@ public sealed class AnonymousCatalogJourneyTests
 
         var overflowPageResponse = await page.GotoAsync($"{catalogUrl}&page=99999999999");
         overflowPageResponse!.Status.Should().BeLessThan(500);
+
+        thirdParty.Should().BeEmpty("a storefront page contacted another host, which tells that host who is browsing");
     }
 }

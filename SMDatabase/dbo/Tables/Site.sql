@@ -86,6 +86,14 @@ CREATE TABLE [dbo].[Site]
 	[StandardTaxRatePct] DECIMAL(5, 2) NOT NULL DEFAULT 0,
 	[TaxRegistrationNumber] NVARCHAR(30) NULL,
 
+	-- The address this store's mail is sent from, on a domain verified for it with the mail
+	-- provider (T7). NULL sends nothing through a real transport: the message is dead-lettered
+	-- with that reason rather than sent from another store's address, which would put one
+	-- tenant's name on another's customer mail. The logging transport ignores it, so a
+	-- development database needs none. Last in the table, like every column since T6, so the
+	-- publish appends rather than rebuilds.
+	[MailFromAddress] NVARCHAR(320) NULL,
+
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
 	-- Host resolution looks a site up by domain, so a domain must name exactly one site.
 	CONSTRAINT [UQ_Site_Domain] UNIQUE ([Domain])

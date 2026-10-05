@@ -54,9 +54,8 @@ public static class IdentityTestSupport
         }
 
         var users = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
-        // TokenController.IsValidUsernameAndPassword looks a caller up by
-        // UserManager.FindByEmailAsync, not by UserName -- unlike a customer login, an admin's
-        // login is not site-qualified, so UserName and Email can be the same value here.
+        // TokenController looks staff up by UserName and refuses a site-qualified one, so an
+        // admin is named by the bare address -- unlike a customer login. See StaffSignIn.
         var user = new IdentityUser { UserName = email, Email = email, EmailConfirmed = true };
 
         Guard(await users.CreateAsync(user, Password), $"create admin user {email}");

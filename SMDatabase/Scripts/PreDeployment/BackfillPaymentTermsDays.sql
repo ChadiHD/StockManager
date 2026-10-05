@@ -14,9 +14,15 @@ unnoticed today. That is luck, not correctness: the first store with a credit cu
 one that finds out.
 
 Idempotent, like the post-deployment seed, because it runs on every publish.
+
+And it does nothing on an empty database, where pre-deployment runs before any table exists.
+COL_LENGTH is NULL for a missing table as well as a missing column, so without the OBJECT_ID
+test this ALTERed a table that was not there and the first publish of a new database — every
+production deployment's first — stopped here. T7's load check found it, on a fresh database.
 */
 
-IF COL_LENGTH('dbo.Account', 'PaymentTermsDays') IS NULL
+IF OBJECT_ID('dbo.Account', 'U') IS NOT NULL
+   AND COL_LENGTH('dbo.Account', 'PaymentTermsDays') IS NULL
 BEGIN
     -- Named to match the table definition. Left unnamed, SQL Server invents a name and the
     -- next publish sees a default constraint that does not match the model and recreates it.
@@ -33,14 +39,17 @@ Falling back to zero would be worse than wrong: zero means prepaid, so an accoun
 nobody can parse would quietly move onto immediate payment and its customer would be refused
 at acceptance for a credit facility they have.
 */
-UPDATE dbo.Account
-SET [PaymentTermsDays] =
-        CASE
-            WHEN [PaymentTerms] = N'Prepaid' THEN 0
-            WHEN TRY_CAST(REPLACE(UPPER([PaymentTerms]), N'NET', N'') AS int) > 0
-                THEN TRY_CAST(REPLACE(UPPER([PaymentTerms]), N'NET', N'') AS int)
-            ELSE 30
-        END
-WHERE ([PaymentTerms] = N'Prepaid' AND [PaymentTermsDays] <> 0)
-   OR ([PaymentTerms] <> N'Prepaid' AND [PaymentTermsDays] = 0);
+IF OBJECT_ID('dbo.Account', 'U') IS NOT NULL
+BEGIN
+    UPDATE dbo.Account
+    SET [PaymentTermsDays] =
+            CASE
+                WHEN [PaymentTerms] = N'Prepaid' THEN 0
+                WHEN TRY_CAST(REPLACE(UPPER([PaymentTerms]), N'NET', N'') AS int) > 0
+                    THEN TRY_CAST(REPLACE(UPPER([PaymentTerms]), N'NET', N'') AS int)
+                ELSE 30
+            END
+    WHERE ([PaymentTerms] = N'Prepaid' AND [PaymentTermsDays] <> 0)
+       OR ([PaymentTerms] <> N'Prepaid' AND [PaymentTermsDays] = 0);
+END
 GO

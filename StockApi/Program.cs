@@ -11,6 +11,7 @@ using SMDataManager.Library.Tax;
 using StockApi.Email;
 using StockApi.Feeds;
 using StockApi.Quotes;
+using StockApi.Scheduling;
 using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
@@ -24,27 +25,48 @@ builder.AddServiceDefaults();
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.AddCors(policy =>
-{
-    policy.AddPolicy("OpenCorsPolicy", opt =>
-        opt.AllowAnyOrigin()
-        .AllowAnyHeader()
-        .AllowAnyMethod());
-});
 // ApplicationDbContext now lives in StockManager.Identity, shared with SMStore, but its
 // migrations stayed here — EF looks for them in the context's own assembly unless told
 // otherwise, and moving generated files to keep a default happy is a poor trade. StockApi
 // remains the only host that migrates; see the remarks on ApplicationDbContext.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("StockApi")));
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+/*
+AddIdentityCore, not AddDefaultIdentity: this host needs the user and role managers and a
+password check that counts failures, and nothing else.
+
+AddDefaultIdentity brought the Identity UI's Razor pages — /Identity/Account/Register, Login,
+ForgotPassword — onto the API's own domain, and nothing used them. Their Login signs in with
+lockoutOnFailure: false, and a customer login name ({SiteKey}|{email}) passes its
+[EmailAddress] check, so it was an unlimited password oracle for every store's customers that
+answered with a cookie this host accepted.
+*/
+builder.Services.AddIdentityCore<IdentityUser>(options =>
+    {
+        options.SignIn.RequireConfirmedAccount = true;
+
+        // AddDefaultIdentity set this, and the Identity migrations were generated under it:
+        // without it the model no longer matches them and Migrate() refuses to start.
+        options.Stores.MaxLengthForKeys = 128;
+
+        // Both hosts share one user store; see SiteQualifiedUserName.
+        options.User.AllowedUserNameCharacters = SiteQualifiedUserName.AllowedUserNameCharacters;
+        options.User.RequireUniqueEmail = false;
+
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
     .AddRoles<IdentityRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
-builder.Services.AddControllersWithViews();
-builder.Services.AddRazorPages();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddSignInManager();
+
+// Controllers only. Views, Razor pages and the MVC home page were the project template's, and
+// an API host serving HTML is surface nobody reviews.
+builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+
+// /token is the staff sign-in, and the only password check on this host.
+builder.Services.AddStaffRateLimiting();
 
 builder.Services.AddTransient<IInventoryData, InventoryData>();
 builder.Services.AddTransient<ISqlDataAccess, SqlDataAccess>();
@@ -119,6 +141,18 @@ builder.AddDocumentStore();
 // Outbound mail. The transport is still the logger — see AddEmail — and since T6 nothing
 // calls it but the dispatcher: call sites queue through IEmailOutbox, procedures queue inside
 // their own transactions, and EmailDispatcher renders and sends with retry and dead-letter.
+// A real transport when one is configured, registered before AddEmail so its TryAdd of the
+// logger finds the sender already there. Development leaves it unset and logs.
+if (string.Equals(builder.Configuration["Email:Transport"], "Acs", StringComparison.OrdinalIgnoreCase))
+{
+    var acsEndpoint = builder.Configuration["Email:AcsEndpoint"]
+        ?? throw new InvalidOperationException("Email:Transport is Acs but Email:AcsEndpoint is not set.");
+
+    builder.Services.AddSingleton(new Azure.Communication.Email.EmailClient(
+        new Uri(acsEndpoint), new Azure.Identity.DefaultAzureCredential()));
+    builder.Services.AddSingleton<StockManager.Notifications.IEmailSender, AcsEmailSender>();
+}
+
 builder.AddEmail();
 builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
 builder.Services.AddSingleton<OutboxPayloadProtector>();
@@ -134,6 +168,10 @@ builder.Services.AddHostedService<EmailDispatchBackgroundService>();
 // the one job here that writes to customers without anybody having done anything. Beside the
 // feed sync, and moving with it if T7 decides scheduled work belongs elsewhere.
 builder.Services.AddHostedService<QuoteExpiryBackgroundService>();
+
+// Abandoned anonymous baskets and old sent mail, once a day, on by default; see the service.
+builder.Services.AddTransient<IHousekeepingData, HousekeepingData>();
+builder.Services.AddHostedService<HousekeepingBackgroundService>();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
 
@@ -167,14 +205,10 @@ var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException("Missing configuration value: Jwt:SigningKey");
 var jwtSigningKeyBytes = Encoding.UTF8.GetBytes(jwtSigningKey);
 
-builder.Services.AddAuthentication(options =>
-{
-    // The interactive Razor UI signs in with the Identity application cookie, while API
-    // clients (desktop / Blazor) send a JWT bearer token. Selecting one scheme as the global
-    // default breaks the other, so route per-request via a policy scheme (see below).
-    options.DefaultScheme = "SmartScheme";
-    options.DefaultChallengeScheme = "SmartScheme";
-})
+// Bearer tokens only. There was a policy scheme here routing cookie-carrying requests to the
+// Identity cookie, for the Razor UI that is gone; with it, a cookie from that UI's Login
+// authenticated API calls.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(jwtBearerOptions =>
 {
     jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters
@@ -185,24 +219,6 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = false,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(5)
-    };
-})
-// Null display name keeps this internal routing scheme out of the Identity UI's
-// external-login provider list.
-.AddPolicyScheme("SmartScheme", displayName: null, options =>
-{
-    options.ForwardDefaultSelector = context =>
-    {
-        string authorization = context.Request.Headers.Authorization.ToString();
-        if (!string.IsNullOrEmpty(authorization) &&
-            authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return JwtBearerDefaults.AuthenticationScheme;
-        }
-
-        // No bearer token -> browser request -> use the Identity cookie so the Razor UI
-        // stays signed in after login.
-        return IdentityConstants.ApplicationScheme;
     };
 });
 
@@ -223,21 +239,38 @@ using (var scope = app.Services.CreateScope())
 
 await app.EnsureDataProtectionKeyStoreAsync();
 
+// The staff roles, and on a fresh deployment its first admin; see AdminBootstrap.
+await AdminBootstrap.EnsureAdminAsync(app.Services, app.Configuration, app.Logger);
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
-    app.UseMigrationsEndPoint();
+    app.UseWebAssemblyDebugging();
 }
 else
 {
-    app.UseExceptionHandler("/Home/Error");
+    app.UseExceptionHandler();
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
-app.UseCors("OpenCorsPolicy");
+
+// For the portal, since this host serves its pages: WebAssembly needs 'wasm-unsafe-eval', and
+// the portal's markup sets style attributes. Swagger's UI is inline script and Development-only,
+// so it is left out rather than loosening the policy for everything else.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/swagger"),
+    branch => branch.UseSecurityHeaders(
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; " +
+        "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"));
+
+// The admin portal's WebAssembly bundle, from the SMPortal project reference. Served here
+// rather than from a host of its own, so the portal and the API are one origin: no CORS
+// policy to get wrong, and no API address to configure per environment — the portal calls
+// its own base address. There was an allow-any-origin policy before this.
+app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
 app.UseRouting();
@@ -245,20 +278,38 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// After routing, so the endpoint's [EnableRateLimiting] is visible to it.
+app.UseRateLimiter();
+
 // After authorization: resolving a store is only meaningful for a caller that got this far,
 // and an anonymous request has no business learning whether a given site key exists.
-app.UseMiddleware<AdminSiteResolutionMiddleware>();
+//
+// For api/ only. Without a header it reads the site list, so on the health probes it made
+// liveness depend on the database — a database blip would have had the platform restart every
+// healthy replica — and on the portal's own pages it was a query to serve a static file.
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/api"),
+    branch => branch.UseMiddleware<AdminSiteResolutionMiddleware>());
 
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// A map of every endpoint and its parameters is a development tool, not something to publish.
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "StockManager API v1");
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "StockManager API v1");
+    });
+}
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-app.MapRazorPages();
+app.MapControllers();
 app.MapDefaultEndpoints();
+
+// The portal's own routes load its page; nothing else does. A catch-all would answer a
+// mistyped api/ path with the portal's HTML and a 200, which is a confusing thing for the
+// POS or a script to get back instead of a 404.
+app.MapFallbackToFile("", "index.html");
+app.MapFallbackToFile("login", "index.html");
+app.MapFallbackToFile("logout", "index.html");
+app.MapFallbackToFile("admin/{*path:nonfile}", "index.html");
 
 app.Run();

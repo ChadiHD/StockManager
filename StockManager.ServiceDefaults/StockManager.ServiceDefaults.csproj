@@ -13,8 +13,14 @@
     <!-- The Data Protection key ring is shared by StockApi and SMStore, so its storage lives
          here rather than in either app. Both projects are ASP.NET Core apps; nothing else
          references this project, so the EF dependency does not reach the WPF client. -->
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.4.6" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.4" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <!-- 7.x, as StockApi: EF brings 6.1.1, which brings Azure.Identity, and Azure.Core 1.55+ now
+         defines DefaultAzureCredential itself, so the two together make it ambiguous (CS0433). -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="10.6.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />

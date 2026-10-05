@@ -48,10 +48,27 @@ public static class DataProtectionExtensions
         builder.Services.AddDbContext<DataProtectionKeyContext>(options =>
             options.UseSqlServer(connectionString));
 
-        builder.Services
+        var dataProtection = builder.Services
             .AddDataProtection()
             .SetApplicationName(SharedApplicationName)
             .PersistKeysToDbContext<DataProtectionKeyContext>();
+
+        /*
+        Wrapped with a Key Vault key when published (T7). Unwrapped, the ring is plain XML in
+        ApiAuthDb, so a copy of that one database could forge a session for either host, decrypt
+        every stored feed credential and read every reset link waiting in the outbox. Wrapped,
+        the copy is useless without the vault.
+
+        It applies to keys created from then on. Keys already in a ring stay as they are, and
+        nothing here moves or re-encrypts them — production starts with an empty ring, so every
+        key it has is wrapped, and a development ring is left alone. Both hosts must set the same
+        key, or each reads only the keys it wrote. The vault key must never be purged: every
+        cookie, credential and queued link depends on it (docs/runbooks/production.md).
+        */
+        if (builder.Configuration["DataProtection:KeyVaultKeyUri"] is { Length: > 0 } keyUri)
+        {
+            dataProtection.ProtectKeysWithAzureKeyVault(new Uri(keyUri), new global::Azure.Identity.DefaultAzureCredential());
+        }
 
         return builder;
     }

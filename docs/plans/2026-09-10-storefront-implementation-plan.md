@@ -277,7 +277,10 @@ the right mail.
 
 ### T7 — Production hardening (2 weeks)
 
-Everything in §6 plus:
+Detail plan: `docs/plans/2026-10-05-t7-production-hardening.md`, which supersedes the bullets
+below where they differ.
+
+Everything in §8 plus:
 
 - Azure SQL with point-in-time restore; DACPAC deploy step in the pipeline
 - OpenTelemetry from `ServiceDefaults` wired to Application Insights

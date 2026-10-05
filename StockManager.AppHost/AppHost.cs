@@ -17,6 +17,15 @@ var identityDatabase = sql.AddDatabase("DefaultConnection", "ApiAuthDb");
 var stockDatabase = sql.AddDatabase("SMDatabase", "SMDatabase");
 var jwtSigningKey = builder.AddParameter("jwt-signing-key", secret: true);
 
+// Customer documents: one private blob container both hosts read, since a container app's own
+// filesystem is neither shared nor kept across revisions. Azurite locally, on a volume and
+// persistent like SQL, because the database rows that name these blobs outlive a restart too.
+var documents = builder.AddAzureStorage("storage")
+	.RunAsEmulator(emulator => emulator
+		.WithDataVolume("stockmanager-documents")
+		.WithLifetime(ContainerLifetime.Persistent))
+	.AddBlobContainer("documents");
+
 // Distributor feeds are no longer configured here. They are created in the admin portal and
 // stored in dbo.DistributorFeed, with credentials held by an IFeedSecretStore (Data Protection
 // locally, Key Vault in production) — see FeedSecrets in the API's appsettings.
@@ -100,107 +109,140 @@ What is lost is the dashboard row for the deploy and WithSkipWhenDeployed's fast
 row is worth less than an application that starts, and ten seconds per launch is not worth
 an optimisation that can leave the schema unapplied.
 */
-builder.Eventing.Subscribe<ResourceReadyEvent>(
-	stockDatabase.Resource,
-	async (readyEvent, cancellationToken) =>
-	{
-		var logger = readyEvent.Services
-			.GetRequiredService<ResourceLoggerService>()
-			.GetLogger(stockDatabase.Resource);
+// Run mode only, and said so rather than left to the event: a published deployment applies the
+// schema from the pipeline with BlockOnPossibleDataLoss on (docs/runbooks/production.md), never
+// with the setting below.
+//
+// Subscribed by name, for every resource, and not to stockDatabase.Resource. That is the Azure
+// SQL database; RunAsContainer gives it an inner SQL Server database resource of the same name,
+// and the inner one is what runs, passes health checks and raises ResourceReadyEvent. A
+// subscription to the outer resource never fired: no schema was ever published by the app
+// host, and nothing noticed, because the development volume already had every table. The first
+// fresh database — CI's — failed every journey on "Invalid object name 'dbo.User'".
+if (builder.ExecutionContext.IsRunMode)
+{
+	var schemaPublished = 0;
 
-		var connectionString = await stockDatabase.Resource.ConnectionStringExpression
-			.GetValueAsync(cancellationToken)
-			?? throw new InvalidOperationException(
-				"SMDatabase reported ready without a connection string, so the schema cannot be deployed.");
-
-		logger.LogInformation("Publishing {Dacpac} to SMDatabase.", smDacpacPath);
-
-		// DacServices is synchronous and the publish takes seconds, so it goes to the thread
-		// pool rather than blocking the event handler Aspire is awaiting.
-		await Task.Run(() =>
+	builder.Eventing.Subscribe<ResourceReadyEvent>(
+		async (readyEvent, cancellationToken) =>
 		{
-			var dac = new DacServices(connectionString);
+			if (readyEvent.Resource.Name != stockDatabase.Resource.Name
+				|| readyEvent.Resource is not IResourceWithConnectionString database
+				|| Interlocked.Exchange(ref schemaPublished, 1) == 1)
+			{
+				return;
+			}
 
-			dac.Message += (_, message) => logger.LogInformation("{Message}", message.Message.Message);
+			var logger = readyEvent.Services
+				.GetRequiredService<ResourceLoggerService>()
+				.GetLogger(readyEvent.Resource);
 
-			using var package = DacPackage.Load(smDacpacPath);
-
-			dac.Deploy(
-				package,
-				targetDatabaseName: "SMDatabase",
-				upgradeExisting: true,
-				options: new DacDeployOptions
-				{
-					/*
-					Local development only, and it has to stay that way.
-
-					SqlPackage refuses any change it classifies as possibly lossy while a table
-					has rows, and "possibly" is doing a lot of work: tightening SiteId from NULL
-					to NOT NULL rebuilds the Account table — copy, drop, rename — which trips the
-					guard even though no column is being dropped and no type narrowed. On a
-					persistent development volume that is a hard stop.
-
-					The protection this gives up is real. It is what would otherwise catch a
-					column being dropped or a type narrowed by accident, and the only reason it
-					is acceptable here is that this database is a local container backed by a
-					volume anyone can delete and reseed.
-
-					T7 owns the production deployment path. It must not inherit this setting. A
-					real database takes the review and the backup instead.
-					*/
-					BlockOnPossibleDataLoss = false
-				},
-				cancellationToken: cancellationToken);
-		}, cancellationToken);
-
-		logger.LogInformation("SMDatabase schema is up to date.");
-	});
+			var connectionString = await database.ConnectionStringExpression
+				.GetValueAsync(cancellationToken)
+				?? throw new InvalidOperationException(
+					"SMDatabase reported ready without a connection string, so the schema cannot be deployed.");
+	
+			logger.LogInformation("Publishing {Dacpac} to SMDatabase.", smDacpacPath);
+	
+			// DacServices is synchronous and the publish takes seconds, so it goes to the thread
+			// pool rather than blocking the event handler Aspire is awaiting.
+			await Task.Run(() =>
+			{
+				var dac = new DacServices(connectionString);
+	
+				dac.Message += (_, message) => logger.LogInformation("{Message}", message.Message.Message);
+	
+				using var package = DacPackage.Load(smDacpacPath);
+	
+				dac.Deploy(
+					package,
+					targetDatabaseName: "SMDatabase",
+					upgradeExisting: true,
+					options: new DacDeployOptions
+					{
+						/*
+						Local development only, and it has to stay that way.
+	
+						SqlPackage refuses any change it classifies as possibly lossy while a table
+						has rows, and "possibly" is doing a lot of work: tightening SiteId from NULL
+						to NOT NULL rebuilds the Account table — copy, drop, rename — which trips the
+						guard even though no column is being dropped and no type narrowed. On a
+						persistent development volume that is a hard stop.
+	
+						The protection this gives up is real. It is what would otherwise catch a
+						column being dropped or a type narrowed by accident, and the only reason it
+						is acceptable here is that this database is a local container backed by a
+						volume anyone can delete and reseed.
+	
+						T7 owns the production deployment path. It must not inherit this setting. A
+						real database takes the review and the backup instead.
+						*/
+						BlockOnPossibleDataLoss = false
+					},
+					cancellationToken: cancellationToken);
+			}, cancellationToken);
+	
+			logger.LogInformation("SMDatabase schema is up to date.");
+		});
+}
 
 var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithReference(identityDatabase)
 	.WithReference(stockDatabase)
-	.WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+	.WithReference(documents)
 	.WaitFor(identityDatabase)
 	.WaitFor(stockDatabase)
+	.WaitFor(documents)
 	.WithEndpoint("https", endpoint => endpoint.Port = 7042)
 	.WithHttpHealthCheck("/health")
-	.WithExternalHttpEndpoints()
-	.PublishAsAzureContainerApp((_, _) => { });
+	.WithExternalHttpEndpoints();
 
-builder.AddProject<Projects.SMPortal>("sm-portal")
-	.WithReference(api)
-	.WaitFor(api)
-	.WithExternalHttpEndpoints()
-	.PublishAsAzureContainerApp((_, _) => { });
+// No sm-portal resource: StockApi serves the admin portal's WebAssembly bundle itself (T7),
+// so the portal and the API are one origin and one container.
 
 // Customer-facing storefront. Unlike sm-portal it holds no reference to the API: it renders on
 // the server and reads SMDatabase through SMDataManager.Library in process. One deployment
 // serves every store, resolving the site from the request host, so this stays a single
 // resource however many sites exist.
-builder.AddProject<Projects.SMStore>("sm-store")
+var store = builder.AddProject<Projects.SMStore>("sm-store")
 	.WithReference(stockDatabase)
 	// ApiAuthDb, for two things: the Data Protection key ring it shares with the API, and the
 	// Identity user store it creates customer logins in. It reads and writes that store but
 	// never migrates it — StockApi owns the migrations, and both start together.
 	.WithReference(identityDatabase)
+	.WithReference(documents)
 	.WaitFor(stockDatabase)
 	.WaitFor(identityDatabase)
+	.WaitFor(documents)
 	.WithHttpHealthCheck("/health")
-	.WithExternalHttpEndpoints()
-	.PublishAsAzureContainerApp((_, _) => { });
+	.WithExternalHttpEndpoints();
 
-builder.AddProject(
-		"sm-desktop",
-		"../SMDesktopUI/SMDesktopUI.csproj",
-		_ => { })
-	.WithReference(api)
-	.WaitFor(api);
-
-// Desktop UI automation check (FlaUI). Explicit-start so it runs on demand from the Aspire
-// dashboard rather than every launch — it spins up its own WPF window and needs an interactive
-// desktop session. Run mode only, so it never becomes part of the published deployment.
 if (builder.ExecutionContext.IsRunMode)
 {
+	// Locally, the signing key is a user-secret parameter. Published, it is a Key Vault secret;
+	// see ProductionTopology.
+	api.WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+}
+else
+{
+	ProductionTopology.Apply(builder, api, store, jwtSigningKey);
+}
+
+// The WPF POS and its UI tests are Windows desktop programs: run mode on Windows only. Published,
+// a container platform would try to build them into images; on a Linux CI runner the app host
+// would try to start a WPF window.
+if (builder.ExecutionContext.IsRunMode && OperatingSystem.IsWindows())
+{
+	builder.AddProject(
+			"sm-desktop",
+			"../SMDesktopUI/SMDesktopUI.csproj",
+			_ => { })
+		.WithReference(api)
+		.WaitFor(api);
+
+	// Desktop UI automation check (FlaUI). Explicit-start so it runs on demand from the Aspire
+	// dashboard rather than every launch — it spins up its own WPF window and needs an
+	// interactive desktop session.
 	builder.AddExecutable(
 			"desktop-ui-tests",
 			"dotnet",
