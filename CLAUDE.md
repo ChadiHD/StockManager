@@ -527,6 +527,15 @@ sufficient and neither app needs `WaitForCompletion`. The deploy costs about ten
 launch, has no dashboard row, and has no skip-when-unchanged fast path — all three are the
 price of an application that starts.
 
+**The event is subscribed by resource name, not on `stockDatabase.Resource`.** That resource is
+the Azure SQL database, and `RunAsContainer` gives it an inner SQL Server database of the same
+name; the inner one is what runs and raises `ResourceReadyEvent`. Subscribed to the outer
+resource, the publish never ran at all — for months — and nothing noticed, because the
+development volume already had every table. CI's first fresh database failed every journey
+on `Invalid object name 'dbo.User'`. The proof it runs is the `SMDatabase` console log in the
+dashboard: it should end `SMDatabase schema is up to date.` If it is empty, this has broken
+again.
+
 **Do not reintroduce `CommunityToolkit`'s `AddSqlProject`.** That resource never ran here: it
 reported one `Waiting` snapshot and never another, so everything waiting on it waited for
 ever and `dotnet run` could not start the apps at all. The package is gone deliberately.

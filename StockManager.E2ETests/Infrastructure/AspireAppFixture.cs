@@ -139,6 +139,7 @@ public sealed class AspireAppFixture : IAsyncLifetime
                 context.EnvironmentVariables["Sites__CacheDuration"] = "00:00:01"));
 
             _app = await appHostBuilder.BuildAsync();
+            RecordResourceLogs();
 
 
             /*
@@ -272,51 +273,61 @@ public sealed class AspireAppFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// The tail of every resource's own console log, for a startup failure.
+    /// The last 30 console lines of every resource, watched from the moment the app is built.
     /// </summary>
     /// <remarks>
     /// Aspire's exception says which resource failed and not why: "failed to start" is all a
-    /// pipeline gets, and the crashed host's stack trace is in a log nothing here printed. On a
-    /// workstation the dashboard has it; in CI this is the only place it surfaces, which is how
-    /// the first E2E runs there failed with nothing to read.
+    /// pipeline gets, and the crashed host's stack trace is in its console log. On a workstation
+    /// the dashboard has it; in CI this is the only place it surfaces. Watched from the start
+    /// because a reader arriving after the failure is handed no backlog — the first version read
+    /// the logs at the point of failure and printed nothing.
     /// </remarks>
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _resourceLogs = new();
+    private readonly CancellationTokenSource _stopWatchingLogs = new();
+
+    private void RecordResourceLogs()
+    {
+        var logs = _app!.Services.GetRequiredService<ResourceLoggerService>();
+
+        foreach (var resource in _app.Services.GetRequiredService<DistributedApplicationModel>().Resources)
+        {
+            var tail = _resourceLogs.GetOrAdd(resource.Name, _ => new ConcurrentQueue<string>());
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var batch in logs.WatchAsync(resource.Name).WithCancellation(_stopWatchingLogs.Token))
+                    {
+                        foreach (var line in batch)
+                        {
+                            tail.Enqueue(line.Content);
+
+                            while (tail.Count > 30 && tail.TryDequeue(out _))
+                            {
+                            }
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            });
+        }
+    }
+
     private async Task<string> DescribeResourcesAsync()
     {
-        if (_app is null)
-        {
-            return "";
-        }
+        // A moment for the lines the failure itself just wrote to arrive.
+        await Task.Delay(TimeSpan.FromSeconds(2));
 
-        var logs = _app.Services.GetRequiredService<ResourceLoggerService>();
-        var model = _app.Services.GetRequiredService<DistributedApplicationModel>();
         var text = new System.Text.StringBuilder("\n\nThe last lines each resource logged:\n");
 
-        foreach (var resource in model.Resources)
+        foreach (var (name, tail) in _resourceLogs.Where(entry => !entry.Value.IsEmpty))
         {
-            var lines = new List<string>();
+            text.AppendLine($"--- {name}");
 
-            // WatchAsync replays the backlog and then waits for more; two seconds is the backlog.
-            using var replay = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-
-            try
-            {
-                await foreach (var batch in logs.WatchAsync(resource.Name).WithCancellation(replay.Token))
-                {
-                    lines.AddRange(batch.Select(line => line.Content));
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-
-            if (lines.Count == 0)
-            {
-                continue;
-            }
-
-            text.AppendLine($"--- {resource.Name}");
-
-            foreach (var line in lines.TakeLast(30))
+            foreach (var line in tail)
             {
                 text.AppendLine("    " + line);
             }
@@ -327,6 +338,8 @@ public sealed class AspireAppFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        _stopWatchingLogs.Cancel();
+
         if (Browser is not null)
         {
             await Browser.CloseAsync();

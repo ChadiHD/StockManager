@@ -112,17 +112,32 @@ an optimisation that can leave the schema unapplied.
 // Run mode only, and said so rather than left to the event: a published deployment applies the
 // schema from the pipeline with BlockOnPossibleDataLoss on (docs/runbooks/production.md), never
 // with the setting below.
+//
+// Subscribed by name, for every resource, and not to stockDatabase.Resource. That is the Azure
+// SQL database; RunAsContainer gives it an inner SQL Server database resource of the same name,
+// and the inner one is what runs, passes health checks and raises ResourceReadyEvent. A
+// subscription to the outer resource never fired: no schema was ever published by the app
+// host, and nothing noticed, because the development volume already had every table. The first
+// fresh database — CI's — failed every journey on "Invalid object name 'dbo.User'".
 if (builder.ExecutionContext.IsRunMode)
 {
+	var schemaPublished = 0;
+
 	builder.Eventing.Subscribe<ResourceReadyEvent>(
-		stockDatabase.Resource,
 		async (readyEvent, cancellationToken) =>
 		{
+			if (readyEvent.Resource.Name != stockDatabase.Resource.Name
+				|| readyEvent.Resource is not IResourceWithConnectionString database
+				|| Interlocked.Exchange(ref schemaPublished, 1) == 1)
+			{
+				return;
+			}
+
 			var logger = readyEvent.Services
 				.GetRequiredService<ResourceLoggerService>()
-				.GetLogger(stockDatabase.Resource);
-	
-			var connectionString = await stockDatabase.Resource.ConnectionStringExpression
+				.GetLogger(readyEvent.Resource);
+
+			var connectionString = await database.ConnectionStringExpression
 				.GetValueAsync(cancellationToken)
 				?? throw new InvalidOperationException(
 					"SMDatabase reported ready without a connection string, so the schema cannot be deployed.");
