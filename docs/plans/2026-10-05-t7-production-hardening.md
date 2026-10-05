@@ -513,4 +513,49 @@ bind the staging domains, and run the restore drill once from the runbook.
 
 ## 7. Results
 
-Filled in as items land.
+### Load check (item 9), 2026-10-05
+
+`CatalogLoadCheck`, on `SMDatabaseLoad` in the development container (Podman on a laptop, so
+the numbers' ratios matter more than their size): 50,000 products, 21,649 of them visible on the
+measured store once 2,000 overrides and stale-stock hiding apply. Fifty runs each, after one to
+warm.
+
+| Query | p50 | p95 | Target |
+| --- | --- | --- | --- |
+| Browse, featured (the home and catalog default) | 233 ms | 309 ms | fails |
+| Browse, one category | 111 ms | 125 ms | fails |
+| Search, a word | 89 ms | 107 ms | fails, just |
+| Search, a SKU prefix | 70 ms | 80 ms | passes |
+| Price sort, priced group, in stock | 725 ms | 843 ms | fails |
+| Page 400 of the default browse | 228 ms | 382 ms | fails |
+| Facets, unfiltered | 142 ms | 163 ms | fails |
+| Facets, searched | 76 ms | 88 ms | passes |
+| Product page | 6 ms | 8 ms | passes |
+| Portal catalog snapshot | 981 ms in SQL | 32.1 MB as JSON | reported |
+
+**No index fixes the failures.** SQL Server's only missing-index suggestion is
+`Product(Sku, Delisted)`, for the product page that already takes 8 ms. The cost is the shape:
+every browse orders the whole visible set (a parallel plan, about 1.5 s of CPU for one page of
+24) and `COUNT(*) OVER ()` carries every wide row, `Description` included, through the window.
+Compile time is about 10 ms, so `OPTION (RECOMPILE)` is not the cause. Per item 9's rule, this is a
+decision for you, not a rewrite slipped in:
+
+- **Two-phase paging:** count once on a narrow projection, page the ids, then fetch 24 wide
+  rows. That touches the five branches of `spCatalog_Search` and the parity test. Probes
+  suggest about three times faster.
+- **Cache anonymous browse pages** for a minute, keyed by store and query, varying by sign-in.
+  Most shop-window traffic is anonymous browsing, and a cache never makes a page slower.
+- **Accept it for launch.** aclitrade's live catalog is 1,676 products, thirty times smaller
+  than this, and the check is there to rerun when a feed grows.
+
+The portal snapshot is about 650 bytes a product. At today's catalog that is about 1 MB; at
+50,000 it is 32 MB, deserialised on the WebAssembly thread on every reload and after every
+change. That needs server-side paging for the products list before a catalog of that size, and
+it is the same decision T8 §7 deferred.
+
+**And the check found a deployment bug that no other test could.** The pre-deployment
+`BackfillPaymentTermsDays.sql` ALTERed `dbo.Account` whenever the column was missing, and
+`COL_LENGTH` is NULL for a missing *table* too. So the first publish to an empty database
+failed, and every production deployment starts from an empty database. Fixed, with an
+`OBJECT_ID` test. The development database and the E2E container both had the table, which is why
+nothing saw it.
