@@ -69,6 +69,7 @@ public sealed class StoreNavigation
     [
         new("Terms", "/terms"),
         new("Privacy", "/privacy"),
+        new("Cookies", "/cookies"),
     ];
 
     public string StoreName => _siteContext.Site.Name;

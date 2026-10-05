@@ -100,6 +100,18 @@ public sealed class QuoteRequestJourneyTests
 
         reference.Should().StartWith("QT-");
 
+        /*
+        Every cookie the storefront set across browsing, a basket, sign-in and a submit. Each is
+        strictly necessary — the session, the basket, antiforgery — which is why there is no
+        consent banner (T7 plan, item 8). A new one fails here, and its message is the decision
+        it forces: a cookie that is not strictly necessary needs consent before it is set.
+        */
+        var cookies = (await context.CookiesAsync()).Select(cookie => cookie.Name).ToList();
+
+        cookies.Where(name => name is not (".SMStore.Customer" or ".SMStore.Basket")
+                && !name.StartsWith(".AspNetCore.Antiforgery.", StringComparison.Ordinal))
+            .Should().BeEmpty("a cookie that is not strictly necessary needs consent before it is set");
+
         // The quote, its lines and the customer's note, as the admin queue will read them.
         var quote = await ReadQuoteAsync(reference!.Trim());
 
