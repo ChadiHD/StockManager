@@ -170,10 +170,10 @@ public class QuoteLinePriceTests
 
             var productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted)
+                                         QuantityInStock, Delisted)
                 OUTPUT INSERTED.Id
                 VALUES (N'Quote line fixture', N'Quote line fixture.', 100, @sku, N'QuoteLine',
-                        5, 1, 0);
+                        5, 0);
                 """,
                 ("@sku", $"QL-{runId}"));
 

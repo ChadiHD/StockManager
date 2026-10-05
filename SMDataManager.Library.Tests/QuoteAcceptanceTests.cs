@@ -301,10 +301,10 @@ public class QuoteAcceptanceTests
 
             var productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted)
+                                         QuantityInStock, Delisted)
                 OUTPUT INSERTED.Id
                 VALUES (N'Acceptance fixture', N'Acceptance fixture.', 100, @sku, N'Acceptance',
-                        5, 1, 0);
+                        5, 0);
                 """,
                 ("@sku", $"ACC-{runId}"));
 

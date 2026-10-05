@@ -14,3 +14,12 @@
 .thumb-cell { padding-left:18px; padding-top:10px; padding-bottom:10px; }
 .src-sub { display:block; margin-top:3px; }
 .sync { display:block; margin-top:3px; }
+
+.select-col { width:40px; padding-left:18px; }
+.bulk-bar {
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:10px 18px; border-bottom:1px solid var(--line); background:var(--surface-2); font-size:.86rem;
+}
+.placement { display:block; font-weight:700; }
+.placement--on { color:var(--ink, inherit); }
+.placement--off { color:var(--muted-3); }

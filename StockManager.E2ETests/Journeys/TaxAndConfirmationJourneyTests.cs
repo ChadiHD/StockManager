@@ -95,7 +95,7 @@ public sealed class TaxAndConfirmationJourneyTests
                 // 20 seconds: each GotoAsync is a cold WebAssembly boot. See QuoteRequestJourneyTests.
                 await Expect(adminPage.Locator("button.quote-send")).ToBeEnabledAsync(new() { Timeout = 20_000 });
                 await adminPage.Locator("button.quote-send").ClickAsync();
-                await Expect(adminPage.Locator(".toast")).ToContainTextAsync("they can accept it now");
+                await Expect(adminPage.Locator(".toast")).ToContainTextAsync("they can accept it now", AdminPortal.AfterReload);
             }
 
             // --- Each accepts their own ---------------------------------------------------------

@@ -148,7 +148,7 @@ public sealed class QuoteRequestJourneyTests
 
         await Expect(adminPage.Locator("button.quote-save")).ToBeEnabledAsync();
         await adminPage.Locator("button.quote-save").ClickAsync();
-        await Expect(adminPage.Locator(".toast")).ToContainTextAsync("re-priced");
+        await Expect(adminPage.Locator(".toast")).ToContainTextAsync("re-priced", AdminPortal.AfterReload);
 
         // Reloaded rather than trusting the toast: the assertion is that the edit survived the
         // round trip, and it also clears the toast so the next one cannot match the last.
@@ -161,7 +161,7 @@ public sealed class QuoteRequestJourneyTests
             .ToHaveValueAsync(RepricedQuantity.ToString(), new() { Timeout = 20_000 });
 
         await adminPage.Locator("button.quote-send").ClickAsync();
-        await Expect(adminPage.Locator(".toast")).ToContainTextAsync("they can accept it now");
+        await Expect(adminPage.Locator(".toast")).ToContainTextAsync("they can accept it now", AdminPortal.AfterReload);
 
         await page.GotoAsync(quotePage);
         await page.Locator("form.document__accept input[name=poNumber]").FillAsync("PO-E2E-1");

@@ -10,7 +10,18 @@ namespace SMDataManager.Library.DataAccess
 
         // Admin catalog surface. Uses AdminProductModel so ProductModel (bound by the desktop
         // POS) keeps its original shape.
-        List<AdminProductModel> GetCatalog();
+
+        /// <summary>Every product, with where it sits on <paramref name="siteId"/>.</summary>
+        List<AdminProductModel> GetCatalog(int siteId);
+
+        /// <summary>One store's choice about one product. Refused with a reason, never thrown.</summary>
+        PlacementResult SetPlacement(
+            int siteId, string sku, string visibility, int? siteCategoryId, bool featured, string badge);
+
+        /// <summary>Shows, hides or resets a selection of products on one store, all or none.</summary>
+        PlacementResult SetVisibility(
+            int siteId, IEnumerable<string> skus, string visibility, int? siteCategoryId);
+
         AdminProductModel GetProductBySku(string sku);
         AdminProductModel CreateProduct(AdminProductModel product);
         void UpdateProduct(AdminProductModel product);

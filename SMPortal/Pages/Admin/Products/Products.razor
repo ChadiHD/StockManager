@@ -43,14 +43,29 @@
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, SKU, MPN, EAN or manufacturer" />
         <div class="toolbar-count"><strong>@Results.Count</strong> products</div>
     </div>
+    @if (_selected.Count > 0)
+    {
+        @* The bulk half of the per-store choice. Hide, or hand back to the category mapping;
+           showing a selection needs a category to file it under, which is the detail page's. *@
+        <div class="bulk-bar">
+            <span><strong>@_selected.Count</strong> selected</span>
+            <button class="btn btn-secondary bulk-hide" disabled="@_bulkBusy" @onclick='() => Bulk("Hide")'>Hide from this store</button>
+            <button class="btn btn-secondary bulk-restore" disabled="@_bulkBusy" @onclick="() => Bulk(null)">Follow the category mapping</button>
+            <button class="btn btn-secondary" @onclick="_selected.Clear">Clear selection</button>
+        </div>
+    }
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
-            <thead><tr><th class="thumb-col"></th><th>Product</th><th>Category</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
+            <thead><tr><th class="select-col"><input type="checkbox" aria-label="Select this page" checked="@PageSelected" @onchange="TogglePage" /></th><th class="thumb-col"></th><th>Product</th><th>On this store</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
             <tbody>
                 @foreach (var p in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/products/{p.Sku}")'>
+                        <td class="select-col" @onclick:stopPropagation="true">
+                            <input type="checkbox" aria-label="Select @p.Sku" checked="@_selected.Contains(p.Sku)"
+                                   @onchange="_ => Toggle(p.Sku)" />
+                        </td>
                         <td class="thumb-cell"><span class="tile @AdminUi.CatClass(p.Cat)">@AdminUi.Initials(p.Name)</span></td>
                         @* Desc is the brand and model, Name the spec string. Both are needed:
                            two rows can share "LENOVO ThinkPad L14 G2" and differ only in spec. *@
@@ -62,7 +77,12 @@
                             }
                             <span class="cell-sub mono">@p.Sku</span>
                         </td>
-                        <td>@p.Cat</td>
+                        <td class="placement-cell">
+                            <span class="placement @(p.OnStore ? "placement--on" : "placement--off")">
+                                @(p.OnStore ? p.StoreCategory : AdminUi.PlacementLabel(p.Placement))
+                            </span>
+                            <span class="cell-sub">@(p.OnStore ? AdminUi.PlacementLabel(p.Placement) : $"Feed: {p.Cat}")</span>
+                        </td>
                         <td>
                             <span class="src @AdminUi.SourceClass(p.Source)">@p.Source</span>
                             <span class="cell-sub src-sub">@(p.IsDistributor ? $"{p.Dist} · {p.DistSku}" : "In-house stock")</span>
@@ -99,8 +119,18 @@
                     </span>
                 </div>
                 <div class="field">
+                    @* The catalogue category, which each store maps to one of its own. Free
+                       text with the existing ones offered, rather than a fixed list: a new value
+                       is how an own-stock range gets its own mapping. *@
                     <label>Category</label>
-                    <InputSelect class="input" @bind-Value="_draft.Cat">@foreach (var c in _cats) { <option>@c</option> }</InputSelect>
+                    <InputText class="input" list="feed-categories" @bind-Value="_draft.Cat" />
+                    <datalist id="feed-categories">
+                        @foreach (var category in FeedCategories)
+                        {
+                            <option value="@category"></option>
+                        }
+                    </datalist>
+                    <span class="field-note">A store sells it once this category is mapped, or once it is shown there by hand.</span>
                 </div>
                 <div class="field">
                     <label>Stock source</label>
@@ -155,9 +185,64 @@
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
 
-    private readonly string[] _filters = { "All", "Own warehouse", "Distributor", "Low stock" };
-    private readonly string[] _cats = { "Servers", "Networking", "Laptops", "Components", "Security", "Power", "Peripherals" };
+    private readonly string[] _filters = { "All", "On this store", "Not on this store", "Own warehouse", "Distributor", "Low stock" };
     private string _filter = "All";
+
+    private IEnumerable<string> FeedCategories => Data.Products
+        .Select(p => p.Cat)
+        .Where(cat => !string.IsNullOrWhiteSpace(cat))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(cat => cat);
+
+    // Selection by SKU, so it survives paging and a refresh of the snapshot.
+    private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
+    private bool _bulkBusy;
+    private int _version;
+
+    private bool PageSelected => Paged.Any() && Paged.All(p => _selected.Contains(p.Sku));
+
+    private void Toggle(string sku)
+    {
+        if (!_selected.Remove(sku)) _selected.Add(sku);
+    }
+
+    private void TogglePage()
+    {
+        if (PageSelected)
+        {
+            foreach (var p in Paged) _selected.Remove(p.Sku);
+        }
+        else
+        {
+            foreach (var p in Paged) _selected.Add(p.Sku);
+        }
+    }
+
+    private async Task Bulk(string? visibility)
+    {
+        _bulkBusy = true;
+
+        try
+        {
+            var refusal = await Data.SetVisibility(_selected.ToList(), visibility);
+
+            if (refusal is not null)
+            {
+                Toast.Show(refusal);
+                return;
+            }
+
+            Toast.Show(visibility == "Hide"
+                ? $"{_selected.Count} hidden from this store"
+                : $"{_selected.Count} following the category mapping");
+            _selected.Clear();
+            _version++;
+        }
+        finally
+        {
+            _bulkBusy = false;
+        }
+    }
     private bool _showNew;
     private Product _draft = new();
 
@@ -203,6 +288,8 @@
 
     private List<Product> Filtered => Data.Products.Where(p => _filter switch
     {
+        "On this store" => p.OnStore,
+        "Not on this store" => !p.OnStore,
         "Own warehouse" => p.Source == "Own",
         "Distributor" => p.Source == "Distributor",
         "Low stock" => p.Avail <= 6,
@@ -215,7 +302,9 @@
     // Desc leads because it holds the brand and model ("LENOVO ThinkPad E14 G2") while Name
     // holds only the spec string — a search for a brand matches on Desc alone.
     private List<Product> Results => _cache.Get(
-        $"{_filter}|{_search}|{Data.Products.Count}",
+        // _version because the snapshot is refilled in place: a bulk change leaves the count
+        // where it was, and without it the list kept showing what it showed before.
+        $"{_filter}|{_search}|{Data.Products.Count}|{_version}",
         () => FuzzySearch.Rank(Filtered, _search,
             p => new[] { p.Desc, p.Name, p.Cat, p.Dist, p.Manufacturer },
             p => new[] { p.Sku, p.DistSku, p.Mpn, p.Ean }));

@@ -22,7 +22,7 @@ quotes, accounts, customer groups or distributor feeds:
 - `docs/plans/2026-07-24-aclitrade-b2b-ecommerce-design.md` — the target design
 - `docs/plans/2026-09-10-storefront-implementation-plan.md` — the build plan and phase scope
 
-**The template is finished before the first tenant is built.** The plan runs two tracks, T0–T7
+**The template is finished before the first tenant is built.** The plan runs two tracks, T0–T8
 for the platform and A0–A4 for aclitrade.ie, and the platform track goes first in full. A
 tenant built alongside an unfinished template is how store-specific assumptions get into shared
 code, and the whole point of this exercise is that store number two costs days rather than
@@ -49,6 +49,20 @@ surface reading the stored tax rather than computing 23% in markup, the email ou
 dispatcher, every message on it in per-site wording, the quote-expiry sweep, and one journey
 where two customers are charged differently for the same product. The plan opens with the four
 things that were already wrong — three numbers for one tax among them.
+
+**T8 — store catalog control is built**, ahead of T7: the admin choosing which products each
+store sells, and prices shown to signed-in customers only, per
+`docs/plans/2026-10-05-t8-store-catalog-control.md`. **What a store sells is
+`dbo.fnSite_ProductPlacement`**: its category mapping, overridden per product by
+`dbo.SiteProduct` (`Show` under a category, or `Hide`), which also holds the store's own
+`Featured` and `Badge`. `Product` no longer has `Published`, `Featured` or `Badge` — they were
+one setting for every store. `fnCatalog_VisibleProducts` and `spQuote_SubmitRequest` both read
+placement, and so do the admin screens, so the shop and the screen cannot disagree. Hiding is not
+withdrawing: a hidden product stays on any quote or order that has it, as a delisted one does.
+**Prices on an `Authenticated` store follow the sign-in, not the pricing group** —
+`CatalogPresenter.ShowPrices` used to test the group, which hid prices from every approved
+customer nobody had grouped — and a price sort is dropped for a viewer who cannot see prices,
+because the order alone ranks them.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -91,7 +105,7 @@ before anything else runs. Consequences that are easy to get wrong:
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
   leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
   (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`,
-  `SiteEmailTemplate`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
+  `SiteEmailTemplate`, `SiteProduct`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
   dispatcher drains every store and renders each row with its own store's values.
 - **A join to a scoped table needs the predicate even when the join path looks safe.** A
   `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
@@ -107,17 +121,20 @@ before anything else runs. Consequences that are easy to get wrong:
 - `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
   start with it set outside Development.
 
-### Scoping is done on writes and not on admin reads
+### An admin acts for one store at a time, and admins are global
 
-**Read scoping in the admin API is not implemented, and the storefront's is.** `SMStore`
-resolves a site per request and every storefront query filters on it. `StockApi` and `SMPortal`
-have no site concept at all: no controller, service or data class mentions `SiteId`, and
-`spAccount_GetAll`, `spQuote_GetAll`, `spOrder_GetAll`, `spCustomerGroup_GetAll` and
-`spDistributorFeed_GetAll` return every store's rows. That is correct only while an admin is
-global. It stops being correct the moment an admin belongs to one store — and
-`spDistributorFeed_GetAll` returning every tenant's `SecretRef` is the sharpest edge of it,
-since `StockApi` holds the key ring that decrypts them. **Deciding whether an admin is global
-or per-site is a prerequisite for a second tenant, not a later refinement.**
+The storefront resolves its store from the host; the admin API cannot, because one host serves
+an operator who may run several. So the portal names the store in an `X-Site-Key` header,
+`AdminSiteResolutionMiddleware` resolves it, and `IAdminSiteContext.Site` **throws** when a
+request named none — a controller cannot read a scoped row without being told which store is
+asking. Reads are scoped as well as writes: `spAccount_GetAll`, `spQuote_GetAll`,
+`spOrder_GetAll`, `spCustomerGroup_GetAll` and `spDistributorFeed_GetAll` all take `@SiteId`.
+Products are the deliberate exception — `dbo.Product` is shared, the desktop POS has no site,
+so `ProductController` injects the context per action rather than through its constructor.
+
+**Admins are global**: any admin may act for any active store, and the header is trusted once
+it names one. **Restricting an admin to some stores is a prerequisite for a second tenant**,
+and the change is a "may this user select this site" check in the middleware, nothing else.
 
 The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
 `spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
@@ -553,8 +570,15 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All eight journeys pass**, in under two minutes against a
-warm SQL container. The newest is T6's: two customers — one German with a VAT number, one Irish
+`E2E_REQUIRE_APPHOST=1` for CI. **All nine journeys pass.** T8's runs across both stores the
+suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
+unmapped one there under a store category, through the portal, and the other store does not
+change; then the first store hides prices until sign-in, and a signed-in customer with no
+pricing group still sees list price. **Anything a portal page shows after a change waits on
+`AdminPortal.AfterReload` (twenty seconds)**: every mutation ends in `RefreshAsync`, which
+re-fetches every list in the snapshot, and the development database grows with every run of
+this suite. Five seconds held through T6 and stopped holding in T8 with the write landing on
+the server well inside it. T6's journey: two customers — one German with a VAT number, one Irish
 without — ask for the same product, an admin sends both quotes, and each accepts. The orders
 carry the reverse charge and 23% respectively, each page says why, and every message the round
 trip owed both of them is `Sent` in the outbox, which is the dispatcher in the other host
@@ -720,6 +744,13 @@ with `sqlpackage /Action:Publish ... | grep -i "rebuilding table"`, which should
 The schema diff runs before `Seed.sql`, so a column added with a default and constrained in
 the same publish fails the constraint on every existing row and stops the publish with the
 column already applied. `Scripts/PreDeployment/BackfillPaymentTermsDays.sql` is the example.
+
+**A project gets one pre-deployment and one post-deployment script**, so each is a wrapper that
+`:r`-includes its steps, and the steps are `None` items in the sqlproj. Data that a column drop
+would lose is saved aside before the diff and filed afterwards: `HoldProductFlags.sql` copies
+`Product.Published` / `Featured` / `Badge` into a holding table, and `MoveProductFlagsToSites.sql`,
+included from `Seed.sql`, turns them into `SiteProduct` rows and drops it. Both use dynamic SQL,
+because a static reference to a column that is already gone fails the batch at compile time.
 
 ### `dbo.Purchase` does double duty
 
@@ -1254,14 +1285,19 @@ application at a time and pulling every customer's staff list and paperwork into
 would be the wrong trade. A page using them needs `OnParametersSetAsync`, not
 `OnParametersSet`.
 
-**`ProductDetail`'s category dropdown is a hardcoded seven-item list and does not know what
-decides storefront visibility.** `_cats` is `Servers, Networking, Laptops, Components,
-Security, Power, Peripherals`, with no relationship to `dbo.CategoryMapping` or
-`dbo.SiteCategory` — and it is the mapping, joined in `fnCatalog_VisibleProducts`, that
-decides whether a product appears on a storefront at all. Saving that form on a product whose
-real `Category` string is not one of the seven silently rewrites it to one that may have no
-mapping, and the product disappears from every store with no warning anywhere. Do not add
-features on top of that control; it needs to read the site's own taxonomy first.
+**What a store sells is set in three places, all reading `fnSite_ProductPlacement`'s answer
+for the acting store.** The products list shows each row's place on the store and hides or
+restores a selection; the product page's "On this store" panel shows, hides, files under a
+store category, features and badges one product; `/admin/categories` maps whole feed
+categories. `Product.Cat` is the **feed's** category and the form shows it read-only — the form
+used to offer a hardcoded seven-item list that rewrote it, which moved products off every store
+mapping the real value.
+
+**`spProduct_Update` writes every column it is given, so the portal sends back what it does
+not edit.** `UpdateProduct` used to send an empty description and `IsTaxable = true`, which
+wiped the description and made an exempt product taxable on every save. `Product` in the
+portal now carries `Desc`, `Cat` and `IsTaxable` through, and `StoreCatalogTests` holds that.
+A new column on that procedure needs the same treatment, or the form erases it.
 
 **A fresh deployment has no admin and no way to make one.** `POST /api/User/Admin/AddRole` is
 `[Authorize(Roles = "Admin")]`, and the only anonymous endpoint, `POST /api/User/Register`,

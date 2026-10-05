@@ -193,11 +193,11 @@ public class DelistedProductHistoryTests
 
             var productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted, [Source],
+                                         QuantityInStock, Delisted, [Source],
                                          Distributor, DistributorSku, LastSynced)
                 OUTPUT INSERTED.Id
                 VALUES (N'Delisting fixture', N'Delisting fixture.', 100, @sku, @feedValue,
-                        5, 1, 0, N'Distributor', N'TestDistributor', @sku, @lastSynced);
+                        5, 0, N'Distributor', N'TestDistributor', @sku, @lastSynced);
                 """,
                 ("@sku", sku),
                 ("@feedValue", feedValue),

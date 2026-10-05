@@ -49,6 +49,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddTransient<IInventoryData, InventoryData>();
 builder.Services.AddTransient<ISqlDataAccess, SqlDataAccess>();
 builder.Services.AddTransient<IProductData, ProductData>();
+builder.Services.AddTransient<ICategoryMappingData, CategoryMappingData>();
 builder.Services.AddTransient<IPurchaseData, PurchaseData>();
 builder.Services.AddTransient<IUserData, UserData>();
 

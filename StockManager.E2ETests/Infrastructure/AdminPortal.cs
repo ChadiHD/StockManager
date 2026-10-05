@@ -8,6 +8,20 @@ namespace StockManager.E2ETests.Infrastructure;
 /// </summary>
 public static class AdminPortal
 {
+    /// <summary>
+    /// For whatever a page shows once a change has saved: a toast, a status line.
+    /// </summary>
+    /// <remarks>
+    /// Every portal mutation ends with <c>RefreshAsync</c>, which fetches every list the
+    /// snapshot holds again — accounts, quotes, orders, reports, the whole catalog — and
+    /// deserialises them on the single WebAssembly thread before the page hears it worked. That
+    /// is the same wait as a reload, and it grows with the development database, which every run
+    /// of this suite adds to. Five seconds held through T6 and stopped holding in T8, with the
+    /// send landing on the server well inside it. Twenty, like a reload and like
+    /// <see cref="SignInAsync"/>.
+    /// </remarks>
+    public static readonly LocatorAssertionsToContainTextOptions AfterReload = new() { Timeout = 20_000 };
+
     public static async Task SignInAsync(IPage page, Uri baseUrl, string email, string password)
     {
         /*

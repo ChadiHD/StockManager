@@ -44,16 +44,16 @@ BEGIN
 	-- A product from another store, or one hidden from this customer, must not reach a quote
 	-- line even if the basket somehow held it. The caller resolved these through
 	-- fnCatalog_VisibleProducts already; this is the predicate that does not depend on it
-	-- having done so.
+	-- having done so. Through fnSite_ProductPlacement, so a product the store hid after the
+	-- customer added it is refused here as it is everywhere else.
 	IF EXISTS (
 		SELECT 1 FROM @Lines l
 		WHERE NOT EXISTS (
 			SELECT 1
 			FROM dbo.Product p
-			INNER JOIN dbo.CategoryMapping m
-				ON m.[SiteId] = @SiteId
-				AND m.[FeedValue] = p.[Category]
-			WHERE p.[Id] = l.[ProductId]))
+			CROSS APPLY dbo.fnSite_ProductPlacement(@SiteId, p.[Id], p.[Category]) pl
+			WHERE p.[Id] = l.[ProductId]
+			  AND pl.[OnStore] = 1))
 	BEGIN
 		THROW 50031, 'One of those products is not sold by this store.', 1;
 	END

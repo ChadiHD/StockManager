@@ -219,10 +219,10 @@ public class CatalogStalenessTests
             {
                 Execute(connection, transaction, """
                     INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku,
-                                             Category, QuantityInStock, Published, Delisted,
+                                             Category, QuantityInStock, Delisted,
                                              [Source], LastSynced)
                     VALUES (@name, N'Staleness fixture.', 100, @sku,
-                            @feedValue, 5, 1, 0, @source, @lastSynced);
+                            @feedValue, 5, 0, @source, @lastSynced);
                     """,
                     ("@name", $"Staleness product {product.Sku}"),
                     ("@sku", $"STL-{runId}-{product.Sku}"),

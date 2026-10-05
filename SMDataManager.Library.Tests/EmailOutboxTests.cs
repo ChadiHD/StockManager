@@ -363,9 +363,9 @@ public class EmailOutboxTests
 
             return Scalar("""
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted, IsTaxable)
+                                         QuantityInStock, Delisted, IsTaxable)
                 OUTPUT INSERTED.Id
-                VALUES (N'Mail fixture', N'Mail fixture.', 100, @sku, @category, 50, 1, 0, 1);
+                VALUES (N'Mail fixture', N'Mail fixture.', 100, @sku, @category, 50, 0, 1);
                 """, ("@sku", $"MAIL-{_runId}-{Guid.NewGuid():N}"[..40]), ("@category", feedValue));
         }
 

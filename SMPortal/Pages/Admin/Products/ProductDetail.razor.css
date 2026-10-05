@@ -9,3 +9,13 @@
 .kv .accent { color:var(--turq-700); font-weight:800; }
 .mt { margin-top:16px; }
 .eyebrow.mono { text-transform:none; letter-spacing:.02em; }
+
+/* The feed's category, shown in the form's place so the layout holds, but not editable: it is
+   the string store mappings match, and the form used to rewrite it. */
+.input--readonly { display:flex; align-items:center; background:var(--surface-2); color:var(--muted-3); cursor:default; }
+
+.placement-status { margin:0 0 14px; font-weight:700; font-size:.9rem; }
+.placement-status--on { color:var(--turq-800); }
+.placement-status--off { color:var(--muted-3); }
+.check { display:flex; align-items:center; gap:8px; font-size:.88rem; }
+.placement-error { margin:12px 0 0; }

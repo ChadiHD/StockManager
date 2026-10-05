@@ -72,9 +72,9 @@ internal sealed class CatalogScenario
 
             Execute(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Cost, Sku,
-                                         Category, QuantityInStock, Published, Delisted)
+                                         Category, QuantityInStock, Delisted)
                 VALUES (@name, N'Parity fixture.', @retail, @cost, @sku,
-                        @feedValue, 5, 1, 0);
+                        @feedValue, 5, 0);
                 """,
                 ("@name", $"Parity product {index:D2}"),
                 ("@retail", retail),

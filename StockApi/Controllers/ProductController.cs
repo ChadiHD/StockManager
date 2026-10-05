@@ -38,12 +38,86 @@ namespace StockApi.Controllers
         // The class-level gate is Staff (the desktop POS); these are Admin-only and carry
         // their own attribute, which overrides it.
 
+        /// <summary>Every product, with where it sits on the store the admin is acting for.</summary>
+        /// <remarks>
+        /// The site is injected per action, as for <see cref="SyncFeeds"/>: the POS's
+        /// <see cref="Get"/> has no store and must not start needing one.
+        /// </remarks>
         [Authorize(Roles = "Admin")]
         [HttpGet("Catalog")]
-        public List<AdminProductModel> GetCatalog()
+        public List<AdminProductModel> GetCatalog([FromServices] IAdminSiteContext site)
         {
-            return _productData.GetCatalog();
+            return _productData.GetCatalog(site.SiteId);
         }
+
+        public record PlacementModel(string? Visibility, int? SiteCategoryId, bool Featured, string? Badge);
+
+        /// <summary>
+        /// One store's choice about one product: shown, hidden or left to the category mapping,
+        /// where it is filed, and its featured flag and badge.
+        /// </summary>
+        /// <remarks>
+        /// The procedure refuses a category from another store, and a Show with nowhere to file
+        /// the product. Those come back as a 400 carrying the procedure's own sentence, because
+        /// "the request was bad" is no help to an admin who needs to know which rule it broke.
+        /// </remarks>
+        [Authorize(Roles = "Admin")]
+        [HttpPut("Catalog/{sku}/Placement")]
+        public IActionResult SetPlacement(
+            string sku, PlacementModel placement, [FromServices] IAdminSiteContext site)
+        {
+            if (!IsVisibility(placement.Visibility))
+            {
+                return BadRequest("Visibility is Show, Hide, or neither.");
+            }
+
+            if (_productData.GetProductBySku(sku) is null)
+            {
+                return NotFound();
+            }
+
+            var result = _productData.SetPlacement(
+                site.SiteId, sku, placement.Visibility, placement.SiteCategoryId,
+                placement.Featured, placement.Badge);
+
+            return result.Saved ? NoContent() : BadRequest(result.Refusal);
+        }
+
+        public record BulkVisibilityModel(List<string> Skus, string? Visibility, int? SiteCategoryId);
+
+        /// <summary>
+        /// Shows, hides or hands back to the mapping a selection of products, all or none.
+        /// Featured and badge are left as they were.
+        /// </summary>
+        [Authorize(Roles = "Admin")]
+        [HttpPost("Catalog/Placement")]
+        public ActionResult<int> SetVisibility(
+            BulkVisibilityModel change, [FromServices] IAdminSiteContext site)
+        {
+            if (!IsVisibility(change.Visibility))
+            {
+                return BadRequest("Visibility is Show, Hide, or neither.");
+            }
+
+            // The table parameter is one round trip whatever its size, but a selection is
+            // something a person made on a screen, and this is the ceiling of that.
+            if (change.Skus is not { Count: > 0 and <= MaxSelection })
+            {
+                return BadRequest($"Choose between 1 and {MaxSelection} products.");
+            }
+
+            var result = _productData.SetVisibility(
+                site.SiteId, change.Skus, change.Visibility, change.SiteCategoryId);
+
+            return result.Saved ? result.Matched : BadRequest(result.Refusal);
+        }
+
+        private const int MaxSelection = 1000;
+
+        // Refused here as well as in the procedure, because CK_SiteProduct_Visibility raising
+        // from inside it would reach the portal as a 500.
+        private static bool IsVisibility(string? visibility) =>
+            visibility is null or "Show" or "Hide";
 
         [Authorize(Roles = "Admin")]
         [HttpGet("Catalog/{sku}")]

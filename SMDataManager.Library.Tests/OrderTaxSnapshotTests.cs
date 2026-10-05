@@ -159,16 +159,16 @@ public class OrderTaxSnapshotTests
 
             int taxable = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted, IsTaxable)
+                                         QuantityInStock, Delisted, IsTaxable)
                 OUTPUT INSERTED.Id
-                VALUES (N'Taxable', N'Taxable.', 100, @sku, N'Tax', 5, 1, 0, 1);
+                VALUES (N'Taxable', N'Taxable.', 100, @sku, N'Tax', 5, 0, 1);
                 """, ("@sku", $"TAXY-{runId}"));
 
             int exempt = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
-                                         QuantityInStock, Published, Delisted, IsTaxable)
+                                         QuantityInStock, Delisted, IsTaxable)
                 OUTPUT INSERTED.Id
-                VALUES (N'Exempt', N'Exempt.', 50, @sku, N'Tax', 5, 1, 0, 0);
+                VALUES (N'Exempt', N'Exempt.', 50, @sku, N'Tax', 5, 0, 0);
                 """, ("@sku", $"EXMT-{runId}"));
 
             int accountId = Scalar(connection, transaction, """

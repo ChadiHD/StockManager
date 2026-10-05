@@ -148,4 +148,27 @@ public interface IAdminDataService
     /// human-readable summary. Returns the disabled message when no Icecat account is set up.
     /// </summary>
     Task<string> FetchProductImages(int take);
+
+    /// <summary>
+    /// The acting store's choice about one product: Show, Hide or null to follow the category
+    /// mapping, the category a shown product is filed under, and its featured flag and badge.
+    /// Returns why it was refused, or null.
+    /// </summary>
+    Task<string?> SetPlacement(string sku, string? visibility, int? storeCategoryId, bool featured, string? badge);
+
+    /// <summary>The same visibility for a selection of products, applied whole. Refusal or null.</summary>
+    Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility);
+
+    /// <summary>
+    /// The feed categories and where the acting store files each, with the store's own
+    /// categories to choose from.
+    /// </summary>
+    /// <remarks>
+    /// Fetched on opening the screen rather than held in the snapshot, like contacts and
+    /// documents: it is one store's view of a list most screens never need.
+    /// </remarks>
+    Task<CategoryMappingView> GetCategoryMappings();
+
+    /// <summary>Files a feed category under a store category, or stops selling it when null.</summary>
+    Task<string?> MapCategory(string feedValue, int? storeCategoryId);
 }

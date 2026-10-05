@@ -17,7 +17,7 @@ public static class SqlTestData
 {
     public sealed record SiteRecord(int Id, string SiteKey, string Name);
 
-    public sealed record CategoryRecord(string FeedValue, string Slug);
+    public sealed record CategoryRecord(string FeedValue, string Slug, string Name);
 
     /// <summary>
     /// The site a request to <paramref name="host"/> resolves to, creating one if this is the
@@ -87,11 +87,16 @@ public static class SqlTestData
     /// category is invisible everywhere, which is why every journey that touches the
     /// storefront catalog calls this first.
     /// </remarks>
+    /// <param name="feedValue">
+    /// A feed value another store already maps, when a journey needs two stores selling the
+    /// same products; a fresh one otherwise.
+    /// </param>
     public static async Task<CategoryRecord> CreateCategoryMappingAsync(
-        string connectionString, int siteId, CancellationToken cancellationToken = default)
+        string connectionString, int siteId, string? feedValue = null,
+        CancellationToken cancellationToken = default)
     {
         var unique = Guid.NewGuid().ToString("N");
-        var feedValue = $"E2E-{unique}";
+        feedValue ??= $"E2E-{unique}";
         var slug = $"e2e-{unique}";
 
         await using var connection = new SqlConnection(connectionString);
@@ -113,7 +118,33 @@ public static class SqlTestData
 
         await command.ExecuteNonQueryAsync(cancellationToken);
 
-        return new CategoryRecord(feedValue, slug);
+        return new CategoryRecord(feedValue, slug, $"E2E category {unique}");
+    }
+
+    /// <summary>
+    /// Sets whether a store shows prices to visitors who have not signed in, and returns the
+    /// setting it replaced so a journey can put it back.
+    /// </summary>
+    /// <remarks>
+    /// Reference data with no screen, like the tax rate: <c>Site</c> has no admin page.
+    /// </remarks>
+    public static async Task<string> SetPriceDisplayAsync(
+        string connectionString, int siteId, string priceDisplay, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            """
+            DECLARE @previous nvarchar(20) = (SELECT [PriceDisplay] FROM dbo.Site WHERE [Id] = @SiteId);
+            UPDATE dbo.Site SET [PriceDisplay] = @PriceDisplay WHERE [Id] = @SiteId;
+            SELECT @previous;
+            """, connection);
+
+        command.Parameters.AddWithValue("@SiteId", siteId);
+        command.Parameters.AddWithValue("@PriceDisplay", priceDisplay);
+
+        return (string)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
     /// <summary>

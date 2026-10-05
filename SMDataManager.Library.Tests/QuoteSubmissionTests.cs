@@ -297,10 +297,10 @@ public class QuoteSubmissionTests
             SqlConnection connection, SqlTransaction transaction, string sku, string feedValue) =>
             Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Cost, Sku,
-                                         Category, QuantityInStock, Published, Delisted)
+                                         Category, QuantityInStock, Delisted)
                 OUTPUT INSERTED.Id
                 VALUES (N'Submit fixture', N'Submit fixture.', 100, 60, @sku,
-                        @feedValue, 5, 1, 0);
+                        @feedValue, 5, 0);
                 """,
                 ("@sku", sku),
                 ("@feedValue", feedValue));

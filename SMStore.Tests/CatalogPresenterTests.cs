@@ -55,13 +55,48 @@ public class CatalogPresenterTests
         presenter.ShowPrices.Should().BeFalse();
     }
 
-    [Fact]
-    public void ShowsPricesToASignedInCustomerEvenWhenTheSiteRequiresSignIn()
+    [Theory]
+    [InlineData(7)]
+    // The case this used to get wrong. A pricing group is optional, and an approved customer
+    // nobody has grouped yet is still a registered customer: they see list price.
+    [InlineData(null)]
+    public void ShowsPricesToASignedInCustomerWhenTheSiteRequiresSignIn(int? groupId)
     {
-        _customer.CustomerGroupId.Returns(7);
+        _customer.IsSignedIn.Returns(true);
+        _customer.CustomerGroupId.Returns(groupId);
         var presenter = PresenterFor(SiteWith(priceDisplay: "Authenticated"));
 
         presenter.ShowPrices.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("price-asc")]
+    [InlineData("price-desc")]
+    [InlineData("PRICE-ASC")]
+    public void APriceSortIsDroppedForAViewerWhoMayNotSeePrices(string sort)
+    {
+        // The cards hide the amount, but the order alone ranks the prices — and ?sort= is a
+        // query string anybody can write, so hiding the link would not be enough.
+        _customer.IsSignedIn.Returns(false);
+        var presenter = PresenterFor(SiteWith(priceDisplay: "Authenticated"));
+
+        presenter.SortFor(sort).Should().BeNull();
+        presenter.SortFor("name").Should().Be("name");
+
+        _catalog.Search(Arg.Any<CatalogQuery>()).Returns(new CatalogPage { Page = 1, PageSize = 24 });
+        _catalog.GetFacets(Arg.Any<CatalogQuery>()).Returns(new CatalogFacets());
+        presenter.Search(null, null, false, null, sort, 1);
+
+        _catalog.Received(1).Search(Arg.Is<CatalogQuery>(query => query.Sort == null));
+    }
+
+    [Fact]
+    public void APriceSortIsKeptForAViewerWhoMaySeePrices()
+    {
+        _customer.IsSignedIn.Returns(false);
+        var presenter = PresenterFor(SiteWith(priceDisplay: "Public"));
+
+        presenter.SortFor("price-asc").Should().Be("price-asc");
     }
 
     [Fact]

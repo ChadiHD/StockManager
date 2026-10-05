@@ -1,0 +1,114 @@
+@page "/admin/categories"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Categories · StockManager</PageTitle>
+
+@*
+    What this store sells, a whole feed category at a time. Mapping a category puts every product
+    the distributors file under it on sale here, including the ones tomorrow's feed adds;
+    choosing "Not sold here" takes them all off. A single product is the products screen's.
+
+    Until T8 this was rows in a table nobody could reach from the portal.
+*@
+
+<div class="page-head">
+    <div><span class="eyebrow">Catalog</span><h1>Categories</h1></div>
+</div>
+
+@if (_view is null)
+{
+    <div class="panel panel-pad">Loading categories…</div>
+}
+else
+{
+    <div class="panel panel-clip">
+        <div class="toolbar">
+            <div class="pill-row">
+                @foreach (var f in _filters)
+                {
+                    <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
+                }
+            </div>
+            <div class="toolbar-count"><strong>@Rows.Count()</strong> feed categories</div>
+        </div>
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead><tr><th>Feed category</th><th class="num">Products</th><th>Sold here as</th></tr></thead>
+                <tbody>
+                    @foreach (var row in Rows)
+                    {
+                        <tr class="mapping-row">
+                            <td><span class="cell-strong">@row.FeedValue</span></td>
+                            <td class="num">@row.Products</td>
+                            <td>
+                                <select class="input mapping-select" aria-label="Store category for @row.FeedValue"
+                                        value="@(row.SiteCategoryId?.ToString() ?? "")"
+                                        disabled="@(_saving == row.FeedValue)"
+                                        @onchange="args => Map(row, args.Value?.ToString())">
+                                    <option value="">Not sold here</option>
+                                    @foreach (var category in _view.Categories.Where(c => c.IsActive || c.Id == row.SiteCategoryId))
+                                    {
+                                        <option value="@category.Id">@category.Name</option>
+                                    }
+                                </select>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private readonly string[] _filters = { "All", "Not sold here", "Sold here" };
+    private string _filter = "All";
+    private CategoryMappingView? _view;
+    private string? _saving;
+
+    private IEnumerable<FeedCategoryRow> Rows => (_view?.FeedCategories ?? []).Where(row => _filter switch
+    {
+        "Not sold here" => row.SiteCategoryId is null,
+        "Sold here" => row.SiteCategoryId is not null,
+        _ => true
+    });
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout?.SetPage("Categories", "Which feed categories this store sells, and as what");
+        _view = await Data.GetCategoryMappings();
+    }
+
+    private async Task Map(FeedCategoryRow row, string? value)
+    {
+        int? categoryId = int.TryParse(value, out var id) ? id : null;
+
+        _saving = row.FeedValue;
+
+        try
+        {
+            var refusal = await Data.MapCategory(row.FeedValue, categoryId);
+
+            if (refusal is not null)
+            {
+                Toast.Show(refusal);
+            }
+            else
+            {
+                Toast.Show(categoryId is null
+                    ? $"{row.FeedValue} is no longer sold here"
+                    : $"{row.FeedValue}: {row.Products} products listed");
+            }
+
+            // Re-read either way: on a refusal the select has to go back to what is stored.
+            _view = await Data.GetCategoryMappings();
+        }
+        finally
+        {
+            _saving = null;
+        }
+    }
+}

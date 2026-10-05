@@ -38,9 +38,29 @@ public sealed class CatalogPresenter
     /// "Authenticated" see none — a trade-only store that leaks list prices to the open web
     /// has given away its position.
     /// </summary>
+    /// <remarks>
+    /// Signed in, not "has a pricing group". This used to test the group, and a group is
+    /// optional — approval keeps whatever the account already had, which may be nothing — so
+    /// an approved customer nobody had grouped yet was shown no prices at all. The group
+    /// decides which price a customer sees; it never decides whether they see one.
+    /// </remarks>
     public bool ShowPrices =>
         !string.Equals(_siteContext.Site.PriceDisplay, "Authenticated", StringComparison.OrdinalIgnoreCase)
-        || CustomerGroupId is not null;
+        || _customer.IsSignedIn;
+
+    /// <summary>
+    /// The sort the query runs, given the one asked for. Null means the default.
+    /// </summary>
+    /// <remarks>
+    /// A price sort is dropped for a viewer who may not see prices. The cards hide the amount,
+    /// but the order alone would still rank the products by price for anybody who asked —
+    /// and the request is a query string anyone can write, so hiding the link is not enough.
+    /// </remarks>
+    public string? SortFor(string? requested) =>
+        string.IsNullOrWhiteSpace(requested)
+        || (!ShowPrices && requested.StartsWith("price-", StringComparison.OrdinalIgnoreCase))
+            ? null
+            : requested;
 
     /// <summary>
     /// The signed-in account's pricing group, or null for an anonymous visitor — who sees
@@ -170,7 +190,7 @@ public sealed class CatalogPresenter
             Brand = string.IsNullOrWhiteSpace(brand) ? null : brand,
             InStockOnly = inStockOnly,
             Search = string.IsNullOrWhiteSpace(search) ? null : search,
-            Sort = string.IsNullOrWhiteSpace(sort) ? null : sort,
+            Sort = SortFor(sort),
             // Mirrors the ceiling spCatalog_Search applies, so the page this reports back is
             // the page that was actually asked for.
             Page = page < 1 ? 1 : page > 100000 ? 100000 : page,

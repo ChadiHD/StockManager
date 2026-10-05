@@ -57,11 +57,12 @@ RETURN
 		[p].[LastSynced],
 		[p].[Distributor],
 		[p].[Source],
-		[p].[Badge],
-		[p].[Featured],
-		[c].[Slug] AS [CategorySlug],
-		[c].[Name] AS [CategoryName],
-		[c].[SortOrder] AS [CategorySortOrder],
+		-- The store's, not the product's: since T8 one store's ribbon is not another's.
+		[pl].[Badge],
+		[pl].[Featured],
+		[pl].[CategorySlug],
+		[pl].[CategoryName],
+		[pl].[CategorySortOrder],
 
 		CASE
 			WHEN @Term IS NULL THEN 0
@@ -97,17 +98,13 @@ RETURN
 
 	FROM [dbo].[Product] p
 
-	INNER JOIN [dbo].[CategoryMapping] m
-		ON m.[SiteId] = @SiteId
-		AND m.[FeedValue] = p.[Category]
-
-	INNER JOIN [dbo].[SiteCategory] c
-		ON c.[Id] = m.[SiteCategoryId]
-		-- CategoryMapping.SiteCategoryId is an FK to *a* category, not to one this site owns.
-		-- FK_CategoryMapping_ToSiteCategory is composite so the mismatch cannot be stored, but
-		-- the predicate keeps this query correct on its own terms.
-		AND c.[SiteId] = @SiteId
-		AND c.[IsActive] = 1
+	/*
+	Whether this store sells the product, and under which of its categories: the category
+	mapping, overridden by the store's own row in dbo.SiteProduct. The same function the admin's
+	product list reads, so the screen and the shop cannot disagree. It checks that the category
+	is this store's and active, which this query used to do with its own joins.
+	*/
+	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category]) pl
 
 	-- Named intermediates rather than one nested CASE repeated three times. CROSS APPLY
 	-- (VALUES ...) is the T-SQL idiom for it and costs nothing: the optimiser folds these into
@@ -152,7 +149,7 @@ RETURN
 		AS decimal(19, 4))
 	)) AS [resolved]([NetPrice])
 
-	WHERE p.[Published] = 1
+	WHERE [pl].[OnStore] = 1
 	  AND p.[Delisted] = 0
 	  /*
 	  Stale distributor stock, hidden only when the store asked for it.
@@ -177,7 +174,7 @@ RETURN
 	       OR p.[Source] IS NULL
 	       OR p.[Source] <> 'Distributor'
 	       OR (p.[LastSynced] IS NOT NULL AND p.[LastSynced] >= @StaleBeforeUtc))
-	  AND (@CategorySlug IS NULL OR c.[Slug] = @CategorySlug)
+	  AND (@CategorySlug IS NULL OR pl.[CategorySlug] = @CategorySlug)
 	  AND (@Brand IS NULL OR p.[Manufacturer] = @Brand)
 	  AND (@InStockOnly = 0 OR p.[QuantityInStock] > 0)
 	  -- An IncludeCategory rule turns the group's visibility into an allow-list; without one,
@@ -186,12 +183,12 @@ RETURN
 	          SELECT 1 FROM dbo.GroupVisibility g
 	          WHERE g.[CustomerGroupId] = @CustomerGroupId
 	            AND g.[Rule] = 'IncludeCategory'
-	            AND g.[Value] = c.[Slug]))
+	            AND g.[Value] = pl.[CategorySlug]))
 	  AND NOT EXISTS (
 	          SELECT 1 FROM dbo.GroupVisibility g
 	          WHERE g.[CustomerGroupId] = @CustomerGroupId
 	            AND g.[Rule] = 'ExcludeCategory'
-	            AND g.[Value] = c.[Slug])
+	            AND g.[Value] = pl.[CategorySlug])
 	  AND NOT EXISTS (
 	          SELECT 1 FROM dbo.GroupVisibility g
 	          WHERE g.[CustomerGroupId] = @CustomerGroupId
