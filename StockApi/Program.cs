@@ -227,6 +227,9 @@ using (var scope = app.Services.CreateScope())
 
 await app.EnsureDataProtectionKeyStoreAsync();
 
+// The staff roles, and on a fresh deployment its first admin; see AdminBootstrap.
+await AdminBootstrap.EnsureAdminAsync(app.Services, app.Configuration, app.Logger);
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

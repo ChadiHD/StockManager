@@ -1000,8 +1000,10 @@ public class AdminDataService : IAdminDataService
 
     // ---- User mutations ---------------------------------------------------------------------
 
-    public async Task<User?> AddUser(string name, string email, string role)
+    public async Task<string?> AddUser(string name, string email, string role, string password)
     {
+        await EnsureAuthHeaderAsync();
+
         var parts = (name ?? string.Empty).Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
 
         var response = await _client.PostAsJsonAsync($"{_api}/api/User/Register", new
@@ -1009,11 +1011,16 @@ public class AdminDataService : IAdminDataService
             FirstName = parts.Length > 0 ? parts[0] : email,
             LastName = parts.Length > 1 ? parts[1] : string.Empty,
             Email = email,
-            // A one-time value that satisfies the Identity password policy. The invited user
-            // is expected to reset it — this is never shown or stored by the portal.
-            Password = $"Aa1!{Guid.NewGuid():N}"
+            // The admin's choice, handed over in person. This used to be a random value that
+            // was never shown or stored, and with no reset path for staff, a user created here
+            // could never sign in.
+            Password = password
         });
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That user could not be created.");
+        }
 
         if (!string.IsNullOrWhiteSpace(role))
         {
@@ -1022,7 +1029,20 @@ public class AdminDataService : IAdminDataService
 
         await RefreshAsync();
 
-        return GetUser(email);
+        return null;
+    }
+
+    public async Task<string?> ChangePassword(string currentPassword, string newPassword)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/User/Me/Password",
+            new { CurrentPassword = currentPassword, NewPassword = newPassword });
+
+        return response.IsSuccessStatusCode
+            ? null
+            : await Problem(response, "Your password could not be changed.");
     }
 
     public async Task UpdateUserRoles(string email, IEnumerable<string> roles)

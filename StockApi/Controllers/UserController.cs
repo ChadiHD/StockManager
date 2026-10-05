@@ -97,7 +97,9 @@ namespace StockApi.Controllers
             IdentityResult result = await _userManager.CreateAsync(newUser, user.Password);
             if (!result.Succeeded)
             {
-                return BadRequest(result.Errors);
+                // Sentences, not IdentityError objects: the portal shows this to the admin who
+                // typed the password, and they need to read which rule it broke.
+                return BadRequest(Describe(result));
             }
 
             try
@@ -122,6 +124,40 @@ namespace StockApi.Controllers
 
             return Ok();
         }
+
+        public record PasswordChangeModel(string CurrentPassword, string NewPassword);
+
+        // Any member of staff, for their own login only — the user comes from the token, never
+        // from the request. An admin sets a new colleague's first password, so until this is
+        // used two people know it.
+        [Authorize(Roles = "Admin,Manager,Staff")]
+        [HttpPut]
+        [Route("Me/Password")]
+        public async Task<IActionResult> ChangeOwnPassword(PasswordChangeModel change)
+        {
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = string.IsNullOrEmpty(userId) ? null : await _userManager.FindByIdAsync(userId);
+
+            if (user is null)
+            {
+                return Unauthorized();
+            }
+
+            var result = await _userManager.ChangePasswordAsync(
+                user, change.CurrentPassword ?? string.Empty, change.NewPassword ?? string.Empty);
+
+            if (!result.Succeeded)
+            {
+                return BadRequest(Describe(result));
+            }
+
+            _logger.LogInformation("User {User} changed their password.", user.Id);
+
+            return NoContent();
+        }
+
+        private static string Describe(IdentityResult result) =>
+            string.Join(" ", result.Errors.Select(error => error.Description));
 
         [Authorize(Roles = "Admin")]
         [HttpGet]
