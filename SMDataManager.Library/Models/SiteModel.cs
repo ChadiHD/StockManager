@@ -78,6 +78,12 @@ namespace SMDataManager.Library.Models
         /// <summary>The store's own VAT number, printed on documents.</summary>
         public string TaxRegistrationNumber { get; set; }
 
+        /// <summary>
+        /// The address this store's mail is sent from. NULL means a real transport sends none of
+        /// it; see <c>Site.MailFromAddress</c>.
+        /// </summary>
+        public string MailFromAddress { get; set; }
+
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
     }

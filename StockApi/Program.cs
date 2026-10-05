@@ -141,6 +141,18 @@ builder.AddDocumentStore();
 // Outbound mail. The transport is still the logger — see AddEmail — and since T6 nothing
 // calls it but the dispatcher: call sites queue through IEmailOutbox, procedures queue inside
 // their own transactions, and EmailDispatcher renders and sends with retry and dead-letter.
+// A real transport when one is configured, registered before AddEmail so its TryAdd of the
+// logger finds the sender already there. Development leaves it unset and logs.
+if (string.Equals(builder.Configuration["Email:Transport"], "Acs", StringComparison.OrdinalIgnoreCase))
+{
+    var acsEndpoint = builder.Configuration["Email:AcsEndpoint"]
+        ?? throw new InvalidOperationException("Email:Transport is Acs but Email:AcsEndpoint is not set.");
+
+    builder.Services.AddSingleton(new Azure.Communication.Email.EmailClient(
+        new Uri(acsEndpoint), new Azure.Identity.DefaultAzureCredential()));
+    builder.Services.AddSingleton<StockManager.Notifications.IEmailSender, AcsEmailSender>();
+}
+
 builder.AddEmail();
 builder.Services.AddTransient<IEmailOutboxData, EmailOutboxData>();
 builder.Services.AddSingleton<OutboxPayloadProtector>();

@@ -117,6 +117,35 @@ public class EmailDispatcherTests
     }
 
     [Fact]
+    public async Task TheMessageIsSentFromTheStoresOwnAddress()
+    {
+        var site = Site();
+        site.MailFromAddress = "orders@shop.test.example";
+        var dispatcher = Dispatcher(site);
+        Claims(Approval());
+
+        await dispatcher.DispatchBatchAsync();
+
+        await _transport.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(message => message.From == "orders@shop.test.example"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task APermanentFailureIsDeadLetteredOnTheFirstAttempt()
+    {
+        // A store with no sender address: eight attempts over hours would end the same way.
+        var dispatcher = Dispatcher();
+        Claims(Approval(attempts: 1));
+        _transport.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new PermanentEmailFailureException("Site test has no MailFromAddress"));
+
+        await dispatcher.DispatchBatchAsync();
+
+        _outbox.Received(1).RecordFailure(11, Claim, Arg.Is<string>(error => error.Contains("MailFromAddress")), null);
+    }
+
+    [Fact]
     public async Task AFailedSendIsRetriedOnTheSchedule()
     {
         var dispatcher = Dispatcher();
