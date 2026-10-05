@@ -62,7 +62,8 @@ public sealed class AspireAppFixture : IAsyncLifetime
     public Uri StockApiBaseUrl { get; } = new("https://localhost:7042");
 
     public Uri SmStoreBaseUrl { get; private set; } = null!;
-    public Uri SmPortalBaseUrl { get; private set; } = null!;
+    /// <summary>StockApi serves the portal (T7), so this is the API's own address.</summary>
+    public Uri SmPortalBaseUrl => StockApiBaseUrl;
 
     public string SmDatabaseConnectionString { get; private set; } = "";
     public string ApiAuthConnectionString { get; private set; } = "";
@@ -174,16 +175,10 @@ public sealed class AspireAppFixture : IAsyncLifetime
                     "E2E_RESOURCE_TIMEOUT_MINUTES only once you have ruled that out.");
             }
 
-            // stock-api and sm-store both carry WithHttpHealthCheck; sm-portal is a static
-            // WASM host with no health endpoint of its own, so Running -- not Healthy, which
-            // it would never reach -- is the corresponding signal for it.
             await _app.ResourceNotifications.WaitForResourceHealthyAsync("stock-api", timeout.Token);
             await _app.ResourceNotifications.WaitForResourceHealthyAsync("sm-store", timeout.Token);
-            await _app.ResourceNotifications.WaitForResourceAsync(
-                "sm-portal", KnownResourceStates.Running, timeout.Token);
 
             SmStoreBaseUrl = _app.GetEndpoint("sm-store", "https");
-            SmPortalBaseUrl = _app.GetEndpoint("sm-portal", "https");
 
             SmDatabaseConnectionString = await _app.GetConnectionStringAsync("SMDatabase")
                 ?? throw new InvalidOperationException("The SMDatabase resource published no connection string.");

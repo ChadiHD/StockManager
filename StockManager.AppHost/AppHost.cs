@@ -167,11 +167,8 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithExternalHttpEndpoints()
 	.PublishAsAzureContainerApp((_, _) => { });
 
-builder.AddProject<Projects.SMPortal>("sm-portal")
-	.WithReference(api)
-	.WaitFor(api)
-	.WithExternalHttpEndpoints()
-	.PublishAsAzureContainerApp((_, _) => { });
+// No sm-portal resource: StockApi serves the admin portal's WebAssembly bundle itself (T7),
+// so the portal and the API are one origin and one container.
 
 // Customer-facing storefront. Unlike sm-portal it holds no reference to the API: it renders on
 // the server and reads SMDatabase through SMDataManager.Library in process. One deployment

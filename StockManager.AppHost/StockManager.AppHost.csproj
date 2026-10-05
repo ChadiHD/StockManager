@@ -22,7 +22,6 @@
                       ReferenceOutputAssembly="false"
                       IsAspireProjectResource="false" />
     <ProjectReference Include="..\StockApi\StockApi.csproj" />
-    <ProjectReference Include="..\SMPortal\SMPortal.csproj" />
     <ProjectReference Include="..\SMStore\SMStore.csproj" />
   </ItemGroup>
 

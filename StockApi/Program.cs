@@ -45,6 +45,10 @@ builder.Services.AddIdentityCore<IdentityUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = true;
 
+        // AddDefaultIdentity set this, and the Identity migrations were generated under it:
+        // without it the model no longer matches them and Migrate() refuses to start.
+        options.Stores.MaxLengthForKeys = 128;
+
         // Both hosts share one user store; see SiteQualifiedUserName.
         options.User.AllowedUserNameCharacters = SiteQualifiedUserName.AllowedUserNameCharacters;
         options.User.RequireUniqueEmail = false;
@@ -219,7 +223,11 @@ using (var scope = app.Services.CreateScope())
 await app.EnsureDataProtectionKeyStoreAsync();
 
 // Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
+{
+    app.UseWebAssemblyDebugging();
+}
+else
 {
     app.UseExceptionHandler();
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
@@ -227,6 +235,12 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// The admin portal's WebAssembly bundle, from the SMPortal project reference. Served here
+// rather than from a host of its own, so the portal and the API are one origin: no CORS
+// policy to get wrong, and no API address to configure per environment — the portal calls
+// its own base address. There was an allow-any-origin policy before this.
+app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
 app.UseRouting();
@@ -253,5 +267,12 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapDefaultEndpoints();
+
+// The portal's own routes load its page; nothing else does. A catch-all would answer a
+// mistyped api/ path with the portal's HTML and a 200, which is a confusing thing for the
+// POS or a script to get back instead of a 404.
+app.MapFallbackToFile("", "index.html");
+app.MapFallbackToFile("login", "index.html");
+app.MapFallbackToFile("admin/{*path:nonfile}", "index.html");
 
 app.Run();
