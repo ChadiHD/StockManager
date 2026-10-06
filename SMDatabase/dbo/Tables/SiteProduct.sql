@@ -44,5 +44,7 @@ CREATE TABLE [dbo].[SiteProduct]
 	-- category. Not enforced while SiteCategoryId is NULL, which is the "no override" case.
 	CONSTRAINT [FK_SiteProduct_ToSiteCategory] FOREIGN KEY ([SiteCategoryId], [SiteId])
 		REFERENCES [SiteCategory]([Id], [SiteId]),
-	CONSTRAINT [CK_SiteProduct_Visibility] CHECK ([Visibility] IS NULL OR [Visibility] IN (N'Show', N'Hide'))
+	-- As SQL Server stores it, not as IN (...): it keeps an IN list as this reversed OR chain,
+	-- and DacFx, seeing the two differ, rebuilt the constraint on every publish.
+	CONSTRAINT [CK_SiteProduct_Visibility] CHECK ([Visibility] IS NULL OR ([Visibility]=N'Hide' OR [Visibility]=N'Show'))
 )

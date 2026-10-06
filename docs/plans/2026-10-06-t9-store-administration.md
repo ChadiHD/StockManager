@@ -40,8 +40,8 @@ for aclitech.co.uk (implementation plan §5).
 - **Idle publishes.** Publishing the DACPAC to a database already at the current schema performs
   no operations, and CI asserts it.
 
-**Status: planned**, on `t9-store-administration`. Built in three pull requests: items 1–2,
-item 3, then items 4–5.
+**Status: item 1 built**, on `t9-store-administration`. Built in three pull requests: items
+1–2, item 3, then items 4–5.
 
 ---
 
@@ -305,8 +305,11 @@ Built in this order. Each item lists what proves it.
 - Rewrite each of the nine constraints in the form SQL Server stores it: the `OR` chain, in the
   stored order, with the stored literal prefix. Each gets a comment, because the form looks
   wrong and someone will "tidy" it back to `IN`.
-- **Proof:** a deploy report against the development database lists those nine before the
-  change and nothing after it.
+- **Proof — built.** An empty scratch database was published twice from the old source. Its
+  deploy report still dropped and re-created exactly those nine and planned nothing else. After
+  the rewrite, the report against that same database is empty. CI's sequence on a second empty
+  database leaves the second publish touching no constraint and the report empty. The
+  development database's report is empty too.
 - **The guard:** CI's `database` job already publishes to an empty database twice. It gains a
   `/Action:DeployReport` after the second publish and fails if the report contains any
   operation — "a publish to an up-to-date database does nothing" becomes a test, and the next

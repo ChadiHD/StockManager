@@ -61,8 +61,11 @@ CREATE TABLE [dbo].[Contact]
 	-- (Account.Status, GroupVisibility.Rule, Site.OrderMode) are documented in comments only,
 	-- and were not retrofitted here; the case for a constraint is strongest where the value
 	-- gates behaviour, and a mistyped role silently grants or withholds permission.
-	CONSTRAINT [CK_Contact_RoleInAccount] CHECK ([RoleInAccount] IN ('Admin', 'Buyer')),
-	CONSTRAINT [CK_Contact_Status] CHECK ([Status] IN ('Active', 'Invited', 'Disabled'))
+	--
+	-- As SQL Server stores them, not as IN (...): it keeps an IN list as this reversed OR chain,
+	-- and DacFx, seeing the two differ, rebuilt both constraints on every publish.
+	CONSTRAINT [CK_Contact_RoleInAccount] CHECK ([RoleInAccount]='Buyer' OR [RoleInAccount]='Admin'),
+	CONSTRAINT [CK_Contact_Status] CHECK ([Status]='Disabled' OR [Status]='Invited' OR [Status]='Active')
 )
 GO
 

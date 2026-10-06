@@ -35,7 +35,9 @@ CREATE TABLE [dbo].[Address]
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
 
 	CONSTRAINT [FK_Address_ToAccount] FOREIGN KEY ([AccountId]) REFERENCES [Account]([Id]),
-	CONSTRAINT [CK_Address_Kind] CHECK ([Kind] IN ('Billing', 'Shipping'))
+	-- As SQL Server stores it, not as IN (...): it keeps an IN list as this reversed OR chain,
+	-- and DacFx, seeing the two differ, rebuilt the constraint on every publish.
+	CONSTRAINT [CK_Address_Kind] CHECK ([Kind]='Shipping' OR [Kind]='Billing')
 )
 GO
 

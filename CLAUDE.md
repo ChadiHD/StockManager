@@ -744,7 +744,8 @@ fewer than four `Passed!` lines; the database and blob tests on Linux against th
 Server and Azurite containers, failing if any of them skipped; and the E2E suite with
 `E2E_REQUIRE_APPHOST=1`. The database job publishes the DACPAC to an **empty** database first —
 that is the only place a pre-deployment script's assumption that a table exists can fail
-before production does.
+before production does — then publishes again, and then fails if a deploy report against the
+now up-to-date database lists any operation at all.
 
 ## Data access
 
@@ -821,6 +822,15 @@ columns before `IsActive` rebuilt both tables on publish, and moving them to the
 A pre-deployment `ALTER TABLE ... ADD` appends, so a column added there has to be declared last
 or the publish rebuilds the table to move what the script just added. Check a schema change
 with `sqlpackage /Action:Publish ... | grep -i "rebuilding table"`, which should print nothing.
+
+**A CHECK over a list of values is written as the `OR` chain SQL Server stores, not as
+`IN (...)`.** SQL Server keeps `[Kind] IN ('Billing', 'Shipping')` as
+`([Kind]='Shipping' OR [Kind]='Billing')`: the list rewritten, reversed. DacFx compares the two,
+finds them different, and drops and re-creates the constraint on every publish, re-validating
+every row of the table each time. Nine constraints did exactly that until T9 and nothing
+failed. The form to write is the one `sys.check_constraints.definition` shows after a first
+publish. CI's deploy-report step is the guard, and it catches any other definition SQL Server
+rewrites in the same way.
 
 **A NOT NULL column whose value depends on another column needs a pre-deployment backfill.**
 The schema diff runs before `Seed.sql`, so a column added with a default and constrained in
