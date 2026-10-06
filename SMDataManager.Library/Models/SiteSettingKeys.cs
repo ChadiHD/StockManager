@@ -18,7 +18,7 @@ namespace SMDataManager.Library.Models
     {
         public static readonly IReadOnlyList<string> OrderModes = new[] { "Rfq" };
 
-        public static readonly IReadOnlyList<string> RegistrationFieldSets = new[] { "eu-b2b" };
+        public static readonly IReadOnlyList<string> RegistrationFieldSets = new[] { "eu-b2b", "uk-b2b" };
 
         public static readonly IReadOnlyList<string> TaxRuleSets = new[] { "eu-b2b", "uk-b2b" };
 

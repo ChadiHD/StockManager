@@ -330,6 +330,15 @@ account blocks that person from registering again and nothing else would surface
   fixed model when the fields vary per store — and because that is what keeps the password
   out of the round trip. Everything echoed back after a validation error is echoed because
   the page chose to; the two password inputs never are.
+- **There are two field sets since T9.**
+  - **`eu-b2b`** requires an EU VAT number, and refuses GB, which left the EU VAT area.
+  - **`uk-b2b`** has the VAT number and Companies House number optional, since sole traders and
+    businesses below the threshold have neither, and shape-checks them when given. It requires a
+    postcode.
+  - **Both ask for the `ChamberOfCommerce` document kind**: `CK_AccountDocument_Kind`'s name for
+    proof the business exists, labelled to suit each country.
+  - **A new field set** is a line in `AddRegistrationFieldSets` plus a key in
+    `SiteSettingKeys.RegistrationFieldSets`. `SiteSettingKeysTests` fails if either is missing.
 
 ### Customer documents
 

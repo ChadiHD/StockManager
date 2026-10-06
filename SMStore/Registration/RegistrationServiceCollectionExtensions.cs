@@ -14,6 +14,7 @@ public static class RegistrationServiceCollectionExtensions
     public static IServiceCollection AddRegistrationFieldSets(this IServiceCollection services)
     {
         services.AddSingleton<IRegistrationFieldSet, EuB2bRegistrationFieldSet>();
+        services.AddSingleton<IRegistrationFieldSet, UkB2bRegistrationFieldSet>();
         services.AddScoped<RegistrationFieldSetProvider>();
 
         return services;

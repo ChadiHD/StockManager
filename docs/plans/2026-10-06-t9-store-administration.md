@@ -604,6 +604,12 @@ Built in this order. Each item lists what proves it.
   VAT certificate is optional.
 - **Proof:** tests in the shape of `EuB2bRegistrationFieldSetTests`, and
   `TenantVariationTests` extended to render both field sets.
+- **Built**, as `UkB2bRegistrationFieldSet`, with `UkB2bRegistrationFieldSetTests` and the
+  `SiteSettingKeysTests` tripwire. Two departures from the plan:
+  - **The document labels already said "Company registration"**, so they did not change.
+  - **`TenantVariationTests` was not extended.** It already proves the form follows the store's
+    field set, through a fake one, and a second real one would add nothing it does not already
+    show.
 
 **4e. A journey across both countries.**
 
