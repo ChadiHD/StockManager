@@ -232,6 +232,9 @@ public static class SqlTestData
     /// AuthStateProvider treats any failure of that call as a failed sign-in, so a token that
     /// was issued perfectly well is discarded and the operator is told "Check your email and
     /// password". A login with no profile therefore looks exactly like a wrong password.
+    ///
+    /// With every store (<c>AllSites</c>, T9): a profile created now gets none by default, and
+    /// the journeys' operator acts for both of the stores the suite resolves and manages staff.
     /// </remarks>
     public static async Task CreateUserProfileAsync(
         string connectionString, string identityUserId, string email,
@@ -242,8 +245,8 @@ public static class SqlTestData
 
         await using var command = new SqlCommand(
             """
-            INSERT INTO dbo.[User] ([UserId], [FirstName], [LastName], [EmailAddress])
-            VALUES (@UserId, N'E2E', N'Admin', @EmailAddress);
+            INSERT INTO dbo.[User] ([UserId], [FirstName], [LastName], [EmailAddress], [AllSites])
+            VALUES (@UserId, N'E2E', N'Admin', @EmailAddress, 1);
             """, connection);
 
         command.Parameters.AddWithValue("@UserId", identityUserId);

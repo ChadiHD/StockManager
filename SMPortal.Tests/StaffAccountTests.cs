@@ -20,6 +20,12 @@ public class StaffAccountTests : TestContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         _data.Users.Returns(new List<User>());
+        _data.ManagesAllStores.Returns(true);
+        _data.Sites.Returns(new List<SiteOption>
+        {
+            new(1, "ie-store", "Irish store", "IE", "EUR"),
+            new(2, "uk-store", "UK store", "GB", "GBP")
+        });
         Services.AddSingleton(_data);
         Services.AddSingleton(Substitute.For<IToastService>());
     }
@@ -37,18 +43,19 @@ public class StaffAccountTests : TestContext
     [Fact]
     public void AddingAUserSendsThePasswordTheAdminChose()
     {
-        _data.AddUser(default!, default!, default!, default!).ReturnsForAnyArgs((string?)null);
+        _data.AddUser(default!, default!, default!, default!, default, default!).ReturnsForAnyArgs((string?)null);
         var cut = OpenAddUser();
 
         cut.Find(".modal form").Submit();
 
-        _data.Received(1).AddUser("Ciara Walsh", "ciara@example.test", "Staff", "First-Passw0rd!");
+        _data.Received(1).AddUser("Ciara Walsh", "ciara@example.test", "Staff", "First-Passw0rd!",
+            false, Arg.Is<IEnumerable<int>>(ids => !ids.Any()));
     }
 
     [Fact]
     public void ARefusedPasswordIsShownAndTheFormStaysOpen()
     {
-        _data.AddUser(default!, default!, default!, default!)
+        _data.AddUser(default!, default!, default!, default!, default, default!)
             .ReturnsForAnyArgs("Passwords must have at least one digit ('0'-'9').");
         var cut = OpenAddUser();
 
@@ -56,6 +63,68 @@ public class StaffAccountTests : TestContext
 
         cut.Find(".invite-error").TextContent.Should().Contain("at least one digit");
         cut.FindAll(".modal").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void ANewColleagueIsGivenExactlyTheStoresTicked()
+    {
+        // T9: a colleague is given stores, not handed all of them because nobody unticked a box.
+        _data.AddUser(default!, default!, default!, default!, default, default!).ReturnsForAnyArgs((string?)null);
+        var cut = OpenAddUser();
+
+        cut.Find(".modal input.store-one[value=uk-store]").Change(true);
+        cut.Find(".modal form").Submit();
+
+        _data.Received(1).AddUser("Ciara Walsh", "ciara@example.test", "Staff", "First-Passw0rd!",
+            false, Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new[] { 2 })));
+    }
+
+    [Fact]
+    public void ChangingAccessIsByIdAndARefusalKeepsTheDialogOpen()
+    {
+        // The API will not take every store from the last admin who has it; the admin must read
+        // why, not see the dialog close on a list that did not change.
+        _data.Users.Returns(new List<User>
+        {
+            new() { Id = "id-owner", Name = "Only Owner", Email = "owner@example.test", Roles = "Admin", AllSites = true }
+        });
+        _data.UpdateUserAccess(default!, default!, default, default!)
+            .ReturnsForAnyArgs("They are the only admin who can manage every store.");
+        var cut = RenderComponent<Users>();
+
+        cut.FindAll("button").First(button => button.TextContent.Contains("Manage")).Click();
+        cut.Find(".modal input.store-all").Change(false);
+        cut.FindAll(".modal button").First(button => button.TextContent.Trim() == "Save").Click();
+
+        _data.Received(1).UpdateUserAccess("id-owner", Arg.Any<IEnumerable<string>>(), false, Arg.Any<IEnumerable<int>>());
+        cut.Find(".manage-error").TextContent.Should().Contain("only admin");
+        cut.FindAll(".modal").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void AnAdminGivenSomeStoresIsToldWhoManagesStaffAndOfferedNothing()
+    {
+        _data.ManagesAllStores.Returns(false);
+
+        var cut = RenderComponent<Users>();
+
+        cut.Find(".users-restricted").TextContent.Should().Contain("admin of every store");
+        cut.FindAll("button").Should().NotContain(button => button.TextContent.Contains("Add user"));
+    }
+
+    [Fact]
+    public void TheUsersPageSaysWhichStoresEachMemberOfStaffHas()
+    {
+        _data.Users.Returns(new List<User>
+        {
+            new() { Id = "a", Name = "Owner", Email = "owner@example.test", AllSites = true },
+            new() { Id = "b", Name = "Uk Admin", Email = "uk@example.test", SiteIds = new List<int> { 2 } },
+            new() { Id = "c", Name = "New Starter", Email = "new@example.test" }
+        });
+
+        var stores = RenderComponent<Users>().FindAll(".user-stores").Select(cell => cell.TextContent).ToList();
+
+        stores.Should().Equal("All stores", "UK store", "None");
     }
 
     [Fact]

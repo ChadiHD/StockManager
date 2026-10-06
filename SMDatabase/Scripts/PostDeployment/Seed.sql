@@ -63,6 +63,20 @@ LEFT JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId]
 WHERE [p].[Reference] IS NOT NULL
   AND [p].[SiteId] IS NULL;
 
+/*
+Staff who existed before store access did (T9) keep the access they had, which was every store.
+dbo.[User].AllSites arrives off for every row, and without this every admin of an upgraded
+deployment would sign in to a portal with no store in it.
+
+Once, by its own condition: after this runs somebody holds AllSites, and spUserSite_Set's caller
+refuses to take it from the last admin who has it, so the update never matches again. A fresh
+database has no users, and its first admin gets the flag from AdminBootstrap.
+*/
+IF NOT EXISTS (SELECT 1 FROM [dbo].[User] WHERE [AllSites] = 1)
+BEGIN
+	UPDATE [dbo].[User] SET [AllSites] = 1;
+END
+
 -- Product.Published, Featured and Badge, saved aside by the pre-deployment script before the
 -- schema diff dropped them, filed under each store. A no-op once moved.
 :r .\MoveProductFlagsToSites.sql

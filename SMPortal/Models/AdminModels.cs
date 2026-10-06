@@ -189,11 +189,17 @@ public class Group
 
 public class User
 {
+    // Identity's id: roles and stores are granted by it, never by the address (T9).
+    public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Email { get; set; } = "";
     public string Roles { get; set; } = "Staff";
     public IEnumerable<string> RoleList =>
         Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    // The stores they may act for in the portal: every one, or these.
+    public bool AllSites { get; set; }
+    public List<int> SiteIds { get; set; } = new();
 }
 
 public class ActivityItem

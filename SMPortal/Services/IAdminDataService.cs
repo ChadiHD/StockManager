@@ -23,6 +23,18 @@ public interface IAdminDataService
 
     string? CurrentSiteKey { get; }
 
+    /// <summary>
+    /// False for an admin who has been given no store yet: the snapshot is then empty, and the
+    /// layout says why rather than reporting the API unreachable.
+    /// </summary>
+    bool HasStoreAccess { get; }
+
+    /// <summary>
+    /// Whether this admin may act for every store, which managing staff takes (T9). Pages and
+    /// navigation for staff are hidden from anybody else; the API refuses them regardless.
+    /// </summary>
+    bool ManagesAllStores { get; }
+
     /// <summary>Changes the store this workspace is showing, and reloads everything.</summary>
     Task SwitchSiteAsync(string siteKey);
 
@@ -108,11 +120,19 @@ public interface IAdminDataService
     Task UpdateGroup(string name, int discount, string terms, string note);
 
     /// <summary>
-    /// Creates a staff login with the password the admin chose, and the given role. Returns why
-    /// it was refused — the password rules, usually — or null once it exists.
+    /// Creates a staff login with the password the admin chose, the given role, and every store
+    /// or the listed ones. Returns why it was refused — the password rules, usually — or null
+    /// once it exists.
     /// </summary>
-    Task<string?> AddUser(string name, string email, string role, string password);
-    Task UpdateUserRoles(string email, IEnumerable<string> roles);
+    Task<string?> AddUser(string name, string email, string role, string password,
+        bool allSites, IEnumerable<int> siteIds);
+
+    /// <summary>
+    /// Sets a member of staff's roles and stores, by their id. Returns why it was refused — the
+    /// API will not leave the deployment without an admin of every store — or null.
+    /// </summary>
+    Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,
+        bool allSites, IEnumerable<int> siteIds);
 
     /// <summary>The signed-in user's own password. Returns why it was refused, or null.</summary>
     Task<string?> ChangePassword(string currentPassword, string newPassword);

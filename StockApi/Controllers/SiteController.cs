@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
@@ -14,10 +15,12 @@ namespace StockApi.Controllers
     public class SiteController : ControllerBase
     {
         private readonly ISiteData _siteData;
+        private readonly IUserData _users;
 
-        public SiteController(ISiteData siteData)
+        public SiteController(ISiteData siteData, IUserData users)
         {
             _siteData = siteData;
+            _users = users;
         }
 
         /// <summary>
@@ -30,11 +33,17 @@ namespace StockApi.Controllers
         [HttpGet]
         public ActionResult<List<SiteOption>> Get()
         {
-            // Every admin sees every store. That is the current model, stated here rather than
-            // implied: when admins become per-site, this is the list that narrows, and the
-            // X-Site-Key check in AdminSiteResolutionMiddleware narrows with it.
+            // The stores this admin may act for: every one for a user with AllSites, otherwise
+            // the ones they were given. The same answer AdminSiteResolutionMiddleware gives per
+            // request, so the selector never offers a store the API would then refuse.
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            var allSites = _users.GetUserById(userId).FirstOrDefault()?.AllSites == true;
+            var given = allSites
+                ? null
+                : _users.GetSiteGrants(userId).Select(grant => grant.SiteId).ToHashSet();
+
             var options = _siteData.GetSites()
-                .Where(site => site.IsActive)
+                .Where(site => site.IsActive && (given is null || given.Contains(site.Id)))
                 .OrderBy(site => site.Name)
                 .Select(site => new SiteOption(
                     site.Id, site.SiteKey, site.Name, site.Country, site.CurrencyCode))

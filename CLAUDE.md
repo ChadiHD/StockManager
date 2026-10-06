@@ -75,7 +75,7 @@ publish`. **Nothing here deploys to Azure** (`.github/copilot-instructions.md`):
 `deploy-staging` workflow is run by hand. The load check at 50,000 products fails its target on
 the whole-catalog browse, and that is recorded as a decision in the plan's §7, not fixed.
 
-**T9 — store administration and a second country is planned**, per
+**T9 — store administration and a second country is in progress (items 1–2 built)**, per
 `docs/plans/2026-10-06-t9-store-administration.md`. aclitech.co.uk (UK, GBP, its own UK
 distributor) now launches with aclitrade.ie, from one deployment and one portal. Before either
 tenant starts, T9 delivers the schema-deploy cleanup, store-limited admins, admin screens for
@@ -140,7 +140,7 @@ before anything else runs. Consequences that are easy to get wrong:
 - `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
   start with it set outside Development.
 
-### An admin acts for one store at a time, and admins are global
+### An admin acts for one store at a time, and only for stores they were given
 
 The storefront resolves its store from the host; the admin API cannot, because one host serves
 an operator who may run several. So the portal names the store in an `X-Site-Key` header,
@@ -151,9 +151,41 @@ asking. Reads are scoped as well as writes: `spAccount_GetAll`, `spQuote_GetAll`
 Products are the deliberate exception — `dbo.Product` is shared, the desktop POS has no site,
 so `ProductController` injects the context per action rather than through its constructor.
 
-**Admins are global**: any admin may act for any active store, and the header is trusted once
-it names one. **Restricting an admin to some stores is a prerequisite for a second tenant**,
-and the change is a "may this user select this site" check in the middleware, nothing else.
+**Since T9, an admin acts only for the stores they were given.** `dbo.[User].AllSites` means
+every store, including ones created later. Otherwise the stores are the rows in `dbo.UserSite`,
+and there may be none.
+
+- **The check is per request, not a claim in the token.** The middleware calls
+  `spUserSite_CanAct` after resolving the header, uncached, because a token lives a day and
+  taking a store away has to apply to the next request. It costs one primary-key read, paid
+  only by requests that resolve a store.
+- **A store the caller may not act for is left unresolved, exactly like an unknown key.** The
+  400 is the same words either way, so it cannot be used to list stores. The single-store
+  fallback asks too, and an anonymous caller acts for nothing.
+- **`GET api/Site` returns the same answer as the middleware**, so the selector never offers a
+  store the API would refuse.
+- **Actions that are not about one store carry `[Authorize(Policy = AllStores.Policy)]`:**
+  staff and their grants, the shared-product actions on `ProductController`, and the till's
+  sales report and inventory.
+  - **It binds Admins only.** Manager and Staff are the till's roles, the till has no store, and
+    for them the action's own roles decide as before. A Manager still reads the sales report.
+  - **`AuthorizationSurfaceTests.EveryStoreOnly` lists those actions**, because removing the
+    policy breaks nothing and opens all of them.
+  - **`ProductController`'s entries are interim.** They can go once item 4a gives products an
+    owner and those actions can check the product belongs to the acting store.
+- **Somebody must always be able to hand out stores.** `UserController` refuses, with a 409, to
+  take `AllSites` or the Admin role from the last user who holds both. Roles live in
+  `ApiAuthDb`, so this check cannot be in `spUserSite_Set`.
+- **Who starts with every store.** Users who existed before T9 were given `AllSites` once, by
+  `Seed.sql`. `AdminBootstrap` gives it to a deployment's first admin. Everybody else starts
+  with no store: a colleague is given stores, not handed all of them because nobody unticked a
+  box.
+- **The Users screen lists staff only** — logins with a `dbo.User` row — and grants roles and
+  stores by id. It returned every Identity login, customers of every store included, and found
+  its target by email, so a customer login sharing an address could receive the role.
+- **Signing out reloads the portal and forgets the selected store.** The snapshot lives in
+  memory for the life of the WebAssembly app, so a navigation alone showed the next person at
+  the browser the previous admin's stores and data.
 
 The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
 `spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
@@ -636,9 +668,17 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All ten journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All eleven journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
-the old one. T8's runs across both stores the
+the old one.
+
+T9's eleventh has an admin of every store give a colleague one store. The colleague's portal
+offers only that store. Their own token is refused by the other store with the same words an
+unknown key gets, and refused by the staff list. After the store is taken away, the same token
+is refused on its very next request. The fixture's operator has `AllSites`, because a profile
+created now has no store by default.
+
+T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
 unmapped one there under a store category, through the portal, and the other store does not
 change; then the first store hides prices until sign-in, and a signed-in customer with no

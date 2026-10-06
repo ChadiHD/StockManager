@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -222,7 +223,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     };
 });
 
-builder.Services.AddAuthorization();
+// Actions that are not about one store refuse an admin who was given only some (T9).
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(AllStores.Policy, policy => policy.AddRequirements(new AllStores.Requirement())));
+builder.Services.AddScoped<IAuthorizationHandler, AllStores.Handler>();
 
 builder.Services.AddSwaggerGen(c =>
 {

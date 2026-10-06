@@ -19,14 +19,16 @@ namespace StockApi.Controllers
             _inventoryData = inventoryData;
         }
 
-        [Authorize(Roles = "Manager,Admin")]
+        // The till's stock has no store, so an admin given only some stores does not reach it;
+        // see AllStores.
+        [Authorize(Roles = "Manager,Admin", Policy = Security.AllStores.Policy)]
         [HttpGet]
         public List<InventoryModel> Get()
         {
             return _inventoryData.GetInventory();
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = Security.AllStores.Policy)]
         [HttpPost]
         public void Post(InventoryModel item)
         {

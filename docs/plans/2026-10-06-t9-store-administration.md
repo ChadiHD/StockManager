@@ -40,7 +40,7 @@ for aclitech.co.uk (implementation plan §5).
 - **Idle publishes.** Publishing the DACPAC to a database already at the current schema performs
   no operations, and CI asserts it.
 
-**Status: item 1 built**, on `t9-store-administration`. Built in three pull requests: items
+**Status: items 1–2 built**, on `t9-store-administration`. Built in three pull requests: items
 1–2, item 3, then items 4–5.
 
 ---
@@ -347,6 +347,20 @@ Built in this order. Each item lists what proves it.
   - An E2E journey across the two stores the suite already resolves. A store-limited admin sees
     one store, and a forged header gets the unknown-store 400. An all-stores admin switches
     between both.
+- **Built.** What building added to the list above:
+  - **Sign-out reloads the app.** The portal kept its snapshot in memory across sign-out, so
+    the next person to sign in at the same browser saw the previous admin's stores and data.
+  - **The rule binds Admins only.** `AllStores` passes non-admins, so a till Manager keeps the
+    sales report.
+  - **An admin with no store gets a notice, not an error.** They get a "no store yet" notice
+    and an empty workspace, rather than "the API could not be reached", and can still change
+    their password.
+  - **Proven on scratch databases:**
+    - An upgrade from the previous schema gave existing users `AllSites`.
+    - A later user stayed off, and republishing did not repeat the backfill.
+    - Every refusal in `spUserSite_Set` behaved as designed.
+    - A fresh publish run twice left an empty deploy report.
+  - **Tests:** `StoreAccessJourneyTests` is the eleventh journey.
 
 ### 3. Admin screens (2–2.5 weeks)
 

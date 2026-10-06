@@ -12,13 +12,15 @@ namespace StockApi.Sites
     /// the request reveals. <see cref="AdminSiteResolutionMiddleware"/> reads it from the
     /// X-Site-Key header.
     ///
-    /// Admins are global today — any of them may act for any store — so the header is trusted
-    /// once the key names a real, active site. When per-site admins arrive, the check becomes
-    /// "may this user select this site" and nothing else moves.
+    /// The header is trusted once the key names a real, active site that the caller may act
+    /// for — every store for a user with <c>AllSites</c>, otherwise those in <c>dbo.UserSite</c>
+    /// (T9). A store they may not act for leaves this unresolved, the same as an unknown key.
     /// </remarks>
     public interface IAdminSiteContext
     {
-        /// <summary>True when the request named a store that exists and is active.</summary>
+        /// <summary>
+        /// True when the request named a store that exists, is active, and the caller may act for.
+        /// </summary>
         bool IsResolved { get; }
 
         /// <summary>

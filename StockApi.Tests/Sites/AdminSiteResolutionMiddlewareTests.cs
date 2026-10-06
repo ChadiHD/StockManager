@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
@@ -19,13 +20,29 @@ namespace StockApi.Tests.Sites;
 /// </summary>
 public class AdminSiteResolutionMiddlewareTests
 {
+    private const string UserId = "staff-1";
+
     private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
     private readonly ISiteData _sites = Substitute.For<ISiteData>();
+    private readonly IUserData _users = Substitute.For<IUserData>();
 
-    private static DefaultHttpContext HttpContext(string? siteKeyHeader = null)
+    public AdminSiteResolutionMiddlewareTests()
+    {
+        // Everything above store access assumes a caller who may act for any store; the tests
+        // at the end are about the ones who may not.
+        _users.CanActForSite(UserId, Arg.Any<int>()).Returns(true);
+    }
+
+    private static DefaultHttpContext HttpContext(string? siteKeyHeader = null, string? userId = UserId)
     {
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
+
+        if (userId is not null)
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.NameIdentifier, userId) }, "test"));
+        }
 
         if (siteKeyHeader is not null)
         {
@@ -60,7 +77,7 @@ public class AdminSiteResolutionMiddlewareTests
             return Task.CompletedTask;
         }
 
-        await Middleware(Next).InvokeAsync(context, siteContext, _sites);
+        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         // WriteAsJsonAsync appends "; charset=utf-8" itself; the middleware only states the
@@ -82,7 +99,7 @@ public class AdminSiteResolutionMiddlewareTests
 
         Task Next(HttpContext _) => throw new InvalidOperationException("unrelated failure");
 
-        var act = () => Middleware(Next).InvokeAsync(context, siteContext, _sites);
+        var act = () => Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -105,7 +122,7 @@ public class AdminSiteResolutionMiddlewareTests
             return Task.CompletedTask;
         }
 
-        await Middleware(Next).InvokeAsync(context, siteContext, _sites);
+        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
 
         seenKey.Should().Be("only-store");
         context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
@@ -127,7 +144,7 @@ public class AdminSiteResolutionMiddlewareTests
             return Task.CompletedTask;
         }
 
-        await Middleware(Next).InvokeAsync(context, siteContext, _sites);
+        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
 
         seenKey.Should().Be("store-b");
     }
@@ -153,7 +170,7 @@ public class AdminSiteResolutionMiddlewareTests
             return Task.CompletedTask;
         }
 
-        await Middleware(Next).InvokeAsync(context, siteContext, _sites);
+        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
@@ -173,8 +190,88 @@ public class AdminSiteResolutionMiddlewareTests
             return Task.CompletedTask;
         }
 
-        await Middleware(Next).InvokeAsync(context, siteContext, _sites);
+        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+    }
+
+    // ---- Store access (T9) -------------------------------------------------------------------
+
+    private async Task<(HttpContext Context, string? SeenKey)> Request(string? siteKeyHeader, string? userId = UserId)
+    {
+        var siteContext = new AdminSiteContext();
+        var context = HttpContext(siteKeyHeader, userId);
+        string? seenKey = null;
+
+        Task Next(HttpContext _)
+        {
+            seenKey = siteContext.Site.SiteKey;
+            return Task.CompletedTask;
+        }
+
+        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
+
+        return (context, seenKey);
+    }
+
+    [Fact]
+    public async Task AStoreTheCallerWasNotGivenIsAnsweredLikeAStoreThatDoesNotExist()
+    {
+        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _users.CanActForSite("limited", 2).Returns(false);
+
+        var refused = await Request("store-b", userId: "limited");
+        var unknown = await Request("no-such-store", userId: "limited");
+
+        refused.SeenKey.Should().BeNull();
+        refused.Context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        // The same words for both, so the answer says nothing about which stores exist.
+        ReadBody(refused.Context).Should().Be(ReadBody(unknown.Context));
+    }
+
+    [Fact]
+    public async Task AStoreTheCallerWasGivenResolves()
+    {
+        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _users.CanActForSite("limited", 2).Returns(true);
+
+        var (_, seenKey) = await Request("store-b", userId: "limited");
+
+        seenKey.Should().Be("store-b");
+    }
+
+    [Fact]
+    public async Task TakingAStoreAwayAppliesToTheVeryNextRequest()
+    {
+        // The site row is cached for a minute; access must not be, or a revoked admin keeps
+        // working for that minute — and for as long as the token lives if it were a claim.
+        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _users.CanActForSite("limited", 2).Returns(true, false);
+
+        (await Request("store-b", userId: "limited")).SeenKey.Should().Be("store-b");
+        (await Request("store-b", userId: "limited")).SeenKey.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TheSingleStoreFallbackStillAsksWhetherTheCallerMayActForIt()
+    {
+        _sites.GetSites().Returns(new List<SiteModel> { new() { Id = 1, SiteKey = "only-store", IsActive = true } });
+        _users.CanActForSite("limited", 1).Returns(false);
+
+        var (context, seenKey) = await Request(siteKeyHeader: null, userId: "limited");
+
+        seenKey.Should().BeNull();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task AnAnonymousCallerActsForNoStore()
+    {
+        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+
+        var (_, seenKey) = await Request("store-b", userId: null);
+
+        seenKey.Should().BeNull();
+        _users.DidNotReceiveWithAnyArgs().CanActForSite(default!, default);
     }
 }

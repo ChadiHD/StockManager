@@ -37,10 +37,16 @@ public class AdminDataService : IAdminDataService
 
     private bool _loaded;
 
+    // Whether the signed-in admin may act for every store, which is what managing staff takes
+    // (T9). Read from GET api/User alongside the store list.
+    private bool _managesAllStores;
+
     private readonly ILocalStorageService _localStorage;
     private readonly string _tokenKey;
 
-    private const string SiteKeyStorageKey = "adminSiteKey";
+    // Public so signing out can clear it: the next person at this browser is offered their own
+    // stores, not the last one somebody else was acting for.
+    public const string SiteKeyStorageKey = "adminSiteKey";
     private const string SiteHeaderName = "X-Site-Key";
 
     public AdminDataService(HttpClient client, IConfiguration config, ILocalStorageService localStorage)
@@ -82,6 +88,9 @@ public class AdminDataService : IAdminDataService
 
         Replace(_sites, await GetListAsync<SiteOption>("api/Site"));
 
+        var me = await _client.GetFromJsonAsync<MeDto>($"{_api}/api/User");
+        _managesAllStores = me?.AllSites == true;
+
         var stored = await _localStorage.GetItemAsync<string>(SiteKeyStorageKey);
 
         // A stored key that no longer names a store — renamed, deactivated, or belonging to a
@@ -108,9 +117,17 @@ public class AdminDataService : IAdminDataService
 
     public string? CurrentSiteKey => _currentSiteKey;
 
+    public bool HasStoreAccess => _sites.Count > 0;
+
+    public bool ManagesAllStores => _managesAllStores;
+
     public async Task SwitchSiteAsync(string siteKey)
     {
         if (string.IsNullOrWhiteSpace(siteKey) || siteKey == _currentSiteKey) return;
+
+        // Only a store this admin was offered. The API would refuse any other, but storing it
+        // first would leave the workspace pointed at a store it can never load.
+        if (!_sites.Any(site => site.SiteKey == siteKey)) return;
 
         _currentSiteKey = siteKey;
         await _localStorage.SetItemAsync(SiteKeyStorageKey, siteKey);
@@ -146,6 +163,16 @@ public class AdminDataService : IAdminDataService
         // without the header once a second store exists.
         await EnsureSiteAsync();
 
+        // An admin given no store yet has nothing to load: every list below but the staff list
+        // is one store's, and the API would refuse each one. AdminLayout says why it is empty.
+        if (!HasStoreAccess)
+        {
+            _accounts.Clear(); _groups.Clear(); _quotes.Clear(); _orders.Clear(); _products.Clear();
+            _reports.Clear(); _activity.Clear(); _users.Clear(); _feeds.Clear();
+            _loaded = true;
+            return;
+        }
+
         var accountsTask = GetListAsync<AccountDto>("api/Account");
         var groupsTask = GetListAsync<GroupDto>("api/CustomerGroup");
         var quotesTask = GetListAsync<QuoteDto>("api/Quote");
@@ -153,8 +180,13 @@ public class AdminDataService : IAdminDataService
         var productsTask = GetListAsync<ProductDto>("api/Product/Catalog");
         var reportsTask = GetListAsync<ReportDto>("api/Order/Report");
         var activityTask = GetListAsync<ActivityDto>("api/Order/Activity?take=10");
-        var usersTask = GetListAsync<AppUserDto>("api/User/Admin/GetAllUsers");
-        var staffTask = GetListAsync<StaffDto>("api/User/Admin/Staff");
+        // Staff are managed by admins of every store only, and the API refuses anyone else.
+        var usersTask = _managesAllStores
+            ? GetListAsync<AppUserDto>("api/User/Admin/GetAllUsers")
+            : Task.FromResult(new List<AppUserDto>());
+        var staffTask = _managesAllStores
+            ? GetListAsync<StaffDto>("api/User/Admin/Staff")
+            : Task.FromResult(new List<StaffDto>());
         var feedsTask = GetListAsync<DistributorFeedView>("api/DistributorFeed");
 
         await Task.WhenAll(accountsTask, groupsTask, quotesTask, ordersTask,
@@ -1000,7 +1032,8 @@ public class AdminDataService : IAdminDataService
 
     // ---- User mutations ---------------------------------------------------------------------
 
-    public async Task<string?> AddUser(string name, string email, string role, string password)
+    public async Task<string?> AddUser(string name, string email, string role, string password,
+        bool allSites, IEnumerable<int> siteIds)
     {
         await EnsureAuthHeaderAsync();
 
@@ -1022,14 +1055,18 @@ public class AdminDataService : IAdminDataService
             return await Problem(response, "That user could not be created.");
         }
 
-        if (!string.IsNullOrWhiteSpace(role))
+        // By the id Register returned, never by looking the address up again.
+        var created = await response.Content.ReadFromJsonAsync<RegisteredDto>();
+        if (string.IsNullOrWhiteSpace(created?.UserId))
         {
-            await UpdateUserRoles(email, new[] { role });
+            return "The user was created, but their role and stores were not set. Set them from Manage.";
         }
 
-        await RefreshAsync();
-
-        return null;
+        return await UpdateUserAccess(
+            created.UserId,
+            string.IsNullOrWhiteSpace(role) ? Array.Empty<string>() : new[] { role },
+            allSites,
+            siteIds);
     }
 
     public async Task<string?> ChangePassword(string currentPassword, string newPassword)
@@ -1045,16 +1082,23 @@ public class AdminDataService : IAdminDataService
             : await Problem(response, "Your password could not be changed.");
     }
 
-    public async Task UpdateUserRoles(string email, IEnumerable<string> roles)
+    public async Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,
+        bool allSites, IEnumerable<int> siteIds)
     {
+        await EnsureAuthHeaderAsync();
+
         var target = roles?.Where(role => !string.IsNullOrWhiteSpace(role))
                          .ToHashSet(StringComparer.OrdinalIgnoreCase)
                      ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // By id. This used to find the user by email among every login, and a customer login
+        // sharing the address could be the one that received the role.
         var users = await GetListAsync<AppUserDto>("api/User/Admin/GetAllUsers");
-        var user = users.FirstOrDefault(candidate =>
-            string.Equals(candidate.Email, email, StringComparison.OrdinalIgnoreCase));
-        if (user is null) return;
+        var user = users.FirstOrDefault(candidate => candidate.UserId == userId);
+        if (user is null) return "That user no longer exists.";
+
+        var problem = await ApplyStores(userId, allSites, siteIds);
+        if (problem is not null) return problem;
 
         var current = user.Roles?.Values.ToHashSet(StringComparer.OrdinalIgnoreCase)
                       ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1062,21 +1106,34 @@ public class AdminDataService : IAdminDataService
         foreach (var role in target.Except(current, StringComparer.OrdinalIgnoreCase))
         {
             var add = await _client.PostAsJsonAsync($"{_api}/api/User/Admin/AddRole",
-                new { UserId = user.UserId, RoleName = role });
-            add.EnsureSuccessStatusCode();
+                new { UserId = userId, RoleName = role });
+            if (!add.IsSuccessStatusCode) return await Problem(add, $"The {role} role could not be added.");
         }
 
         foreach (var role in current.Except(target, StringComparer.OrdinalIgnoreCase))
         {
             var request = new HttpRequestMessage(HttpMethod.Delete, $"{_api}/api/User/Admin/RemoveRole")
             {
-                Content = JsonContent.Create(new { UserId = user.UserId, RoleName = role })
+                Content = JsonContent.Create(new { UserId = userId, RoleName = role })
             };
             var remove = await _client.SendAsync(request);
-            remove.EnsureSuccessStatusCode();
+            if (!remove.IsSuccessStatusCode) return await Problem(remove, $"The {role} role could not be removed.");
         }
 
         await RefreshAsync();
+
+        return null;
+    }
+
+    private async Task<string?> ApplyStores(string userId, bool allSites, IEnumerable<int> siteIds)
+    {
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/User/Admin/{Uri.EscapeDataString(userId)}/Stores",
+            new { AllSites = allSites, SiteIds = allSites ? new List<int>() : siteIds.ToList() });
+
+        return response.IsSuccessStatusCode
+            ? null
+            : await Problem(response, "Their stores could not be changed.");
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------
@@ -1241,24 +1298,25 @@ public class AdminDataService : IAdminDataService
     };
 
     // Identity holds the login and its roles; dbo.User holds the staff display name. Joined
-    // here so the users page can show both.
+    // here, by id, so the users page can show both.
     private static IEnumerable<User> MapUsers(List<AppUserDto> logins, List<StaffDto> staff)
     {
         var names = staff
-            .Where(member => !string.IsNullOrWhiteSpace(member.EmailAddress))
-            .GroupBy(member => member.EmailAddress!, StringComparer.OrdinalIgnoreCase)
+            .Where(member => !string.IsNullOrWhiteSpace(member.UserId))
             .ToDictionary(
-                group => group.Key,
-                group => $"{group.First().FirstName} {group.First().LastName}".Trim(),
-                StringComparer.OrdinalIgnoreCase);
+                member => member.UserId!,
+                member => $"{member.FirstName} {member.LastName}".Trim());
 
         return logins.Select(login => new User
         {
-            Name = names.TryGetValue(login.Email ?? string.Empty, out var name) && !string.IsNullOrWhiteSpace(name)
+            Id = login.UserId ?? string.Empty,
+            Name = names.TryGetValue(login.UserId ?? string.Empty, out var name) && !string.IsNullOrWhiteSpace(name)
                 ? name
                 : login.Email ?? string.Empty,
             Email = login.Email ?? string.Empty,
-            Roles = login.Roles is { Count: > 0 } ? string.Join(", ", login.Roles.Values) : "Staff"
+            Roles = login.Roles is { Count: > 0 } ? string.Join(", ", login.Roles.Values) : "Staff",
+            AllSites = login.AllSites,
+            SiteIds = login.SiteIds ?? new List<int>()
         });
     }
 
@@ -1318,7 +1376,12 @@ public class AdminDataService : IAdminDataService
     private sealed record ActivityDto(DateTime When, string? Account, string? What, string? Type,
         string? Status, string? Screen);
 
-    private sealed record AppUserDto(string? UserId, string? Email, Dictionary<string, string>? Roles);
+    private sealed record AppUserDto(string? UserId, string? Email, Dictionary<string, string>? Roles,
+        bool AllSites, List<int>? SiteIds);
+
+    private sealed record RegisteredDto(string? UserId);
+
+    private sealed record MeDto(string? UserId, bool AllSites);
 
     private sealed record StaffDto(string? UserId, string? FirstName, string? LastName,
         string? EmailAddress, DateTime CreatedDate);

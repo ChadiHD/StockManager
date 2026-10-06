@@ -5,6 +5,7 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
 using StockApi.Feeds;
+using StockApi.Security;
 using StockApi.Sites;
 using System.Data;
 
@@ -119,7 +120,14 @@ namespace StockApi.Controllers
         private static bool IsVisibility(string? visibility) =>
             visibility is null or "Show" or "Hide";
 
-        [Authorize(Roles = "Admin")]
+        /*
+        GetBySku, Create, Update and EnrichImages act on dbo.Product, which every store shares,
+        and Update writes RetailPrice — so an admin acting for one store would reprice every store
+        selling that row. Until products carry the feed and currency they came from (T9 item 4a)
+        and these actions can check the product belongs to the acting store, they take an admin
+        of every store.
+        */
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpGet("Catalog/{sku}")]
         public ActionResult<AdminProductModel> GetBySku(string sku)
         {
@@ -128,7 +136,7 @@ namespace StockApi.Controllers
             return product is null ? NotFound() : product;
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPost("Catalog")]
         public ActionResult<AdminProductModel> Create(AdminProductModel product)
         {
@@ -145,7 +153,7 @@ namespace StockApi.Controllers
             return _productData.CreateProduct(product);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPut("Catalog/{sku}")]
         public IActionResult Update(string sku, AdminProductModel product)
         {
@@ -168,7 +176,7 @@ namespace StockApi.Controllers
         // itself lives on DistributorFeedController.
         // Manual trigger for image enrichment. The background service works through the backlog
         // on its own; this lets an operator kick a batch off immediately.
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPost("Catalog/EnrichImages")]
         public async Task<ActionResult<ImageEnrichmentResult>> EnrichImages(
             [FromServices] IProductImageEnricher enricher,

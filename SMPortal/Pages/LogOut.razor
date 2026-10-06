@@ -6,6 +6,9 @@
 	protected override async Task OnInitializedAsync()
 	{
 		await AuthService.Logout();
-		NavManager.NavigateTo("/login", replace: true);
+		// A full reload, not a navigation. The admin snapshot is held in memory for the life of
+		// the app, so without one the next person to sign in at this browser was shown the last
+		// admin's stores and data until something refreshed it (T9).
+		NavManager.NavigateTo("/login", forceLoad: true, replace: true);
 	}
 }

@@ -4,6 +4,19 @@
 
 <PageTitle>Users &amp; roles · StockManager</PageTitle>
 
+@if (!Data.ManagesAllStores)
+{
+    @* Staff are not one store's, so the API refuses this page's every call to an admin given
+       only some stores (T9); saying so beats an empty list and an Add button that fails. *@
+    <div class="page-head">
+        <div><span class="eyebrow">Administration</span><h1>Users &amp; roles</h1></div>
+    </div>
+    <div class="alert users-restricted" role="status">
+        Staff are managed by an admin of every store. Ask one to change who can act for which store.
+    </div>
+}
+else
+{
 <div class="page-head">
     <div><span class="eyebrow">Administration</span><h1>Users &amp; roles</h1></div>
     <div class="head-actions">
@@ -22,7 +35,7 @@
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
         <table class="tbl">
-            <thead><tr><th class="lead">User</th><th>Roles</th><th class="trail"></th></tr></thead>
+            <thead><tr><th class="lead">User</th><th>Roles</th><th>Stores</th><th class="trail"></th></tr></thead>
             <tbody>
                 @foreach (var u in Paged)
                 {
@@ -37,7 +50,9 @@
                             <div class="role-chips">
                                 @foreach (var r in u.RoleList) { <span class="role-chip">@r</span> }
                             </div>
-                        </td>                        <td class="trail"><button class="btn btn-secondary btn-sm" @onclick="() => OpenManage(u)">Manage</button></td>
+                        </td>
+                        <td><span class="user-stores">@StoresLabel(u)</span></td>
+                        <td class="trail"><button class="btn btn-secondary btn-sm" @onclick="() => OpenManage(u)">Manage</button></td>
                     </tr>
                 }
             </tbody>
@@ -77,6 +92,9 @@
                         @(_inviteError ?? "Give it to them yourself. They change it from Change password once signed in.")
                     </span>
                 </div>
+                <div class="field span2">
+                    @StorePicker(_inviteStores)
+                </div>
             </div>
         </div>
         <div class="modal-foot">
@@ -86,7 +104,7 @@
     </EditForm>
 </Modal>
 
-<Modal Visible="_showManage" Title="Manage roles" OnClose="() => _showManage = false">
+<Modal Visible="_showManage" Title="Manage access" OnClose="() => _showManage = false">
     <div class="modal-body">
         @if (_sel is not null)
         {
@@ -108,13 +126,21 @@
                         ? "Admin already covers everything the other two grant."
                         : "Roles add up — assign more than one where needed.")
             </span>
+
+            @StorePicker(_manageStores)
+
+            @if (_manageError is not null)
+            {
+                <span class="field-note field-note--warn manage-error">@_manageError</span>
+            }
         }
     </div>
     <div class="modal-foot">
         <button type="button" class="btn btn-secondary" @onclick="() => _showManage = false">Close</button>
-        <button type="button" class="btn btn-primary" @onclick="SaveRoles">Save roles</button>
+        <button type="button" class="btn btn-primary" @onclick="SaveAccess">Save</button>
     </div>
 </Modal>
+}
 
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
@@ -213,29 +239,95 @@
         _rAdmin = roles.Contains("Admin");
         _rManager = roles.Contains("Manager");
         _rStaff = roles.Contains("Staff");
+        _manageStores = new StoreChoice { All = u.AllSites, Ids = u.SiteIds.ToHashSet() };
+        _manageError = null;
         _showManage = true;
     }
 
-    private async Task SaveRoles()
+    private async Task SaveAccess()
     {
         if (_sel is null) return;
         var roles = new List<string>();
         if (_rAdmin) roles.Add("Admin");
         if (_rManager) roles.Add("Manager");
         if (_rStaff) roles.Add("Staff");
-        await Data.UpdateUserRoles(_sel.Email, roles);
+
+        // The API refuses to leave the deployment without an admin of every store, and that
+        // has to reach the admin as words rather than as a closed dialog and a stale list.
+        _manageError = await Data.UpdateUserAccess(_sel.Id, roles, _manageStores.All, _manageStores.Ids);
+        if (_manageError is not null) return;
+
         _showManage = false;
-        Toast.Show("Roles updated");
+        Toast.Show("Access updated");
     }
 
     private async Task SendInvite()
     {
-        _inviteError = await Data.AddUser(_invite.Name, _invite.Email, _invite.Role, _invite.Password);
+        _inviteError = await Data.AddUser(_invite.Name, _invite.Email, _invite.Role, _invite.Password,
+            _inviteStores.All, _inviteStores.Ids);
 
         if (_inviteError is not null) return;
 
         _showInvite = false;
         _invite = new();
+        _inviteStores = new();
         Toast.Show("User added");
+    }
+
+    // ---- Stores (T9) --------------------------------------------------------------------------
+
+    // Every store, or exactly the ticked ones. Nothing ticked is a real answer — a colleague
+    // who can sign in and change their password but act for no store — so it is not refused,
+    // only said.
+    private sealed class StoreChoice
+    {
+        public bool All { get; set; }
+        public HashSet<int> Ids { get; set; } = new();
+    }
+
+    private StoreChoice _inviteStores = new();
+    private StoreChoice _manageStores = new();
+    private string? _manageError;
+
+    private RenderFragment StorePicker(StoreChoice choice) =>
+        @<div class="store-picker">
+            <span class="field-label mb">Stores</span>
+            <label class="role-check">
+                <input type="checkbox" class="store-all" checked="@choice.All"
+                       @onchange="args => choice.All = args.Value is true" />
+                All stores — including stores added later, and managing staff
+            </label>
+            @foreach (var site in Data.Sites)
+            {
+                var id = site.Id;
+                <label class="role-check">
+                    <input type="checkbox" class="store-one" value="@site.SiteKey" disabled="@choice.All"
+                           checked="@(choice.All || choice.Ids.Contains(id))"
+                           @onchange="args => Toggle(choice, id, args.Value is true)" />
+                    @site.Name
+                </label>
+            }
+            <span class="field-note @(!choice.All && choice.Ids.Count == 0 ? "field-note--warn" : null)">
+                @(choice.All
+                    ? "They can act for every store, and manage staff."
+                    : choice.Ids.Count == 0
+                        ? "With no store they can sign in but see no store's customers, quotes or orders."
+                        : "They can act only for the ticked stores, and cannot manage staff.")
+            </span>
+        </div>;
+
+    private static void Toggle(StoreChoice choice, int siteId, bool on)
+    {
+        if (on) choice.Ids.Add(siteId);
+        else choice.Ids.Remove(siteId);
+    }
+
+    private string StoresLabel(User u)
+    {
+        if (u.AllSites) return "All stores";
+
+        var names = Data.Sites.Where(site => u.SiteIds.Contains(site.Id)).Select(site => site.Name).ToList();
+
+        return names.Count == 0 ? "None" : string.Join(", ", names);
     }
 }

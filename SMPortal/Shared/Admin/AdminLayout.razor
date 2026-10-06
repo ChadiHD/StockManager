@@ -54,9 +54,13 @@
         </NavLink>
 
         <span class="nav-heading section">Administration</span>
-        <NavLink href="admin/users" @onclick="CloseNav">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users &amp; roles
-        </NavLink>
+        @if (Data.ManagesAllStores)
+        {
+          @* Managing staff takes an admin of every store (T9); the API refuses anyone else. *@
+          <NavLink href="admin/users" @onclick="CloseNav">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users &amp; roles
+          </NavLink>
+        }
         <NavLink href="admin/reports" @onclick="CloseNav">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16"/><path d="M8 17v-5M13 17V8M18 17v-3"/></svg>Reports
         </NavLink>
@@ -130,6 +134,15 @@
         }
         else
         {
+          @if (!Data.HasStoreAccess)
+          {
+            @* Still renders the page beneath: an admin with no store can change their password,
+               and everything else shows its own empty state. *@
+            <div class="alert no-store-access" role="status">
+              <strong>You have not been given a store to act for.</strong>
+              <span>An admin of every store can give you one under Users &amp; roles.</span>
+            </div>
+          }
           @Body
         }
       </main>
