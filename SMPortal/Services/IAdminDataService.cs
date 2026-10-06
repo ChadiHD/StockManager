@@ -134,6 +134,15 @@ public interface IAdminDataService
     Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,
         bool allSites, IEnumerable<int> siteIds);
 
+    /// <summary>
+    /// The acting store's settings, fetched when the settings screen opens rather than held in
+    /// the snapshot: one store's configuration, read by one page (T9).
+    /// </summary>
+    Task<StoreSettingsView?> GetStoreSettings();
+
+    /// <summary>Saves the acting store's settings. Returns why they were refused, or null.</summary>
+    Task<string?> SaveStoreSettings(StoreSettings settings);
+
     /// <summary>The signed-in user's own password. Returns why it was refused, or null.</summary>
     Task<string?> ChangePassword(string currentPassword, string newPassword);
 

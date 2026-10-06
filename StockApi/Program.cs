@@ -78,9 +78,7 @@ builder.Services.AddTransient<IUserData, UserData>();
 
 // Same rule set the storefront uses: an admin converting a quote and a customer accepting
 // one must not reach different answers about the same sale.
-builder.Services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
-builder.Services.AddSingleton<TaxRuleSetProvider>();
-builder.Services.AddSingleton<TaxAssessor>();
+builder.Services.AddTaxRuleSets();
 // Distributor stock feeds are defined in the database and managed from the admin portal.
 // Credentials never live in appsettings or in the feed table — an IFeedSecretStore holds them
 // and the row keeps only a reference. FeedSecrets:Provider selects the store per environment.

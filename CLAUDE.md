@@ -1427,11 +1427,23 @@ history modal, which is the pull half. Neither is enough alone: nobody watches a
 - **`Site.OperatorEmail` has no platform-wide fallback.** The message names this store's
   distributor and quotes its status text; delivering that to another tenant's operator because
   a column was blank would be a disclosure. NULL logs at Warning instead.
-- **`Site` has no admin screen**, so `OperatorEmail`, `FeedStaleAfterHours`,
-  `HideStaleProducts`, `MinMarginPct`, `PriceDisplay` and — since T6 — `TaxRuleSet`,
-  `StandardTaxRatePct` and `TaxRegistrationNumber` are all set by updating the row, as is a
-  store's own mail wording in `dbo.SiteEmailTemplate`. That is a gap, not a design: a tenant
-  cannot configure its own staleness policy, tax rate or customer mail without database access.
+- **`Site` is edited at `/admin/store` since T9.** Every column except `SiteKey` and
+  `IsActive` is saved through `spSite_Update`.
+  - **Two kinds of check.** `SiteSettingsRules` checks what only code knows: the keys, host
+    names, locales and addresses. The procedure checks what only the data knows.
+  - **The currency is locked** once `dbo.fnSite_CurrencyLocked` finds an account, a quote or a
+    feed.
+  - **Only an admin of every store may change `Domain`**, because DNS and the domain binding
+    move with it.
+  - **Keyed settings come from `SiteSettingKeys`.** `SiteSettingKeysTests` fails if that list
+    and the registered implementations disagree, so a new rule set, field set or ordering mode
+    is one line in its `Add*` extension plus one key. `PriceDisplay` also has
+    `CK_Site_PriceDisplay`.
+  - **Legal identity is printed.** `LegalName`, `CompanyRegistrationNumber`,
+    `RegisteredAddress` and `TaxRegistrationNumber` appear in the footer and on the document
+    sheet, through `LegalIdentity`.
+  - **When a change shows.** The storefront sees it within `Sites:CacheDuration`. The API sees
+    it at once, because the save evicts the admin site cache.
 
 **Delisting is flagged, never deleted, and `DelistedProductHistoryTests` is what holds that.**
 A product the distributor dropped still resolves on the quote that already contains it —

@@ -85,3 +85,13 @@
 }
 
 .site-footer__legal-links a { font-size: 12px; }
+
+/* The store's legal identity, above the legal strip: small print, but print a customer may need
+   to quote, so it wraps rather than truncating. */
+.site-footer__identity {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: 0.7;
+    overflow-wrap: anywhere;
+}

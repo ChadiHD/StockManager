@@ -9,6 +9,7 @@ BEGIN
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
 	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail],
 	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber], [MailFromAddress],
+	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress],
 	       [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	ORDER BY [Name];

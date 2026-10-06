@@ -46,8 +46,16 @@
             }
         </div>
 
+        @if (Identity.Count > 0)
+        {
+            @* Who the store legally is (T9): the company, its number, its VAT number and its
+               registered office, which company law expects on a trading website. Only what the
+               store has filled in; nothing is invented for a blank. *@
+            <p class="site-footer__identity">@string.Join(" · ", Identity)</p>
+        }
+
         <div class="site-footer__legal">
-            <span>© @DateTime.UtcNow.Year @SiteContext.Site.Name</span>
+            <span>© @DateTime.UtcNow.Year @(SiteContext.Site.LegalName ?? SiteContext.Site.Name)</span>
             <div class="site-footer__legal-links">
                 @* Prices are quoted excluding tax everywhere until the tax engine lands in T6,
                    at which point this line becomes a per-site statement rather than a constant. *@
@@ -72,4 +80,6 @@
     private SiteTheme _theme = default!;
 
     protected override void OnInitialized() => _theme = Themes.Resolve(SiteContext.Site.SiteKey);
+
+    private List<string> Identity => LegalIdentity.Lines(SiteContext.Site);
 }

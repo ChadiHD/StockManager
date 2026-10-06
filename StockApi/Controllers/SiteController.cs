@@ -1,7 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using SMDataManager.Library.DataAccess;
+using SMDataManager.Library.Models;
+using StockApi.Sites;
 
 namespace StockApi.Controllers
 {
@@ -50,6 +53,63 @@ namespace StockApi.Controllers
                 .ToList();
 
             return Ok(options);
+        }
+
+        /// <summary>
+        /// The acting store's settings, with the values each keyed setting may take (T9).
+        /// </summary>
+        public record SettingsView(
+            SiteSettingsModel Site,
+            bool CanChangeDomain,
+            IReadOnlyList<string> OrderModes,
+            IReadOnlyList<string> RegistrationFieldSets,
+            IReadOnlyList<string> TaxRuleSets,
+            IReadOnlyList<string> PriceDisplays);
+
+        [HttpGet("Settings")]
+        public ActionResult<SettingsView> GetSettings([FromServices] IAdminSiteContext site)
+        {
+            var settings = _siteData.GetSettings(site.SiteId);
+
+            return settings is null
+                ? NotFound()
+                : new SettingsView(settings, ManagesEveryStore(),
+                    SiteSettingKeys.OrderModes, SiteSettingKeys.RegistrationFieldSets,
+                    SiteSettingKeys.TaxRuleSets, SiteSettingKeys.PriceDisplays);
+        }
+
+        [HttpPut("Settings")]
+        public IActionResult UpdateSettings(
+            SiteModel edited, [FromServices] IAdminSiteContext site, [FromServices] IMemoryCache cache)
+        {
+            var current = _siteData.GetSettings(site.SiteId);
+            if (current is null) return NotFound();
+
+            // Whatever the body says, it is the acting store's row that changes, under its own key.
+            edited.Id = current.Id;
+            edited.SiteKey = current.SiteKey;
+
+            // The domain is where customers find the store, and DNS and the platform's domain
+            // binding have to move with it, so it is an admin of every store's change to make.
+            if (!string.Equals(edited.Domain?.Trim(), current.Domain, StringComparison.OrdinalIgnoreCase)
+                && !ManagesEveryStore())
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    "Only an admin of every store can change a store's domain.");
+            }
+
+            var refusal = SiteSettingsRules.WhyRefused(edited) ?? _siteData.UpdateSettings(edited);
+            if (refusal is not null) return BadRequest(refusal);
+
+            AdminSiteResolutionMiddleware.Forget(cache, current.SiteKey);
+
+            return NoContent();
+        }
+
+        private bool ManagesEveryStore()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            return _users.GetUserById(userId).FirstOrDefault()?.AllSites == true;
         }
     }
 }

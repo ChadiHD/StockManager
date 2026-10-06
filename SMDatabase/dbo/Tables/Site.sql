@@ -94,7 +94,22 @@ CREATE TABLE [dbo].[Site]
 	-- publish appends rather than rebuilds.
 	[MailFromAddress] NVARCHAR(320) NULL,
 
+	/*
+	Who the store legally is, printed in the footer and on every quote and order document beside
+	TaxRegistrationNumber (T9). Company law in Ireland and the UK expects a trading website and its
+	business documents to name the company, its registration number and its registered office,
+	and a store's display Name is a brand, not a company. NULL prints nothing, and activation
+	refuses a store with no LegalName. Last, like every column since T6.
+	*/
+	[LegalName] NVARCHAR(200) NULL,
+	[CompanyRegistrationNumber] NVARCHAR(50) NULL,
+	[RegisteredAddress] NVARCHAR(400) NULL,
+
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
+	-- Nothing validated this before T9: CatalogPresenter compares against 'Authenticated', so a
+	-- typo behaved as 'Public' and showed a trade store's prices to everyone. Written as the OR
+	-- chain SQL Server stores, not as IN (...) — see CK_Quote_Status.
+	CONSTRAINT [CK_Site_PriceDisplay] CHECK ([PriceDisplay]=N'Authenticated' OR [PriceDisplay]=N'Public'),
 	-- Host resolution looks a site up by domain, so a domain must name exactly one site.
 	CONSTRAINT [UQ_Site_Domain] UNIQUE ([Domain])
 )

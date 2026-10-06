@@ -95,9 +95,7 @@ builder.Services.AddScoped<CatalogPresenter>();
 // One tax rule set per store, selected by Site.TaxRuleSet. Registered on both hosts because
 // an order can be raised from either — the customer accepting their own quote here, and an
 // admin converting one through StockApi — and two engines would disagree about the same sale.
-builder.Services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
-builder.Services.AddSingleton<TaxRuleSetProvider>();
-builder.Services.AddSingleton<TaxAssessor>();
+builder.Services.AddTaxRuleSets();
 
 // Multi-store plumbing. SiteContext is registered as itself and behind the interface so
 // middleware can write to it while everything else only reads.
@@ -107,9 +105,8 @@ builder.Services.AddSingleton<SiteThemeResolver>();
 builder.Services.AddScoped<SiteContext>();
 builder.Services.AddScoped<ISiteContext>(services => services.GetRequiredService<SiteContext>());
 
-// Ordering behaviour is per site. Register every implementation; OrderingModeProvider picks.
-builder.Services.AddSingleton<IOrderingMode, RfqOrderingMode>();
-builder.Services.AddScoped<OrderingModeProvider>();
+// Ordering behaviour is per site. Every implementation is registered; OrderingModeProvider picks.
+builder.Services.AddOrderingModes();
 
 // The basket. BasketService reads the request cookie, so it needs the accessor and has to be
 // scoped; nothing else in the storefront resolves HttpContext outside an endpoint.
@@ -123,10 +120,8 @@ builder.Services.AddScoped<QuoteSubmissionService>();
 builder.Services.AddScoped<CustomerOrderPresenter>();
 builder.Services.AddScoped<QuoteDecisionService>();
 
-// What a customer application demands, likewise per site. Field sets are stateless rules, so
-// singletons; the provider is scoped because it reads the request's site.
-builder.Services.AddSingleton<IRegistrationFieldSet, EuB2bRegistrationFieldSet>();
-builder.Services.AddScoped<RegistrationFieldSetProvider>();
+// What a customer application demands, likewise per site.
+builder.Services.AddRegistrationFieldSets();
 
 /*
 Identity, for creating and later authenticating customer logins.

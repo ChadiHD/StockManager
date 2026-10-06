@@ -1069,6 +1069,34 @@ public class AdminDataService : IAdminDataService
             siteIds);
     }
 
+    // ---- Store settings (T9) --------------------------------------------------------------------
+
+    public async Task<StoreSettingsView?> GetStoreSettings()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await _client.GetFromJsonAsync<StoreSettingsView>($"{_api}/api/Site/Settings");
+    }
+
+    public async Task<string?> SaveStoreSettings(StoreSettings settings)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync($"{_api}/api/Site/Settings", settings);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "The store's settings could not be saved.");
+        }
+
+        // The selector shows the store's name, which may just have changed.
+        _sites.Clear();
+        await EnsureSiteAsync();
+
+        return null;
+    }
+
     public async Task<string?> ChangePassword(string currentPassword, string newPassword)
     {
         await EnsureAuthHeaderAsync();

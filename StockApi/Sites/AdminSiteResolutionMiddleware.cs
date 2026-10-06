@@ -118,6 +118,16 @@ namespace StockApi.Sites
             return false;
         }
 
+        /// <summary>
+        /// Drops the cached rows for a store, after its settings change (T9), so the API's next
+        /// request reads what was just saved rather than what was there a minute ago.
+        /// </summary>
+        public static void Forget(IMemoryCache cache, string siteKey)
+        {
+            cache.Remove($"adminsite:{siteKey}");
+            cache.Remove("adminsite:all");
+        }
+
         private List<SiteModel> Lookup(string key, Func<List<SiteModel>> load) =>
             _cache.GetOrCreate($"adminsite:{key}", entry =>
             {

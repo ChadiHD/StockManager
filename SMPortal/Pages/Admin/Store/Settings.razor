@@ -1,0 +1,236 @@
+@page "/admin/store"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Store settings · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Administration</span><h1>Store settings</h1></div>
+</div>
+
+@* Everything a store is configured with (T9). Until this page each value was set by updating
+   dbo.Site by hand, and a typo surfaced as a 500 on the store's next request. The options for
+   the keyed settings come from the API, which refuses anything else. *@
+@if (_loadError is not null)
+{
+    <div class="alert error" role="alert">@_loadError</div>
+}
+else if (_view is null)
+{
+    <div class="panel panel-pad">Loading the store's settings…</div>
+}
+else
+{
+    var s = _view.Site;
+
+    <EditForm Model="s" OnValidSubmit="Save" class="stack store-settings">
+        <div class="panel panel-pad">
+            <span class="card-kicker">The store</span>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="store-name">Name</label>
+                    <InputText id="store-name" class="input" @bind-Value="s.Name" />
+                    <span class="field-note">What customers see in the header and on documents.</span>
+                </div>
+                <div class="field">
+                    <label for="store-key">Key</label>
+                    <input id="store-key" class="input mono" value="@s.SiteKey" disabled />
+                    <span class="field-note">Fixed: it names the store's theme files.</span>
+                </div>
+                <div class="field span2">
+                    <label for="store-domain">Domain</label>
+                    <InputText id="store-domain" class="input" @bind-Value="s.Domain" disabled="@(!_view.CanChangeDomain)" />
+                    <span class="field-note @(_view.CanChangeDomain ? "field-note--warn" : null)">
+                        @(_view.CanChangeDomain
+                            ? "Changing this takes the store off its current address. DNS and the platform's domain binding must move with it."
+                            : "Only an admin of every store can change a store's domain.")
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-pad">
+            <span class="card-kicker">Country and money</span>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="store-country">Country</label>
+                    <InputText id="store-country" class="input" maxlength="2" @bind-Value="s.Country" />
+                    <span class="field-note">Two letters, such as IE or GB. Tax decides who is domestic from this.</span>
+                </div>
+                <div class="field">
+                    <label for="store-currency">Currency</label>
+                    <InputText id="store-currency" class="input" maxlength="3" @bind-Value="s.CurrencyCode" disabled="@s.CurrencyLocked" />
+                    <span class="field-note">
+                        @(s.CurrencyLocked
+                            ? "Fixed: the store has accounts, quotes or a feed, and every price it holds is in this currency."
+                            : "Three letters, such as EUR or GBP. Fixed once the store holds any prices.")
+                    </span>
+                </div>
+                <div class="field">
+                    <label for="store-locale">Locale</label>
+                    <InputText id="store-locale" class="input" @bind-Value="s.Locale" />
+                    <span class="field-note">How money and dates are written, such as en-IE or en-GB.</span>
+                </div>
+                <div class="field">
+                    <label for="store-margin">Minimum margin (%)</label>
+                    <InputNumber id="store-margin" class="input" @bind-Value="s.MinMarginPct" />
+                    <span class="field-note">No discount sells below cost plus this. Zero turns it off.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-pad">
+            <span class="card-kicker">Selling</span>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="store-prices">Prices are shown to</label>
+                    <InputSelect id="store-prices" class="input" @bind-Value="s.PriceDisplay">
+                        @foreach (var option in _view.PriceDisplays) { <option value="@option">@Label(option)</option> }
+                    </InputSelect>
+                </div>
+                <div class="field">
+                    <label for="store-ordering">Ordering</label>
+                    <InputSelect id="store-ordering" class="input" @bind-Value="s.OrderMode">
+                        @foreach (var option in _view.OrderModes) { <option value="@option">@Label(option)</option> }
+                    </InputSelect>
+                </div>
+                <div class="field span2">
+                    <label for="store-registration">Registration form</label>
+                    <InputSelect id="store-registration" class="input" @bind-Value="s.RegistrationFieldSet">
+                        @foreach (var option in _view.RegistrationFieldSets) { <option value="@option">@Label(option, registration: true)</option> }
+                    </InputSelect>
+                    <span class="field-note">What an applicant is asked for. Changing it does not change accounts already open.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-pad">
+            <span class="card-kicker">Tax</span>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="store-tax-rules">Tax rules</label>
+                    <InputSelect id="store-tax-rules" class="input" @bind-Value="s.TaxRuleSet">
+                        @foreach (var option in _view.TaxRuleSets) { <option value="@option">@Label(option)</option> }
+                    </InputSelect>
+                    <span class="field-note">Applies to orders from now on; an order keeps the tax it was raised with.</span>
+                </div>
+                <div class="field">
+                    <label for="store-tax-rate">Standard rate (%)</label>
+                    <InputNumber id="store-tax-rate" class="input" @bind-Value="s.StandardTaxRatePct" />
+                    <span class="field-note @(s.StandardTaxRatePct == 0 ? "field-note--warn" : null)">
+                        @(s.StandardTaxRatePct == 0 ? "At zero, domestic customers are charged no tax at all." : "Charged to domestic customers.")
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-pad">
+            <span class="card-kicker">Legal identity</span>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="store-legal-name">Legal name</label>
+                    <InputText id="store-legal-name" class="input" @bind-Value="s.LegalName" />
+                    <span class="field-note">The company, which the store's name may not be.</span>
+                </div>
+                <div class="field">
+                    <label for="store-company-number">Company number</label>
+                    <InputText id="store-company-number" class="input" @bind-Value="s.CompanyRegistrationNumber" />
+                </div>
+                <div class="field">
+                    <label for="store-vat-number">VAT number</label>
+                    <InputText id="store-vat-number" class="input" @bind-Value="s.TaxRegistrationNumber" />
+                    <span class="field-note">Printed on every quote and order, so customers can reclaim VAT.</span>
+                </div>
+                <div class="field">
+                    <label for="store-registered-office">Registered office</label>
+                    <InputText id="store-registered-office" class="input" @bind-Value="s.RegisteredAddress" />
+                </div>
+            </div>
+            <span class="field-note">Shown in the footer and on documents. Blank prints nothing.</span>
+        </div>
+
+        <div class="panel panel-pad">
+            <span class="card-kicker">Mail and stock</span>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="store-mail-from">Mail is sent from</label>
+                    <InputText id="store-mail-from" class="input" type="email" @bind-Value="s.MailFromAddress" />
+                    <span class="field-note">On a domain verified for this store. Blank sends none.</span>
+                </div>
+                <div class="field">
+                    <label for="store-operator">Operator alerts go to</label>
+                    <InputText id="store-operator" class="input" type="email" @bind-Value="s.OperatorEmail" />
+                    <span class="field-note">Failed and stale feeds, undeliverable mail. Blank logs only.</span>
+                </div>
+                <div class="field">
+                    <label for="store-stale-hours">Stock is stale after (hours)</label>
+                    <InputNumber id="store-stale-hours" class="input" @bind-Value="s.FeedStaleAfterHours" />
+                    <span class="field-note">Zero: never.</span>
+                </div>
+                <div class="field">
+                    <label class="switch-row"><InputCheckbox id="store-hide-stale" @bind-Value="s.HideStaleProducts" /> Hide stale stock from the shop</label>
+                    <span class="field-note">Otherwise stale stock stays on sale and is only alerted.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-pad store-settings__save">
+            <span class="field-note store-settings-status @(_refusal is not null ? "field-note--warn" : null)">
+                @(_refusal ?? "The storefront picks up a change within five minutes, the portal at once.")
+            </span>
+            <button type="submit" class="btn btn-primary store-settings-save" disabled="@_saving">Save settings</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private StoreSettingsView? _view;
+    private string? _loadError;
+    private string? _refusal;
+    private bool _saving;
+
+    protected override void OnParametersSet() => Layout?.SetPage("Store settings", "How this store sells, taxes and identifies itself");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _view = await Data.GetStoreSettings();
+            _loadError = _view is null ? "This store's settings could not be found." : null;
+        }
+        catch (Exception exception)
+        {
+            _loadError = exception.Message;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_view is null) return;
+
+        _saving = true;
+        _refusal = await Data.SaveStoreSettings(_view.Site);
+        _saving = false;
+
+        if (_refusal is null)
+        {
+            Toast.Show("Store settings saved");
+        }
+    }
+
+    // Words for the keys. A key the portal has no words for shows as itself rather than not at
+    // all: the API's list is the authority on what exists.
+    private static string Label(string key, bool registration = false) => (key, registration) switch
+    {
+        ("Public", _) => "Everyone",
+        ("Authenticated", _) => "Signed-in customers only",
+        ("Rfq", _) => "Quote first: customers ask, staff price",
+        ("eu-b2b", true) => "EU business: VAT number and company document",
+        ("eu-b2b", false) => "EU VAT, with the intra-EU reverse charge",
+        ("uk-b2b", true) => "UK business: Companies House number",
+        ("uk-b2b", false) => "UK VAT, exports zero-rated",
+        _ => key
+    };
+}

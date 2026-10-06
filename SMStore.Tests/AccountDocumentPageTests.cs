@@ -71,7 +71,11 @@ public class AccountDocumentPageTests : Bunit.TestContext
             CurrencyCode = "EUR",
             Locale = "en-IE",
             PriceDisplay = "Public",
-            OrderMode = RfqOrderingMode.ModeKey
+            OrderMode = RfqOrderingMode.ModeKey,
+            LegalName = "Test Store Trading Limited",
+            CompanyRegistrationNumber = "654321",
+            TaxRegistrationNumber = "IE1234567T",
+            RegisteredAddress = "1 Quay Street, Galway"
         });
         siteContext.IsResolved.Returns(true);
 
@@ -331,6 +335,22 @@ public class AccountDocumentPageTests : Bunit.TestContext
         cut.Markup.Should().Contain("Test store");
         cut.Markup.Should().Contain("Byron Instruments");
         cut.Find(".sheet__reference").TextContent.Should().Be("QT-0041");
+    }
+
+    [Fact]
+    public void APrintedDocumentCarriesTheIssuersLegalIdentityAndVatNumber()
+    {
+        // T9: Site.TaxRegistrationNumber was printed nowhere, and a customer cannot reclaim VAT
+        // against a document that does not carry the supplier's number.
+        QuoteIs("QT-0041", "Priced", DateTime.UtcNow.AddDays(7));
+
+        var cut = RenderComponent<AccountQuotePrint>(p => p.Add(x => x.Reference, "QT-0041"));
+
+        cut.FindAll(".sheet__legal").Select(line => line.TextContent).Should().Equal(
+            "Test Store Trading Limited",
+            "Company no. 654321",
+            "VAT no. IE1234567T",
+            "Registered office: 1 Quay Street, Galway");
     }
 
     [Fact]
