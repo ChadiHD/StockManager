@@ -551,6 +551,17 @@ Built in this order. Each item lists what proves it.
 - **Connecting to the live SFTP server is the operator's decision**, not part of this build.
 - Confirm with the distributor which column is cost and which is the recommended retail price,
   and whether either includes VAT.
+- **Built: the fallback is gone.**
+  - **The backfill is pre-deployment, not `Seed.sql`.** `Seed.sql` runs on every publish and
+    would have overwritten a UK feed's deliberately blank field with FlexIT's names each time.
+    `FillLegacyFeedFields.sql` runs once instead, guarded on `Product.FeedId` not existing yet,
+    which marks a pre-T9 database.
+  - **Proven on a scratch database.** An upgraded legacy feed kept its own mapping and gained
+    FlexIT's names for its blanks. A blank set afterwards survived a republish, and a new feed's
+    blanks were left alone.
+  - `FeedFieldMappingTests` holds the mapping.
+- **Not built: a second file format.** The UK distributor's specification is not in hand
+  (§7 question 5).
 
 **4c. The `uk-b2b` tax rule set.**
 

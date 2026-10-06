@@ -1469,6 +1469,15 @@ images afterwards, a batch at a time.
   from it leaks one per refresh for the life of the host. The composition root scopes each
   refresh instead.
 
+**A blank field mapping on a feed is unmapped, and nothing reads it** (T9).
+- **Until then.** `DistributorFeedModel.ToSettings` read a blank as FlexIT's element name, so
+  a second distributor's feed with a blank field read whatever its file held under FlexIT's
+  vocabulary.
+- **What replaced the fallback.** The feed form pre-fills FlexIT's names for a new feed.
+  `FillLegacyFeedFields.sql` wrote those names, once, into the feeds created before T9.
+- **That step must stay in pre-deployment, guarded on `Product.FeedId` being absent.** In
+  `Seed.sql` it would overwrite a later feed's deliberately blank field on every publish.
+
 **A feed is claimed before it is fetched, and a claim refused is not a failure.**
 `spDistributorFeed_ClaimForSync` sets `DistributorFeed.SyncStartedUtc` in one atomic `UPDATE`
 whose `WHERE` and `SET` share a row lock, so two callers arriving together cannot both take it;
