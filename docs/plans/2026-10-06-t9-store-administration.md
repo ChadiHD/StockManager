@@ -581,6 +581,9 @@ Built in this order. Each item lists what proves it.
   needs the accountant's sign-off before launch (A4, B4).
 - **Proof:** a decision-table test in the shape of `TaxRuleSetTests`, and the GBP E2E journey
   (item 4e).
+- **Built**, as `UkB2bTaxRuleSet` and `UkTaxRuleSetTests`. Ways of writing the United Kingdom —
+  `GB`, `UK`, `United Kingdom`, the four nations, `XI` — and a blank country are domestic. Every
+  other country, Ireland and the EU included, is an export, VAT number or not.
 
 **4d. The `uk-b2b` registration field set.**
 

@@ -20,7 +20,7 @@ namespace SMDataManager.Library.Models
 
         public static readonly IReadOnlyList<string> RegistrationFieldSets = new[] { "eu-b2b" };
 
-        public static readonly IReadOnlyList<string> TaxRuleSets = new[] { "eu-b2b" };
+        public static readonly IReadOnlyList<string> TaxRuleSets = new[] { "eu-b2b", "uk-b2b" };
 
         /// <summary>Also enforced by <c>CK_Site_PriceDisplay</c>.</summary>
         public static readonly IReadOnlyList<string> PriceDisplays = new[] { "Public", "Authenticated" };

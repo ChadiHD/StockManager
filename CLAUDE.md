@@ -50,6 +50,16 @@ dispatcher, every message on it in per-site wording, the quote-expiry sweep, and
 where two customers are charged differently for the same product. The plan opens with the four
 things that were already wrong — three numbers for one tax among them.
 
+**Since T9 there are two rule sets**, registered once through `AddTaxRuleSets` for both hosts:
+
+- **`eu-b2b`**: domestic, intra-EU reverse charge, or export.
+- **`uk-b2b`**: anywhere in the United Kingdom is domestic, Northern Ireland included.
+  Everywhere else is a zero-rated export, Ireland and the EU included, whatever VAT number the
+  customer gave.
+
+Neither is tax advice. Both are signed off by an accountant before launch, and the UK domestic
+reverse charge on phones and chips is not built.
+
 **T8 — store catalog control is built**, ahead of T7: the admin choosing which products each
 store sells, and prices shown to signed-in customers only, per
 `docs/plans/2026-10-05-t8-store-catalog-control.md`. **What a store sells is
