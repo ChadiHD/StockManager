@@ -85,13 +85,21 @@ publish`. **Nothing here deploys to Azure** (`.github/copilot-instructions.md`):
 `deploy-staging` workflow is run by hand. The load check at 50,000 products fails its target on
 the whole-catalog browse, and that is recorded as a decision in the plan's §7, not fixed.
 
-**T9 — store administration and a second country is in progress (items 1–3 built)**, per
+**T9 — store administration and a second country is built**, per
 `docs/plans/2026-10-06-t9-store-administration.md`. aclitech.co.uk (UK, GBP, its own UK
-distributor) now launches with aclitrade.ie, from one deployment and one portal. Before either
-tenant starts, T9 delivers the schema-deploy cleanup, store-limited admins, admin screens for
-everything a store is configured with by SQL, products tied to the feed and currency they came
-from, and `uk-b2b` tax and registration. Its §1 lists what reading the code found, and the
-rest of this file describes the code as it stands until each item lands.
+distributor) now launches with aclitrade.ie, from one deployment and one portal. T9 adds:
+
+- the schema-deploy cleanup, and a CI step that fails on any drift like it;
+- store-limited admins;
+- admin screens for everything a store was configured with by SQL — settings and legal
+  identity, categories, content pages and the home page, email wording, and stores created
+  closed and opened against a checklist;
+- products tied to the feed and currency they came from;
+- `uk-b2b` tax and registration.
+
+Its §1 lists what reading the code found. A new store is now `docs/runbooks/new-store.md`, and
+none of it is code: a store's theme files and domains live in a downstream repository, of which
+this template is the upstream.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.

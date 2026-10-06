@@ -40,8 +40,26 @@ for aclitech.co.uk (implementation plan §5).
 - **Idle publishes.** Publishing the DACPAC to a database already at the current schema performs
   no operations, and CI asserts it.
 
-**Status: items 1–3 built**, on `t9-store-administration`, a commit per sub-item. Built in three pull requests: items
-1–2, item 3, then items 4–5.
+**Status: built**, items 1–5, on `t9-store-administration`, a commit per sub-item. Planned as three pull requests: items
+1–2, item 3, then items 4–5. Items 1–2 were pushed for review first, and the rest followed on the
+same branch, as asked.
+
+**Exit, checked:**
+
+- **Store-limited admins.** `StoreAccessJourneyTests`: one store offered, a forged header
+  refused like an unknown one, and revocation applying on the next request.
+- **A new store with no SQL.** `NewStoreJourneyTests` creates a store, is refused opening it,
+  sets it up and opens it in the portal, and its storefront serves what was typed.
+- **Two currencies on one database.**
+  - `TwoCountryJourneyTests` covers the storefronts, the quote and the order.
+  - `ProductProvenanceTests` covers the categories screen, own stock and orphans.
+- **Feed renames.** `ProductProvenanceTests`.
+- **UK tax and UK registration.**
+  - `TwoCountryJourneyTests`: 20% domestic, and an Irish customer as an export.
+  - `UkTaxRuleSetTests` and `UkB2bRegistrationFieldSetTests`.
+- **Legal identity.** The footer and `DocumentSheet`, held by `AccountDocumentPageTests`; it
+  also appears in the new-store journey's footer.
+- **Idle publishes.** CI's deploy-report step, and every scratch-database check in this plan.
 
 ---
 
@@ -646,6 +664,13 @@ The template is already clean: ACL is named only in comments and tests, and the 
   files outside its own `SMStore/wwwroot/sites/{key}/`, deployment configuration and workflows.
   The guard is a snippet in the runbook; the workflow belongs to the downstream repo.
 - `CLAUDE.md` and the implementation plan, brought up to date as each item lands.
+- **Built.**
+  - **`docs/runbooks/new-store.md`** covers creating, setting up and opening a store from the
+    portal, the downstream repository and its path guard, and the long lead times.
+  - **`docs/runbooks/production.md`** sets a store's sending address on the settings screen
+    rather than by `UPDATE`, and its example domain is no longer a tenant's.
+  - **Shared code is clean.** It names a tenant only in one comment, as an example. The person's
+    steps in §4 — tagging `template-v1`, creating the downstream repository — are still theirs.
 
 ---
 

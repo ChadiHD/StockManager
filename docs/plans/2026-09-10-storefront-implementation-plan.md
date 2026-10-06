@@ -350,7 +350,8 @@ other; an anonymous visitor to an `Authenticated` store sees no price anywhere.
 
 ### T9 — Store administration and a second country (5–6 weeks)
 
-Detail plan: `docs/plans/2026-10-06-t9-store-administration.md`.
+Detail plan: `docs/plans/2026-10-06-t9-store-administration.md`. **Built, 2026-10-06**; a new
+store is now `docs/runbooks/new-store.md`.
 
 Added 2026-10-06, when aclitech.co.uk joined v1:
 
