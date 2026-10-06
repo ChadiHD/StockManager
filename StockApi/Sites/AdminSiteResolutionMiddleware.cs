@@ -78,14 +78,10 @@ namespace StockApi.Sites
             }
 
             // Cached because every admin request pays for this, and a site row changes about
-            // as often as a deployment.
-            var match = Lookup(key, () =>
-            {
-                var found = sites.GetSiteByKey(key);
-                return found is null ? new List<SiteModel>() : new List<SiteModel> { found };
-            });
-
-            return match.FirstOrDefault(s => s.IsActive);
+            // as often as a deployment. Inactive stores included (T9): a store is created
+            // inactive and configured before it opens, and MayActFor decides who may see one.
+            return Lookup(key, () => sites.GetSites().Where(s => s.SiteKey == key).ToList())
+                .FirstOrDefault();
         }
 
         /*
@@ -102,7 +98,13 @@ namespace StockApi.Sites
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            if (!string.IsNullOrEmpty(userId) && users.CanActForSite(userId, site.Id))
+            // A store that is not open yet is being set up, which is an admin of every store's
+            // job: they created it and they open it. Anybody else meets it as nothing.
+            var allowed = !string.IsNullOrEmpty(userId) && (site.IsActive
+                ? users.CanActForSite(userId, site.Id)
+                : users.GetUserById(userId).FirstOrDefault()?.AllSites == true);
+
+            if (allowed)
             {
                 return true;
             }

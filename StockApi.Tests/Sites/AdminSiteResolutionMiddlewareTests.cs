@@ -132,7 +132,7 @@ public class AdminSiteResolutionMiddlewareTests
     public async Task ResolvesTheSiteNamedByTheHeaderWhenMultipleStoresExist()
     {
         var storeB = new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true };
-        _sites.GetSiteByKey("store-b").Returns(storeB);
+        _sites.GetSites().Returns(new List<SiteModel> { storeB });
 
         var siteContext = new AdminSiteContext();
         var context = HttpContext(siteKeyHeader: "store-b");
@@ -176,23 +176,32 @@ public class AdminSiteResolutionMiddlewareTests
     }
 
     [Fact]
-    public async Task IgnoresAnInactiveSiteNamedByTheHeader()
+    public async Task AnInactiveStoreIsNothingToAnAdminGivenStores()
     {
+        // Even one given that very store: a store that is not open is being set up, and that is
+        // an admin of every store's job (T9).
         var inactive = new SiteModel { Id = 3, SiteKey = "closed-store", IsActive = false };
-        _sites.GetSiteByKey("closed-store").Returns(inactive);
+        _sites.GetSites().Returns(new List<SiteModel> { inactive });
+        _users.CanActForSite("limited", 3).Returns(true);
+        _users.GetUserById("limited").Returns(new List<UserModel> { new() { UserId = "limited", AllSites = false } });
 
-        var siteContext = new AdminSiteContext();
-        var context = HttpContext(siteKeyHeader: "closed-store");
+        var (context, seenKey) = await Request("closed-store", userId: "limited");
 
-        Task Next(HttpContext httpContext)
-        {
-            _ = siteContext.Site;
-            return Task.CompletedTask;
-        }
-
-        await Middleware(Next).InvokeAsync(context, siteContext, _sites, _users);
-
+        seenKey.Should().BeNull();
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task AnAdminOfEveryStoreCanActForAStoreThatIsNotOpenYet()
+    {
+        // A store is created inactive and configured before it opens; without this, the only
+        // way to configure one was to open it first.
+        _sites.GetSites().Returns(new List<SiteModel> { new() { Id = 3, SiteKey = "new-store", IsActive = false } });
+        _users.GetUserById("owner").Returns(new List<UserModel> { new() { UserId = "owner", AllSites = true } });
+
+        var (_, seenKey) = await Request("new-store", userId: "owner");
+
+        seenKey.Should().Be("new-store");
     }
 
     // ---- Store access (T9) -------------------------------------------------------------------
@@ -217,7 +226,7 @@ public class AdminSiteResolutionMiddlewareTests
     [Fact]
     public async Task AStoreTheCallerWasNotGivenIsAnsweredLikeAStoreThatDoesNotExist()
     {
-        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _sites.GetSites().Returns(new List<SiteModel> { new() { Id = 2, SiteKey = "store-b", IsActive = true } });
         _users.CanActForSite("limited", 2).Returns(false);
 
         var refused = await Request("store-b", userId: "limited");
@@ -232,7 +241,7 @@ public class AdminSiteResolutionMiddlewareTests
     [Fact]
     public async Task AStoreTheCallerWasGivenResolves()
     {
-        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _sites.GetSites().Returns(new List<SiteModel> { new() { Id = 2, SiteKey = "store-b", IsActive = true } });
         _users.CanActForSite("limited", 2).Returns(true);
 
         var (_, seenKey) = await Request("store-b", userId: "limited");
@@ -245,7 +254,7 @@ public class AdminSiteResolutionMiddlewareTests
     {
         // The site row is cached for a minute; access must not be, or a revoked admin keeps
         // working for that minute — and for as long as the token lives if it were a claim.
-        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _sites.GetSites().Returns(new List<SiteModel> { new() { Id = 2, SiteKey = "store-b", IsActive = true } });
         _users.CanActForSite("limited", 2).Returns(true, false);
 
         (await Request("store-b", userId: "limited")).SeenKey.Should().Be("store-b");
@@ -267,7 +276,7 @@ public class AdminSiteResolutionMiddlewareTests
     [Fact]
     public async Task AnAnonymousCallerActsForNoStore()
     {
-        _sites.GetSiteByKey("store-b").Returns(new SiteModel { Id = 2, SiteKey = "store-b", IsActive = true });
+        _sites.GetSites().Returns(new List<SiteModel> { new() { Id = 2, SiteKey = "store-b", IsActive = true } });
 
         var (_, seenKey) = await Request("store-b", userId: null);
 

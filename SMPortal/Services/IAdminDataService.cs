@@ -152,6 +152,18 @@ public interface IAdminDataService
     /// </summary>
     Task<(ContentPageItem? Saved, string? Refusal)> SaveContentPage(string key, string title, string? lede, string? bodyHtml);
 
+    /// <summary>
+    /// Creates a store, closed, to be configured and then opened (T9). Admins of every store
+    /// only. Returns the new store, or why it was refused.
+    /// </summary>
+    Task<(SiteOption? Created, string? Refusal)> CreateStore(NewStore store);
+
+    /// <summary>
+    /// Opens a store to customers — refused, naming what is missing, until its checklist is met —
+    /// or closes it. Returns why it was refused, or null.
+    /// </summary>
+    Task<string?> SetStoreOpen(string siteKey, bool open);
+
     /// <summary>Every message the acting store sends, with its wording (T9).</summary>
     Task<IReadOnlyList<EmailWording>> GetEmailWording();
 

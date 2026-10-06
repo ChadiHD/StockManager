@@ -87,6 +87,11 @@ public class AuthorizationSurfaceTests
         $"{nameof(PurchaseController)}.{nameof(PurchaseController.GetPurchaseReports)}",
         $"{nameof(InventoryController)}.{nameof(InventoryController.Get)}",
         $"{nameof(InventoryController)}.{nameof(InventoryController.Post)}",
+        // Creating, opening and closing stores: the store being acted on is not open, or is
+        // being taken away from customers, and an admin given some stores could open their own.
+        $"{nameof(SiteController)}.{nameof(SiteController.Create)}",
+        $"{nameof(SiteController)}.{nameof(SiteController.Open)}",
+        $"{nameof(SiteController)}.{nameof(SiteController.Close)}",
     ];
 
     public static IEnumerable<object[]> EveryStoreActions() =>

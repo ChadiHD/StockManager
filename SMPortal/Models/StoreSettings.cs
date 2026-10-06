@@ -78,3 +78,16 @@ public sealed class EmailWording
     public string? Subject { get; set; }
     public string? Body { get; set; }
 }
+
+/// <summary>What creating a store asks for (T9); the rest is set on the store settings screen.</summary>
+public sealed class NewStore
+{
+    public string SiteKey { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Domain { get; set; } = "";
+    public string Country { get; set; } = "";
+    public string CurrencyCode { get; set; } = "";
+    public string Locale { get; set; } = "";
+    public string RegistrationFieldSet { get; set; } = "";
+    public string TaxRuleSet { get; set; } = "";
+}

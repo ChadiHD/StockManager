@@ -79,5 +79,49 @@ namespace SMDataManager.Library.DataAccess
                 return ex.Message;
             }
         }
+
+        public (int Id, string Refusal) CreateSite(SiteModel site)
+        {
+            try
+            {
+                var id = _sqlDataAccess.LoadData<int, dynamic>("dbo.spSite_Insert", new
+                {
+                    site.SiteKey,
+                    site.Name,
+                    site.Domain,
+                    site.Country,
+                    site.CurrencyCode,
+                    site.Locale,
+                    site.RegistrationFieldSet,
+                    site.TaxRuleSet
+                }, "SMDatabase").FirstOrDefault();
+
+                return (id, null);
+            }
+            catch (SqlException ex) when (ex.Number is >= 50090 and <= 50099)
+            {
+                return (0, ex.Message);
+            }
+        }
+
+        public string SetActive(int siteId, bool isActive)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spSite_SetActive", new
+                {
+                    SiteId = siteId,
+                    IsActive = isActive,
+                    // One list of the pages a store must have written, the library's.
+                    RequiredContent = string.Join(",", SiteContentKeys.RequiredToOpen)
+                }, "SMDatabase");
+
+                return null;
+            }
+            catch (SqlException ex) when (ex.Number is >= 50090 and <= 50099)
+            {
+                return ex.Message;
+            }
+        }
     }
 }

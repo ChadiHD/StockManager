@@ -40,7 +40,7 @@ for aclitech.co.uk (implementation plan §5).
 - **Idle publishes.** Publishing the DACPAC to a database already at the current schema performs
   no operations, and CI asserts it.
 
-**Status: items 1–2 built**, on `t9-store-administration`. Built in three pull requests: items
+**Status: items 1–3 built**, on `t9-store-administration`, a commit per sub-item. Built in three pull requests: items
 1–2, item 3, then items 4–5.
 
 ---
@@ -442,6 +442,23 @@ Built in this order. Each item lists what proves it.
 - **E2E:** a store is created in the portal, configured, refused activation with a list, then
   activated, after which its storefront serves the content an admin typed. This replaces
   `SqlTestData`'s raw inserts for at least that journey.
+
+**Built**, a commit per sub-item. What building changed or added:
+
+- **The sanitizer runs on save only**, for the bUnit reason recorded under 2e.
+- **The domain has to be a bare host name**, and the settings screen refuses anything else: a
+  scheme or a port would make the store match no request.
+- **A save writes the row a customer reads.** The content save targets the locale row when one
+  exists, rather than the agnostic one.
+- **`AddTaxRuleSets`, `AddRegistrationFieldSets` and `AddOrderingModes`** are what
+  `SiteSettingKeysTests` resolves through, so a key with nothing behind it fails a test. So
+  does a page route with no key.
+- **Two T-SQL traps found on scratch databases.** A `VALUES` list cannot see an outer alias,
+  and the DACPAC builds anyway. A `%` in a `THROW` message empties it.
+- **Proof:**
+  - Each procedure's refusals were exercised on scratch databases.
+  - The routine filter is green on four projects.
+  - `NewStoreJourneyTests` is the twelfth journey, and the suite passes 12 of 12.
 
 ### 4. A second country (2–2.5 weeks, plus 4b if the file differs)
 

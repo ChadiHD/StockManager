@@ -8,5 +8,9 @@ namespace SMPortal.Models;
 /// floor, price visibility, ordering mode — that the selector has no business knowing, and
 /// that changing from a dropdown would be a far larger action than switching which store you
 /// are looking at.
+///
+/// IsActive arrived with store creation (T9): an admin of every store also sees, and sets up,
+/// the stores that are not open yet.
 /// </remarks>
-public sealed record SiteOption(int Id, string SiteKey, string Name, string? Country, string? CurrencyCode);
+public sealed record SiteOption(int Id, string SiteKey, string Name, string? Country, string? CurrencyCode,
+    bool IsActive = true);

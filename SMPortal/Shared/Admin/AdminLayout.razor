@@ -65,6 +65,9 @@
         </NavLink>
         @if (Data.ManagesAllStores)
         {
+          <NavLink href="admin/stores" @onclick="CloseNav">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Stores
+          </NavLink>
           @* Managing staff takes an admin of every store (T9); the API refuses anyone else. *@
           <NavLink href="admin/users" @onclick="CloseNav">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users &amp; roles
@@ -104,7 +107,7 @@
                     @onchange="OnSiteChanged">
               @foreach (var site in Data.Sites)
               {
-                <option value="@site.SiteKey" selected="@(site.SiteKey == Data.CurrentSiteKey)">@site.Name</option>
+                <option value="@site.SiteKey" selected="@(site.SiteKey == Data.CurrentSiteKey)">@site.Name@(site.IsActive ? null : " (not open)")</option>
               }
             </select>
           </div>
@@ -206,9 +209,14 @@
     // Switching store reloads every list in the workspace, so the page goes back to its
     // loading state rather than showing the previous store's rows under the new store's name
     // while the calls are in flight.
-    private async Task OnSiteChanged(ChangeEventArgs args)
+    private Task OnSiteChanged(ChangeEventArgs args) => SwitchToAsync(args.Value?.ToString());
+
+    /// <summary>
+    /// Acts for another store, as the selector does; the stores page calls this too (T9), for a
+    /// store just created or not open yet.
+    /// </summary>
+    public async Task SwitchToAsync(string? siteKey)
     {
-        var siteKey = args.Value?.ToString();
         if (string.IsNullOrWhiteSpace(siteKey) || siteKey == Data.CurrentSiteKey) return;
 
         switching = true;

@@ -1141,6 +1141,47 @@ public class AdminDataService : IAdminDataService
             : (null, await Problem(response, "That page could not be saved."));
     }
 
+    public async Task<(SiteOption? Created, string? Refusal)> CreateStore(NewStore store)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsJsonAsync($"{_api}/api/Site", store);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return (null, await Problem(response, "The store could not be created."));
+        }
+
+        var created = await response.Content.ReadFromJsonAsync<SiteOption>();
+        await ReloadSitesAsync();
+
+        return (created, null);
+    }
+
+    public async Task<string?> SetStoreOpen(string siteKey, bool open)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsync(
+            $"{_api}/api/Site/{Uri.EscapeDataString(siteKey)}/{(open ? "Open" : "Close")}", content: null);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, open ? "The store could not be opened." : "The store could not be closed.");
+        }
+
+        await ReloadSitesAsync();
+
+        return null;
+    }
+
+    // The selector's list, after a store was added, opened or closed.
+    private async Task ReloadSitesAsync()
+    {
+        _sites.Clear();
+        await EnsureSiteAsync();
+    }
+
     public async Task<IReadOnlyList<EmailWording>> GetEmailWording()
     {
         await EnsureAuthHeaderAsync();

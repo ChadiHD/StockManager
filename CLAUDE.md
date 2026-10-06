@@ -75,7 +75,7 @@ publish`. **Nothing here deploys to Azure** (`.github/copilot-instructions.md`):
 `deploy-staging` workflow is run by hand. The load check at 50,000 products fails its target on
 the whole-catalog browse, and that is recorded as a decision in the plan's §7, not fixed.
 
-**T9 — store administration and a second country is in progress (items 1–2 built)**, per
+**T9 — store administration and a second country is in progress (items 1–3 built)**, per
 `docs/plans/2026-10-06-t9-store-administration.md`. aclitech.co.uk (UK, GBP, its own UK
 distributor) now launches with aclitrade.ie, from one deployment and one portal. Before either
 tenant starts, T9 delivers the schema-deploy cleanup, store-limited admins, admin screens for
@@ -186,6 +186,20 @@ and there may be none.
 - **Signing out reloads the portal and forgets the selected store.** The snapshot lives in
   memory for the life of the WebAssembly app, so a navigation alone showed the next person at
   the browser the previous admin's stores and data.
+- **A store is created closed, at `/admin/stores`, and opened against a checklist** (T9). Until
+  then a store was a row inserted by hand, live the moment it existed.
+  - `spSite_Insert` writes the row with `IsActive = 0`.
+  - The admin API resolves a store that is not open for an admin of every store only. The
+    storefront still does not resolve it at all. That is what lets a store be configured from
+    the other screens before any customer can reach it.
+  - **`spSite_SetActive` refuses to open a store, naming everything missing, until it has:**
+    a sending address, an operator address, a tax rate above zero, a VAT number, a legal name,
+    an active category, and a body for each of `SiteContentKeys.RequiredToOpen`. That list is
+    passed in, so it is one list.
+  - A store already open is not re-checked. Closing a store is immediate.
+  - **Creating, opening and closing take `AllStores`.**
+- **When the storefront notices.** A store just opened resolves within its 30-second miss
+  cache. A store just closed keeps serving for up to `Sites:CacheDuration`.
 
 The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
 `spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
@@ -601,6 +615,14 @@ dotnet build StockApi/StockApi.csproj -p:BaseOutputPath=<scratch-dir>/bo/ -v q -
 
 (`-p:OutputPath=` for the sqlproj.) Compilation errors still surface; only the copy step is skipped.
 
+**Do not run the whole solution's tests under that `BaseOutputPath`.** It is one folder for
+every project, so whichever project copies last decides each shared dependency's version.
+Since T9, `StockApi` carries HtmlSanitizer's AngleSharp 1.7, which bUnit 1.40 cannot run with.
+The bUnit projects then fail with `MissingMethodException` on `IHtmlCollection<T>.get_Item` —
+the same symptom as the pinning note under *Tests*. Each project still passes on its own, in
+its own folder, and in CI. Test one project at a time there, or use `--artifacts-path`, which
+gives each project a folder of its own.
+
 ### Tests
 
 **xunit is the runner everywhere, on v2.** Two pins hold that together and both are commented
@@ -673,7 +695,7 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All eleven journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All twelve journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
 the old one.
 
@@ -682,6 +704,11 @@ offers only that store. Their own token is refused by the other store with the s
 unknown key gets, and refused by the staff list. After the store is taken away, the same token
 is refused on its very next request. The fixture's operator has `AllSites`, because a profile
 created now has no store by default.
+
+T9's twelfth creates a store in the portal and is refused opening it. It then acts for the
+store and fills in settings, a category and the four pages the checklist wants. It opens the
+store and reads its storefront over HTTP, with the new domain as the `Host` header: the suite
+has only two names for loopback, and other journeys own them.
 
 T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
@@ -839,6 +866,16 @@ on its own before publishing:
 ```bash
 dotnet build SMDatabase/SMDatabase.sqlproj    # no BaseOutputPath
 ```
+
+**A DACPAC that builds may still not publish.** The build checks references to objects, not
+every column binding. `spSite_SetActive` built cleanly while a `VALUES (...)` list referenced an
+outer alias — which T-SQL cannot see; it needs `CROSS APPLY (VALUES ...)` — and the publish
+failed with `Msg 4104`. Publish a new procedure to a scratch database before trusting it. CI's
+empty-database publish is the backstop.
+
+**A `%` in a `THROW` message empties the whole message.** `THROW 50095, @Message, 1` with
+"above 0%" in `@Message` raised the right number with no text, so the admin read a refusal that
+said nothing. Spell it out ("above zero"). It is invisible until the refusal is actually raised.
 
 **Hand-applying a procedure with `sqlcmd` needs `-I`.** `sqlcmd` defaults `QUOTED_IDENTIFIER`
 off, and SQL Server bakes the session's SET options into a procedure at creation time. A
