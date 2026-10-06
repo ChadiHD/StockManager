@@ -46,3 +46,18 @@ public sealed class StoreSettingsView
     public List<string> TaxRuleSets { get; set; } = new();
     public List<string> PriceDisplays { get; set; } = new();
 }
+
+/// <summary>One of a store's content pages, written or not (T9).</summary>
+public sealed class ContentPageItem
+{
+    public string Key { get; set; } = "";
+    public string Label { get; set; } = "";
+
+    /// <summary>False: the storefront shows its "nothing published" state for this page.</summary>
+    public bool Written { get; set; }
+
+    public string? Title { get; set; }
+    public string? Lede { get; set; }
+    public string? BodyHtml { get; set; }
+    public DateTime? LastModified { get; set; }
+}

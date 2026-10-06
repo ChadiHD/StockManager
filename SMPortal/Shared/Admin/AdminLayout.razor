@@ -57,6 +57,9 @@
         <NavLink href="admin/store" @onclick="CloseNav">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg>Store settings
         </NavLink>
+        <NavLink href="admin/content" @onclick="CloseNav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></svg>Content pages
+        </NavLink>
         @if (Data.ManagesAllStores)
         {
           @* Managing staff takes an admin of every store (T9); the API refuses anyone else. *@

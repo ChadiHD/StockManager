@@ -1,0 +1,131 @@
+@page "/admin/content"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Content pages · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Administration</span><h1>Content pages</h1></div>
+</div>
+
+@* The store's own words for its home page, about, contact and legal pages (T9). dbo.SiteContent
+   was written by hand until this existed. The body is HTML, cleaned to an allow-list when it is
+   saved, because the storefront renders it as markup for every visitor. *@
+@if (_loadError is not null)
+{
+    <div class="alert error" role="alert">@_loadError</div>
+}
+else if (_pages is null)
+{
+    <div class="panel panel-pad">Loading the store's pages…</div>
+}
+else
+{
+    <div class="detail-grid content-editor">
+        <div class="panel panel-clip">
+            <div class="toolbar"><h2 class="tbl-title">Pages</h2></div>
+            <div class="content-page-list">
+                @foreach (var item in _pages)
+                {
+                    <button type="button" class="content-page @(item.Key == _selected?.Key ? "content-page--active" : null)"
+                            data-key="@item.Key" @onclick="() => Select(item)">
+                        <strong>@item.Label</strong>
+                        <span class="badge @(item.Written ? "badge--ok" : "badge--neutral")">@(item.Written ? "Published" : "Not written")</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (_selected is not null)
+        {
+            <div class="panel panel-pad">
+                <span class="card-kicker">@_selected.Label</span>
+                <div class="form-grid">
+                    <div class="field span2">
+                        <label for="content-title">Title</label>
+                        <input id="content-title" class="input" value="@_title" @onchange="args => _title = args.Value?.ToString() ?? string.Empty" />
+                    </div>
+                    <div class="field span2">
+                        <label for="content-lede">Standfirst</label>
+                        <textarea id="content-lede" class="input" rows="2" maxlength="1000" @onchange="args => _lede = args.Value?.ToString()">@_lede</textarea>
+                        <span class="field-note">One or two sentences under the title.</span>
+                    </div>
+                    <div class="field span2">
+                        <label for="content-body">Body (HTML)</label>
+                        <textarea id="content-body" class="input mono content-body-input" rows="16" @onchange="args => _body = args.Value?.ToString()">@_body</textarea>
+                        <span class="field-note">
+                            Headings, paragraphs, lists, links (https, mailto, tel or this site's own pages), images over https and tables.
+                            Anything else — scripts, forms, styles — is removed when you save.
+                        </span>
+                    </div>
+                </div>
+                <div class="content-save">
+                    <span class="field-note content-status @(_refusal is not null ? "field-note--warn" : null)">@(_refusal ?? _status)</span>
+                    <button type="button" class="btn btn-primary content-save-button" disabled="@_saving" @onclick="Save">Save page</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private List<ContentPageItem>? _pages;
+    private ContentPageItem? _selected;
+    private string _title = "";
+    private string? _lede;
+    private string? _body;
+    private string? _refusal;
+    private string? _status;
+    private string? _loadError;
+    private bool _saving;
+
+    protected override void OnParametersSet() => Layout?.SetPage("Content pages", "This store's own words");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _pages = (await Data.GetContentPages()).ToList();
+            if (_pages.Count > 0) Select(_pages[0]);
+        }
+        catch (Exception exception)
+        {
+            _loadError = exception.Message;
+        }
+    }
+
+    private void Select(ContentPageItem page)
+    {
+        _selected = page;
+        _title = page.Title ?? page.Label;
+        _lede = page.Lede;
+        _body = page.BodyHtml;
+        _refusal = null;
+        _status = page.Written ? $"Last saved {page.LastModified:dd MMM yyyy HH:mm} UTC." : "Not written yet: the shop shows an empty page.";
+    }
+
+    private async Task Save()
+    {
+        if (_selected is null) return;
+
+        _saving = true;
+        var (saved, refusal) = await Data.SaveContentPage(_selected.Key, _title, _lede, _body);
+        _saving = false;
+
+        _refusal = refusal;
+        if (saved is null) return;
+
+        // What was stored, cleaned, so the box shows what customers will read.
+        var cleaned = !string.Equals(saved.BodyHtml ?? "", _body?.Trim() ?? "", StringComparison.Ordinal);
+        var index = _pages!.FindIndex(page => page.Key == saved.Key);
+        _pages[index] = saved;
+        Select(saved);
+
+        _status = cleaned
+            ? "Saved. Some of the HTML was not allowed and has been removed — check the page reads as you meant."
+            : "Saved.";
+        Toast.Show($"{saved.Label} saved");
+    }
+}

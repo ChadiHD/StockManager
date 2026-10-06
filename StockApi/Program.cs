@@ -190,6 +190,8 @@ builder.Services.AddScoped<AdminSiteContext>();
 builder.Services.AddScoped<IAdminSiteContext>(services => services.GetRequiredService<AdminSiteContext>());
 
 builder.Services.AddTransient<IAccountData, AccountData>();
+// A store's content pages, edited from the portal since T9; SMStore reads the same rows.
+builder.Services.AddTransient<ISiteContentData, SiteContentData>();
 // Children of Account. None carries a site of its own; every procedure behind these joins
 // Account for the predicate, so a guessed id resolves to nothing rather than to another
 // store's customer records.

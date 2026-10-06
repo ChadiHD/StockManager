@@ -143,6 +143,15 @@ public interface IAdminDataService
     /// <summary>Saves the acting store's settings. Returns why they were refused, or null.</summary>
     Task<string?> SaveStoreSettings(StoreSettings settings);
 
+    /// <summary>The acting store's content pages, fetched when the content screen opens (T9).</summary>
+    Task<IReadOnlyList<ContentPageItem>> GetContentPages();
+
+    /// <summary>
+    /// Saves one content page. Returns the page as stored — its body cleaned to the allow-list —
+    /// or why it was refused.
+    /// </summary>
+    Task<(ContentPageItem? Saved, string? Refusal)> SaveContentPage(string key, string title, string? lede, string? bodyHtml);
+
     /// <summary>The signed-in user's own password. Returns why it was refused, or null.</summary>
     Task<string?> ChangePassword(string currentPassword, string newPassword);
 

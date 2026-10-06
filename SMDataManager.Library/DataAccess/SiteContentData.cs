@@ -1,5 +1,6 @@
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace SMDataManager.Library.DataAccess
@@ -23,6 +24,20 @@ namespace SMDataManager.Library.DataAccess
             return _sqlDataAccess.LoadData<SiteContentModel, dynamic>(
                 "dbo.spSiteContent_GetByKey",
                 new { SiteId = siteId, ContentKey = contentKey, Locale = locale },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public List<SiteContentModel> GetForSite(int siteId, string locale)
+        {
+            return _sqlDataAccess.LoadData<SiteContentModel, dynamic>(
+                "dbo.spSiteContent_GetForSite", new { SiteId = siteId, Locale = locale }, "SMDatabase");
+        }
+
+        public SiteContentModel Save(int siteId, string contentKey, string locale, string title, string lede, string bodyHtml)
+        {
+            return _sqlDataAccess.LoadData<SiteContentModel, dynamic>(
+                "dbo.spSiteContent_Save",
+                new { SiteId = siteId, ContentKey = contentKey, Locale = locale, Title = title, Lede = lede, BodyHtml = bodyHtml },
                 "SMDatabase").FirstOrDefault();
         }
     }

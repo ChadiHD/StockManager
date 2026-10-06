@@ -1119,6 +1119,28 @@ public class AdminDataService : IAdminDataService
         return null;
     }
 
+    public async Task<IReadOnlyList<ContentPageItem>> GetContentPages()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await _client.GetFromJsonAsync<List<ContentPageItem>>($"{_api}/api/SiteContent") ?? new List<ContentPageItem>();
+    }
+
+    public async Task<(ContentPageItem? Saved, string? Refusal)> SaveContentPage(
+        string key, string title, string? lede, string? bodyHtml)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/SiteContent/{Uri.EscapeDataString(key)}",
+            new { Title = title, Lede = lede, BodyHtml = bodyHtml });
+
+        return response.IsSuccessStatusCode
+            ? (await response.Content.ReadFromJsonAsync<ContentPageItem>(), null)
+            : (null, await Problem(response, "That page could not be saved."));
+    }
+
     public async Task<string?> ChangePassword(string currentPassword, string newPassword)
     {
         await EnsureAuthHeaderAsync();

@@ -270,14 +270,22 @@ admin role can put HTML in front of that store's customers.
 
 The storefront's CSP stops inline script, but not a fake sign-in form or a phishing link. So the
 body passes through an allow-list sanitizer (`HtmlSanitizer`, MIT): headings, paragraphs, lists,
-emphasis, links with `https:`/`mailto:`/relative targets, and images over `https:`. It runs in
-two places:
-
-- **On save**, so the editor shows what will render.
-- **On render**, in `DatabaseSiteContentSource`, which every read goes through, so a row written
-  by SQL is covered too.
+emphasis, links with `https:`/`mailto:`/relative targets, and images over `https:`.
 
 A hand-written sanitizer is the classic bug here, which is what justifies the dependency.
+
+**As built: on save only, in `StockApi`.** Rendering through it as well was the plan, and it
+cannot be done here.
+
+- **The conflict.** Every stable HtmlSanitizer release either pins AngleSharp 0.17 or needs 1.7
+  or later. bUnit 1.40, which the storefront's tests use, breaks on either: the existing tests
+  failed with `MissingMethodException` on `IHtmlCollection<T>.get_Item`, the trap CLAUDE.md
+  records.
+- **Why bUnit stays.** It is pinned at 1.40 to keep the solution on xunit v2.
+- **What that leaves.** The sanitizer lives in `StockApi`, the one path the portal writes
+  through, and the editor shows the cleaned body back. Rows written by SQL are trusted, as
+  every row was before T9.
+- **Revisit when bUnit moves.**
 
 ### 2f. A store is created inactive and activated against a checklist
 

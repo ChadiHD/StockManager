@@ -1083,6 +1083,24 @@ Two conventions worth keeping:
   store's words. `SiteContent.BodyHtml` renders as `MarkupString`, so rows are staff-authored
   only — nothing originating with a customer may reach that column.
 
+**Content pages are edited at `/admin/content` since T9**, and the home page is one of them:
+the `home` row is its hero, the store's active categories and their blurbs are its grid, and
+`CatalogPresenter.Featured` — the default order's first eight, with no facet query — is its
+featured strip.
+
+- **`SiteContentKeys` is the list of pages.** `SiteContentKeysTests` holds it equal to
+  `ContentPage`'s `@page` routes.
+- **The save writes the row the storefront renders.** That is the locale row when one exists,
+  otherwise the agnostic one. Writing the agnostic row while a locale row existed would succeed
+  and change nothing a customer sees.
+- **A body is cleaned on save** by `StockApi`'s `ContentHtml`, an HtmlSanitizer allow-list:
+  structure, https, mailto, tel and relative links, and https images. No forms, frames, styles,
+  classes or handlers. The editor shows the cleaned body back and says when something was
+  removed.
+- **It cannot also run at render, in SMStore.** Every stable HtmlSanitizer needs an AngleSharp
+  that bUnit 1.40 breaks on — see the AngleSharp note under *Tests* — so the guarantee is at the
+  one write path the portal has. Rows written by SQL are trusted, as before T9.
+
 The basket page carries both `@page "/quote"` and `@page "/cart"`; which one a store links to
 comes from `OrderingModeProvider`, so neither route 404s and no markup branches on `OrderMode`.
 
