@@ -155,9 +155,12 @@ per-site configuration**.
 
 ### Out of v1
 
-A **second live store**. The platform supports it; standing one up is tenant work repeated, not
-platform work. Also deferred, per the July design: multi-currency within one site, Elasticsearch,
-EDI/Xero, login-as-customer, B2C storefront.
+Deferred, per the July design: multi-currency within one site, Elasticsearch, EDI/Xero,
+login-as-customer, B2C storefront.
+
+**A second live store moved into v1 on 2026-10-06.** aclitech.co.uk (UK, GBP, its own UK
+distributor) launches with aclitrade.ie from the same deployment and admin portal. It needed
+platform work first, and that is T9; standing the store up is then tenant work repeated (§5, B0–B4).
 
 ## 4. Template track
 
@@ -345,7 +348,27 @@ The mechanism exists: `Site.PriceDisplay = 'Authenticated'`, read by
 **Exit:** an admin hides one product and shows another on one store without touching the
 other; an anonymous visitor to an `Authenticated` store sees no price anywhere.
 
-**Template track total: ~15–18 weeks.**
+### T9 — Store administration and a second country (5–6 weeks)
+
+Detail plan: `docs/plans/2026-10-06-t9-store-administration.md`.
+
+Added 2026-10-06, when aclitech.co.uk joined v1:
+
+- **The schema-deploy cleanup.**
+- **Store-limited admins.**
+- **Admin screens** for everything a store was configured with by SQL: settings, legal
+  identity, categories, content pages and the home page, email wording, and creating and
+  activating a store.
+- **What a second country needs:**
+  - products tied to the feed that brought them;
+  - prices that carry a currency;
+  - a `uk-b2b` tax rule set and registration field set.
+
+**Exit:** a store is created, configured and activated entirely in the portal. A GBP store and
+an EUR store share one database without either selling the other's stock. An admin limited to
+one store cannot act for another.
+
+**Template track total: ~20–24 weeks.**
 
 ## 5. Tenant track — aclitrade.ie
 
@@ -392,6 +415,22 @@ This is data work, not code work, and it is the most underestimated item in the 
 
 **Tenant track total: ~3.5–5 weeks**, largely overlapping template work.
 
+### B0–B4 — aclitech.co.uk
+
+The same five steps for the UK store, after T9, alongside A0–A4. Since T9 they are done in the
+admin portal rather than by SQL, and the store's theme lives in the downstream repo
+(`docs/runbooks/new-store.md`). The differences:
+
+- **B0:**
+  - Domain `aclitech.co.uk`, country GB, currency GBP, locale `en-GB`, `uk-b2b` for both tax
+    and registration.
+  - The `.co.uk` registration is quick; the UK company's VAT registration with HMRC is not.
+- **B1:** UK content, and the registration form asks for a Companies House number.
+- **B2:** the UK distributor's categories mapped onto aclitech's own, from its own feed.
+- **B3:** 20% standard rate, export zero-rate, the UK company's legal identity on documents.
+- **B4:** UK GDPR and the ICO fee, the accountant's sign-off on the UK treatment, and UAT on the
+  UK feed.
+
 ## 6. Sequencing
 
 | Order | Template | Tenant (parallel) |
@@ -404,9 +443,12 @@ This is data work, not code work, and it is the most underestimated item in the 
 | 6 | T5 Ordering | — |
 | 7 | T6 Tax, terms, email | A3 Irish configuration |
 | 8 | T8 Store catalog control | A2 product selection |
-| 9 | T7 Production hardening | A4 Launch |
+| 9 | T7 Production hardening | — |
+| 10 | T9 Store administration, second country | A0–A4 and B0–B4, then both launch |
 
-**Calendar: ~15–19 weeks to aclitrade.ie live**, with the platform reusable at that point.
+**Calendar, as replanned on 2026-10-06:** T0–T8 and T7 are done. T9 is about 5–6 weeks, and
+the two tenant tracks then take about 4–5 weeks, overlapping each other. The original estimate
+was ~15–19 weeks to aclitrade.ie alone.
 
 A harder cut — RFQ only with no customer self-service views, invoice terms only, one
 flat-discount group, prices public, admin doing quote follow-up by hand — reaches a usable public
