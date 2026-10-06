@@ -14,8 +14,8 @@ message that cannot work.
 Not markup, and must not become markup: customers' own words are substituted into several of
 these messages, which is the SiteContent.BodyHtml rule running in reverse.
 
-There is no admin screen for this table, as there is none for Site. A store sets its wording by
-inserting rows. That is a gap, recorded beside the Site one.
+Since T9 the admin portal edits it (/admin/email), refusing on save what EmailRenderer would
+refuse at send time.
 */
 CREATE TABLE [dbo].[SiteEmailTemplate]
 (

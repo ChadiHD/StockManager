@@ -152,6 +152,15 @@ public interface IAdminDataService
     /// </summary>
     Task<(ContentPageItem? Saved, string? Refusal)> SaveContentPage(string key, string title, string? lede, string? bodyHtml);
 
+    /// <summary>Every message the acting store sends, with its wording (T9).</summary>
+    Task<IReadOnlyList<EmailWording>> GetEmailWording();
+
+    /// <summary>
+    /// Sets the store's own wording for one message; both halves blank goes back to the
+    /// platform's. Returns the message as stored, or why the wording was refused.
+    /// </summary>
+    Task<(EmailWording? Saved, string? Refusal)> SaveEmailWording(string key, string? subject, string? body);
+
     /// <summary>The signed-in user's own password. Returns why it was refused, or null.</summary>
     Task<string?> ChangePassword(string currentPassword, string newPassword);
 

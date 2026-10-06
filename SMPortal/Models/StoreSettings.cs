@@ -61,3 +61,20 @@ public sealed class ContentPageItem
     public string? BodyHtml { get; set; }
     public DateTime? LastModified { get; set; }
 }
+
+/// <summary>
+/// One message a store sends: the platform's words, the placeholders it can fill and must keep,
+/// and the store's own words when it has any (T9).
+/// </summary>
+public sealed class EmailWording
+{
+    public string Key { get; set; } = "";
+    public string Audience { get; set; } = "";
+    public string PlatformSubject { get; set; } = "";
+    public string PlatformBody { get; set; } = "";
+    public List<string> Placeholders { get; set; } = new();
+    public List<string> Required { get; set; } = new();
+    public bool Customised { get; set; }
+    public string? Subject { get; set; }
+    public string? Body { get; set; }
+}

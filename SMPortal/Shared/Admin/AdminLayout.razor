@@ -60,6 +60,9 @@
         <NavLink href="admin/content" @onclick="CloseNav">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></svg>Content pages
         </NavLink>
+        <NavLink href="admin/email" @onclick="CloseNav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Email wording
+        </NavLink>
         @if (Data.ManagesAllStores)
         {
           @* Managing staff takes an admin of every store (T9); the API refuses anyone else. *@

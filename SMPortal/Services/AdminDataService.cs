@@ -1141,6 +1141,26 @@ public class AdminDataService : IAdminDataService
             : (null, await Problem(response, "That page could not be saved."));
     }
 
+    public async Task<IReadOnlyList<EmailWording>> GetEmailWording()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await _client.GetFromJsonAsync<List<EmailWording>>($"{_api}/api/SiteEmailTemplate") ?? new List<EmailWording>();
+    }
+
+    public async Task<(EmailWording? Saved, string? Refusal)> SaveEmailWording(string key, string? subject, string? body)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/SiteEmailTemplate/{Uri.EscapeDataString(key)}", new { Subject = subject, Body = body });
+
+        return response.IsSuccessStatusCode
+            ? (await response.Content.ReadFromJsonAsync<EmailWording>(), null)
+            : (null, await Problem(response, "That wording could not be saved."));
+    }
+
     public async Task<string?> ChangePassword(string currentPassword, string newPassword)
     {
         await EnsureAuthHeaderAsync();

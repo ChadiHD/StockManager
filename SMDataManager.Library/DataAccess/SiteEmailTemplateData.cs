@@ -20,5 +20,17 @@ namespace SMDataManager.Library.DataAccess
                 new { SiteId = siteId, TemplateKey = templateKey },
                 "SMDatabase").FirstOrDefault();
         }
+
+        public void Save(int siteId, string templateKey, string subject, string body)
+        {
+            _sqlDataAccess.SaveData("dbo.spSiteEmailTemplate_Save",
+                new { SiteId = siteId, TemplateKey = templateKey, Subject = subject, Body = body }, "SMDatabase");
+        }
+
+        public void Delete(int siteId, string templateKey)
+        {
+            _sqlDataAccess.SaveData("dbo.spSiteEmailTemplate_Delete",
+                new { SiteId = siteId, TemplateKey = templateKey }, "SMDatabase");
+        }
     }
 }

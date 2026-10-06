@@ -399,7 +399,12 @@ else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands 
   before using it — a placeholder the message has no value for, or a required one left out
   (`EmailTemplate.RequiredTokens`: the link in a reset, the reason in a rejection, the legend
   on an order) — and the dispatcher sends the platform's wording with a warning rather than a
-  broken mail. Like `Site`, it has no admin screen.
+  broken mail.
+- **It is edited at `/admin/email` since T9**, and `SiteEmailTemplateController` runs that same
+  `WhyRefused` on save. A broken wording is refused while somebody can still fix it, instead of
+  being found by the dispatcher, which can only fall back and log. The screen lists each
+  message's placeholders and marks the required ones. Blanking both halves deletes the row,
+  which goes back to the platform's words.
 - Prices in mail go through `SiteMoney.Format`, which `CatalogPresenter.Money` now calls too,
   so a confirmation and the order page cannot write one total two ways. Dates are invariant
   culture, because the copy is English and the dispatcher's culture is its server's.
