@@ -814,7 +814,8 @@ public class AdminDataService : IAdminDataService
         var dto = await response.Content.ReadFromJsonAsync<CategoryMappingDto>();
 
         return new CategoryMappingView(
-            (dto?.Categories ?? []).Select(c => new StoreCategoryOption(c.Id, c.Name ?? string.Empty, c.IsActive)).ToList(),
+            (dto?.Categories ?? []).Select(c => new StoreCategoryOption(c.Id, c.Name ?? string.Empty, c.IsActive,
+                c.Slug ?? string.Empty, c.Blurb, c.SortOrder, c.MappedFeedValues)).ToList(),
             (dto?.FeedCategories ?? []).Select(f => new FeedCategoryRow(
                 f.FeedValue ?? string.Empty, f.Products, f.SiteCategoryId, f.SiteCategoryName)).ToList());
     }
@@ -833,6 +834,27 @@ public class AdminDataService : IAdminDataService
         }
 
         // Mapping moves every product in the category on or off the store.
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<string?> SaveStoreCategory(StoreCategoryOption category)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var body = new { category.Slug, category.Name, category.Blurb, category.SortOrder, category.IsActive };
+        var response = category.Id == 0
+            ? await _client.PostAsJsonAsync($"{_api}/api/CategoryMapping/Categories", body)
+            : await _client.PutAsJsonAsync($"{_api}/api/CategoryMapping/Categories/{category.Id}", body);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That category could not be saved.");
+        }
+
+        // A category deactivated or renamed changes what the products screen files under.
         await RefreshAsync();
 
         return null;
@@ -1393,7 +1415,8 @@ public class AdminDataService : IAdminDataService
     private sealed record CategoryMappingDto(
         List<SiteCategoryDto>? Categories, List<FeedCategoryDto>? FeedCategories);
 
-    private sealed record SiteCategoryDto(int Id, string? Name, bool IsActive);
+    private sealed record SiteCategoryDto(int Id, string? Name, bool IsActive,
+        string? Slug, string? Blurb, int SortOrder, int MappedFeedValues);
 
     private sealed record FeedCategoryDto(
         string? FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);

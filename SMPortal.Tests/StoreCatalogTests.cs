@@ -211,4 +211,41 @@ public class StoreCatalogTests : TestContext
         // Still shown where it is already in use, so the select reflects what is stored.
         cut.FindAll("select.mapping-select")[1].TextContent.Should().NotContain("Retired");
     }
+
+    // --- The store's own categories (T9) -------------------------------------------------------
+
+    [Fact]
+    public void TheStoresOwnCategoriesAreListedAndANewOneCanBeAdded()
+    {
+        // Before T9 the screen mapped feed categories onto store categories nobody could create.
+        var data = Data();
+        data.SaveStoreCategory(default!).ReturnsForAnyArgs((string?)null);
+        var cut = RenderComponent<Categories>();
+
+        cut.FindAll(".store-category-row").Should().HaveCount(2);
+
+        cut.Find("button.add-category").Click();
+        cut.Find("#category-name").Change("Networking Kit & Cables");
+        cut.Find("button.category-save").Click();
+
+        // The address follows the name until somebody types one.
+        data.Received(1).SaveStoreCategory(Arg.Is<StoreCategoryOption>(c =>
+            c.Id == 0 && c.Name == "Networking Kit & Cables" && c.Slug == "networking-kit-cables" && c.IsActive));
+    }
+
+    [Fact]
+    public void ARefusedCategoryKeepsTheEditorOpenWithTheReason()
+    {
+        var data = Data();
+        data.SaveStoreCategory(default!).ReturnsForAnyArgs(
+            "The address cannot change while the store is live: customers have it bookmarked.");
+        var cut = RenderComponent<Categories>();
+
+        cut.FindAll(".store-category-row button")[0].Click();
+        cut.Find("#category-slug").Change("laptops-new");
+        cut.Find("button.category-save").Click();
+
+        data.Received(1).SaveStoreCategory(Arg.Is<StoreCategoryOption>(c => c.Id == 7 && c.Slug == "laptops-new"));
+        cut.Find(".category-error").TextContent.Should().Contain("customers have it bookmarked");
+    }
 }

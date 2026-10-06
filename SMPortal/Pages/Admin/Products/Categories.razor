@@ -14,6 +14,9 @@
 
 <div class="page-head">
     <div><span class="eyebrow">Catalog</span><h1>Categories</h1></div>
+    <div class="head-actions">
+        <button class="btn btn-primary add-category" @onclick="() => OpenEditor(null)">Add category</button>
+    </div>
 </div>
 
 @if (_view is null)
@@ -22,6 +25,40 @@
 }
 else
 {
+    @* The store's own categories (T9): what customers browse by, and what the feed categories
+       below are filed under. Until T9 nobody could create one from here. *@
+    <div class="panel panel-clip store-categories">
+        <div class="toolbar">
+            <h2 class="tbl-title">This store's categories</h2>
+            <div class="toolbar-count"><strong>@_view.Categories.Count</strong> categories</div>
+        </div>
+        @if (_view.Categories.Count == 0)
+        {
+            <div class="empty">This store has no categories yet, so nothing can be sold here. Add one to begin.</div>
+        }
+        else
+        {
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead><tr><th class="lead">Category</th><th>Address</th><th class="num">Order</th><th class="num">Feed categories</th><th>Status</th><th class="trail"></th></tr></thead>
+                    <tbody>
+                        @foreach (var category in _view.Categories)
+                        {
+                            <tr class="store-category-row">
+                                <td class="lead"><span class="cell-strong">@category.Name</span><span class="cell-sub">@category.Blurb</span></td>
+                                <td class="mono">@category.Slug</td>
+                                <td class="num">@category.SortOrder</td>
+                                <td class="num">@category.MappedFeedValues</td>
+                                <td><span class="badge @(category.IsActive ? "badge--ok" : "badge--neutral")">@(category.IsActive ? "On sale" : "Off")</span></td>
+                                <td class="trail"><button class="btn btn-secondary btn-sm" @onclick="() => OpenEditor(category)">Edit</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
     <div class="panel panel-clip">
         <div class="toolbar">
             <div class="pill-row">
@@ -61,8 +98,110 @@ else
     </div>
 }
 
+<Modal Visible="_editing is not null" Title="@(_editing?.Id == 0 ? "Add category" : "Edit category")" OnClose="() => _editing = null">
+    @if (_editing is not null)
+    {
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="category-name">Name</label>
+                    <input id="category-name" class="input" value="@_editing.Name" @onchange="args => NameChanged(args.Value?.ToString())" />
+                </div>
+                <div class="field">
+                    <label for="category-slug">Address</label>
+                    <input id="category-slug" class="input mono" value="@_editing.Slug" @onchange="args => { _editing.Slug = args.Value?.ToString() ?? string.Empty; _editing.SlugTouched = true; }" />
+                    <span class="field-note">In the shop's links, as /catalog?cat=@(_editing.Slug). Fixed once the store is live.</span>
+                </div>
+                <div class="field span2">
+                    <label for="category-blurb">Blurb</label>
+                    <textarea id="category-blurb" class="input" rows="2" maxlength="400" @onchange="args => _editing.Blurb = args.Value?.ToString()">@_editing.Blurb</textarea>
+                    <span class="field-note">One line under the name on the home page.</span>
+                </div>
+                <div class="field">
+                    <label for="category-order">Order</label>
+                    <input id="category-order" class="input" type="number" value="@_editing.SortOrder" @onchange="args => _editing.SortOrder = int.TryParse(args.Value?.ToString(), out var order) ? order : 0" />
+                    <span class="field-note">Lower comes first.</span>
+                </div>
+                <div class="field">
+                    <label class="switch-row"><input id="category-active" type="checkbox" checked="@_editing.IsActive" @onchange="args => _editing.IsActive = args.Value is true" /> On sale</label>
+                    <span class="field-note">Off takes it and everything filed under it off the store, without breaking any link or quote.</span>
+                </div>
+            </div>
+            @if (_editorError is not null)
+            {
+                <span class="field-note field-note--warn category-error">@_editorError</span>
+            }
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _editing = null">Close</button>
+            <button type="button" class="btn btn-primary category-save" disabled="@_savingCategory" @onclick="SaveCategory">Save</button>
+        </div>
+    }
+</Modal>
+
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    // ---- The store's own categories (T9) ----------------------------------------------------
+
+    private sealed class CategoryEdit
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Slug { get; set; } = "";
+        public string? Blurb { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+        public bool SlugTouched { get; set; }
+    }
+
+    private CategoryEdit? _editing;
+    private string? _editorError;
+    private bool _savingCategory;
+
+    private void OpenEditor(StoreCategoryOption? category)
+    {
+        _editorError = null;
+        _editing = category is null
+            ? new CategoryEdit { SortOrder = (_view?.Categories.Count ?? 0) * 10 }
+            : new CategoryEdit
+            {
+                Id = category.Id, Name = category.Name, Slug = category.Slug, Blurb = category.Blurb,
+                SortOrder = category.SortOrder, IsActive = category.IsActive, SlugTouched = true
+            };
+    }
+
+    // A new category's address follows its name until somebody types one, so the common case is
+    // one field; an existing one's never moves by itself.
+    private void NameChanged(string? name)
+    {
+        if (_editing is null) return;
+
+        _editing.Name = name ?? string.Empty;
+
+        if (_editing.Id == 0 && !_editing.SlugTouched)
+        {
+            _editing.Slug = string.Join('-', System.Text.RegularExpressions.Regex
+                .Split(_editing.Name.ToLowerInvariant(), "[^a-z0-9]+")
+                .Where(part => part.Length > 0));
+        }
+    }
+
+    private async Task SaveCategory()
+    {
+        if (_editing is null) return;
+
+        _savingCategory = true;
+        _editorError = await Data.SaveStoreCategory(new StoreCategoryOption(
+            _editing.Id, _editing.Name, _editing.IsActive, _editing.Slug, _editing.Blurb, _editing.SortOrder));
+        _savingCategory = false;
+
+        if (_editorError is not null) return;
+
+        Toast.Show(_editing.Id == 0 ? $"{_editing.Name} added" : $"{_editing.Name} saved");
+        _editing = null;
+        _view = await Data.GetCategoryMappings();
+    }
 
     private readonly string[] _filters = { "All", "Not sold here", "Sold here" };
     private string _filter = "All";

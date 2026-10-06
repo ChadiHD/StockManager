@@ -320,7 +320,12 @@ public sealed class QuoteConversion
 }
 
 /// <summary>One of the acting store's own categories, for filing products under.</summary>
-public sealed record StoreCategoryOption(int Id, string Name, bool IsActive);
+/// <remarks>
+/// The trailing members arrived with the categories editor (T9); a dropdown only needs the
+/// first three.
+/// </remarks>
+public sealed record StoreCategoryOption(int Id, string Name, bool IsActive,
+    string Slug = "", string? Blurb = null, int SortOrder = 0, int MappedFeedValues = 0);
 
 /// <summary>A category string from the feeds, and where the acting store files it.</summary>
 public sealed record FeedCategoryRow(string FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);

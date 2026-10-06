@@ -152,4 +152,32 @@ public class StorePlacementControllerTests
 
         _mappings.DidNotReceiveWithAnyArgs().Map(default, default!, default);
     }
+
+    // --- The store's own categories (T9) -------------------------------------------------------
+
+    [Theory]
+    [InlineData("Laptops & Bags")]
+    [InlineData("laptops--bags")]
+    [InlineData("-laptops")]
+    [InlineData("")]
+    public void ACategoryAddressIsOnlyWhatReadsCleanlyInALink(string slug)
+    {
+        // It is the cat= value on every catalog link, so nothing that needs escaping.
+        _mappingController.CreateCategory(new CategoryMappingController.CategoryModel(slug, "Laptops", null, 0, true))
+            .Should().BeOfType<BadRequestObjectResult>();
+
+        _mappings.DidNotReceiveWithAnyArgs().SaveCategory(default, default!);
+    }
+
+    [Fact]
+    public void ACategoryIsSavedForTheActingStore()
+    {
+        _mappings.SaveCategory(default, default!).ReturnsForAnyArgs((12, (string)null!));
+
+        _mappingController.UpdateCategory(12, new CategoryMappingController.CategoryModel(" Laptops-Pro ", " Laptops ", null, 3, false))
+            .Should().BeOfType<OkObjectResult>();
+
+        _mappings.Received(1).SaveCategory(ActingSite, Arg.Is<SiteCategoryModel>(c =>
+            c.Id == 12 && c.Slug == "laptops-pro" && c.Name == "Laptops" && c.SortOrder == 3 && !c.IsActive));
+    }
 }

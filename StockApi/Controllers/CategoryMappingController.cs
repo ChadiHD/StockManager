@@ -56,5 +56,52 @@ namespace StockApi.Controllers
 
             return refusal is null ? NoContent() : BadRequest(refusal);
         }
+
+        public record CategoryModel(string? Slug, string? Name, string? Blurb, int SortOrder, bool IsActive);
+
+        // The store's own categories (T9): what the feed categories above file under.
+
+        [HttpPost("Categories")]
+        public IActionResult CreateCategory(CategoryModel category) => Save(0, category);
+
+        [HttpPut("Categories/{id:int}")]
+        public IActionResult UpdateCategory(int id, CategoryModel category) => Save(id, category);
+
+        private IActionResult Save(int id, CategoryModel category)
+        {
+            var slug = category.Slug?.Trim().ToLowerInvariant() ?? string.Empty;
+
+            // The slug is a query-string value on every catalog link, so it is held to what reads
+            // cleanly in a URL and needs no escaping.
+            if (!CategorySlug.IsMatch(slug))
+            {
+                return BadRequest("The address is lower-case letters, digits and single hyphens, up to 80 characters — such as networking-kit.");
+            }
+
+            if (string.IsNullOrWhiteSpace(category.Name) || category.Name.Trim().Length > 120)
+            {
+                return BadRequest("A category needs a name of up to 120 characters.");
+            }
+
+            if ((category.Blurb?.Trim().Length ?? 0) > 400)
+            {
+                return BadRequest("The blurb is at most 400 characters.");
+            }
+
+            var (savedId, refusal) = _mappings.SaveCategory(_site.SiteId, new SiteCategoryModel
+            {
+                Id = id,
+                Slug = slug,
+                Name = category.Name.Trim(),
+                Blurb = category.Blurb,
+                SortOrder = category.SortOrder,
+                IsActive = category.IsActive
+            });
+
+            return refusal is null ? Ok(new { id = savedId }) : BadRequest(refusal);
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex CategorySlug =
+            new(@"^(?=.{1,80}$)[a-z0-9]+(-[a-z0-9]+)*$", System.Text.RegularExpressions.RegexOptions.Compiled);
     }
 }

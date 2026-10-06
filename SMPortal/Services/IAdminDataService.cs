@@ -207,4 +207,10 @@ public interface IAdminDataService
 
     /// <summary>Files a feed category under a store category, or stops selling it when null.</summary>
     Task<string?> MapCategory(string feedValue, int? storeCategoryId);
+
+    /// <summary>
+    /// Creates (<c>Id</c> 0) or edits one of the acting store's categories. Returns why it was
+    /// refused, or null (T9).
+    /// </summary>
+    Task<string?> SaveStoreCategory(StoreCategoryOption category);
 }

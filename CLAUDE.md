@@ -1500,6 +1500,15 @@ categories. `Product.Cat` is the **feed's** category and the form shows it read-
 used to offer a hardcoded seven-item list that rewrote it, which moved products off every store
 mapping the real value.
 
+**The store's own categories are edited on `/admin/categories` too** (T9), through
+`spSiteCategory_Save`.
+- **No delete.** A category can be mapped, overridden or bookmarked, so it is deactivated
+  instead.
+- **Its address is `/catalog?cat={slug}`.** It must be lower-case letters, digits and single
+  hyphens, and it is fixed while the store is active.
+
+Until T9 nobody could create a category, and the E2E suite inserted them by SQL.
+
 **`spProduct_Update` writes every column it is given, so the portal sends back what it does
 not edit.** `UpdateProduct` used to send an empty description and `IsTaxable = true`, which
 wiped the description and made an exempt product taxable on every save. `Product` in the
