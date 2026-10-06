@@ -30,9 +30,12 @@ BEGIN
 
 	-- Contact carries no SiteId of its own, only its account's, so the chain is walked here as
 	-- it is in spBasket_Claim. A contact belonging to another store reads as "not found".
-	SELECT @AccountId = a.[Id], @Currency = a.[Currency]
+	-- The store's currency, not the account's (T9): every price on the request comes from the
+	-- store's catalog, and an account carrying another currency would label them wrongly.
+	SELECT @AccountId = a.[Id], @Currency = s.[CurrencyCode]
 	FROM dbo.Contact c
 	INNER JOIN dbo.Account a ON a.[Id] = c.[AccountId]
+	INNER JOIN dbo.Site s ON s.[Id] = a.[SiteId]
 	WHERE c.[Id] = @ContactId
 	  AND a.[SiteId] = @SiteId;
 
@@ -65,7 +68,7 @@ BEGIN
 
 		INSERT INTO dbo.Quote([Reference], [AccountId], [Currency], [Status], [ExpiresDate],
 		                      [CustomerNote], [SiteId], [RequestedByContactId])
-		VALUES (@Reference, @AccountId, ISNULL(@Currency, N'EUR'), 'Requested', @ExpiresDate,
+		VALUES (@Reference, @AccountId, @Currency, 'Requested', @ExpiresDate,
 		        NULLIF(LTRIM(RTRIM(@CustomerNote)), N''), @SiteId, @ContactId);
 
 		SET @Id = SCOPE_IDENTITY();

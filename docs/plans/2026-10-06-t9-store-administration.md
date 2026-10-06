@@ -619,6 +619,15 @@ Built in this order. Each item lists what proves it.
   - the customer accepts, and the order carries GBP, 20% and its legend.
 - An Irish customer of the same store is zero-rated as an export.
 - The EUR store's catalog shows none of it.
+- **Built**, as `TwoCountryJourneyTests`, the thirteenth journey.
+  - **Borrowing a store.** It borrows the second loopback store as a UK store for its length,
+    because the suite has only two hostnames, and restores it after.
+  - **The currency fix it led to.** `spQuote_SubmitRequest` took the account's currency,
+    falling back to `'EUR'`. It now takes the store's, as 2c intended, so an account left over in
+    another currency cannot label a store's prices.
+  - **The helper bug it found.** `AdminPortal.EnsureActingForSiteAsync` returned before the
+    store selector rendered. Every earlier journey acted for the store already selected, so
+    nothing noticed.
 
 ### 5. The template and tenant split (1–2 days)
 

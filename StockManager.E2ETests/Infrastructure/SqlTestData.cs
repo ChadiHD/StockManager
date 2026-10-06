@@ -285,6 +285,94 @@ public static class SqlTestData
         return (decimal)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
+    /// <summary>Where a store trades from and in what: the values a second country changes.</summary>
+    public sealed record StoreTrading(
+        string Country, string CurrencyCode, string Locale, string TaxRuleSet, decimal StandardTaxRatePct);
+
+    /// <summary>
+    /// Sets how a store trades and returns how it traded before, so a journey can put it back.
+    /// </summary>
+    /// <remarks>
+    /// The suite has two names for loopback and other journeys own both stores, so the
+    /// two-country journey borrows one as a UK store for its length (T9). By SQL rather than the
+    /// settings screen because the store already has accounts, and the screen rightly refuses to
+    /// change the currency of a store that holds prices in it.
+    /// </remarks>
+    public static async Task<StoreTrading> SetStoreTradingAsync(
+        string connectionString, int siteId, StoreTrading trading, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        StoreTrading previous;
+
+        await using (var read = new SqlCommand(
+            "SELECT [Country], [CurrencyCode], [Locale], [TaxRuleSet], [StandardTaxRatePct] FROM dbo.Site WHERE [Id] = @SiteId;",
+            connection))
+        {
+            read.Parameters.AddWithValue("@SiteId", siteId);
+
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken);
+            await reader.ReadAsync(cancellationToken);
+            previous = new StoreTrading(reader.GetString(0), reader.GetString(1), reader.GetString(2),
+                reader.GetString(3), reader.GetDecimal(4));
+        }
+
+        await using var write = new SqlCommand(
+            """
+            UPDATE dbo.Site
+            SET [Country] = @Country, [CurrencyCode] = @CurrencyCode, [Locale] = @Locale,
+                [TaxRuleSet] = @TaxRuleSet, [StandardTaxRatePct] = @Rate
+            WHERE [Id] = @SiteId;
+            """, connection);
+
+        write.Parameters.AddWithValue("@SiteId", siteId);
+        write.Parameters.AddWithValue("@Country", trading.Country);
+        write.Parameters.AddWithValue("@CurrencyCode", trading.CurrencyCode);
+        write.Parameters.AddWithValue("@Locale", trading.Locale);
+        write.Parameters.AddWithValue("@TaxRuleSet", trading.TaxRuleSet);
+        write.Parameters.AddWithValue("@Rate", trading.StandardTaxRatePct);
+
+        await write.ExecuteNonQueryAsync(cancellationToken);
+
+        return previous;
+    }
+
+    /// <summary>
+    /// A product imported by a feed of the store's own, priced in the store's currency — what a
+    /// distributor's sync writes (T9).
+    /// </summary>
+    public static async Task InsertFeedProductAsync(
+        string connectionString, int siteId, string sku, string name, string category,
+        decimal retailPrice, int quantityInStock, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            """
+            INSERT INTO dbo.DistributorFeed ([Name], [Host], [Username], [SiteId])
+            VALUES (CONCAT(N'E2E feed ', @Sku), N'sftp.e2e.invalid', N'e2e', @SiteId);
+            DECLARE @FeedId int = SCOPE_IDENTITY();
+
+            INSERT INTO dbo.Product
+                ([ProductName], [Description], [RetailPrice], [QuantityInStock], [Sku], [Category],
+                 [Source], [Distributor], [DistributorSku], [LastSynced], [FeedId], [CurrencyCode])
+            SELECT @Name, N'', @RetailPrice, @QuantityInStock, @Sku, @Category,
+                   N'Distributor', CONCAT(N'E2E feed ', @Sku), @Sku, SYSUTCDATETIME(), @FeedId, s.[CurrencyCode]
+            FROM dbo.Site s WHERE s.[Id] = @SiteId;
+            """, connection);
+
+        command.Parameters.AddWithValue("@SiteId", siteId);
+        command.Parameters.AddWithValue("@Name", name);
+        command.Parameters.AddWithValue("@RetailPrice", retailPrice);
+        command.Parameters.AddWithValue("@QuantityInStock", quantityInStock);
+        command.Parameters.AddWithValue("@Sku", sku);
+        command.Parameters.AddWithValue("@Category", category);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Records where a customer's company is and whether it gave a VAT number — the two facts
     /// the tax rule set decides from.

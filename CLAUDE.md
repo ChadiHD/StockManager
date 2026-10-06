@@ -716,7 +716,7 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All twelve journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All thirteen journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
 the old one.
 
@@ -730,6 +730,19 @@ T9's twelfth creates a store in the portal and is refused opening it. It then ac
 store and fills in settings, a category and the four pages the checklist wants. It opens the
 store and reads its storefront over HTTP, with the new domain as the `Host` header: the suite
 has only two names for loopback, and other journeys own them.
+
+T9's thirteenth borrows the second loopback store as a UK one (GB, GBP, `uk-b2b`, 20%) for its
+length, and puts it back afterwards. Both stores map one feed category, and the Irish store's
+euro stock is filed in it too.
+- The UK storefront lists only its own feed's product, at £100.00, and the Irish one only its
+  euro stock.
+- A British customer is charged £20.00 VAT, Domestic standard.
+- An Irish customer of the UK store is zero-rated as an export.
+- Both orders store GBP.
+
+It found that `AdminPortal.EnsureActingForSiteAsync` returned before the store selector
+rendered. That was harmless while every journey acted for the store already selected, and it
+now waits for the workspace to load.
 
 T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
