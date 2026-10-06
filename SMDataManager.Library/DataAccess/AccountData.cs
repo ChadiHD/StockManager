@@ -35,7 +35,6 @@ namespace SMDataManager.Library.DataAccess
                 account.ContactName,
                 account.Email,
                 account.Country,
-                Currency = string.IsNullOrWhiteSpace(account.Currency) ? "EUR" : account.Currency,
                 account.CustomerGroupId,
                 PaymentMethod = string.IsNullOrWhiteSpace(account.PaymentMethod) ? "Card" : account.PaymentMethod,
                 PaymentTerms = Terms(account.PaymentTerms),

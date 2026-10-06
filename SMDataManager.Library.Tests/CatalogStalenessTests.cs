@@ -215,18 +215,29 @@ public class CatalogStalenessTests
                 ("@feedValue", feedValue),
                 ("@categoryId", categoryId));
 
+            // Distributor stock comes from one of the store's own feeds, as it always does in
+            // production: since T9 a distributor product with no feed is an orphan no store sells.
+            var feedId = Scalar(connection, transaction, """
+                INSERT INTO dbo.DistributorFeed (Name, Host, Username, SiteId)
+                OUTPUT INSERTED.Id
+                VALUES (@name, N'sftp.stale.invalid', N'fixture', @siteId);
+                """,
+                ("@name", $"Staleness feed {runId}"),
+                ("@siteId", siteId));
+
             foreach (var product in products)
             {
                 Execute(connection, transaction, """
                     INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku,
                                              Category, QuantityInStock, Delisted,
-                                             [Source], LastSynced)
+                                             [Source], LastSynced, FeedId)
                     VALUES (@name, N'Staleness fixture.', 100, @sku,
-                            @feedValue, 5, 0, @source, @lastSynced);
+                            @feedValue, 5, 0, @source, @lastSynced, @feedId);
                     """,
                     ("@name", $"Staleness product {product.Sku}"),
                     ("@sku", $"STL-{runId}-{product.Sku}"),
                     ("@feedValue", feedValue),
+                    ("@feedId", product.Source == "Distributor" ? feedId : DBNull.Value),
                     ("@source", (object?)product.Source ?? DBNull.Value),
                     ("@lastSynced", product.SyncedHoursAgo is { } hours
                         ? DateTime.UtcNow.AddHours(-hours)

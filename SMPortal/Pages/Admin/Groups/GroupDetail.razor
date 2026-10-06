@@ -47,9 +47,9 @@ else
                                 {
                                     <tr>
                                         <td class="lead"><span class="cell-strong">@o.Name</span><span class="cell-sub mono">@o.Sku</span></td>
-                                        <td class="num strike">@AdminUi.Money(o.List, "EUR")</td>
+                                        <td class="num strike">@AdminUi.Money(o.List, Data.CurrentCurrency)</td>
                                         <td class="ctr"><span class="disc-chip">-@(_g.Discount)%</span></td>
-                                        <td class="num trail"><strong>@AdminUi.Money(o.Net, "EUR")</strong></td>
+                                        <td class="num trail"><strong>@AdminUi.Money(o.Net, Data.CurrentCurrency)</strong></td>
                                     </tr>
                                 }
                             </tbody>

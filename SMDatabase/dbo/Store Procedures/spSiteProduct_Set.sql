@@ -32,9 +32,12 @@ BEGIN
 
 	DECLARE @ProductId int, @FeedCategory nvarchar(50);
 
-	SELECT @ProductId = [Id], @FeedCategory = [Category]
-	FROM dbo.Product
-	WHERE [Sku] = @Sku;
+	-- Among the products this store may sell (T9): a SKU is unique within a feed, not across
+	-- them, and another store's product is not this one's to place.
+	SELECT @ProductId = p.[Id], @FeedCategory = p.[Category]
+	FROM dbo.Product p
+	CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+	WHERE p.[Sku] = @Sku AND sel.[Sellable] = 1;
 
 	IF @ProductId IS NULL
 	BEGIN

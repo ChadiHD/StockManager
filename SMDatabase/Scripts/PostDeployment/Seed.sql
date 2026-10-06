@@ -77,6 +77,33 @@ BEGIN
 	UPDATE [dbo].[User] SET [AllSites] = 1;
 END
 
+/*
+Products imported before T9 recorded their feed only as its name, in Product.Distributor. Each
+gets the feed that name belongs to — where exactly one feed has it — and that feed's store's
+currency. A name two feeds share is ambiguous; those rows stay without a feed, which makes them
+orphans no store sells, and the next sync of either feed imports its own fresh copy. Products
+created after T9 carry FeedId from the merge, so the first update matches nothing again.
+
+The second update is the invariant rather than a one-off: a feed's products are in its store's
+currency. dbo.fnSite_CurrencyLocked stops a store with a feed changing currency, so it should
+match nothing after the first publish.
+*/
+UPDATE p
+SET p.[FeedId] = f.[Id]
+FROM [dbo].[Product] p
+INNER JOIN [dbo].[DistributorFeed] f ON f.[Name] = p.[Distributor]
+WHERE p.[FeedId] IS NULL
+  AND p.[Source] = N'Distributor'
+  AND NOT EXISTS (SELECT 1 FROM [dbo].[DistributorFeed] other
+                  WHERE other.[Name] = f.[Name] AND other.[Id] <> f.[Id]);
+
+UPDATE p
+SET p.[CurrencyCode] = s.[CurrencyCode]
+FROM [dbo].[Product] p
+INNER JOIN [dbo].[DistributorFeed] f ON f.[Id] = p.[FeedId]
+INNER JOIN [dbo].[Site] s ON s.[Id] = f.[SiteId]
+WHERE p.[CurrencyCode] <> s.[CurrencyCode];
+
 -- Product.Published, Featured and Badge, saved aside by the pre-deployment script before the
 -- schema diff dropped them, filed under each store. A no-op once moved.
 :r .\MoveProductFlagsToSites.sql

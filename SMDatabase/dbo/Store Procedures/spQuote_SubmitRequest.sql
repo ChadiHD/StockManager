@@ -51,7 +51,7 @@ BEGIN
 		WHERE NOT EXISTS (
 			SELECT 1
 			FROM dbo.Product p
-			CROSS APPLY dbo.fnSite_ProductPlacement(@SiteId, p.[Id], p.[Category]) pl
+			CROSS APPLY dbo.fnSite_ProductPlacement(@SiteId, p.[Id], p.[Category], p.[FeedId], p.[Source], p.[CurrencyCode]) pl
 			WHERE p.[Id] = l.[ProductId]
 			  AND pl.[OnStore] = 1))
 	BEGIN

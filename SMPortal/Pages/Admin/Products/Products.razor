@@ -87,8 +87,8 @@
                             <span class="src @AdminUi.SourceClass(p.Source)">@p.Source</span>
                             <span class="cell-sub src-sub">@(p.IsDistributor ? $"{p.Dist} · {p.DistSku}" : "In-house stock")</span>
                         </td>
-                        <td class="num cell-sub">@AdminUi.Money(p.Cost, "EUR")</td>
-                        <td class="num"><strong>@AdminUi.Money(p.Price, "EUR")</strong></td>
+                        <td class="num cell-sub">@AdminUi.Money(p.Cost, Data.CurrentCurrency)</td>
+                        <td class="num"><strong>@AdminUi.Money(p.Price, Data.CurrentCurrency)</strong></td>
                         <td class="trail">
                             <span class="badge @AdminUi.StockClass(p.Avail)">@p.Avail · @p.StockKind</span>
                             <span class="sync @(p.Stale ? "sync--stale" : "sync--muted")">@SyncLabel(p)</span>

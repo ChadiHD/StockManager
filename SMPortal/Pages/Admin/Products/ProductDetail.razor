@@ -101,8 +101,8 @@ else
             </div>
             <div class="panel panel-pad">
                 <span class="card-kicker">Pricing</span>
-                <div class="kv"><span class="k">Feed cost</span><span class="v-strong">@AdminUi.Money(_p.Cost, "EUR")</span></div>
-                <div class="kv mt"><span class="k">Sell price</span><span class="v-strong">@AdminUi.Money(_p.Price, "EUR")</span></div>
+                <div class="kv"><span class="k">Feed cost</span><span class="v-strong">@AdminUi.Money(_p.Cost, Data.CurrentCurrency)</span></div>
+                <div class="kv mt"><span class="k">Sell price</span><span class="v-strong">@AdminUi.Money(_p.Price, Data.CurrentCurrency)</span></div>
                 <div class="kv mt"><span class="k">Gross margin</span><span class="v accent">@_p.MarginPct%</span></div>
                 <div class="divider"></div>
                 <div class="kv"><span class="k">Availability</span><span class="badge @AdminUi.StockClass(_p.Avail)">@_p.Avail · @_p.StockKind</span></div>

@@ -150,6 +150,8 @@ asking. Reads are scoped as well as writes: `spAccount_GetAll`, `spQuote_GetAll`
 `spOrder_GetAll`, `spCustomerGroup_GetAll` and `spDistributorFeed_GetAll` all take `@SiteId`.
 Products are the deliberate exception — `dbo.Product` is shared, the desktop POS has no site,
 so `ProductController` injects the context per action rather than through its constructor.
+Since T9 every admin product action reads through the acting store's sellable set, so another
+store's product is a 404 — see *Catalog and pricing*.
 
 **Since T9, an admin acts only for the stores they were given.** `dbo.[User].AllSites` means
 every store, including ones created later. Otherwise the stores are the rows in `dbo.UserSite`,
@@ -1151,6 +1153,39 @@ comes from `OrderingModeProvider`, so neither route 404s and no markup branches 
 Pages never touch `ICatalogData` or `IPriceResolver`. Both go through `CatalogPresenter`,
 because resolving a price and deciding whether to show one at all are the two things most
 easily got subtly wrong in a page.
+
+**A product belongs to the feed that imported it, and its prices are in `Product.CurrencyCode`**
+(T9). `dbo.fnSite_ProductSellable` decides whether a store may sell a product at all, before
+placement decides where it sits.
+
+- **The rule.** The product's currency is the store's. A distributor product counts only if
+  its `FeedId` is one of the store's own feeds. Own stock — no feed, not marked
+  `Distributor` — may be sold by every store in its currency.
+- **Orphans sell nowhere.** That is a distributor product whose feed was deleted
+  (`ON DELETE SET NULL`), or one whose pre-T9 feed name was ambiguous.
+- **The rule keys on `FeedId`, never `Source`**, because `spProduct_Update` lets an admin
+  rewrite `Source`.
+- **Who reads it.** `fnSite_ProductPlacement` applies it, so `OnStore` means sellable *and*
+  placed. The admin's products and categories screens, the placement writes, and
+  `spProduct_GetBySku` read it directly.
+  - This is what stops a UK store selling the Irish distributor's notebooks with a pound sign
+    on euro prices.
+  - It also stops a UK admin seeing, mapping or repricing them.
+  - A SKU is unique within a feed, not across feeds, which is why the SKU lookups go through it.
+- **Write it as joins, not `EXISTS` inside a `CASE`.** That version ran per product and tripled
+  the 50,000-product browse (T9 plan, item 4a).
+- **The feed merge and delisting key on `FeedId`.** They keyed on the feed's display name, so a
+  renamed feed's products were never updated or delisted again, and two stores' feeds of one
+  name delisted each other's stock. `Distributor` is still written, from the feed's current
+  name, for brand aliases and `ExcludeDistributor`.
+- **The currency is never the caller's.** Accounts, quotes and orders take their store's
+  currency inside `spAccount_Insert`, `spQuote_Insert` and `spOrder_Insert`. The portal's
+  currency selects are gone, and it formats with `IAdminDataService.CurrentCurrency` rather
+  than `"EUR"`.
+- **The desktop till has no store.** It lists products in `Pos:CurrencyCode` (default `EUR`),
+  or a GBP feed would put pound prices on a euro till.
+- `ProductProvenanceTests` holds all of it, and runs the merge and delisting SQL against a
+  database, which no test did before.
 
 `spCatalog_Search` decides visibility inside the query rather than filtering afterwards — a
 product removed from an already-fetched page has still been counted, still shifted the paging,

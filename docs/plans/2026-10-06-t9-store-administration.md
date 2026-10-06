@@ -498,6 +498,46 @@ Built in this order. Each item lists what proves it.
     no EUR product and the reverse; documents take their store's currency.
   - Re-run `CatalogLoadCheck` and record the numbers against T7 §7, because placement gains a
     join.
+- **Built.** It differs from the plan in four ways:
+  - **No pre-deployment script.** `Product.CurrencyCode` defaults to `'EUR'`, like
+    `Site.CurrencyCode`, `Account.Currency` and `Quote.Currency` beside it, and every production
+    write sets it. `Seed.sql` then backfills `FeedId` from the feed name and a feed's products to
+    its store's currency.
+  - **A predicate function, not a set.** It is `fnSite_ProductSellable(@SiteId, @FeedId,
+    @Source, @CurrencyCode)`. A function returning a set to join would have scanned
+    `dbo.Product` a second time under every catalog query.
+  - **The admin list leaves out another store's products altogether**, rather than marking them
+    "Elsewhere".
+  - **The rule keys on `FeedId`, not `Source`**, which an admin can rewrite.
+- **Load check (2026-10-06), against T7 §7, same machine and data.** Store A's 50,000 products
+  now come from its own feed:
+
+  | Query | p95 now | p95 in T7 |
+  | --- | --- | --- |
+  | Browse, featured | 282 ms | 309 ms |
+  | Browse, one category | 201 ms | 125 ms |
+  | Search, a word | 88 ms | 107 ms |
+  | Search, a SKU prefix | 62 ms | 80 ms |
+  | Price sort, priced group | 1,028 ms | 843 ms |
+  | Page 400 | 310 ms | 382 ms |
+  | Facets, unfiltered | 223 ms | 163 ms |
+  | Facets, searched | 91 ms | 88 ms |
+  | Product page | 8 ms | 8 ms |
+
+  - **Why it was first written differently.** The first version wrapped `EXISTS` subqueries in a
+    `CASE`. The optimiser could not turn those into joins, and every store-wide query roughly
+    tripled — the featured browse reached 943 ms. Rewritten as `fnSite_ProductPlacement`'s own
+    `LEFT JOIN` shape, the numbers above are within this laptop's run-to-run spread of T7's,
+    except category browse and unfiltered facets.
+  - **What the decision is still about.** The T7 §7 decision is unchanged and still open, and
+    nothing here changes what it is about.
+- **Proof:**
+  - `ProductProvenanceTests`, six database tests: the merge and delisting by feed, a rename, two
+    stores with same-named feeds, two currencies on one category name, own stock and orphans, a
+    product relabelled "Own", and documents in the store's currency.
+  - The 277 database-backed tests pass against a database upgraded from the item-3 schema. The
+    upgrade appends the columns without rebuilding the table, and the deploy report is empty
+    after it.
 
 **4b. The UK distributor's file.**
 

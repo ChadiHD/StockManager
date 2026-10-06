@@ -79,7 +79,8 @@
                 </div>
                 <div class="field">
                     <label>Currency</label>
-                    <InputSelect class="input" @bind-Value="_draft.Currency"><option>EUR</option><option>GBP</option><option>USD</option></InputSelect>
+                    @* The store's (T9): an account trades in it, as its quotes and orders do. *@
+                    <input class="input" value="@Data.CurrentCurrency" disabled />
                 </div>
                 <div class="field">
                     <label>Customer group</label>
@@ -105,7 +106,7 @@
                         </InputSelect>
                     </div>
                     <div class="field span2">
-                        <label>Credit limit (@_draft.Currency)</label>
+                        <label>Credit limit (@Data.CurrentCurrency)</label>
                         <input class="input" type="number" min="0" step="100" value="@_draft.Credit" @onchange="SetCredit" />
                         <span class="field-note @(_draft.Credit <= 0 ? "field-note--warn" : null)">
                             @(_draft.Credit <= 0 ? "A credit account needs a limit above zero." : "Orders beyond this need approval.")
@@ -135,7 +136,7 @@
     private readonly string[] _filters = { "All", "Pending", "Approved", "Suspended" };
     private string _filter = "All";
     private bool _showNew;
-    private Account _draft = new() { Country = "Ireland", Currency = "EUR", Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
+    private Account _draft = new() { Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
 
     private readonly string[] _creditTerms = { "Net 14", "Net 30", "Net 45", "Net 60" };
 
@@ -234,7 +235,7 @@
     {
         var a = await Data.AddAccount(_draft);
         _showNew = false;
-        _draft = new() { Country = "Ireland", Currency = "EUR", Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
+        _draft = new() { Group = "Reseller", Payment = "Card", Terms = "Prepaid" };
         Toast.Show("Account created (pending approval)");
 
         if (a is not null)

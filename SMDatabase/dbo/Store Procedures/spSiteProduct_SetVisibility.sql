@@ -52,7 +52,10 @@ BEGIN
 		MERGE dbo.SiteProduct WITH (HOLDLOCK) AS t
 		USING (SELECT @SiteId AS [SiteId], p.[Id] AS [ProductId]
 		       FROM dbo.Product p
-		       INNER JOIN @Skus s ON s.[Sku] = p.[Sku]) AS s
+		       INNER JOIN @Skus s ON s.[Sku] = p.[Sku]
+		       -- Only this store's to place (T9); a SKU is unique within a feed, not across them.
+		       CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+		       WHERE sel.[Sellable] = 1) AS s
 			ON t.[SiteId] = s.[SiteId] AND t.[ProductId] = s.[ProductId]
 		WHEN MATCHED THEN
 			UPDATE SET [Visibility] = @Visibility,
@@ -62,7 +65,9 @@ BEGIN
 			INSERT ([SiteId], [ProductId], [Visibility], [SiteCategoryId])
 			VALUES (s.[SiteId], s.[ProductId], @Visibility, @SiteCategoryId);
 
-		SET @Matched = (SELECT COUNT(*) FROM dbo.Product p INNER JOIN @Skus s ON s.[Sku] = p.[Sku]);
+		SET @Matched = (SELECT COUNT(*) FROM dbo.Product p INNER JOIN @Skus s ON s.[Sku] = p.[Sku]
+		                CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+		                WHERE sel.[Sellable] = 1);
 
 		DELETE t
 		FROM dbo.SiteProduct t

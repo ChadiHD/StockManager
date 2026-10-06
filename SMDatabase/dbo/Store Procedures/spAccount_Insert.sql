@@ -4,7 +4,6 @@ CREATE PROCEDURE [dbo].[spAccount_Insert]
 	@ContactName nvarchar(100),
 	@Email nvarchar(256),
 	@Country nvarchar(100),
-	@Currency nvarchar(3),
 	@CustomerGroupId int,
 	@PaymentMethod nvarchar(50),
 	@PaymentTerms nvarchar(50),
@@ -26,6 +25,10 @@ BEGIN
 	BEGIN
 		THROW 50002, 'SiteId is required: this database has more than one site, so the store to file this row under cannot be inferred.', 1;
 	END
+
+	-- The store's currency, never the caller's (T9): every price this row will hold comes
+	-- from the store's catalog, and an admin used to be able to pick another one from a list.
+	DECLARE @Currency nvarchar(3) = (SELECT [CurrencyCode] FROM dbo.Site WHERE [Id] = @SiteId);
 
 	-- Human-readable reference (AC-2041 style) derived from the identity value.
 	DECLARE @Reference nvarchar(20) = CONCAT('AC-', FORMAT(NEXT VALUE FOR dbo.AccountReferenceSequence, '0000'));

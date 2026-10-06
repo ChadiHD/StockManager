@@ -205,12 +205,19 @@ public class CatalogLoadCheck
         FROM n JOIN dbo.SiteCategory c ON c.SiteId = @b AND c.SortOrder = n.i - 20
         WHERE n.i > 20;
 
+        -- Store A's feed. Since T9 a distributor product belongs to the feed that imported it, and
+        -- every catalog query checks that feed is the store's, which is a cost worth measuring.
+        -- Store B keeps its mappings so the mapping tables stay as busy as two stores make them.
+        INSERT INTO dbo.DistributorFeed (Name, Host, Username, SiteId)
+        VALUES (N'Load', N'sftp.load.invalid', N'load', @a);
+        DECLARE @feedA int = SCOPE_IDENTITY();
+
         WITH n AS (
             SELECT TOP (@Products) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i
             FROM sys.all_objects x CROSS JOIN sys.all_objects y)
         INSERT INTO dbo.Product (ProductName, Description, RetailPrice, QuantityInStock, Sku, Category,
                                  Cost, Source, Distributor, DistributorSku, LastSynced, Delisted,
-                                 Manufacturer, ManufacturerPartNumber, Ean)
+                                 Manufacturer, ManufacturerPartNumber, Ean, FeedId)
         SELECT CONCAT(N'Brand', n.i % 50, N' ',
                       CHOOSE(n.i % 6 + 1, N'ultrabook', N'desktop', N'monitor', N'dock', N'keyboard', N'server'),
                       N' model ', n.i),
@@ -225,7 +232,8 @@ public class CatalogLoadCheck
                CASE WHEN n.i % 97 = 0 THEN 1 ELSE 0 END,
                CONCAT(N'Brand', n.i % 50),
                CONCAT(N'MPN-', n.i),
-               CONCAT(N'5', FORMAT(n.i, '000000000000'))
+               CONCAT(N'5', FORMAT(n.i, '000000000000')),
+               @feedA
         FROM n;
 
         INSERT INTO dbo.CustomerGroup (Name, Slug, Discount, Terms, SiteId)

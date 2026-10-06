@@ -35,6 +35,13 @@ public interface IAdminDataService
     /// </summary>
     bool ManagesAllStores { get; }
 
+    /// <summary>
+    /// The acting store's currency (T9). Every price the portal shows for it is in this: its
+    /// products, and the quotes, orders and accounts it now takes from the store. Until T9 the
+    /// products screens wrote "EUR" whatever the store.
+    /// </summary>
+    string CurrentCurrency { get; }
+
     /// <summary>Changes the store this workspace is showing, and reloads everything.</summary>
     Task SwitchSiteAsync(string siteKey);
 
@@ -99,8 +106,9 @@ public interface IAdminDataService
     Task MarkOrderFulfilled(string id);
     /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
     Task<QuoteConversion> ConvertQuoteToOrder(string quoteId);
-    Task<Quote?> AddQuote(string accountName, string currency);
-    Task<Order?> AddOrder(string accountName, string currency);
+    // No currency: a quote or an order is in its store's (T9).
+    Task<Quote?> AddQuote(string accountName);
+    Task<Order?> AddOrder(string accountName);
     /// <summary>Adds a line for a chosen product. Returns false when nothing was added.</summary>
     Task<bool> AddQuoteLine(string quoteId, string sku, int quantity, int discountPct);
 

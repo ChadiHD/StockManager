@@ -36,14 +36,13 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spQuoteLine_GetByQuote", new { QuoteId = quoteId, SiteId = siteId }, "SMDatabase");
         }
 
-        public QuoteModel CreateQuote(int accountId, string currency, DateTime? expiresDate, int siteId)
+        public QuoteModel CreateQuote(int accountId, DateTime? expiresDate, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spQuote_Insert", new
             {
                 Id = 0,
                 Reference = string.Empty,
                 AccountId = accountId,
-                Currency = string.IsNullOrWhiteSpace(currency) ? "EUR" : currency,
                 ExpiresDate = expiresDate,
                 SiteId = siteId
             }, "SMDatabase");

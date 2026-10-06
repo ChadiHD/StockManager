@@ -180,7 +180,7 @@ namespace SMDataManager.Library.Feeds
                 result.RecordCount = records.Count;
 
                 // One round trip for the whole feed, applied atomically.
-                var upsert = _productData.BulkUpsertFromFeed(feed.Name, records);
+                var upsert = _productData.BulkUpsertFromFeed(feed.Id, feed.Name, records);
                 result.Imported = upsert.Received;
                 result.Delisted = upsert.Delisted;
                 result.Succeeded = true;

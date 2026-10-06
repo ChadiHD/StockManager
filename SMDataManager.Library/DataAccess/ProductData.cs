@@ -20,9 +20,9 @@ namespace SMDataManager.Library.DataAccess
         {
             _sqlDataAccess = sqlDataAccess;
         }
-        public List<ProductModel> GetProducts()
+        public List<ProductModel> GetProducts(string currencyCode)
         {
-            var output = _sqlDataAccess.LoadData<ProductModel, dynamic>("dbo.spProduct_GetAll", new { }, "SMDatabase");
+            var output = _sqlDataAccess.LoadData<ProductModel, dynamic>("dbo.spProduct_GetAll", new { CurrencyCode = currencyCode }, "SMDatabase");
 
             return output;
         }
@@ -101,13 +101,13 @@ namespace SMDataManager.Library.DataAccess
             }
         }
 
-        public AdminProductModel GetProductBySku(string sku)
+        public AdminProductModel GetProductBySku(int siteId, string sku)
         {
             return _sqlDataAccess.LoadData<AdminProductModel, dynamic>(
-                "dbo.spProduct_GetBySku", new { Sku = sku }, "SMDatabase").FirstOrDefault();
+                "dbo.spProduct_GetBySku", new { SiteId = siteId, Sku = sku }, "SMDatabase").FirstOrDefault();
         }
 
-        public AdminProductModel CreateProduct(AdminProductModel product)
+        public AdminProductModel CreateProduct(AdminProductModel product, int siteId, string currencyCode)
         {
             _sqlDataAccess.SaveData("dbo.spProduct_Insert", new
             {
@@ -123,10 +123,11 @@ namespace SMDataManager.Library.DataAccess
                 product.RetailPrice,
                 product.QuantityInStock,
                 product.IsTaxable,
-                product.ProductImage
+                product.ProductImage,
+                CurrencyCode = currencyCode
             }, "SMDatabase");
 
-            return GetProductBySku(product.Sku);
+            return GetProductBySku(siteId, product.Sku);
         }
 
         public void UpdateProduct(AdminProductModel product)
@@ -160,7 +161,7 @@ namespace SMDataManager.Library.DataAccess
                 new { Id = productId, ProductImage = imageUrl }, "SMDatabase");
         }
 
-        public FeedUpsertResult BulkUpsertFromFeed(string distributor, IEnumerable<DistributorFeedRecord> records)
+        public FeedUpsertResult BulkUpsertFromFeed(int feedId, string distributor, IEnumerable<DistributorFeedRecord> records)
         {
             var table = BuildFeedTable(records);
 
@@ -168,6 +169,7 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spProduct_BulkUpsertFromFeed",
                 new
                 {
+                    FeedId = feedId,
                     Distributor = distributor,
                     Items = table.AsTableValuedParameter("dbo.DistributorFeedItem")
                 },

@@ -68,7 +68,7 @@ public class AuthorizationSurfaceTests
     }
 
     // Actions that are not about one store, which an admin given only some stores must not
-    // reach (T9): staff and their grants, the shared product table, and the till. The thing
+    // reach (T9): staff and their grants, image enrichment over every product, and the till. The thing
     // that matters is again an absence — remove the policy and every one of these still works,
     // for everybody — so it is listed here rather than left to review.
     private static readonly HashSet<string> EveryStoreOnly =
@@ -80,9 +80,6 @@ public class AuthorizationSurfaceTests
         $"{nameof(UserController)}.{nameof(UserController.GetAllRoles)}",
         $"{nameof(UserController)}.{nameof(UserController.AddRole)}",
         $"{nameof(UserController)}.{nameof(UserController.RemoveRole)}",
-        $"{nameof(ProductController)}.{nameof(ProductController.GetBySku)}",
-        $"{nameof(ProductController)}.{nameof(ProductController.Create)}",
-        $"{nameof(ProductController)}.{nameof(ProductController.Update)}",
         $"{nameof(ProductController)}.{nameof(ProductController.EnrichImages)}",
         $"{nameof(PurchaseController)}.{nameof(PurchaseController.GetPurchaseReports)}",
         $"{nameof(InventoryController)}.{nameof(InventoryController.Get)}",

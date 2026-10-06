@@ -32,7 +32,7 @@ public class DistributorFeedSyncServiceTests
         _secrets.For(Arg.Any<string>()).Returns(_store);
         _store.ResolveAsync(Arg.Any<string>()).Returns("secret");
         _client.Fetch(Arg.Any<DistributorFeedSettings>()).Returns(new List<DistributorFeedRecord>());
-        _products.BulkUpsertFromFeed(Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
+        _products.BulkUpsertFromFeed(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
             .Returns(new FeedUpsertResult());
 
         _sync = new DistributorFeedSyncService(
@@ -73,7 +73,7 @@ public class DistributorFeedSyncServiceTests
         _client.DidNotReceive().Fetch(Arg.Any<DistributorFeedSettings>());
         await _store.DidNotReceive().ResolveAsync(Arg.Any<string>());
         _products.DidNotReceive().BulkUpsertFromFeed(
-            Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>());
+            Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>());
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class DistributorFeedSyncServiceTests
         Claimable(true);
         _client.Fetch(Arg.Any<DistributorFeedSettings>()).Returns(
             new List<DistributorFeedRecord> { new(), new(), new() });
-        _products.BulkUpsertFromFeed(Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
+        _products.BulkUpsertFromFeed(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
             .Returns(new FeedUpsertResult { Received = 3, Delisted = 1 });
 
         await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Schedule);
@@ -172,7 +172,7 @@ public class DistributorFeedSyncServiceTests
         Claimable(true);
         _client.Fetch(Arg.Any<DistributorFeedSettings>()).Returns(
             new List<DistributorFeedRecord> { new(), new() });
-        _products.BulkUpsertFromFeed(Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
+        _products.BulkUpsertFromFeed(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IEnumerable<DistributorFeedRecord>>())
             .Returns(_ => throw new InvalidOperationException("deadlocked"));
 
         await _sync.SyncAsync(feed.Id, feed.SiteId, FeedSyncTrigger.Schedule);

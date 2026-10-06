@@ -31,7 +31,7 @@ public class StorePlacementControllerTests
     public StorePlacementControllerTests()
     {
         _site.SiteId.Returns(ActingSite);
-        _products.GetProductBySku("SKU-1").Returns(new AdminProductModel { Id = 1, Sku = "SKU-1" });
+        _products.GetProductBySku(ActingSite, "SKU-1").Returns(new AdminProductModel { Id = 1, Sku = "SKU-1" });
 
         _productController = new ProductController(_products);
         _mappingController = new CategoryMappingController(_mappings, _site);

@@ -21,10 +21,13 @@ BEGIN
 	       [m].[SiteCategoryId],
 	       [c].[Name] AS [SiteCategoryName]
 	FROM (
-		SELECT [Category] AS [FeedValue], COUNT(*) AS [Products]
-		FROM dbo.Product
-		WHERE [Category] IS NOT NULL AND [Delisted] = 0
-		GROUP BY [Category]
+		SELECT p.[Category] AS [FeedValue], COUNT(*) AS [Products]
+		FROM dbo.Product p
+		-- This store's feeds and currency only (T9). Every product's category was listed here, so
+		-- a UK admin was offered the Irish distributor's categories to map.
+		CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+		WHERE p.[Category] IS NOT NULL AND p.[Delisted] = 0 AND sel.[Sellable] = 1
+		GROUP BY p.[Category]
 	) f
 	LEFT JOIN dbo.CategoryMapping m
 		ON m.[SiteId] = @SiteId

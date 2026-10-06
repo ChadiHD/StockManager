@@ -124,7 +124,9 @@
     private int PendingCount => Pending.Count();
     private int OpenQuotes => Data.Quotes.Count(q => q.Status is "Requested" or "Priced");
     private List<Product> LowStock => Data.Products.Where(p => p.Avail <= 6).ToList();
-    private string OrdersGross => AdminUi.Money(Data.Orders.Where(o => o.Currency == "EUR").Sum(o => o.Value), "EUR");
+    // The store's own currency (T9); it summed only EUR orders, whatever the store.
+    private string OrdersGross => AdminUi.Money(
+        Data.Orders.Where(o => o.Currency == Data.CurrentCurrency).Sum(o => o.Value), Data.CurrentCurrency);
 
     protected override void OnParametersSet() =>
         Layout?.SetPage("Dashboard", "Operational overview across trading, accounts and stock");

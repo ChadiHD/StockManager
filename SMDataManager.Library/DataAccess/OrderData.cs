@@ -41,7 +41,7 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spOrderLine_GetByOrder", new { PurchaseId = purchaseId, SiteId = siteId }, "SMDatabase");
         }
 
-        public OrderModel CreateOrder(string staffId, int accountId, string currency, int siteId)
+        public OrderModel CreateOrder(string staffId, int accountId, int siteId)
         {
             _sqlDataAccess.SaveData("dbo.spOrder_Insert", new
             {
@@ -49,7 +49,6 @@ namespace SMDataManager.Library.DataAccess
                 Reference = string.Empty,
                 StaffId = staffId,
                 AccountId = accountId,
-                Currency = string.IsNullOrWhiteSpace(currency) ? "EUR" : currency,
                 QuoteId = (int?)null,
                 SiteId = siteId
             }, "SMDatabase");

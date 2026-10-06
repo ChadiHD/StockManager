@@ -11,15 +11,20 @@ CREATE PROCEDURE [dbo].[spProduct_Insert]
 	@RetailPrice money,
 	@QuantityInStock int,
 	@IsTaxable bit,
-	@ProductImage nvarchar(500)
+	@ProductImage nvarchar(500),
+	-- The acting store's (T9): the prices just typed are in it, and own stock may be sold by any
+	-- store in this currency. No FeedId, so never a feed's, whatever Source says.
+	@CurrencyCode nvarchar(3)
 AS
 BEGIN
 	SET NOCOUNT ON;
 
 	INSERT INTO dbo.Product([ProductName], [Description], [RetailPrice], [QuantityInStock], [IsTaxable],
-	                        [ProductImage], [Sku], [Category], [Cost], [Source], [Distributor], [DistributorSku])
+	                        [ProductImage], [Sku], [Category], [Cost], [Source], [Distributor], [DistributorSku],
+	                        [CurrencyCode])
 	VALUES (@ProductName, @Description, @RetailPrice, @QuantityInStock, @IsTaxable,
-	        @ProductImage, @Sku, @Category, @Cost, @Source, @Distributor, @DistributorSku);
+	        @ProductImage, @Sku, @Category, @Cost, @Source, @Distributor, @DistributorSku,
+	        @CurrencyCode);
 
 	SELECT @Id = SCOPE_IDENTITY();
 END

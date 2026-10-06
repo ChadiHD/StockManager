@@ -5,7 +5,6 @@ CREATE PROCEDURE [dbo].[spOrder_Insert]
 	@Reference nvarchar(20) output,
 	@StaffId nvarchar(128),
 	@AccountId int,
-	@Currency nvarchar(3),
 	@QuoteId int = NULL,
 	@SiteId int
 AS
@@ -24,6 +23,10 @@ BEGIN
 	BEGIN
 		THROW 50004, 'That quote does not belong to this store.', 1;
 	END
+
+	-- The store's currency, never the caller's (T9): every price this row will hold comes
+	-- from the store's catalog, and an admin used to be able to pick another one from a list.
+	DECLARE @Currency nvarchar(3) = (SELECT [CurrencyCode] FROM dbo.Site WHERE [Id] = @SiteId);
 
 	SET @Reference = CONCAT('SO-', FORMAT(NEXT VALUE FOR dbo.OrderReferenceSequence, '0000'));
 

@@ -104,7 +104,7 @@ RETURN
 	product list reads, so the screen and the shop cannot disagree. It checks that the category
 	is this store's and active, which this query used to do with its own joins.
 	*/
-	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category]) pl
+	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category], [p].[FeedId], [p].[Source], [p].[CurrencyCode]) pl
 
 	-- Named intermediates rather than one nested CASE repeated three times. CROSS APPLY
 	-- (VALUES ...) is the T-SQL idiom for it and costs nothing: the optimiser folds these into

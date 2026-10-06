@@ -121,6 +121,9 @@ public class AdminDataService : IAdminDataService
 
     public bool ManagesAllStores => _managesAllStores;
 
+    public string CurrentCurrency =>
+        _sites.FirstOrDefault(site => site.SiteKey == _currentSiteKey)?.CurrencyCode ?? string.Empty;
+
     public async Task SwitchSiteAsync(string siteKey)
     {
         if (string.IsNullOrWhiteSpace(siteKey) || siteKey == _currentSiteKey) return;
@@ -561,7 +564,7 @@ public class AdminDataService : IAdminDataService
             created is null ? null : GetOrder(created.Reference ?? string.Empty));
     }
 
-    public async Task<Quote?> AddQuote(string accountName, string currency)
+    public async Task<Quote?> AddQuote(string accountName)
     {
         int? accountId = ResolveAccountIdByCompany(accountName);
         if (accountId is null) return null;
@@ -569,7 +572,6 @@ public class AdminDataService : IAdminDataService
         var response = await _client.PostAsJsonAsync($"{_api}/api/Quote", new
         {
             AccountId = accountId.Value,
-            Currency = currency,
             ExpiresDate = DateTime.UtcNow.AddDays(14)
         });
         response.EnsureSuccessStatusCode();
@@ -580,15 +582,14 @@ public class AdminDataService : IAdminDataService
         return created is null ? null : GetQuote(created.Reference ?? string.Empty);
     }
 
-    public async Task<Order?> AddOrder(string accountName, string currency)
+    public async Task<Order?> AddOrder(string accountName)
     {
         int? accountId = ResolveAccountIdByCompany(accountName);
         if (accountId is null) return null;
 
         var response = await _client.PostAsJsonAsync($"{_api}/api/Order", new
         {
-            AccountId = accountId.Value,
-            Currency = currency
+            AccountId = accountId.Value
         });
         response.EnsureSuccessStatusCode();
 
