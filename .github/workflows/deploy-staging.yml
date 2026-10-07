@@ -26,9 +26,10 @@ jobs:
       Azure__ResourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
       Azure__CredentialSource: AzureCli
 
-      # App host parameters. Domains come from the app host's own settings
-      # (Deployment:StoreDomains, Deployment:AdminDomain); certificate names are empty until
-      # the runbook's certificate step has run for each one.
+      # App host parameters. Domains are Deployment__AdminDomain and Deployment__StoreDomains__N
+      # lines here, added by the business's own copy of this workflow; the template has no store
+      # and carries none (docs/runbooks/production.md §1). Certificate names are empty until the
+      # runbook's certificate step has run for each one.
       Parameters__jwt-signing-key: ${{ secrets.JWT_SIGNING_KEY }}
       Parameters__admin-bootstrap-email: ${{ vars.ADMIN_BOOTSTRAP_EMAIL }}
       Parameters__admin-bootstrap-password: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
