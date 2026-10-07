@@ -50,6 +50,16 @@ dispatcher, every message on it in per-site wording, the quote-expiry sweep, and
 where two customers are charged differently for the same product. The plan opens with the four
 things that were already wrong — three numbers for one tax among them.
 
+**Since T9 there are two rule sets**, registered once through `AddTaxRuleSets` for both hosts:
+
+- **`eu-b2b`**: domestic, intra-EU reverse charge, or export.
+- **`uk-b2b`**: anywhere in the United Kingdom is domestic, Northern Ireland included.
+  Everywhere else is a zero-rated export, Ireland and the EU included, whatever VAT number the
+  customer gave.
+
+Neither is tax advice. Both are signed off by an accountant before launch, and the UK domestic
+reverse charge on phones and chips is not built.
+
 **T8 — store catalog control is built**, ahead of T7: the admin choosing which products each
 store sells, and prices shown to signed-in customers only, per
 `docs/plans/2026-10-05-t8-store-catalog-control.md`. **What a store sells is
@@ -74,6 +84,22 @@ first admin from `Admin:Bootstrap*`; and `ProductionTopology` describes Azure fo
 publish`. **Nothing here deploys to Azure** (`.github/copilot-instructions.md`): the
 `deploy-staging` workflow is run by hand. The load check at 50,000 products fails its target on
 the whole-catalog browse, and that is recorded as a decision in the plan's §7, not fixed.
+
+**T9 — store administration and a second country is built**, per
+`docs/plans/2026-10-06-t9-store-administration.md`. aclitech.co.uk (UK, GBP, its own UK
+distributor) now launches with aclitrade.ie, from one deployment and one portal. T9 adds:
+
+- the schema-deploy cleanup, and a CI step that fails on any drift like it;
+- store-limited admins;
+- admin screens for everything a store was configured with by SQL — settings and legal
+  identity, categories, content pages and the home page, email wording, and stores created
+  closed and opened against a checklist;
+- products tied to the feed and currency they came from;
+- `uk-b2b` tax and registration.
+
+Its §1 lists what reading the code found. A new store is now `docs/runbooks/new-store.md`, and
+none of it is code: a store's theme files and domains live in a downstream repository, of which
+this template is the upstream.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -132,7 +158,7 @@ before anything else runs. Consequences that are easy to get wrong:
 - `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
   start with it set outside Development.
 
-### An admin acts for one store at a time, and admins are global
+### An admin acts for one store at a time, and only for stores they were given
 
 The storefront resolves its store from the host; the admin API cannot, because one host serves
 an operator who may run several. So the portal names the store in an `X-Site-Key` header,
@@ -142,10 +168,58 @@ asking. Reads are scoped as well as writes: `spAccount_GetAll`, `spQuote_GetAll`
 `spOrder_GetAll`, `spCustomerGroup_GetAll` and `spDistributorFeed_GetAll` all take `@SiteId`.
 Products are the deliberate exception — `dbo.Product` is shared, the desktop POS has no site,
 so `ProductController` injects the context per action rather than through its constructor.
+Since T9 every admin product action reads through the acting store's sellable set, so another
+store's product is a 404 — see *Catalog and pricing*.
 
-**Admins are global**: any admin may act for any active store, and the header is trusted once
-it names one. **Restricting an admin to some stores is a prerequisite for a second tenant**,
-and the change is a "may this user select this site" check in the middleware, nothing else.
+**Since T9, an admin acts only for the stores they were given.** `dbo.[User].AllSites` means
+every store, including ones created later. Otherwise the stores are the rows in `dbo.UserSite`,
+and there may be none.
+
+- **The check is per request, not a claim in the token.** The middleware calls
+  `spUserSite_CanAct` after resolving the header, uncached, because a token lives a day and
+  taking a store away has to apply to the next request. It costs one primary-key read, paid
+  only by requests that resolve a store.
+- **A store the caller may not act for is left unresolved, exactly like an unknown key.** The
+  400 is the same words either way, so it cannot be used to list stores. The single-store
+  fallback asks too, and an anonymous caller acts for nothing.
+- **`GET api/Site` returns the same answer as the middleware**, so the selector never offers a
+  store the API would refuse.
+- **Actions that are not about one store carry `[Authorize(Policy = AllStores.Policy)]`:**
+  staff and their grants, the shared-product actions on `ProductController`, and the till's
+  sales report and inventory.
+  - **It binds Admins only.** Manager and Staff are the till's roles, the till has no store, and
+    for them the action's own roles decide as before. A Manager still reads the sales report.
+  - **`AuthorizationSurfaceTests.EveryStoreOnly` lists those actions**, because removing the
+    policy breaks nothing and opens all of them.
+  - **`ProductController`'s entries are interim.** They can go once item 4a gives products an
+    owner and those actions can check the product belongs to the acting store.
+- **Somebody must always be able to hand out stores.** `UserController` refuses, with a 409, to
+  take `AllSites` or the Admin role from the last user who holds both. Roles live in
+  `ApiAuthDb`, so this check cannot be in `spUserSite_Set`.
+- **Who starts with every store.** Users who existed before T9 were given `AllSites` once, by
+  `Seed.sql`. `AdminBootstrap` gives it to a deployment's first admin. Everybody else starts
+  with no store: a colleague is given stores, not handed all of them because nobody unticked a
+  box.
+- **The Users screen lists staff only** — logins with a `dbo.User` row — and grants roles and
+  stores by id. It returned every Identity login, customers of every store included, and found
+  its target by email, so a customer login sharing an address could receive the role.
+- **Signing out reloads the portal and forgets the selected store.** The snapshot lives in
+  memory for the life of the WebAssembly app, so a navigation alone showed the next person at
+  the browser the previous admin's stores and data.
+- **A store is created closed, at `/admin/stores`, and opened against a checklist** (T9). Until
+  then a store was a row inserted by hand, live the moment it existed.
+  - `spSite_Insert` writes the row with `IsActive = 0`.
+  - The admin API resolves a store that is not open for an admin of every store only. The
+    storefront still does not resolve it at all. That is what lets a store be configured from
+    the other screens before any customer can reach it.
+  - **`spSite_SetActive` refuses to open a store, naming everything missing, until it has:**
+    a sending address, an operator address, a tax rate above zero, a VAT number, a legal name,
+    an active category, and a body for each of `SiteContentKeys.RequiredToOpen`. That list is
+    passed in, so it is one list.
+  - A store already open is not re-checked. Closing a store is immediate.
+  - **Creating, opening and closing take `AllStores`.**
+- **When the storefront notices.** A store just opened resolves within its 30-second miss
+  cache. A store just closed keeps serving for up to `Sites:CacheDuration`.
 
 The write half is done. Every insert over a scoped entity sets `SiteId`: `spAccount_Insert`,
 `spCustomerGroup_Insert` and `spDistributorFeed_Insert` take an optional `@SiteId`, while
@@ -264,6 +338,15 @@ account blocks that person from registering again and nothing else would surface
   fixed model when the fields vary per store — and because that is what keeps the password
   out of the round trip. Everything echoed back after a validation error is echoed because
   the page chose to; the two password inputs never are.
+- **There are two field sets since T9.**
+  - **`eu-b2b`** requires an EU VAT number, and refuses GB, which left the EU VAT area.
+  - **`uk-b2b`** has the VAT number and Companies House number optional, since sole traders and
+    businesses below the threshold have neither, and shape-checks them when given. It requires a
+    postcode.
+  - **Both ask for the `ChamberOfCommerce` document kind**: `CK_AccountDocument_Kind`'s name for
+    proof the business exists, labelled to suit each country.
+  - **A new field set** is a line in `AddRegistrationFieldSets` plus a key in
+    `SiteSettingKeys.RegistrationFieldSets`. `SiteSettingKeysTests` fails if either is missing.
 
 ### Customer documents
 
@@ -359,7 +442,12 @@ else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands 
   before using it — a placeholder the message has no value for, or a required one left out
   (`EmailTemplate.RequiredTokens`: the link in a reset, the reason in a rejection, the legend
   on an order) — and the dispatcher sends the platform's wording with a warning rather than a
-  broken mail. Like `Site`, it has no admin screen.
+  broken mail.
+- **It is edited at `/admin/email` since T9**, and `SiteEmailTemplateController` runs that same
+  `WhyRefused` on save. A broken wording is refused while somebody can still fix it, instead of
+  being found by the dispatcher, which can only fall back and log. The screen lists each
+  message's placeholders and marks the required ones. Blanking both halves deletes the row,
+  which goes back to the platform's words.
 - Prices in mail go through `SiteMoney.Format`, which `CatalogPresenter.Money` now calls too,
   so a confirmation and the order page cannot write one total two ways. Dates are invariant
   culture, because the copy is English and the dispatcher's culture is its server's.
@@ -556,6 +644,14 @@ dotnet build StockApi/StockApi.csproj -p:BaseOutputPath=<scratch-dir>/bo/ -v q -
 
 (`-p:OutputPath=` for the sqlproj.) Compilation errors still surface; only the copy step is skipped.
 
+**Do not run the whole solution's tests under that `BaseOutputPath`.** It is one folder for
+every project, so whichever project copies last decides each shared dependency's version.
+Since T9, `StockApi` carries HtmlSanitizer's AngleSharp 1.7, which bUnit 1.40 cannot run with.
+The bUnit projects then fail with `MissingMethodException` on `IHtmlCollection<T>.get_Item` —
+the same symptom as the pinning note under *Tests*. Each project still passes on its own, in
+its own folder, and in CI. Test one project at a time there, or use `--artifacts-path`, which
+gives each project a folder of its own.
+
 ### Tests
 
 **xunit is the runner everywhere, on v2.** Two pins hold that together and both are commented
@@ -628,9 +724,35 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All ten journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All thirteen journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
-the old one. T8's runs across both stores the
+the old one.
+
+T9's eleventh has an admin of every store give a colleague one store. The colleague's portal
+offers only that store. Their own token is refused by the other store with the same words an
+unknown key gets, and refused by the staff list. After the store is taken away, the same token
+is refused on its very next request. The fixture's operator has `AllSites`, because a profile
+created now has no store by default.
+
+T9's twelfth creates a store in the portal and is refused opening it. It then acts for the
+store and fills in settings, a category and the four pages the checklist wants. It opens the
+store and reads its storefront over HTTP, with the new domain as the `Host` header: the suite
+has only two names for loopback, and other journeys own them.
+
+T9's thirteenth borrows the second loopback store as a UK one (GB, GBP, `uk-b2b`, 20%) for its
+length, and puts it back afterwards. Both stores map one feed category, and the Irish store's
+euro stock is filed in it too.
+- The UK storefront lists only its own feed's product, at £100.00, and the Irish one only its
+  euro stock.
+- A British customer is charged £20.00 VAT, Domestic standard.
+- An Irish customer of the UK store is zero-rated as an export.
+- Both orders store GBP.
+
+It found that `AdminPortal.EnsureActingForSiteAsync` returned before the store selector
+rendered. That was harmless while every journey acted for the store already selected, and it
+now waits for the workspace to load.
+
+T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
 unmapped one there under a store category, through the portal, and the other store does not
 change; then the first store hides prices until sign-in, and a signed-in customer with no
@@ -736,7 +858,8 @@ fewer than four `Passed!` lines; the database and blob tests on Linux against th
 Server and Azurite containers, failing if any of them skipped; and the E2E suite with
 `E2E_REQUIRE_APPHOST=1`. The database job publishes the DACPAC to an **empty** database first —
 that is the only place a pre-deployment script's assumption that a table exists can fail
-before production does.
+before production does — then publishes again, and then fails if a deploy report against the
+now up-to-date database lists any operation at all.
 
 ## Data access
 
@@ -786,6 +909,16 @@ on its own before publishing:
 dotnet build SMDatabase/SMDatabase.sqlproj    # no BaseOutputPath
 ```
 
+**A DACPAC that builds may still not publish.** The build checks references to objects, not
+every column binding. `spSite_SetActive` built cleanly while a `VALUES (...)` list referenced an
+outer alias — which T-SQL cannot see; it needs `CROSS APPLY (VALUES ...)` — and the publish
+failed with `Msg 4104`. Publish a new procedure to a scratch database before trusting it. CI's
+empty-database publish is the backstop.
+
+**A `%` in a `THROW` message empties the whole message.** `THROW 50095, @Message, 1` with
+"above 0%" in `@Message` raised the right number with no text, so the admin read a refusal that
+said nothing. Spell it out ("above zero"). It is invisible until the refusal is actually raised.
+
 **Hand-applying a procedure with `sqlcmd` needs `-I`.** `sqlcmd` defaults `QUOTED_IDENTIFIER`
 off, and SQL Server bakes the session's SET options into a procedure at creation time. A
 procedure created without it throws `INSERT failed because the following SET options have
@@ -813,6 +946,15 @@ columns before `IsActive` rebuilt both tables on publish, and moving them to the
 A pre-deployment `ALTER TABLE ... ADD` appends, so a column added there has to be declared last
 or the publish rebuilds the table to move what the script just added. Check a schema change
 with `sqlpackage /Action:Publish ... | grep -i "rebuilding table"`, which should print nothing.
+
+**A CHECK over a list of values is written as the `OR` chain SQL Server stores, not as
+`IN (...)`.** SQL Server keeps `[Kind] IN ('Billing', 'Shipping')` as
+`([Kind]='Shipping' OR [Kind]='Billing')`: the list rewritten, reversed. DacFx compares the two,
+finds them different, and drops and re-creates the constraint on every publish, re-validating
+every row of the table each time. Nine constraints did exactly that until T9 and nothing
+failed. The form to write is the one `sys.check_constraints.definition` shows after a first
+publish. CI's deploy-report step is the guard, and it catches any other definition SQL Server
+rewrites in the same way.
 
 **A NOT NULL column whose value depends on another column needs a pre-deployment backfill.**
 The schema diff runs before `Seed.sql`, so a column added with a default and constrained in
@@ -1025,6 +1167,24 @@ Two conventions worth keeping:
   store's words. `SiteContent.BodyHtml` renders as `MarkupString`, so rows are staff-authored
   only — nothing originating with a customer may reach that column.
 
+**Content pages are edited at `/admin/content` since T9**, and the home page is one of them:
+the `home` row is its hero, the store's active categories and their blurbs are its grid, and
+`CatalogPresenter.Featured` — the default order's first eight, with no facet query — is its
+featured strip.
+
+- **`SiteContentKeys` is the list of pages.** `SiteContentKeysTests` holds it equal to
+  `ContentPage`'s `@page` routes.
+- **The save writes the row the storefront renders.** That is the locale row when one exists,
+  otherwise the agnostic one. Writing the agnostic row while a locale row existed would succeed
+  and change nothing a customer sees.
+- **A body is cleaned on save** by `StockApi`'s `ContentHtml`, an HtmlSanitizer allow-list:
+  structure, https, mailto, tel and relative links, and https images. No forms, frames, styles,
+  classes or handlers. The editor shows the cleaned body back and says when something was
+  removed.
+- **It cannot also run at render, in SMStore.** Every stable HtmlSanitizer needs an AngleSharp
+  that bUnit 1.40 breaks on — see the AngleSharp note under *Tests* — so the guarantee is at the
+  one write path the portal has. Rows written by SQL are trusted, as before T9.
+
 The basket page carries both `@page "/quote"` and `@page "/cart"`; which one a store links to
 comes from `OrderingModeProvider`, so neither route 404s and no markup branches on `OrderMode`.
 
@@ -1033,6 +1193,39 @@ comes from `OrderingModeProvider`, so neither route 404s and no markup branches 
 Pages never touch `ICatalogData` or `IPriceResolver`. Both go through `CatalogPresenter`,
 because resolving a price and deciding whether to show one at all are the two things most
 easily got subtly wrong in a page.
+
+**A product belongs to the feed that imported it, and its prices are in `Product.CurrencyCode`**
+(T9). `dbo.fnSite_ProductSellable` decides whether a store may sell a product at all, before
+placement decides where it sits.
+
+- **The rule.** The product's currency is the store's. A distributor product counts only if
+  its `FeedId` is one of the store's own feeds. Own stock — no feed, not marked
+  `Distributor` — may be sold by every store in its currency.
+- **Orphans sell nowhere.** That is a distributor product whose feed was deleted
+  (`ON DELETE SET NULL`), or one whose pre-T9 feed name was ambiguous.
+- **The rule keys on `FeedId`, never `Source`**, because `spProduct_Update` lets an admin
+  rewrite `Source`.
+- **Who reads it.** `fnSite_ProductPlacement` applies it, so `OnStore` means sellable *and*
+  placed. The admin's products and categories screens, the placement writes, and
+  `spProduct_GetBySku` read it directly.
+  - This is what stops a UK store selling the Irish distributor's notebooks with a pound sign
+    on euro prices.
+  - It also stops a UK admin seeing, mapping or repricing them.
+  - A SKU is unique within a feed, not across feeds, which is why the SKU lookups go through it.
+- **Write it as joins, not `EXISTS` inside a `CASE`.** That version ran per product and tripled
+  the 50,000-product browse (T9 plan, item 4a).
+- **The feed merge and delisting key on `FeedId`.** They keyed on the feed's display name, so a
+  renamed feed's products were never updated or delisted again, and two stores' feeds of one
+  name delisted each other's stock. `Distributor` is still written, from the feed's current
+  name, for brand aliases and `ExcludeDistributor`.
+- **The currency is never the caller's.** Accounts, quotes and orders take their store's
+  currency inside `spAccount_Insert`, `spQuote_Insert` and `spOrder_Insert`. The portal's
+  currency selects are gone, and it formats with `IAdminDataService.CurrentCurrency` rather
+  than `"EUR"`.
+- **The desktop till has no store.** It lists products in `Pos:CurrencyCode` (default `EUR`),
+  or a GBP feed would put pound prices on a euro till.
+- `ProductProvenanceTests` holds all of it, and runs the merge and delisting SQL against a
+  database, which no test did before.
 
 `spCatalog_Search` decides visibility inside the query rather than filtering afterwards — a
 product removed from an already-fetched page has still been counted, still shifted the paging,
@@ -1316,6 +1509,15 @@ images afterwards, a batch at a time.
   from it leaks one per refresh for the life of the host. The composition root scopes each
   refresh instead.
 
+**A blank field mapping on a feed is unmapped, and nothing reads it** (T9).
+- **Until then.** `DistributorFeedModel.ToSettings` read a blank as FlexIT's element name, so
+  a second distributor's feed with a blank field read whatever its file held under FlexIT's
+  vocabulary.
+- **What replaced the fallback.** The feed form pre-fills FlexIT's names for a new feed.
+  `FillLegacyFeedFields.sql` wrote those names, once, into the feeds created before T9.
+- **That step must stay in pre-deployment, guarded on `Product.FeedId` being absent.** In
+  `Seed.sql` it would overwrite a later feed's deliberately blank field on every publish.
+
 **A feed is claimed before it is fetched, and a claim refused is not a failure.**
 `spDistributorFeed_ClaimForSync` sets `DistributorFeed.SyncStartedUtc` in one atomic `UPDATE`
 whose `WHERE` and `SET` share a row lock, so two callers arriving together cannot both take it;
@@ -1369,11 +1571,23 @@ history modal, which is the pull half. Neither is enough alone: nobody watches a
 - **`Site.OperatorEmail` has no platform-wide fallback.** The message names this store's
   distributor and quotes its status text; delivering that to another tenant's operator because
   a column was blank would be a disclosure. NULL logs at Warning instead.
-- **`Site` has no admin screen**, so `OperatorEmail`, `FeedStaleAfterHours`,
-  `HideStaleProducts`, `MinMarginPct`, `PriceDisplay` and — since T6 — `TaxRuleSet`,
-  `StandardTaxRatePct` and `TaxRegistrationNumber` are all set by updating the row, as is a
-  store's own mail wording in `dbo.SiteEmailTemplate`. That is a gap, not a design: a tenant
-  cannot configure its own staleness policy, tax rate or customer mail without database access.
+- **`Site` is edited at `/admin/store` since T9.** Every column except `SiteKey` and
+  `IsActive` is saved through `spSite_Update`.
+  - **Two kinds of check.** `SiteSettingsRules` checks what only code knows: the keys, host
+    names, locales and addresses. The procedure checks what only the data knows.
+  - **The currency is locked** once `dbo.fnSite_CurrencyLocked` finds an account, a quote or a
+    feed.
+  - **Only an admin of every store may change `Domain`**, because DNS and the domain binding
+    move with it.
+  - **Keyed settings come from `SiteSettingKeys`.** `SiteSettingKeysTests` fails if that list
+    and the registered implementations disagree, so a new rule set, field set or ordering mode
+    is one line in its `Add*` extension plus one key. `PriceDisplay` also has
+    `CK_Site_PriceDisplay`.
+  - **Legal identity is printed.** `LegalName`, `CompanyRegistrationNumber`,
+    `RegisteredAddress` and `TaxRegistrationNumber` appear in the footer and on the document
+    sheet, through `LegalIdentity`.
+  - **When a change shows.** The storefront sees it within `Sites:CacheDuration`. The API sees
+    it at once, because the save evicts the admin site cache.
 
 **Delisting is flagged, never deleted, and `DelistedProductHistoryTests` is what holds that.**
 A product the distributor dropped still resolves on the quote that already contains it —
@@ -1429,6 +1643,15 @@ store category, features and badges one product; `/admin/categories` maps whole 
 categories. `Product.Cat` is the **feed's** category and the form shows it read-only — the form
 used to offer a hardcoded seven-item list that rewrote it, which moved products off every store
 mapping the real value.
+
+**The store's own categories are edited on `/admin/categories` too** (T9), through
+`spSiteCategory_Save`.
+- **No delete.** A category can be mapped, overridden or bookmarked, so it is deactivated
+  instead.
+- **Its address is `/catalog?cat={slug}`.** It must be lower-case letters, digits and single
+  hyphens, and it is fixed while the store is active.
+
+Until T9 nobody could create a category, and the E2E suite inserted them by SQL.
 
 **`spProduct_Update` writes every column it is given, so the portal sends back what it does
 not edit.** `UpdateProduct` used to send an empty description and `IsTaxable = true`, which

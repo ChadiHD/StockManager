@@ -50,8 +50,10 @@ CREATE TABLE [dbo].[AccountDocument]
 	-- customer another's file.
 	CONSTRAINT [UQ_AccountDocument_StoredName] UNIQUE ([StoredName]),
 
-	CONSTRAINT [CK_AccountDocument_Kind] CHECK ([Kind] IN ('VatCertificate', 'ChamberOfCommerce', 'Other')),
-	CONSTRAINT [CK_AccountDocument_Status] CHECK ([Status] IN ('Pending', 'Accepted', 'Rejected')),
+	-- As SQL Server stores them, not as IN (...): it keeps an IN list as this reversed OR chain,
+	-- and DacFx, seeing the two differ, rebuilt both constraints on every publish.
+	CONSTRAINT [CK_AccountDocument_Kind] CHECK ([Kind]='Other' OR [Kind]='ChamberOfCommerce' OR [Kind]='VatCertificate'),
+	CONSTRAINT [CK_AccountDocument_Status] CHECK ([Status]='Rejected' OR [Status]='Accepted' OR [Status]='Pending'),
 
 	-- Belt and braces against the API's own cap. A row claiming a size it cannot have means
 	-- the upload path was bypassed.

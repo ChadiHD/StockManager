@@ -191,15 +191,26 @@ public class DelistedProductHistoryTests
 
             var sku = $"DEL-{runId}";
 
+            // From one of the store's own feeds: since T9 a distributor product with no feed is
+            // an orphan no store sells.
+            var feedId = Scalar(connection, transaction, """
+                INSERT INTO dbo.DistributorFeed (Name, Host, Username, SiteId)
+                OUTPUT INSERTED.Id
+                VALUES (@name, N'sftp.delist.invalid', N'fixture', @siteId);
+                """,
+                ("@name", $"TestDistributor {runId}"),
+                ("@siteId", siteId));
+
             var productId = Scalar(connection, transaction, """
                 INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category,
                                          QuantityInStock, Delisted, [Source],
-                                         Distributor, DistributorSku, LastSynced)
+                                         Distributor, DistributorSku, LastSynced, FeedId)
                 OUTPUT INSERTED.Id
                 VALUES (N'Delisting fixture', N'Delisting fixture.', 100, @sku, @feedValue,
-                        5, 0, N'Distributor', N'TestDistributor', @sku, @lastSynced);
+                        5, 0, N'Distributor', N'TestDistributor', @sku, @lastSynced, @feedId);
                 """,
                 ("@sku", sku),
+                ("@feedId", feedId),
                 ("@feedValue", feedValue),
                 ("@lastSynced", syncedHoursAgo is { } hours
                     ? DateTime.UtcNow.AddHours(-hours)

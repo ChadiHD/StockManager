@@ -10,12 +10,15 @@ Per product rather than a table of every product, so a caller CROSS APPLYs it to
 already reading instead of joining dbo.Product to itself. Inline, so it expands into the
 caller's plan like fnCatalog_VisibleProducts does.
 
-The store's override (dbo.SiteProduct) wins over its category mapping, and the category must
-be one of this store's and active, or the product has nowhere to be filed and is not on sale.
-Delisting, staleness and customer-group rules are not placement -- they are the distributor's
-facts and the group's terms, and fnCatalog_VisibleProducts applies them on top.
+First, whether the store may sell the product at all — its currency, and for distributor stock
+its own feeds (dbo.fnSite_ProductSellable, T9). Then the store's override (dbo.SiteProduct)
+wins over its category mapping, and the category must be one of this store's and active, or the
+product has nowhere to be filed and is not on sale. Delisting, staleness and customer-group
+rules are not placement -- they are the distributor's facts and the group's terms, and
+fnCatalog_VisibleProducts applies them on top.
 
 Reason is for the admin; the storefront reads OnStore.
+  Elsewhere another store's stock, or priced in another currency: not this store's to place
   Hidden    the store hid it
   Shown     the store showed it, overriding or extending its mapping
   Mapped    its feed category maps to one of the store's categories
@@ -25,8 +28,12 @@ CREATE FUNCTION [dbo].[fnSite_ProductPlacement]
 (
 	@SiteId int,
 	@ProductId int,
-	-- dbo.Product.Category, passed by the caller that has already read it.
-	@FeedCategory nvarchar(50)
+	-- dbo.Product.Category, FeedId, Source and CurrencyCode, passed by the caller that has
+	-- already read them.
+	@FeedCategory nvarchar(50),
+	@FeedId int,
+	@Source nvarchar(20),
+	@CurrencyCode nvarchar(3)
 )
 RETURNS TABLE
 AS
@@ -37,21 +44,23 @@ RETURN
 		[c].[Slug] AS [CategorySlug],
 		[c].[Name] AS [CategoryName],
 		[c].[SortOrder] AS [CategorySortOrder],
-		CAST(CASE WHEN [c].[Id] IS NOT NULL AND ISNULL([sp].[Visibility], N'') <> N'Hide'
+		CAST(CASE WHEN [sel].[Sellable] = 1 AND [c].[Id] IS NOT NULL AND ISNULL([sp].[Visibility], N'') <> N'Hide'
 		          THEN 1 ELSE 0 END AS bit) AS [OnStore],
 		CASE
+			WHEN [sel].[Sellable] = 0 THEN N'Elsewhere'
 			WHEN [sp].[Visibility] = N'Hide' THEN N'Hidden'
 			WHEN [c].[Id] IS NULL THEN N'Unmapped'
 			WHEN [sp].[Visibility] = N'Show' THEN N'Shown'
 			ELSE N'Mapped'
 		END AS [Reason],
+		[sel].[Sellable],
 		ISNULL([sp].[Featured], 0) AS [Featured],
 		[sp].[Badge],
 		[sp].[Visibility],
 		-- The override's own category, distinct from where the product ends up, so the admin
 		-- can tell "filed here by the mapping" from "filed here because we said so".
 		[sp].[SiteCategoryId] AS [OverrideCategoryId]
-	FROM (VALUES (1)) AS [one]([x])
+	FROM [dbo].[fnSite_ProductSellable](@SiteId, @FeedId, @Source, @CurrencyCode) AS [sel]
 	LEFT JOIN dbo.SiteProduct sp
 		ON sp.[SiteId] = @SiteId
 		AND sp.[ProductId] = @ProductId

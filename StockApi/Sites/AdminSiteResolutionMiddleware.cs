@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.Extensions.Caching.Memory;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
@@ -35,11 +36,12 @@ namespace StockApi.Sites
             _logger = logger;
         }
 
-        public async Task InvokeAsync(HttpContext context, AdminSiteContext siteContext, ISiteData sites)
+        public async Task InvokeAsync(
+            HttpContext context, AdminSiteContext siteContext, ISiteData sites, IUserData users)
         {
             var site = Resolve(context, sites);
 
-            if (site is not null)
+            if (site is not null && MayActFor(context, site, users))
             {
                 siteContext.Resolve(site);
             }
@@ -76,14 +78,56 @@ namespace StockApi.Sites
             }
 
             // Cached because every admin request pays for this, and a site row changes about
-            // as often as a deployment.
-            var match = Lookup(key, () =>
-            {
-                var found = sites.GetSiteByKey(key);
-                return found is null ? new List<SiteModel>() : new List<SiteModel> { found };
-            });
+            // as often as a deployment. Inactive stores included (T9): a store is created
+            // inactive and configured before it opens, and MayActFor decides who may see one.
+            return Lookup(key, () => sites.GetSites().Where(s => s.SiteKey == key).ToList())
+                .FirstOrDefault();
+        }
 
-            return match.FirstOrDefault(s => s.IsActive);
+        /*
+        Whether this caller may act for the store, from dbo.UserSite (T9). A store they may not
+        act for is left unresolved, exactly like a key that names nothing, so the API's answer
+        is the same 400 either way: "not yours" and "not here" are one answer, as they are for
+        documents, and the message cannot be used to learn which stores exist.
+
+        Not cached, unlike the site row: taking a store away from somebody has to apply to their
+        next request. It is one primary-key read, paid only by a request that resolved a store.
+        An anonymous caller acts for nothing.
+        */
+        private bool MayActFor(HttpContext context, SiteModel site, IUserData users)
+        {
+            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // A store that is not open yet is being set up, which is an admin of every store's
+            // job: they created it and they open it. Anybody else meets it as nothing.
+            var allowed = !string.IsNullOrEmpty(userId) && (site.IsActive
+                ? users.CanActForSite(userId, site.Id)
+                : users.GetUserById(userId).FirstOrDefault()?.AllSites == true);
+
+            if (allowed)
+            {
+                return true;
+            }
+
+            // Only worth saying when the store was named: the single-store fallback resolves for
+            // every till request too, and a till user has no stores by design.
+            if (!string.IsNullOrWhiteSpace(context.Request.Headers[HeaderName].ToString()))
+            {
+                _logger.LogWarning(
+                    "User {User} named store {SiteKey}, which they may not act for.", userId, site.SiteKey);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Drops the cached rows for a store, after its settings change (T9), so the API's next
+        /// request reads what was just saved rather than what was there a minute ago.
+        /// </summary>
+        public static void Forget(IMemoryCache cache, string siteKey)
+        {
+            cache.Remove($"adminsite:{siteKey}");
+            cache.Remove("adminsite:all");
         }
 
         private List<SiteModel> Lookup(string key, Func<List<SiteModel>> load) =>

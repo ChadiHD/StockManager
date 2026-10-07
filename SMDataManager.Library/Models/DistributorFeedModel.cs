@@ -57,16 +57,17 @@ namespace SMDataManager.Library.Models
 
         /// <summary>Projects the stored row onto the settings the SFTP client needs.</summary>
         /// <remarks>
-        /// Blank stored values fall back to <see cref="FeedFieldMap"/>'s defaults rather than
-        /// overwriting them with null. Assigning the row's columns directly meant a feed
-        /// created without the optional identity mappings silently lost them: Manufacturer,
-        /// MPN and EAN imported as NULL on every row, the sync still reported success, and
-        /// the gap only surfaced later as an empty brand facet and no product images.
+        /// A blank field is unmapped: the client reads nothing for it (T9). Until then a blank
+        /// fell back to <see cref="FeedFieldMap"/>'s defaults, which are FlexIT's element names,
+        /// so a second distributor's feed with a blank field would have read whatever its file
+        /// held under FlexIT's name. The fallback had a reason — a feed created without the
+        /// identity mappings imported no Manufacturer, MPN or EAN while reporting success — and
+        /// the answer to that is the feed form, which pre-fills FlexIT's names for a new feed and
+        /// shows every mapping, not a guess at read time. FillLegacyFeedFields.sql wrote those
+        /// names into the feeds that were relying on the fallback, so each reads what it did.
         /// </remarks>
         public DistributorFeedSettings ToSettings(string password)
         {
-            var defaults = new FeedFieldMap();
-
             return new DistributorFeedSettings
             {
                 Name = Name,
@@ -79,22 +80,22 @@ namespace SMDataManager.Library.Models
                 Enabled = Enabled,
                 Fields = new FeedFieldMap
                 {
-                    Sku = Or(FieldSku, defaults.Sku),
-                    Name = Or(FieldName, defaults.Name),
-                    Description = Or(FieldDescription, defaults.Description),
-                    Category = Or(FieldCategory, defaults.Category),
-                    Cost = Or(FieldCost, defaults.Cost),
-                    Srp = Or(FieldSrp, defaults.Srp),
-                    Quantity = Or(FieldQuantity, defaults.Quantity),
-                    Manufacturer = Or(FieldManufacturer, defaults.Manufacturer),
-                    Mpn = Or(FieldMpn, defaults.Mpn),
-                    Ean = Or(FieldEan, defaults.Ean),
-                    IcecatFlag = Or(FieldIcecat, defaults.IcecatFlag)
+                    Sku = Mapped(FieldSku),
+                    Name = Mapped(FieldName),
+                    Description = Mapped(FieldDescription),
+                    Category = Mapped(FieldCategory),
+                    Cost = Mapped(FieldCost),
+                    Srp = Mapped(FieldSrp),
+                    Quantity = Mapped(FieldQuantity),
+                    Manufacturer = Mapped(FieldManufacturer),
+                    Mpn = Mapped(FieldMpn),
+                    Ean = Mapped(FieldEan),
+                    IcecatFlag = Mapped(FieldIcecat)
                 }
             };
         }
 
-        private static string Or(string stored, string fallback) =>
-            string.IsNullOrWhiteSpace(stored) ? fallback : stored;
+        private static string Mapped(string stored) =>
+            string.IsNullOrWhiteSpace(stored) ? null : stored.Trim();
     }
 }

@@ -29,6 +29,9 @@ BEGIN
 	       [pl].[Featured],
 	       [pl].[Badge]
 	FROM [dbo].[Product] p
-	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category]) pl
+	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category], [p].[FeedId], [p].[Source], [p].[CurrencyCode]) pl
+	-- Only what this store may sell at all (T9): another store's feed, or a price in another
+	-- currency, is not this admin's to see or place.
+	WHERE [pl].[Sellable] = 1
 	ORDER BY [p].[ProductName];
 END

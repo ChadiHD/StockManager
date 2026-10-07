@@ -94,10 +94,13 @@ CREATE TABLE [dbo].[Purchase]
     stored whatever string arrived, so a typo produced an order that matched no filter and no
     step in the progress bar. NULL is admitted rather than tolerated: spPurchase_Insert sets
     no status at all, and a desktop sale genuinely has none.
+
+    Spelled as SQL Server stores it, not as IN (...): it keeps an IN list as this reversed OR
+    chain, and DacFx, seeing the two differ, rebuilt the constraint on every publish.
     */
     CONSTRAINT [CK_Purchase_Status] CHECK (
         [Status] IS NULL
-        OR [Status] IN (N'Awaiting payment', N'Processing', N'Fulfilled', N'Cancelled')),
+        OR ([Status]=N'Cancelled' OR [Status]=N'Fulfilled' OR [Status]=N'Processing' OR [Status]=N'Awaiting payment')),
 
     CONSTRAINT [CK_Purchase_Placer] CHECK (
         CASE WHEN [StaffId] IS NULL THEN 0 ELSE 1 END

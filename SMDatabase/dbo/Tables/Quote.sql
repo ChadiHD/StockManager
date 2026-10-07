@@ -60,5 +60,8 @@ CREATE TABLE [dbo].[Quote]
     -- accept path now gates on it: spOrder_ConvertFromQuote converts a quote only while it
     -- still reads 'Priced', and a status nobody spells the same way twice makes that guard a
     -- no-op that looks like a guard.
-    CONSTRAINT [CK_Quote_Status] CHECK ([Status] IN (N'Requested', N'Priced', N'Accepted', N'Rejected'))
+    --
+    -- As SQL Server stores it, not as IN (...): it keeps an IN list as this reversed OR chain,
+    -- and DacFx, seeing the two differ, rebuilt the constraint on every publish.
+    CONSTRAINT [CK_Quote_Status] CHECK ([Status]=N'Rejected' OR [Status]=N'Accepted' OR [Status]=N'Priced' OR [Status]=N'Requested')
 )

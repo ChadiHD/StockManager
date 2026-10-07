@@ -16,5 +16,11 @@ namespace SMDataManager.Library.DataAccess
         /// <paramref name="siteCategoryId"/> is null. Null when saved, otherwise why it was refused.
         /// </summary>
         string Map(int siteId, string feedValue, int? siteCategoryId);
+
+        /// <summary>
+        /// Creates a store category (<c>Id</c> 0) or edits one. Returns the saved id, or why the
+        /// database refused.
+        /// </summary>
+        (int Id, string Refusal) SaveCategory(int siteId, SiteCategoryModel category);
     }
 }

@@ -42,12 +42,14 @@ namespace StockApi.Controllers
             return quote is null ? NotFound() : _quoteData.GetQuoteLines(quote.Id, _site.SiteId);
         }
 
-        public record NewQuoteModel(int AccountId, string Currency, DateTime? ExpiresDate);
+        // No currency: a quote is in its store's (T9), and a GBP quote on a euro store would have
+        // priced euro catalog lines in pounds.
+        public record NewQuoteModel(int AccountId, DateTime? ExpiresDate);
 
         [HttpPost]
         public ActionResult<QuoteModel> Create(NewQuoteModel quote)
         {
-            return _quoteData.CreateQuote(quote.AccountId, quote.Currency, quote.ExpiresDate, _site.SiteId);
+            return _quoteData.CreateQuote(quote.AccountId, quote.ExpiresDate, _site.SiteId);
         }
 
         public record NewQuoteLineModel(

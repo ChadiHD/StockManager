@@ -26,7 +26,8 @@ namespace SMDataManager.Library.DataAccess
         OrderModel GetOrderForAccount(string reference, int accountId, int siteId);
 
         List<OrderLineModel> GetOrderLinesForAccount(int purchaseId, int accountId, int siteId);
-        OrderModel CreateOrder(string staffId, int accountId, string currency, int siteId);
+        /// <summary>An order in the store's own currency (T9): it is not the caller's to choose.</summary>
+        OrderModel CreateOrder(string staffId, int accountId, int siteId);
         OrderModel GetOrderByQuote(int quoteId, int siteId);
 
         /// <summary>

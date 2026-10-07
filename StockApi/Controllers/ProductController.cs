@@ -5,6 +5,7 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Feeds;
 using SMDataManager.Library.Models;
 using StockApi.Feeds;
+using StockApi.Security;
 using StockApi.Sites;
 using System.Data;
 
@@ -25,12 +26,14 @@ namespace StockApi.Controllers
             _productData = productData;
         }
 
-        // Used by the desktop POS.
+        // Used by the desktop POS, which has no store: Pos:CurrencyCode says which prices it rings
+        // up in (T9). It listed every product, and a GBP feed would have put pound prices on a
+        // euro till.
         [Authorize(Roles = "Staff")]
         [HttpGet]
-        public List<ProductModel> Get()
+        public List<ProductModel> Get([FromServices] IConfiguration config)
         {
-            var products = _productData.GetProducts();
+            var products = _productData.GetProducts(config["Pos:CurrencyCode"] ?? "EUR");
             return products;
         }
 
@@ -71,7 +74,7 @@ namespace StockApi.Controllers
                 return BadRequest("Visibility is Show, Hide, or neither.");
             }
 
-            if (_productData.GetProductBySku(sku) is null)
+            if (_productData.GetProductBySku(site.SiteId, sku) is null)
             {
                 return NotFound();
             }
@@ -119,37 +122,46 @@ namespace StockApi.Controllers
         private static bool IsVisibility(string? visibility) =>
             visibility is null or "Show" or "Hide";
 
+        /*
+        GetBySku, Create and Update act on dbo.Product rows, and Update writes RetailPrice. Each
+        reads the product through the acting store's sellable set (dbo.fnSite_ProductSellable,
+        T9): its own feeds' stock and own stock in its currency. So an admin of one store edits
+        that store's products and gets a 404 for any other's — the same answer as a SKU that
+        does not exist. Until products carried their feed and currency these took an admin of
+        every store, because the row was everybody's.
+        */
         [Authorize(Roles = "Admin")]
         [HttpGet("Catalog/{sku}")]
-        public ActionResult<AdminProductModel> GetBySku(string sku)
+        public ActionResult<AdminProductModel> GetBySku(string sku, [FromServices] IAdminSiteContext site)
         {
-            var product = _productData.GetProductBySku(sku);
+            var product = _productData.GetProductBySku(site.SiteId, sku);
 
             return product is null ? NotFound() : product;
         }
 
         [Authorize(Roles = "Admin")]
         [HttpPost("Catalog")]
-        public ActionResult<AdminProductModel> Create(AdminProductModel product)
+        public ActionResult<AdminProductModel> Create(AdminProductModel product, [FromServices] IAdminSiteContext site)
         {
             if (string.IsNullOrWhiteSpace(product.Sku) || string.IsNullOrWhiteSpace(product.ProductName))
             {
                 return BadRequest("Sku and ProductName are required.");
             }
 
-            if (_productData.GetProductBySku(product.Sku) is not null)
+            if (_productData.GetProductBySku(site.SiteId, product.Sku) is not null)
             {
                 return Conflict($"A product with SKU '{product.Sku}' already exists.");
             }
 
-            return _productData.CreateProduct(product);
+            // Own stock, in the acting store's currency: the prices were just typed for it.
+            return _productData.CreateProduct(product, site.SiteId, site.Site.CurrencyCode);
         }
 
         [Authorize(Roles = "Admin")]
         [HttpPut("Catalog/{sku}")]
-        public IActionResult Update(string sku, AdminProductModel product)
+        public IActionResult Update(string sku, AdminProductModel product, [FromServices] IAdminSiteContext site)
         {
-            var existing = _productData.GetProductBySku(sku);
+            var existing = _productData.GetProductBySku(site.SiteId, sku);
             if (existing is null)
             {
                 return NotFound();
@@ -168,7 +180,7 @@ namespace StockApi.Controllers
         // itself lives on DistributorFeedController.
         // Manual trigger for image enrichment. The background service works through the backlog
         // on its own; this lets an operator kick a batch off immediately.
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPost("Catalog/EnrichImages")]
         public async Task<ActionResult<ImageEnrichmentResult>> EnrichImages(
             [FromServices] IProductImageEnricher enricher,

@@ -23,6 +23,25 @@ public interface IAdminDataService
 
     string? CurrentSiteKey { get; }
 
+    /// <summary>
+    /// False for an admin who has been given no store yet: the snapshot is then empty, and the
+    /// layout says why rather than reporting the API unreachable.
+    /// </summary>
+    bool HasStoreAccess { get; }
+
+    /// <summary>
+    /// Whether this admin may act for every store, which managing staff takes (T9). Pages and
+    /// navigation for staff are hidden from anybody else; the API refuses them regardless.
+    /// </summary>
+    bool ManagesAllStores { get; }
+
+    /// <summary>
+    /// The acting store's currency (T9). Every price the portal shows for it is in this: its
+    /// products, and the quotes, orders and accounts it now takes from the store. Until T9 the
+    /// products screens wrote "EUR" whatever the store.
+    /// </summary>
+    string CurrentCurrency { get; }
+
     /// <summary>Changes the store this workspace is showing, and reloads everything.</summary>
     Task SwitchSiteAsync(string siteKey);
 
@@ -87,8 +106,9 @@ public interface IAdminDataService
     Task MarkOrderFulfilled(string id);
     /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
     Task<QuoteConversion> ConvertQuoteToOrder(string quoteId);
-    Task<Quote?> AddQuote(string accountName, string currency);
-    Task<Order?> AddOrder(string accountName, string currency);
+    // No currency: a quote or an order is in its store's (T9).
+    Task<Quote?> AddQuote(string accountName);
+    Task<Order?> AddOrder(string accountName);
     /// <summary>Adds a line for a chosen product. Returns false when nothing was added.</summary>
     Task<bool> AddQuoteLine(string quoteId, string sku, int quantity, int discountPct);
 
@@ -108,11 +128,58 @@ public interface IAdminDataService
     Task UpdateGroup(string name, int discount, string terms, string note);
 
     /// <summary>
-    /// Creates a staff login with the password the admin chose, and the given role. Returns why
-    /// it was refused — the password rules, usually — or null once it exists.
+    /// Creates a staff login with the password the admin chose, the given role, and every store
+    /// or the listed ones. Returns why it was refused — the password rules, usually — or null
+    /// once it exists.
     /// </summary>
-    Task<string?> AddUser(string name, string email, string role, string password);
-    Task UpdateUserRoles(string email, IEnumerable<string> roles);
+    Task<string?> AddUser(string name, string email, string role, string password,
+        bool allSites, IEnumerable<int> siteIds);
+
+    /// <summary>
+    /// Sets a member of staff's roles and stores, by their id. Returns why it was refused — the
+    /// API will not leave the deployment without an admin of every store — or null.
+    /// </summary>
+    Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,
+        bool allSites, IEnumerable<int> siteIds);
+
+    /// <summary>
+    /// The acting store's settings, fetched when the settings screen opens rather than held in
+    /// the snapshot: one store's configuration, read by one page (T9).
+    /// </summary>
+    Task<StoreSettingsView?> GetStoreSettings();
+
+    /// <summary>Saves the acting store's settings. Returns why they were refused, or null.</summary>
+    Task<string?> SaveStoreSettings(StoreSettings settings);
+
+    /// <summary>The acting store's content pages, fetched when the content screen opens (T9).</summary>
+    Task<IReadOnlyList<ContentPageItem>> GetContentPages();
+
+    /// <summary>
+    /// Saves one content page. Returns the page as stored — its body cleaned to the allow-list —
+    /// or why it was refused.
+    /// </summary>
+    Task<(ContentPageItem? Saved, string? Refusal)> SaveContentPage(string key, string title, string? lede, string? bodyHtml);
+
+    /// <summary>
+    /// Creates a store, closed, to be configured and then opened (T9). Admins of every store
+    /// only. Returns the new store, or why it was refused.
+    /// </summary>
+    Task<(SiteOption? Created, string? Refusal)> CreateStore(NewStore store);
+
+    /// <summary>
+    /// Opens a store to customers — refused, naming what is missing, until its checklist is met —
+    /// or closes it. Returns why it was refused, or null.
+    /// </summary>
+    Task<string?> SetStoreOpen(string siteKey, bool open);
+
+    /// <summary>Every message the acting store sends, with its wording (T9).</summary>
+    Task<IReadOnlyList<EmailWording>> GetEmailWording();
+
+    /// <summary>
+    /// Sets the store's own wording for one message; both halves blank goes back to the
+    /// platform's. Returns the message as stored, or why the wording was refused.
+    /// </summary>
+    Task<(EmailWording? Saved, string? Refusal)> SaveEmailWording(string key, string? subject, string? body);
 
     /// <summary>The signed-in user's own password. Returns why it was refused, or null.</summary>
     Task<string?> ChangePassword(string currentPassword, string newPassword);
@@ -178,4 +245,10 @@ public interface IAdminDataService
 
     /// <summary>Files a feed category under a store category, or stops selling it when null.</summary>
     Task<string?> MapCategory(string feedValue, int? storeCategoryId);
+
+    /// <summary>
+    /// Creates (<c>Id</c> 0) or edits one of the acting store's categories. Returns why it was
+    /// refused, or null (T9).
+    /// </summary>
+    Task<string?> SaveStoreCategory(StoreCategoryOption category);
 }

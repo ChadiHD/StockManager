@@ -5,6 +5,7 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using System.Data;
 using System.Security.Claims;
+using StockApi.Security;
 
 namespace StockApi.Controllers
 {
@@ -30,7 +31,9 @@ namespace StockApi.Controllers
             _purchaseData.SavePurchases(purchase, userId);
         }
 
-        [Authorize(Roles = "Admin,Manager")]
+        // The till's sales have no store, so an admin given only some stores does not see them;
+        // a Manager, the till's own role, still does. See AllStores.
+        [Authorize(Roles = "Admin,Manager", Policy = AllStores.Policy)]
         [Route("GetPurchaseReport")]
         [HttpGet]
         public List<PurchaseReportModel> GetPurchaseReports()

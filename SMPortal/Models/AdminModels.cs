@@ -189,11 +189,17 @@ public class Group
 
 public class User
 {
+    // Identity's id: roles and stores are granted by it, never by the address (T9).
+    public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Email { get; set; } = "";
     public string Roles { get; set; } = "Staff";
     public IEnumerable<string> RoleList =>
         Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    // The stores they may act for in the portal: every one, or these.
+    public bool AllSites { get; set; }
+    public List<int> SiteIds { get; set; } = new();
 }
 
 public class ActivityItem
@@ -314,7 +320,12 @@ public sealed class QuoteConversion
 }
 
 /// <summary>One of the acting store's own categories, for filing products under.</summary>
-public sealed record StoreCategoryOption(int Id, string Name, bool IsActive);
+/// <remarks>
+/// The trailing members arrived with the categories editor (T9); a dropdown only needs the
+/// first three.
+/// </remarks>
+public sealed record StoreCategoryOption(int Id, string Name, bool IsActive,
+    string Slug = "", string? Blurb = null, int SortOrder = 0, int MappedFeedValues = 0);
 
 /// <summary>A category string from the feeds, and where the acting store files it.</summary>
 public sealed record FeedCategoryRow(string FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);

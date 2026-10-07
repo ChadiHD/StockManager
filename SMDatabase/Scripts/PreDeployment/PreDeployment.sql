@@ -9,3 +9,5 @@ publish does, and some data has to be written or saved before it.
 GO
 :r .\HoldProductFlags.sql
 GO
+:r .\FillLegacyFeedFields.sql
+GO

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
@@ -45,6 +46,30 @@ namespace SMDataManager.Library.DataAccess
             catch (SqlException ex) when (ex.Number == ForeignCategory)
             {
                 return ex.Message;
+            }
+        }
+
+        public (int Id, string Refusal) SaveCategory(int siteId, SiteCategoryModel category)
+        {
+            try
+            {
+                var id = _sqlDataAccess.LoadData<int, dynamic>("dbo.spSiteCategory_Save", new
+                {
+                    SiteId = siteId,
+                    Id = category.Id == 0 ? (int?)null : category.Id,
+                    category.Slug,
+                    category.Name,
+                    category.Blurb,
+                    category.SortOrder,
+                    category.IsActive
+                }, "SMDatabase").FirstOrDefault();
+
+                return (id, null);
+            }
+            // spSiteCategory_Save's refusals, 50100-50103, are sentences for the admin.
+            catch (SqlException ex) when (ex.Number is >= 50100 and <= 50109)
+            {
+                return (0, ex.Message);
             }
         }
     }

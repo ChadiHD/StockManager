@@ -22,6 +22,12 @@
             <p class="sheet__store">@SiteContext.Site.Name</p>
             <p class="sheet__store-meta">@SiteContext.Site.Domain</p>
             <p class="sheet__store-meta">@SiteContext.Site.Country</p>
+            @* The issuer's legal identity, VAT number included (T9): a customer cannot reclaim
+               VAT against a document that does not carry the supplier's. *@
+            @foreach (var line in SMStore.Sites.LegalIdentity.Lines(SiteContext.Site))
+            {
+                <p class="sheet__store-meta sheet__legal">@line</p>
+            }
         </div>
         <div class="sheet__identity">
             <p class="sheet__kind">@Kind</p>

@@ -1,0 +1,15 @@
+.content-editor { align-items: start; }
+
+.content-page-list { display: flex; flex-direction: column; }
+
+.content-page {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px 18px; border: 0; border-top: 1px solid var(--line); background: none;
+    text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+
+.content-page--active { background: var(--panel-2, rgba(0, 0, 0, 0.04)); }
+
+.content-body-input { font-size: .8rem; line-height: 1.5; }
+
+.content-save { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 16px; }

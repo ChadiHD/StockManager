@@ -5,7 +5,7 @@ AS
 BEGIN
 	SET NOCOUNT ON;
 
-	SELECT [UserId], [FirstName], [LastName], [EmailAddress], [CreatedDate]
+	SELECT [UserId], [FirstName], [LastName], [EmailAddress], [CreatedDate], [AllSites]
 	FROM [dbo].[User]
 	ORDER BY [FirstName], [LastName];
 END

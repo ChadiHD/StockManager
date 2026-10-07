@@ -81,6 +81,9 @@ namespace SMPortal.Authentication
 			// Grab the token information
             string authTokenStorageKey = GetAuthTokenStorageKey();
 			await _localStorge.RemoveItemAsync(authTokenStorageKey);
+			// The store the last admin was acting for is theirs, not the next person's at this
+			// browser, who may not have been given it (T9).
+			await _localStorge.RemoveItemAsync(SMPortal.Services.AdminDataService.SiteKeyStorageKey);
 			var authState = Task.FromResult(_anonymous);
             _apiHelper.LogOff();
 			_httpClient.DefaultRequestHeaders.Authorization = null;

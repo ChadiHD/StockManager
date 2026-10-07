@@ -107,6 +107,21 @@ jobs:
             exit 1
           fi
 
+      # Against a database already at this schema, the deploy plan must be empty. Until T9 it
+      # never was: nine CHECK constraints written as IN (...) were dropped and re-created by
+      # every publish, re-validating every row of their tables, because SQL Server stores an IN
+      # list as a reversed OR chain and DacFx saw the two differ. Any operation listed here is
+      # the next drift of that kind, and production would pay for it on every deploy.
+      - name: A publish to an up-to-date database does nothing
+        run: |
+          target="Server=127.0.0.1,1433;Database=SMDatabase;User Id=sa;Password=$SQL_PASSWORD;TrustServerCertificate=True;Encrypt=False"
+          sqlpackage /Action:DeployReport /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
+            "/TargetConnectionString:$target" /OutputPath:deploy-report.xml
+          if grep -q "<Operation" deploy-report.xml; then
+            echo "::error::Publishing an unchanged schema still plans changes: $(grep -o '<Operation Name="[^"]*"\|<Item Value="[^"]*"' deploy-report.xml | tr '\n' ' ')"
+            exit 1
+          fi
+
       # No test may skip here: these are the tests that skip when their connection is missing,
       # so a broken connection string would otherwise pass all of them by running none. The load
       # check is excluded; it needs a database of its own and minutes of seeding.

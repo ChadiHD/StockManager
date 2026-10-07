@@ -35,7 +35,8 @@ namespace SMDataManager.Library.DataAccess
         /// The customer turning a quote down. False when somebody already decided it.
         /// </summary>
         bool RejectForAccount(int quoteId, int accountId, int siteId, string reason);
-        QuoteModel CreateQuote(int accountId, string currency, DateTime? expiresDate, int siteId);
+        /// <summary>A quote in the store's own currency (T9): it is not the caller's to choose.</summary>
+        QuoteModel CreateQuote(int accountId, DateTime? expiresDate, int siteId);
 
         /// <summary>
         /// Turns a basket into a Requested quote, and empties the basket, in one transaction.

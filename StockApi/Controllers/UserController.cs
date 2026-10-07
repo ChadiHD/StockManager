@@ -61,7 +61,10 @@ namespace StockApi.Controllers
         // Admin only. It was anonymous, so anyone could add a confirmed login to the staff list,
         // and its 409 — looked up by email across the whole user store — told a stranger which
         // addresses were customers of any store here.
-        [Authorize(Roles = "Admin")]
+        //
+        // Staff are not one store's, so managing them takes an admin of every store (T9); an
+        // admin given one store could otherwise give themselves the rest.
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPost]
         [Route("Register")]
         // POST: User/Register
@@ -122,7 +125,10 @@ namespace StockApi.Controllers
                 throw;
             }
 
-            return Ok();
+            // The id, so the portal grants roles and stores to this login by id. It used to look
+            // the new user up again by email, and a customer login sharing the address could be
+            // the one it found.
+            return Ok(new { userId = newUser.Id });
         }
 
         public record PasswordChangeModel(string CurrentPassword, string NewPassword);
@@ -159,15 +165,23 @@ namespace StockApi.Controllers
         private static string Describe(IdentityResult result) =>
             string.Join(" ", result.Errors.Select(error => error.Description));
 
-        [Authorize(Roles = "Admin")]
+        // Staff only: the logins with a profile in dbo.User. This returned every Identity login,
+        // which since T3 includes every customer of every store, to the users screen.
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpGet]
         [Route("Admin/GetAllUsers")]
         public List<ApplicationUserModel> GetAllUsers()
         {
             List<ApplicationUserModel> output = new();
 
+            var staff = _userData.GetAllUsers().ToDictionary(profile => profile.UserId);
+            var grants = _userData.GetSiteGrants()
+                .GroupBy(grant => grant.UserId)
+                .ToDictionary(group => group.Key, group => group.Select(grant => grant.SiteId).ToList());
+
             // Entity Framework Application context manager
-            var users = _context.Users.ToList();
+            var staffIds = staff.Keys.ToList();
+            var users = _context.Users.Where(user => staffIds.Contains(user.Id)).ToList();
             var userRoles = from ur in _context.UserRoles
                             join r in _context.Roles on ur.RoleId equals r.Id
                             select new { ur.UserId, ur.RoleId, r.Name };
@@ -178,6 +192,8 @@ namespace StockApi.Controllers
                 {
                     UserId = user.Id,
                     Email = user.Email,
+                    AllSites = staff[user.Id].AllSites,
+                    SiteIds = grants.TryGetValue(user.Id, out var siteIds) ? siteIds : new List<int>()
                 };
 
                 uModel.Roles = userRoles.Where(x => x.UserId == uModel.UserId).ToDictionary(key => key.RoleId, val => val.Name);
@@ -190,7 +206,7 @@ namespace StockApi.Controllers
 
         // Staff profiles from SMDatabase (display names). Identity holds the logins and roles;
         // the portal joins the two so the users page can show a name next to each account.
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpGet]
         [Route("Admin/Staff")]
         public List<UserModel> GetAllStaff()
@@ -198,7 +214,59 @@ namespace StockApi.Controllers
             return _userData.GetAllUsers();
         }
 
-        [Authorize(Roles = "Admin")]
+        public record StoreAccessModel(bool AllSites, List<int>? SiteIds);
+
+        // Which stores a member of staff may act for in the portal: every one, or exactly these.
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
+        [HttpPut]
+        [Route("Admin/{userId}/Stores")]
+        public async Task<IActionResult> SetStores(string userId, StoreAccessModel access)
+        {
+            if (_userData.GetUserById(userId).Count == 0)
+            {
+                return NotFound();
+            }
+
+            if (!access.AllSites && await IsLastAdminOfEveryStoreAsync(userId))
+            {
+                return Conflict(LastAdminOfEveryStore);
+            }
+
+            _userData.SetSiteAccess(userId, access.AllSites, access.SiteIds ?? new List<int>());
+
+            _logger.LogInformation("Admin {Admin} set user {User}'s stores to {Stores}.",
+                User.FindFirstValue(ClaimTypes.NameIdentifier), userId,
+                access.AllSites ? "all" : string.Join(",", access.SiteIds ?? new List<int>()));
+
+            return NoContent();
+        }
+
+        private const string LastAdminOfEveryStore =
+            "They are the only admin who can manage every store. Give another admin every store first, " +
+            "or nobody will be able to manage staff or add a store.";
+
+        // Somebody has to be able to hand out stores. Roles live in ApiAuthDb and AllSites in
+        // SMDatabase, so the check is here rather than in spUserSite_Set.
+        private async Task<bool> IsLastAdminOfEveryStoreAsync(string userId) =>
+            IsLastAdminOfEveryStore(
+                userId,
+                (await _userManager.GetUsersInRoleAsync(AdminBootstrap.AdminRole)).Select(admin => admin.Id),
+                _userData.GetAllUsers().Where(profile => profile.AllSites).Select(profile => profile.UserId));
+
+        /// <summary>
+        /// Whether <paramref name="userId"/> is the only user who is both an Admin and may act
+        /// for every store, so that taking either away leaves nobody able to manage staff.
+        /// </summary>
+        public static bool IsLastAdminOfEveryStore(
+            string userId, IEnumerable<string> adminIds, IEnumerable<string> everyStoreIds)
+        {
+            var everyStore = everyStoreIds.ToHashSet();
+            var both = adminIds.Where(everyStore.Contains).Distinct().ToList();
+
+            return both.Count == 1 && both[0] == userId;
+        }
+
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpGet]
         [Route("Admin/GetAllRoles")]
         public Dictionary<string, string> GetAllRoles()
@@ -207,7 +275,7 @@ namespace StockApi.Controllers
             return roles;
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPost]
         [Route("Admin/AddRole")]
         public async Task AddRole(UserRolePairModel pairing)
@@ -228,10 +296,10 @@ namespace StockApi.Controllers
 			await _userManager.AddToRoleAsync(user, pairing.RoleName);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpDelete]
         [Route("Admin/RemoveRole")]
-        public async Task RemoveRole(UserRolePairModel pairing)
+        public async Task<IActionResult> RemoveRole(UserRolePairModel pairing)
         {
             string? loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -244,10 +312,18 @@ namespace StockApi.Controllers
                 throw new ArgumentException($"User with ID {pairing.UserId} does not exist.");
             }
 
+            if (string.Equals(pairing.RoleName, AdminBootstrap.AdminRole, StringComparison.OrdinalIgnoreCase)
+                && await IsLastAdminOfEveryStoreAsync(user.Id))
+            {
+                return Conflict(LastAdminOfEveryStore);
+            }
+
             _logger.LogInformation("Admin {Admin} removed user {User} from role {Role}",
                 loggedInUserId, user.Id, pairing.RoleName);
 
             await _userManager.RemoveFromRoleAsync(user, pairing.RoleName);
+
+            return NoContent();
         }
     }
 }

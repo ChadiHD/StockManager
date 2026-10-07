@@ -10,8 +10,8 @@ namespace StockApi.Sites
     public sealed class SiteNotResolvedException : Exception
     {
         public SiteNotResolvedException()
-            : base("This request did not name a store. Send an X-Site-Key header naming an " +
-                   "active site; GET /api/Site lists them.")
+            : base("This request did not name a store you can act for. Send an X-Site-Key " +
+                   "header naming one; GET /api/Site lists them.")
         {
         }
     }

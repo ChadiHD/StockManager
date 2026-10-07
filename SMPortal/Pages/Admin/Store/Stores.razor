@@ -1,0 +1,213 @@
+@page "/admin/stores"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Stores · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Administration</span><h1>Stores</h1></div>
+    @if (Data.ManagesAllStores)
+    {
+        <div class="head-actions">
+            <button class="btn btn-primary add-store" @onclick="OpenCreate">Add store</button>
+        </div>
+    }
+</div>
+
+@* Every store this deployment runs (T9). A store was a row inserted by hand and live the moment
+   it existed; now it is created closed, set up from the other screens while acting for it, and
+   opened here once its checklist is met. Admins of every store only — the API refuses anyone
+   else, and this says so rather than offering buttons that fail. *@
+@if (!Data.ManagesAllStores)
+{
+    <div class="alert stores-restricted" role="status">
+        Stores are created and opened by an admin of every store.
+    </div>
+}
+else
+{
+    <div class="panel panel-clip">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead><tr><th class="lead">Store</th><th>Key</th><th>Country</th><th>Currency</th><th>Status</th><th class="trail"></th></tr></thead>
+                <tbody>
+                    @foreach (var site in Data.Sites)
+                    {
+                        <tr class="store-row" data-key="@site.SiteKey">
+                            <td class="lead"><span class="cell-strong">@site.Name</span></td>
+                            <td class="mono">@site.SiteKey</td>
+                            <td>@site.Country</td>
+                            <td>@site.CurrencyCode</td>
+                            <td><span class="badge @(site.IsActive ? "badge--ok" : "badge--neutral")">@(site.IsActive ? "Open" : "Not open")</span></td>
+                            <td class="trail">
+                                @if (site.SiteKey != Data.CurrentSiteKey)
+                                {
+                                    <button class="btn btn-secondary btn-sm act-for" @onclick="() => ActFor(site)">Act for it</button>
+                                }
+                                @if (site.IsActive)
+                                {
+                                    <button class="btn btn-secondary btn-sm close-store" @onclick="() => _closing = site">Close</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-primary btn-sm open-store" disabled="@(_busy == site.SiteKey)" @onclick="() => Open(site)">Open</button>
+                                }
+                            </td>
+                        </tr>
+                        @if (_refusals.TryGetValue(site.SiteKey, out var refusal))
+                        {
+                            <tr class="store-refusal"><td colspan="6"><span class="field-note field-note--warn">@refusal</span></td></tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <p class="field-note">
+        To set a store up, act for it, then use Store settings, Categories, Content pages and Email wording.
+        Its theme files and its domain's DNS are deployed separately: docs/runbooks/new-store.md.
+    </p>
+}
+
+<Modal Visible="_creating is not null" Title="Add store" OnClose="() => _creating = null">
+    @if (_creating is not null)
+    {
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="field"><label for="new-store-name">Name</label><input id="new-store-name" class="input" value="@_creating.Name" @onchange="args => _creating.Name = Text(args)" /></div>
+                <div class="field">
+                    <label for="new-store-key">Key</label>
+                    <input id="new-store-key" class="input mono" value="@_creating.SiteKey" @onchange="args => _creating.SiteKey = Text(args)" />
+                    <span class="field-note">Fixed for good: it names the store's theme folder. Such as acme-uk.</span>
+                </div>
+                <div class="field span2">
+                    <label for="new-store-domain">Domain</label>
+                    <input id="new-store-domain" class="input" value="@_creating.Domain" @onchange="args => _creating.Domain = Text(args)" />
+                    <span class="field-note">The host customers will use, such as shop.example.co.uk.</span>
+                </div>
+                <div class="field"><label for="new-store-country">Country</label><input id="new-store-country" class="input" maxlength="2" value="@_creating.Country" @onchange="args => _creating.Country = Text(args)" /></div>
+                <div class="field"><label for="new-store-currency">Currency</label><input id="new-store-currency" class="input" maxlength="3" value="@_creating.CurrencyCode" @onchange="args => _creating.CurrencyCode = Text(args)" /></div>
+                <div class="field"><label for="new-store-locale">Locale</label><input id="new-store-locale" class="input" value="@_creating.Locale" @onchange="args => _creating.Locale = Text(args)" /></div>
+                <div class="field">
+                    <label for="new-store-registration">Registration form</label>
+                    <select id="new-store-registration" class="input" @onchange="args => _creating.RegistrationFieldSet = Text(args)">
+                        @foreach (var option in _registrationForms) { <option value="@option" selected="@(option == _creating.RegistrationFieldSet)">@option</option> }
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="new-store-tax">Tax rules</label>
+                    <select id="new-store-tax" class="input" @onchange="args => _creating.TaxRuleSet = Text(args)">
+                        @foreach (var option in _taxRules) { <option value="@option" selected="@(option == _creating.TaxRuleSet)">@option</option> }
+                    </select>
+                </div>
+            </div>
+            @if (_createError is not null)
+            {
+                <span class="field-note field-note--warn create-store-error">@_createError</span>
+            }
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _creating = null">Close</button>
+            <button type="button" class="btn btn-primary create-store" disabled="@_saving" @onclick="Create">Create, closed</button>
+        </div>
+    }
+</Modal>
+
+<Modal Visible="_closing is not null" Title="Close this store?" OnClose="() => _closing = null">
+    @if (_closing is not null)
+    {
+        <div class="modal-body">
+            <p>@_closing.Name's storefront will answer "not found" to every customer until it is opened again. Nothing is deleted.</p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _closing = null">Keep it open</button>
+            <button type="button" class="btn btn-primary confirm-close" @onclick="Close">Close the store</button>
+        </div>
+    }
+</Modal>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private NewStore? _creating;
+    private SiteOption? _closing;
+    private string? _createError;
+    private string? _busy;
+    private bool _saving;
+    private readonly Dictionary<string, string> _refusals = new();
+    private List<string> _registrationForms = new();
+    private List<string> _taxRules = new();
+
+    protected override void OnParametersSet() => Layout?.SetPage("Stores", "Every store this deployment runs");
+
+    private static string Text(ChangeEventArgs args) => args.Value?.ToString() ?? string.Empty;
+
+    private async Task OpenCreate()
+    {
+        // The keyed options are the API's lists, read from the settings view.
+        if (_registrationForms.Count == 0 && await Data.GetStoreSettings() is { } view)
+        {
+            _registrationForms = view.RegistrationFieldSets;
+            _taxRules = view.TaxRuleSets;
+        }
+
+        _createError = null;
+        _creating = new NewStore
+        {
+            RegistrationFieldSet = _registrationForms.FirstOrDefault() ?? "",
+            TaxRuleSet = _taxRules.FirstOrDefault() ?? ""
+        };
+    }
+
+    private async Task Create()
+    {
+        if (_creating is null) return;
+
+        _saving = true;
+        var (created, refusal) = await Data.CreateStore(_creating);
+        _saving = false;
+
+        _createError = refusal;
+        if (created is null) return;
+
+        _creating = null;
+        Toast.Show($"{created.Name} created, closed. Act for it to set it up.");
+    }
+
+    private async Task Open(SiteOption site)
+    {
+        _busy = site.SiteKey;
+        var refusal = await Data.SetStoreOpen(site.SiteKey, open: true);
+        _busy = null;
+
+        if (refusal is null)
+        {
+            _refusals.Remove(site.SiteKey);
+            Toast.Show($"{site.Name} is open");
+        }
+        else
+        {
+            _refusals[site.SiteKey] = refusal;
+        }
+    }
+
+    private async Task Close()
+    {
+        if (_closing is null) return;
+
+        var site = _closing;
+        _closing = null;
+
+        var refusal = await Data.SetStoreOpen(site.SiteKey, open: false);
+        Toast.Show(refusal ?? $"{site.Name} is closed");
+    }
+
+    private async Task ActFor(SiteOption site)
+    {
+        // The whole workspace becomes that store's, as the header's selector does it.
+        if (Layout is not null)
+        {
+            await Layout.SwitchToAsync(site.SiteKey);
+        }
+    }
+}

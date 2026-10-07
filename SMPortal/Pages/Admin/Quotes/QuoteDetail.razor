@@ -364,7 +364,7 @@ else
         }
     }
 
-    private string Cur => _q?.Currency ?? "EUR";
+    private string Cur => _q?.Currency ?? Data.CurrentCurrency;
 
     private bool CanAddLine =>
         PickedProduct is not null && _lineDraft.Qty > 0 && !OverStock;

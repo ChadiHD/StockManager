@@ -37,10 +37,16 @@ public class AdminDataService : IAdminDataService
 
     private bool _loaded;
 
+    // Whether the signed-in admin may act for every store, which is what managing staff takes
+    // (T9). Read from GET api/User alongside the store list.
+    private bool _managesAllStores;
+
     private readonly ILocalStorageService _localStorage;
     private readonly string _tokenKey;
 
-    private const string SiteKeyStorageKey = "adminSiteKey";
+    // Public so signing out can clear it: the next person at this browser is offered their own
+    // stores, not the last one somebody else was acting for.
+    public const string SiteKeyStorageKey = "adminSiteKey";
     private const string SiteHeaderName = "X-Site-Key";
 
     public AdminDataService(HttpClient client, IConfiguration config, ILocalStorageService localStorage)
@@ -82,6 +88,9 @@ public class AdminDataService : IAdminDataService
 
         Replace(_sites, await GetListAsync<SiteOption>("api/Site"));
 
+        var me = await _client.GetFromJsonAsync<MeDto>($"{_api}/api/User");
+        _managesAllStores = me?.AllSites == true;
+
         var stored = await _localStorage.GetItemAsync<string>(SiteKeyStorageKey);
 
         // A stored key that no longer names a store — renamed, deactivated, or belonging to a
@@ -108,9 +117,20 @@ public class AdminDataService : IAdminDataService
 
     public string? CurrentSiteKey => _currentSiteKey;
 
+    public bool HasStoreAccess => _sites.Count > 0;
+
+    public bool ManagesAllStores => _managesAllStores;
+
+    public string CurrentCurrency =>
+        _sites.FirstOrDefault(site => site.SiteKey == _currentSiteKey)?.CurrencyCode ?? string.Empty;
+
     public async Task SwitchSiteAsync(string siteKey)
     {
         if (string.IsNullOrWhiteSpace(siteKey) || siteKey == _currentSiteKey) return;
+
+        // Only a store this admin was offered. The API would refuse any other, but storing it
+        // first would leave the workspace pointed at a store it can never load.
+        if (!_sites.Any(site => site.SiteKey == siteKey)) return;
 
         _currentSiteKey = siteKey;
         await _localStorage.SetItemAsync(SiteKeyStorageKey, siteKey);
@@ -146,6 +166,16 @@ public class AdminDataService : IAdminDataService
         // without the header once a second store exists.
         await EnsureSiteAsync();
 
+        // An admin given no store yet has nothing to load: every list below but the staff list
+        // is one store's, and the API would refuse each one. AdminLayout says why it is empty.
+        if (!HasStoreAccess)
+        {
+            _accounts.Clear(); _groups.Clear(); _quotes.Clear(); _orders.Clear(); _products.Clear();
+            _reports.Clear(); _activity.Clear(); _users.Clear(); _feeds.Clear();
+            _loaded = true;
+            return;
+        }
+
         var accountsTask = GetListAsync<AccountDto>("api/Account");
         var groupsTask = GetListAsync<GroupDto>("api/CustomerGroup");
         var quotesTask = GetListAsync<QuoteDto>("api/Quote");
@@ -153,8 +183,13 @@ public class AdminDataService : IAdminDataService
         var productsTask = GetListAsync<ProductDto>("api/Product/Catalog");
         var reportsTask = GetListAsync<ReportDto>("api/Order/Report");
         var activityTask = GetListAsync<ActivityDto>("api/Order/Activity?take=10");
-        var usersTask = GetListAsync<AppUserDto>("api/User/Admin/GetAllUsers");
-        var staffTask = GetListAsync<StaffDto>("api/User/Admin/Staff");
+        // Staff are managed by admins of every store only, and the API refuses anyone else.
+        var usersTask = _managesAllStores
+            ? GetListAsync<AppUserDto>("api/User/Admin/GetAllUsers")
+            : Task.FromResult(new List<AppUserDto>());
+        var staffTask = _managesAllStores
+            ? GetListAsync<StaffDto>("api/User/Admin/Staff")
+            : Task.FromResult(new List<StaffDto>());
         var feedsTask = GetListAsync<DistributorFeedView>("api/DistributorFeed");
 
         await Task.WhenAll(accountsTask, groupsTask, quotesTask, ordersTask,
@@ -529,7 +564,7 @@ public class AdminDataService : IAdminDataService
             created is null ? null : GetOrder(created.Reference ?? string.Empty));
     }
 
-    public async Task<Quote?> AddQuote(string accountName, string currency)
+    public async Task<Quote?> AddQuote(string accountName)
     {
         int? accountId = ResolveAccountIdByCompany(accountName);
         if (accountId is null) return null;
@@ -537,7 +572,6 @@ public class AdminDataService : IAdminDataService
         var response = await _client.PostAsJsonAsync($"{_api}/api/Quote", new
         {
             AccountId = accountId.Value,
-            Currency = currency,
             ExpiresDate = DateTime.UtcNow.AddDays(14)
         });
         response.EnsureSuccessStatusCode();
@@ -548,15 +582,14 @@ public class AdminDataService : IAdminDataService
         return created is null ? null : GetQuote(created.Reference ?? string.Empty);
     }
 
-    public async Task<Order?> AddOrder(string accountName, string currency)
+    public async Task<Order?> AddOrder(string accountName)
     {
         int? accountId = ResolveAccountIdByCompany(accountName);
         if (accountId is null) return null;
 
         var response = await _client.PostAsJsonAsync($"{_api}/api/Order", new
         {
-            AccountId = accountId.Value,
-            Currency = currency
+            AccountId = accountId.Value
         });
         response.EnsureSuccessStatusCode();
 
@@ -782,7 +815,8 @@ public class AdminDataService : IAdminDataService
         var dto = await response.Content.ReadFromJsonAsync<CategoryMappingDto>();
 
         return new CategoryMappingView(
-            (dto?.Categories ?? []).Select(c => new StoreCategoryOption(c.Id, c.Name ?? string.Empty, c.IsActive)).ToList(),
+            (dto?.Categories ?? []).Select(c => new StoreCategoryOption(c.Id, c.Name ?? string.Empty, c.IsActive,
+                c.Slug ?? string.Empty, c.Blurb, c.SortOrder, c.MappedFeedValues)).ToList(),
             (dto?.FeedCategories ?? []).Select(f => new FeedCategoryRow(
                 f.FeedValue ?? string.Empty, f.Products, f.SiteCategoryId, f.SiteCategoryName)).ToList());
     }
@@ -801,6 +835,27 @@ public class AdminDataService : IAdminDataService
         }
 
         // Mapping moves every product in the category on or off the store.
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<string?> SaveStoreCategory(StoreCategoryOption category)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var body = new { category.Slug, category.Name, category.Blurb, category.SortOrder, category.IsActive };
+        var response = category.Id == 0
+            ? await _client.PostAsJsonAsync($"{_api}/api/CategoryMapping/Categories", body)
+            : await _client.PutAsJsonAsync($"{_api}/api/CategoryMapping/Categories/{category.Id}", body);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That category could not be saved.");
+        }
+
+        // A category deactivated or renamed changes what the products screen files under.
         await RefreshAsync();
 
         return null;
@@ -1000,7 +1055,8 @@ public class AdminDataService : IAdminDataService
 
     // ---- User mutations ---------------------------------------------------------------------
 
-    public async Task<string?> AddUser(string name, string email, string role, string password)
+    public async Task<string?> AddUser(string name, string email, string role, string password,
+        bool allSites, IEnumerable<int> siteIds)
     {
         await EnsureAuthHeaderAsync();
 
@@ -1022,14 +1078,129 @@ public class AdminDataService : IAdminDataService
             return await Problem(response, "That user could not be created.");
         }
 
-        if (!string.IsNullOrWhiteSpace(role))
+        // By the id Register returned, never by looking the address up again.
+        var created = await response.Content.ReadFromJsonAsync<RegisteredDto>();
+        if (string.IsNullOrWhiteSpace(created?.UserId))
         {
-            await UpdateUserRoles(email, new[] { role });
+            return "The user was created, but their role and stores were not set. Set them from Manage.";
         }
 
-        await RefreshAsync();
+        return await UpdateUserAccess(
+            created.UserId,
+            string.IsNullOrWhiteSpace(role) ? Array.Empty<string>() : new[] { role },
+            allSites,
+            siteIds);
+    }
+
+    // ---- Store settings (T9) --------------------------------------------------------------------
+
+    public async Task<StoreSettingsView?> GetStoreSettings()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await _client.GetFromJsonAsync<StoreSettingsView>($"{_api}/api/Site/Settings");
+    }
+
+    public async Task<string?> SaveStoreSettings(StoreSettings settings)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync($"{_api}/api/Site/Settings", settings);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "The store's settings could not be saved.");
+        }
+
+        // The selector shows the store's name, which may just have changed.
+        _sites.Clear();
+        await EnsureSiteAsync();
 
         return null;
+    }
+
+    public async Task<IReadOnlyList<ContentPageItem>> GetContentPages()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await _client.GetFromJsonAsync<List<ContentPageItem>>($"{_api}/api/SiteContent") ?? new List<ContentPageItem>();
+    }
+
+    public async Task<(ContentPageItem? Saved, string? Refusal)> SaveContentPage(
+        string key, string title, string? lede, string? bodyHtml)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/SiteContent/{Uri.EscapeDataString(key)}",
+            new { Title = title, Lede = lede, BodyHtml = bodyHtml });
+
+        return response.IsSuccessStatusCode
+            ? (await response.Content.ReadFromJsonAsync<ContentPageItem>(), null)
+            : (null, await Problem(response, "That page could not be saved."));
+    }
+
+    public async Task<(SiteOption? Created, string? Refusal)> CreateStore(NewStore store)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsJsonAsync($"{_api}/api/Site", store);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return (null, await Problem(response, "The store could not be created."));
+        }
+
+        var created = await response.Content.ReadFromJsonAsync<SiteOption>();
+        await ReloadSitesAsync();
+
+        return (created, null);
+    }
+
+    public async Task<string?> SetStoreOpen(string siteKey, bool open)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PostAsync(
+            $"{_api}/api/Site/{Uri.EscapeDataString(siteKey)}/{(open ? "Open" : "Close")}", content: null);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, open ? "The store could not be opened." : "The store could not be closed.");
+        }
+
+        await ReloadSitesAsync();
+
+        return null;
+    }
+
+    // The selector's list, after a store was added, opened or closed.
+    private async Task ReloadSitesAsync()
+    {
+        _sites.Clear();
+        await EnsureSiteAsync();
+    }
+
+    public async Task<IReadOnlyList<EmailWording>> GetEmailWording()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await _client.GetFromJsonAsync<List<EmailWording>>($"{_api}/api/SiteEmailTemplate") ?? new List<EmailWording>();
+    }
+
+    public async Task<(EmailWording? Saved, string? Refusal)> SaveEmailWording(string key, string? subject, string? body)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/SiteEmailTemplate/{Uri.EscapeDataString(key)}", new { Subject = subject, Body = body });
+
+        return response.IsSuccessStatusCode
+            ? (await response.Content.ReadFromJsonAsync<EmailWording>(), null)
+            : (null, await Problem(response, "That wording could not be saved."));
     }
 
     public async Task<string?> ChangePassword(string currentPassword, string newPassword)
@@ -1045,16 +1216,23 @@ public class AdminDataService : IAdminDataService
             : await Problem(response, "Your password could not be changed.");
     }
 
-    public async Task UpdateUserRoles(string email, IEnumerable<string> roles)
+    public async Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,
+        bool allSites, IEnumerable<int> siteIds)
     {
+        await EnsureAuthHeaderAsync();
+
         var target = roles?.Where(role => !string.IsNullOrWhiteSpace(role))
                          .ToHashSet(StringComparer.OrdinalIgnoreCase)
                      ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // By id. This used to find the user by email among every login, and a customer login
+        // sharing the address could be the one that received the role.
         var users = await GetListAsync<AppUserDto>("api/User/Admin/GetAllUsers");
-        var user = users.FirstOrDefault(candidate =>
-            string.Equals(candidate.Email, email, StringComparison.OrdinalIgnoreCase));
-        if (user is null) return;
+        var user = users.FirstOrDefault(candidate => candidate.UserId == userId);
+        if (user is null) return "That user no longer exists.";
+
+        var problem = await ApplyStores(userId, allSites, siteIds);
+        if (problem is not null) return problem;
 
         var current = user.Roles?.Values.ToHashSet(StringComparer.OrdinalIgnoreCase)
                       ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1062,21 +1240,34 @@ public class AdminDataService : IAdminDataService
         foreach (var role in target.Except(current, StringComparer.OrdinalIgnoreCase))
         {
             var add = await _client.PostAsJsonAsync($"{_api}/api/User/Admin/AddRole",
-                new { UserId = user.UserId, RoleName = role });
-            add.EnsureSuccessStatusCode();
+                new { UserId = userId, RoleName = role });
+            if (!add.IsSuccessStatusCode) return await Problem(add, $"The {role} role could not be added.");
         }
 
         foreach (var role in current.Except(target, StringComparer.OrdinalIgnoreCase))
         {
             var request = new HttpRequestMessage(HttpMethod.Delete, $"{_api}/api/User/Admin/RemoveRole")
             {
-                Content = JsonContent.Create(new { UserId = user.UserId, RoleName = role })
+                Content = JsonContent.Create(new { UserId = userId, RoleName = role })
             };
             var remove = await _client.SendAsync(request);
-            remove.EnsureSuccessStatusCode();
+            if (!remove.IsSuccessStatusCode) return await Problem(remove, $"The {role} role could not be removed.");
         }
 
         await RefreshAsync();
+
+        return null;
+    }
+
+    private async Task<string?> ApplyStores(string userId, bool allSites, IEnumerable<int> siteIds)
+    {
+        var response = await _client.PutAsJsonAsync(
+            $"{_api}/api/User/Admin/{Uri.EscapeDataString(userId)}/Stores",
+            new { AllSites = allSites, SiteIds = allSites ? new List<int>() : siteIds.ToList() });
+
+        return response.IsSuccessStatusCode
+            ? null
+            : await Problem(response, "Their stores could not be changed.");
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------
@@ -1241,24 +1432,25 @@ public class AdminDataService : IAdminDataService
     };
 
     // Identity holds the login and its roles; dbo.User holds the staff display name. Joined
-    // here so the users page can show both.
+    // here, by id, so the users page can show both.
     private static IEnumerable<User> MapUsers(List<AppUserDto> logins, List<StaffDto> staff)
     {
         var names = staff
-            .Where(member => !string.IsNullOrWhiteSpace(member.EmailAddress))
-            .GroupBy(member => member.EmailAddress!, StringComparer.OrdinalIgnoreCase)
+            .Where(member => !string.IsNullOrWhiteSpace(member.UserId))
             .ToDictionary(
-                group => group.Key,
-                group => $"{group.First().FirstName} {group.First().LastName}".Trim(),
-                StringComparer.OrdinalIgnoreCase);
+                member => member.UserId!,
+                member => $"{member.FirstName} {member.LastName}".Trim());
 
         return logins.Select(login => new User
         {
-            Name = names.TryGetValue(login.Email ?? string.Empty, out var name) && !string.IsNullOrWhiteSpace(name)
+            Id = login.UserId ?? string.Empty,
+            Name = names.TryGetValue(login.UserId ?? string.Empty, out var name) && !string.IsNullOrWhiteSpace(name)
                 ? name
                 : login.Email ?? string.Empty,
             Email = login.Email ?? string.Empty,
-            Roles = login.Roles is { Count: > 0 } ? string.Join(", ", login.Roles.Values) : "Staff"
+            Roles = login.Roles is { Count: > 0 } ? string.Join(", ", login.Roles.Values) : "Staff",
+            AllSites = login.AllSites,
+            SiteIds = login.SiteIds ?? new List<int>()
         });
     }
 
@@ -1307,7 +1499,8 @@ public class AdminDataService : IAdminDataService
     private sealed record CategoryMappingDto(
         List<SiteCategoryDto>? Categories, List<FeedCategoryDto>? FeedCategories);
 
-    private sealed record SiteCategoryDto(int Id, string? Name, bool IsActive);
+    private sealed record SiteCategoryDto(int Id, string? Name, bool IsActive,
+        string? Slug, string? Blurb, int SortOrder, int MappedFeedValues);
 
     private sealed record FeedCategoryDto(
         string? FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);
@@ -1318,7 +1511,12 @@ public class AdminDataService : IAdminDataService
     private sealed record ActivityDto(DateTime When, string? Account, string? What, string? Type,
         string? Status, string? Screen);
 
-    private sealed record AppUserDto(string? UserId, string? Email, Dictionary<string, string>? Roles);
+    private sealed record AppUserDto(string? UserId, string? Email, Dictionary<string, string>? Roles,
+        bool AllSites, List<int>? SiteIds);
+
+    private sealed record RegisteredDto(string? UserId);
+
+    private sealed record MeDto(string? UserId, bool AllSites);
 
     private sealed record StaffDto(string? UserId, string? FirstName, string? LastName,
         string? EmailAddress, DateTime CreatedDate);

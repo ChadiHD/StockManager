@@ -1,17 +1,26 @@
 @page "/"
+@using SMStore.Catalog
+@using SMStore.Content
 @inject ISiteContext SiteContext
+@inject ISiteContentSource Content
+@inject CatalogPresenter Catalog
 @inject OrderingModeProvider Ordering
 
 <PageTitle>@SiteContext.Site.Name</PageTitle>
 
+@*
+    The home page is the store's own (T9): its hero is the "home" content row, its categories
+    are the store's active ones with their blurbs, and its featured strip is the top of the
+    catalog's default order, which puts SiteProduct.Featured first. A store with none of these
+    gets its name and an empty page rather than another store's words — until T9 every store got
+    a placeholder saying the content "arrives" later.
+*@
 <section class="home-hero">
-    <p class="card-kicker">@SiteContext.Site.Country · @SiteContext.Site.CurrencyCode</p>
-    <h1>@SiteContext.Site.Name</h1>
-    <p class="page-lede">
-        Storefront chrome and the design system are in place. The hero copy, category grid and
-        featured products arrive with the content mechanism and the catalog.
-    </p>
-
+    <h1>@(_home?.Title ?? SiteContext.Site.Name)</h1>
+    @if (!string.IsNullOrWhiteSpace(_home?.Lede))
+    {
+        <p class="page-lede">@_home.Lede</p>
+    }
     <div class="home-hero__actions">
         <a href="/catalog" class="btn btn-primary blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
@@ -24,6 +33,55 @@
     </div>
 </section>
 
-<div class="stub">
-    Category grid, featured products and supply-performance panels land with T2.
-</div>
+@if (!string.IsNullOrWhiteSpace(_home?.BodyHtml))
+{
+    @* Staff-authored, and sanitized against an allow-list when the portal saved it. *@
+    <article class="content-body home-body">@((MarkupString)_home.BodyHtml)</article>
+}
+
+@if (_categories.Count > 0)
+{
+    <section class="home-section home-categories">
+        <h2>Shop by category</h2>
+        <div class="home-category-grid">
+            @foreach (var category in _categories)
+            {
+                <a class="card home-category" href="/catalog?cat=@Uri.EscapeDataString(category.Slug)">
+                    <strong>@category.Name</strong>
+                    @if (!string.IsNullOrWhiteSpace(category.Blurb))
+                    {
+                        <span class="home-category__blurb">@category.Blurb</span>
+                    }
+                </a>
+            }
+        </div>
+    </section>
+}
+
+@if (_featured.Count > 0)
+{
+    <section class="home-section home-featured">
+        <h2>Featured</h2>
+        <div class="product-grid">
+            @foreach (var item in _featured)
+            {
+                <ProductCard Product="item" ReturnTo="/" />
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private const int FeaturedCount = 8;
+
+    private SiteContentPage? _home;
+    private IReadOnlyList<SMDataManager.Library.Models.SiteCategoryModel> _categories = [];
+    private IReadOnlyList<ProductCardView> _featured = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _home = await Content.GetAsync(SiteContext.Site.Id, SMDataManager.Library.Models.SiteContentKeys.Home);
+        _categories = Catalog.GetCategories();
+        _featured = Catalog.Featured(FeaturedCount);
+    }
+}

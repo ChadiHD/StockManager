@@ -2,7 +2,6 @@ CREATE PROCEDURE [dbo].[spQuote_Insert]
 	@Id int output,
 	@Reference nvarchar(20) output,
 	@AccountId int,
-	@Currency nvarchar(3),
 	@ExpiresDate datetime2,
 	@SiteId int
 AS
@@ -25,6 +24,10 @@ BEGIN
 	BEGIN
 		THROW 50002, 'SiteId is required: the account has no site and this database has more than one, so the store to file this quote under cannot be inferred.', 1;
 	END
+
+	-- The store's currency, never the caller's (T9): every price this row will hold comes
+	-- from the store's catalog, and an admin used to be able to pick another one from a list.
+	DECLARE @Currency nvarchar(3) = (SELECT [CurrencyCode] FROM dbo.Site WHERE [Id] = @SiteId);
 
 	SET @Reference = CONCAT('QT-', FORMAT(NEXT VALUE FOR dbo.QuoteReferenceSequence, '0000'));
 

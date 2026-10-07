@@ -47,7 +47,7 @@ Under the repository's **staging** environment, with a required reviewer:
 ```json
 "Deployment": {
   "AdminDomain": "admin.staging.example.com",
-  "StoreDomains": [ "staging.aclitrade.ie" ]
+  "StoreDomains": [ "staging.shop.example" ]
 }
 ```
 
@@ -107,11 +107,8 @@ The admin domain is the same with `stock-api` and `ADMIN_CERTIFICATE_0`.
 **Mail.** In the Email Communication Service, add the domain and publish the records it asks
 for: the verification `TXT`, `SPF` (`include:spf.protection.outlook.com`), and two `DKIM`
 `CNAME`s. Add a `DMARC` record of your own (`_dmarc.<domain>`, start at `p=none`). Then set the
-store's sender:
-
-```sql
-UPDATE dbo.Site SET MailFromAddress = N'orders@aclitrade.ie' WHERE SiteKey = N'aclitrade';
-```
+store's sender — **Store settings → Mail is sent from**, acting for that store (since T9; it was
+an `UPDATE dbo.Site` before). A whole new store is `docs/runbooks/new-store.md`.
 
 Until it is set, that store's mail is dead-lettered with the reason, and the operator alert
 for it is too — check `dbo.EmailOutbox` for `DeadLettered` rows after setting it.

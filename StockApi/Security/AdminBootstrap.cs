@@ -132,6 +132,10 @@ public static class AdminBootstrap
             });
         }
 
+        // Every store, including ones not created yet: somebody has to be able to give every
+        // other admin theirs, and on a fresh deployment there is nobody else (T9).
+        profiles.SetSiteAccess(login.Id, allSites: true, Array.Empty<int>());
+
         logger.LogWarning(
             "{Email} is now an admin. Remove Admin:BootstrapEmail and Admin:BootstrapPassword from " +
             "this deployment, and have them change the password from the portal.", email);

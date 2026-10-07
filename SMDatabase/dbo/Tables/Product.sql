@@ -33,7 +33,31 @@ CREATE TABLE [dbo].[Product]
     -- When an image was last resolved, so enrichment can skip what it already has and retry
     -- what it could not find.
     [ImageSourcedUtc] DATETIME2 NULL,
-    [ImageLookupUtc] DATETIME2 NULL
+    [ImageLookupUtc] DATETIME2 NULL,
+
+    /*
+    Where a product came from and what its prices are in (T9). Until then neither was recorded:
+    Distributor held the feed's display name, which was also the merge key, and RetailPrice and
+    Cost were bare numbers. With a GBP feed beside an EUR one, a UK store mapping "Notebooks"
+    would have sold the Irish distributor's notebooks with a pound sign on euro prices.
+
+    FeedId is the feed that imported the row: the merge and delist key, so renaming a feed keeps
+    its products, and the store that may sell them, which is the feed's own. NULL for own stock
+    and for orphans — a distributor product whose feed is gone, which no store sells.
+    CurrencyCode is the currency of RetailPrice and Cost: the feed's store's for imported rows,
+    the acting store's for a product an admin adds. dbo.fnSite_ProductSellable reads both.
+
+    The EUR default is for rows nothing sets it on — the desktop till's, and test fixtures —
+    the same default Site, Account and Quote carry. Every production write path sets it. Last
+    in the table, so the publish appends rather than rebuilds.
+    */
+    [FeedId] INT NULL,
+    [CurrencyCode] NVARCHAR(3) NOT NULL CONSTRAINT [DF_Product_CurrencyCode] DEFAULT 'EUR',
+
+    -- SET NULL: deleting a feed stops its stock selling anywhere, and quotes and orders that
+    -- hold its products still resolve them.
+    CONSTRAINT [FK_Product_ToDistributorFeed] FOREIGN KEY ([FeedId])
+        REFERENCES [DistributorFeed]([Id]) ON DELETE SET NULL
 
     /*
     No Published, Featured or Badge. They were here until T8, and they were store decisions on a
@@ -54,4 +78,13 @@ CREATE NONCLUSTERED INDEX [IX_Product_CatalogGate]
 	-- visible row on every search. Featured, the default sort key, left with the column: it is
 	-- on dbo.SiteProduct now, reached through the placement join.
 	INCLUDE ([Sku], [ProductName], [ManufacturerPartNumber], [RetailPrice], [QuantityInStock],
-	         [Distributor], [Manufacturer]);
+	         [Distributor], [Manufacturer],
+	         -- dbo.fnSite_ProductSellable's inputs, which every catalog query now asks first (T9).
+	         [FeedId], [CurrencyCode]);
+GO
+
+-- The feed sync merges and delists on these (T9); before, on the feed's name and DistributorSku,
+-- which nothing indexed.
+CREATE NONCLUSTERED INDEX [IX_Product_Feed]
+	ON [dbo].[Product] ([FeedId], [DistributorSku])
+	WHERE [FeedId] IS NOT NULL;

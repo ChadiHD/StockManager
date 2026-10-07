@@ -54,9 +54,25 @@
         </NavLink>
 
         <span class="nav-heading section">Administration</span>
-        <NavLink href="admin/users" @onclick="CloseNav">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users &amp; roles
+        <NavLink href="admin/store" @onclick="CloseNav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg>Store settings
         </NavLink>
+        <NavLink href="admin/content" @onclick="CloseNav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></svg>Content pages
+        </NavLink>
+        <NavLink href="admin/email" @onclick="CloseNav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Email wording
+        </NavLink>
+        @if (Data.ManagesAllStores)
+        {
+          <NavLink href="admin/stores" @onclick="CloseNav">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Stores
+          </NavLink>
+          @* Managing staff takes an admin of every store (T9); the API refuses anyone else. *@
+          <NavLink href="admin/users" @onclick="CloseNav">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users &amp; roles
+          </NavLink>
+        }
         <NavLink href="admin/reports" @onclick="CloseNav">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16"/><path d="M8 17v-5M13 17V8M18 17v-3"/></svg>Reports
         </NavLink>
@@ -91,7 +107,7 @@
                     @onchange="OnSiteChanged">
               @foreach (var site in Data.Sites)
               {
-                <option value="@site.SiteKey" selected="@(site.SiteKey == Data.CurrentSiteKey)">@site.Name</option>
+                <option value="@site.SiteKey" selected="@(site.SiteKey == Data.CurrentSiteKey)">@site.Name@(site.IsActive ? null : " (not open)")</option>
               }
             </select>
           </div>
@@ -130,6 +146,15 @@
         }
         else
         {
+          @if (!Data.HasStoreAccess)
+          {
+            @* Still renders the page beneath: an admin with no store can change their password,
+               and everything else shows its own empty state. *@
+            <div class="alert no-store-access" role="status">
+              <strong>You have not been given a store to act for.</strong>
+              <span>An admin of every store can give you one under Users &amp; roles.</span>
+            </div>
+          }
           @Body
         }
       </main>
@@ -184,9 +209,14 @@
     // Switching store reloads every list in the workspace, so the page goes back to its
     // loading state rather than showing the previous store's rows under the new store's name
     // while the calls are in flight.
-    private async Task OnSiteChanged(ChangeEventArgs args)
+    private Task OnSiteChanged(ChangeEventArgs args) => SwitchToAsync(args.Value?.ToString());
+
+    /// <summary>
+    /// Acts for another store, as the selector does; the stores page calls this too (T9), for a
+    /// store just created or not open yet.
+    /// </summary>
+    public async Task SwitchToAsync(string? siteKey)
     {
-        var siteKey = args.Value?.ToString();
         if (string.IsNullOrWhiteSpace(siteKey) || siteKey == Data.CurrentSiteKey) return;
 
         switching = true;

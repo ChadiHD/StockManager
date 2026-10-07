@@ -67,6 +67,50 @@ public class AuthorizationSurfaceTests
         Allowed.Except(All().Select(Name)).Should().BeEmpty();
     }
 
+    // Actions that are not about one store, which an admin given only some stores must not
+    // reach (T9): staff and their grants, image enrichment over every product, and the till. The thing
+    // that matters is again an absence — remove the policy and every one of these still works,
+    // for everybody — so it is listed here rather than left to review.
+    private static readonly HashSet<string> EveryStoreOnly =
+    [
+        $"{nameof(UserController)}.{nameof(UserController.Register)}",
+        $"{nameof(UserController)}.{nameof(UserController.GetAllUsers)}",
+        $"{nameof(UserController)}.{nameof(UserController.GetAllStaff)}",
+        $"{nameof(UserController)}.{nameof(UserController.SetStores)}",
+        $"{nameof(UserController)}.{nameof(UserController.GetAllRoles)}",
+        $"{nameof(UserController)}.{nameof(UserController.AddRole)}",
+        $"{nameof(UserController)}.{nameof(UserController.RemoveRole)}",
+        $"{nameof(ProductController)}.{nameof(ProductController.EnrichImages)}",
+        $"{nameof(PurchaseController)}.{nameof(PurchaseController.GetPurchaseReports)}",
+        $"{nameof(InventoryController)}.{nameof(InventoryController.Get)}",
+        $"{nameof(InventoryController)}.{nameof(InventoryController.Post)}",
+        // Creating, opening and closing stores: the store being acted on is not open, or is
+        // being taken away from customers, and an admin given some stores could open their own.
+        $"{nameof(SiteController)}.{nameof(SiteController.Create)}",
+        $"{nameof(SiteController)}.{nameof(SiteController.Open)}",
+        $"{nameof(SiteController)}.{nameof(SiteController.Close)}",
+    ];
+
+    public static IEnumerable<object[]> EveryStoreActions() =>
+        EveryStoreOnly.Select(name => new object[] { name });
+
+    [Theory]
+    [MemberData(nameof(EveryStoreActions))]
+    public void ActionsNotAboutOneStoreTakeAnAdminOfEveryStore(string action)
+    {
+        var overloads = All().Where(candidate => Name(candidate) == action).ToList();
+
+        overloads.Should().NotBeEmpty($"{action} is listed but does not exist");
+
+        foreach (var (controller, method) in overloads)
+        {
+            method.GetCustomAttributes<AuthorizeAttribute>()
+                .Concat(controller.GetCustomAttributes<AuthorizeAttribute>())
+                .Select(attribute => attribute.Policy)
+                .Should().Contain(AllStores.Policy, $"{action} is open to an admin given only some stores");
+        }
+    }
+
     [Theory]
     [InlineData("admin@example.test", true)]
     [InlineData("aclitrade|buyer@example.test", false)]

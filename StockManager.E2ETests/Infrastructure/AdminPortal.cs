@@ -96,6 +96,13 @@ public static class AdminPortal
     /// </remarks>
     public static async Task EnsureActingForSiteAsync(IPage page, string siteKey)
     {
+        // The switcher renders once the workspace has its store list, so counting it straight
+        // after sign-in found none and returned without switching. Until T9's two-country
+        // journey nothing noticed: every journey before it acted for the store already
+        // selected. So wait for the layout, then for its loading state to end, before deciding.
+        await Expect(page.Locator(".main-content")).ToBeVisibleAsync(new() { Timeout = 20_000 });
+        await Expect(page.Locator(".main-content .route-state")).ToHaveCountAsync(0, new() { Timeout = 20_000 });
+
         var switcher = page.Locator("#admin-site");
 
         if (await switcher.CountAsync() == 0)

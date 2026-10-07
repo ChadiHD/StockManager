@@ -1,0 +1,146 @@
+@page "/admin/email"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Email wording · StockManager</PageTitle>
+
+<div class="page-head">
+    <div><span class="eyebrow">Administration</span><h1>Email wording</h1></div>
+</div>
+
+@* The store's own words for every message it sends (T9). dbo.SiteEmailTemplate was written by
+   hand until this existed. Plain text with {Placeholder} tokens; a token the message has no
+   value for, or a required one left out, is refused on save — the dispatcher would otherwise
+   quietly send the platform's words instead. *@
+@if (_loadError is not null)
+{
+    <div class="alert error" role="alert">@_loadError</div>
+}
+else if (_messages is null)
+{
+    <div class="panel panel-pad">Loading the store's messages…</div>
+}
+else
+{
+    <div class="detail-grid content-editor">
+        <div class="panel panel-clip">
+            <div class="toolbar"><h2 class="tbl-title">Messages</h2></div>
+            <div class="content-page-list">
+                @foreach (var message in _messages)
+                {
+                    <button type="button" class="content-page email-message @(message.Key == _selected?.Key ? "content-page--active" : null)"
+                            data-key="@message.Key" @onclick="() => Select(message)">
+                        <span><strong>@Label(message.Key)</strong><small class="cell-sub">@(message.Audience == "Operator" ? "To the store's operator" : "To customers")</small></span>
+                        <span class="badge @(message.Customised ? "badge--ok" : "badge--neutral")">@(message.Customised ? "Store's own" : "Platform")</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (_selected is not null)
+        {
+            <div class="panel panel-pad">
+                <span class="card-kicker">@Label(_selected.Key)</span>
+                <div class="form-grid">
+                    <div class="field span2">
+                        <label for="email-subject">Subject</label>
+                        <input id="email-subject" class="input" value="@_subject" placeholder="@_selected.PlatformSubject"
+                               @onchange="args => _subject = args.Value?.ToString()" />
+                    </div>
+                    <div class="field span2">
+                        <label for="email-body">Body</label>
+                        <textarea id="email-body" class="input content-body-input" rows="14" placeholder="@_selected.PlatformBody"
+                                  @onchange="args => _body = args.Value?.ToString()">@_body</textarea>
+                        <span class="field-note">Blank keeps the platform's words, shown greyed out. Plain text only.</span>
+                    </div>
+                </div>
+                <div class="email-placeholders">
+                    <span class="field-label">Placeholders</span>
+                    @foreach (var name in _selected.Placeholders)
+                    {
+                        <code class="email-token @(_selected.Required.Contains(name) ? "email-token--required" : null)">{@name}</code>
+                    }
+                    @if (_selected.Required.Count > 0)
+                    {
+                        <span class="field-note">Bold ones must stay in the body: the message does not work without them.</span>
+                    }
+                </div>
+                <div class="content-save">
+                    <span class="field-note email-status @(_refusal is not null ? "field-note--warn" : null)">@(_refusal ?? _status)</span>
+                    <span class="head-actions">
+                        @if (_selected.Customised)
+                        {
+                            <button type="button" class="btn btn-secondary email-revert" disabled="@_saving" @onclick="Revert">Use the platform's words</button>
+                        }
+                        <button type="button" class="btn btn-primary email-save" disabled="@_saving" @onclick="Save">Save wording</button>
+                    </span>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private List<EmailWording>? _messages;
+    private EmailWording? _selected;
+    private string? _subject;
+    private string? _body;
+    private string? _refusal;
+    private string? _status;
+    private string? _loadError;
+    private bool _saving;
+
+    protected override void OnParametersSet() => Layout?.SetPage("Email wording", "What this store's messages say");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _messages = (await Data.GetEmailWording()).ToList();
+            if (_messages.Count > 0) Select(_messages[0]);
+        }
+        catch (Exception exception)
+        {
+            _loadError = exception.Message;
+        }
+    }
+
+    private void Select(EmailWording message)
+    {
+        _selected = message;
+        _subject = message.Subject;
+        _body = message.Body;
+        _refusal = null;
+        _status = message.Customised ? "This store's own wording." : "The platform's wording. Type to replace it.";
+    }
+
+    private Task Save() => Store(_subject, _body);
+
+    private Task Revert() => Store(null, null);
+
+    private async Task Store(string? subject, string? body)
+    {
+        if (_selected is null) return;
+
+        _saving = true;
+        var (saved, refusal) = await Data.SaveEmailWording(_selected.Key, subject, body);
+        _saving = false;
+
+        _refusal = refusal;
+        if (saved is null) return;
+
+        _messages![_messages.FindIndex(message => message.Key == saved.Key)] = saved;
+        Select(saved);
+        Toast.Show(saved.Customised ? $"{Label(saved.Key)}: wording saved" : $"{Label(saved.Key)}: platform wording restored");
+    }
+
+    // "quote.expiring" reads as "Quote expiring"; the key itself is stored on every queued message
+    // and never renamed, so the screen words it rather than the other way round.
+    private static string Label(string key)
+    {
+        var words = key.Replace('.', ' ').Replace('-', ' ');
+        return words.Length == 0 ? key : char.ToUpperInvariant(words[0]) + words[1..];
+    }
+}

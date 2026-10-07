@@ -112,6 +112,19 @@ public sealed class CatalogPresenter
             result.TotalPages);
     }
 
+    /// <summary>
+    /// The top of the catalog's default order, which puts the store's featured products first,
+    /// for the home page (T9). One query and no facets: the home page is the most-visited page
+    /// and shows neither a count nor a filter.
+    /// </summary>
+    public IReadOnlyList<ProductCardView> Featured(int count)
+    {
+        var query = BuildQuery(null, null, false, null, null, 1);
+        query.PageSize = count;
+
+        return _catalog.Search(query).Items.Select(ToCard).ToList();
+    }
+
     public CatalogItemModel? GetBySku(string sku)
         => _catalog.GetBySku(_siteContext.Site.Id, sku, CustomerGroupId);
 

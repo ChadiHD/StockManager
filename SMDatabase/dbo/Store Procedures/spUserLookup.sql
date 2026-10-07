@@ -5,7 +5,7 @@ AS
 begin
 	set NOCOUNT on;
 
-	SELECT UserId, FirstName, LastName, EmailAddress, CreatedDate
+	SELECT UserId, FirstName, LastName, EmailAddress, CreatedDate, AllSites
 	FROM [dbo].[User]
 	WHERE UserId = @UserId;
 end

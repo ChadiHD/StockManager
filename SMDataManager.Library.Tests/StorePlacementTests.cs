@@ -492,7 +492,7 @@ public class StorePlacementTests
             using var command = Command("""
                 SELECT pl.Reason, pl.OnStore
                 FROM dbo.Product p
-                CROSS APPLY dbo.fnSite_ProductPlacement(@site, p.Id, p.Category) pl
+                CROSS APPLY dbo.fnSite_ProductPlacement(@site, p.Id, p.Category, p.FeedId, p.Source, p.CurrencyCode) pl
                 WHERE p.Id = @product;
                 """, ("@site", siteId), ("@product", productId));
 

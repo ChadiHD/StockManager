@@ -46,7 +46,8 @@ namespace StockApi.Controllers
             return order is null ? NotFound() : _orderData.GetOrderLines(order.Id, _site.SiteId);
         }
 
-        public record NewOrderModel(int AccountId, string Currency);
+        // No currency: an order is in its store's (T9).
+        public record NewOrderModel(int AccountId);
 
         [HttpPost]
         public ActionResult<OrderModel> Create(NewOrderModel order)
@@ -55,7 +56,7 @@ namespace StockApi.Controllers
             // order to another member of staff.
             string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            return _orderData.CreateOrder(staffId, order.AccountId, order.Currency, _site.SiteId);
+            return _orderData.CreateOrder(staffId, order.AccountId, _site.SiteId);
         }
 
         public record ConvertQuoteModel(string QuoteReference, string? PoNumber = null);

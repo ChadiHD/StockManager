@@ -86,5 +86,25 @@ namespace SMDataManager.Library.Models
 
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
+
+        /// <summary>
+        /// Who the store legally is — a store's <see cref="Name"/> is a brand, not a company.
+        /// Printed with <see cref="TaxRegistrationNumber"/> in the footer and on documents.
+        /// </summary>
+        public string LegalName { get; set; }
+
+        public string CompanyRegistrationNumber { get; set; }
+
+        public string RegisteredAddress { get; set; }
+    }
+
+    /// <summary>A store's settings as the admin screen edits them.</summary>
+    public class SiteSettingsModel : SiteModel
+    {
+        /// <summary>
+        /// The store already holds prices in its currency, so the code cannot change; see
+        /// <c>dbo.fnSite_CurrencyLocked</c>.
+        /// </summary>
+        public bool CurrencyLocked { get; set; }
     }
 }

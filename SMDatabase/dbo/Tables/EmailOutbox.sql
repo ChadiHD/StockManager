@@ -64,8 +64,10 @@ CREATE TABLE [dbo].[EmailOutbox]
 	[SentUtc] DATETIME2 NULL,
 
 	CONSTRAINT [FK_EmailOutbox_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id]),
+	-- As SQL Server stores it, not as IN (...): it keeps an IN list as this reversed OR chain,
+	-- and DacFx, seeing the two differ, rebuilt the constraint on every publish.
 	CONSTRAINT [CK_EmailOutbox_Status] CHECK (
-		[Status] IN (N'Pending', N'Sending', N'Sent', N'DeadLettered'))
+		[Status]=N'DeadLettered' OR [Status]=N'Sent' OR [Status]=N'Sending' OR [Status]=N'Pending')
 )
 GO
 
