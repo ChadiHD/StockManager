@@ -12,9 +12,9 @@ namespace StockApi.Controllers
     [Authorize]
     public class InventoryController : ControllerBase
     {
-        private readonly InventoryData _inventoryData;
+        private readonly IInventoryData _inventoryData;
 
-        public InventoryController(InventoryData inventoryData)
+        public InventoryController(IInventoryData inventoryData)
         {
             _inventoryData = inventoryData;
         }
