@@ -25,31 +25,61 @@ A business running stores on it keeps a repository of its own, downstream:
   git remote add upstream https://github.com/<owner>/StockManager.git
   ```
 
-- What it adds, and the only things it adds:
+- Turn off push to the template from that copy, so a store's commits cannot land upstream by
+  accident: `git remote set-url --push upstream no-push`.
+- What it adds, and the only things it adds. Every file it owns is new, never an edited
+  template file, so a merge from upstream cannot conflict with it. The business picks one
+  prefix for its own files, such as `acme-`:
   - `SMStore/wwwroot/sites/{SiteKey}/` for each store: `theme.css`, `logo.svg`,
     `logo-inverse.svg`, `favicon.svg` and `fonts/` (self-hosted; never a font service — see
-    CLAUDE.md, *Everything comes from this origin*). A file left out falls back to `default`.
-  - Its deployment configuration: `Deployment:StoreDomains`, `Deployment:AdminDomain`, and the
-    staging and production workflows' environment values.
-- **Template changes come from upstream.** `git merge upstream/main`, then deploy. A shared file
-  edited downstream is the drift that makes the next merge a fight, and the next store a fork.
+    CLAUDE.md, *Everything comes from this origin*). A file left out falls back to `default`,
+    which is the template's and is not edited downstream.
+  - `.github/workflows/acme-deploy-*.yml`: its own copy of `deploy-staging.yml`, carrying the
+    domain lines (`docs/runbooks/production.md` §1, *The deploy workflow*). The template's
+    *Deploy to staging* is switched off in the copy's Actions settings rather than edited.
+    This copy is the one file that follows the template by hand: when upstream changes
+    `deploy-staging.yml`, make the same change here.
+  - `docs/acme/` for the business's own plans and notes. `CLAUDE.md` is the template's.
+- **Template changes come from upstream, by tag.** A gap found while building a store is fixed
+  in the template, merged and tagged there (`template-v2`), then merged downstream with
+  `git fetch upstream --tags` and `git merge template-v2`, then deployed. Merging tags rather
+  than `upstream/main` means a store only ever runs a template version somebody chose. A shared
+  file edited downstream is the drift that makes the next merge a fight, and the next store a
+  fork.
 
-Its CI should refuse the drift outright. A step like this, before the build, fails any pull
-request that touches a file outside the store's own paths:
+Its CI should refuse the drift outright. This workflow, as
+`.github/workflows/acme-paths.yml`, fails any pull request that touches a file outside the
+business's own paths. Name the business's stores in the first alternative, so the `default`
+theme stays the template's, and require the check on `main`:
 
-```bash
-git fetch origin "$GITHUB_BASE_REF"
-changed=$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD")
-outside=$(echo "$changed" | grep -vE '^(SMStore/wwwroot/sites/[^/]+/|StockManager\.AppHost/appsettings\..*\.json$|\.github/workflows/deploy-)' || true)
-if [ -n "$outside" ]; then
-  echo "::error::Shared code changes belong in the template, not here: $outside"
-  exit 1
-fi
+```yaml
+name: Own paths
+
+# Shared code belongs in the template (upstream). This repository adds only its own files.
+on:
+  pull_request:
+
+jobs:
+  paths:
+    if: ${{ !startsWith(github.event.pull_request.title, 'Merge upstream') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Only this business's files
+        run: |
+          outside=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+            | grep -vE '^(SMStore/wwwroot/sites/(acme-ie|acme-uk)/|\.github/workflows/acme-|docs/acme/)' || true)
+          if [ -n "$outside" ]; then
+            echo "::error::Shared code changes belong in the template, not here:"
+            echo "$outside"
+            exit 1
+          fi
 ```
 
-A merge from upstream touches shared files by design. Run that step on pull requests from
-branches other than the one that merges upstream, or skip it when the pull request's title
-starts with "Merge upstream".
+A merge from upstream touches shared files by design, so the check skips a pull request whose
+title starts with "Merge upstream".
 
 ## 2. Before anything else: the long lead times
 
@@ -90,8 +120,9 @@ rules.
 ## 5. The theme and the domain
 
 1. Add `SMStore/wwwroot/sites/{SiteKey}/` downstream (§1) and deploy.
-2. Add the domain to `Deployment:StoreDomains`, its DNS and certificate, as
-   `docs/runbooks/production.md` §3 describes.
+2. Add the domain's lines to the business's deploy workflow (§1), then its DNS and
+   certificate, as `docs/runbooks/production.md` §3 describes. A store answers on one host:
+   choose `www` or not before the DNS.
 3. **Mail:** verify the sending domain with Communication Services (same section). Until it is,
    the store's mail is dead-lettered with the reason.
 

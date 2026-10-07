@@ -15,8 +15,10 @@ deploys on its own, and an agent working here does not run these steps (T7 plan,
 
 1. **A resource group** in the region the tenant's customers are in (`AZURE_LOCATION`,
    `AZURE_RESOURCE_GROUP`).
-2. **An Entra app registration for the pipeline** with a federated credential for this
-   repository's `staging` environment (subject `repo:<owner>/<repo>:environment:staging`).
+2. **An Entra app registration for the pipeline** with a federated credential for the
+   deploying repository's `staging` environment (subject `repo:<owner>/<repo>:environment:staging`).
+   That is the business's own repository (`docs/runbooks/new-store.md` §1), not the template,
+   which needs no Azure credential.
    Give it **Owner** on the resource group: the deployment creates role assignments, and it
    becomes the SQL server's Entra administrator, which is how the pipeline publishes the schema.
 3. **Communication Services, with Email.** Create the resource and an Email Communication
@@ -40,19 +42,22 @@ Under the repository's **staging** environment, with a required reviewer:
 | Variable | `DATAPROTECTION_KEY_URI` | empty for the first deploy; see §2 |
 | Variable | `ADMIN_CERTIFICATE_0`, `STORE_CERTIFICATE_0` | empty until §3 |
 
-### This repository
+### The deploy workflow
 
-`StockManager.AppHost/appsettings.json` gets the hostnames:
+The hostnames are environment lines in the deploy workflow, beside the parameters:
 
-```json
-"Deployment": {
-  "AdminDomain": "admin.staging.example.com",
-  "StoreDomains": [ "staging.shop.example" ]
-}
+```yaml
+env:
+  Deployment__AdminDomain: admin.staging.example.com
+  Deployment__StoreDomains__0: staging.shop.example
+  Parameters__store-certificate-0: ${{ vars.STORE_CERTIFICATE_0 }}
 ```
 
-Each store domain needs a matching `Parameters__store-certificate-N` line in the workflow. One
-is there; a second store adds the next.
+Each store domain needs its own `Deployment__StoreDomains__N` line and a matching
+`Parameters__store-certificate-N` line. A business running stores deploys from its own copy of
+this workflow, in its own repository (`docs/runbooks/new-store.md` §1). That copy holds the
+lines, so the shared `StockManager.AppHost/appsettings.json` is never edited downstream, and
+merging the template does not fight over it.
 
 ---
 
@@ -92,15 +97,22 @@ pre-deployment step that keeps the data (CLAUDE.md, *Data access*), never turn t
 
 Per store domain, at whoever holds the zone:
 
+**One host per store.** A store answers on its `Site.Domain` and nowhere else; any other
+hostname is a 404, deliberately (CLAUDE.md, *Multi-store rules*). Choose `www.shop.example` or
+`shop.example`, use only that one below, and have the registrar redirect the other to it.
+
 **The storefront.**
 
-1. A `CNAME` from the store's hostname to the `sm-store` container app's default FQDN.
+1. A `CNAME` from the store's hostname to the `sm-store` container app's default FQDN. An
+   apex domain (no `www`) cannot hold a `CNAME`: give it an `A` record to the environment's
+   static IP instead (`az containerapp env show ... --query properties.staticIp`).
 2. A `TXT` record `asuid.<hostname>` with the Container Apps environment's custom-domain
    verification ID (`az containerapp env show ... --query properties.customDomainConfiguration.customDomainVerificationId`).
 3. Deploy once with the certificate parameter empty; the domain is added with binding disabled.
 4. Create a managed certificate for it in the environment
-   (`az containerapp env certificate create --hostname <host> --validation-method CNAME ...`),
-   set `STORE_CERTIFICATE_N` to its name, and deploy again. The binding turns on.
+   (`az containerapp env certificate create --hostname <host> --validation-method CNAME ...`;
+   `HTTP` for an apex domain), set `STORE_CERTIFICATE_N` to its name, and deploy again. The
+   binding turns on.
 
 The admin domain is the same with `stock-api` and `ADMIN_CERTIFICATE_0`.
 
