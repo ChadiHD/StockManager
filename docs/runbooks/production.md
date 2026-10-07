@@ -11,6 +11,8 @@ deploys on its own, and an agent working here does not run these steps (T7 plan,
 
 ## 1. Before the first deploy
 
+All of this is done once per environment, staging first (§6).
+
 ### Azure
 
 1. **A resource group** in the region the tenant's customers are in (`AZURE_LOCATION`,
@@ -164,3 +166,48 @@ with it, and no restore brings it back.
 Set a new `JWT_SIGNING_KEY` and deploy. Every token the portal and the POS hold stops working
 at once, and staff sign in again. There is no overlap window, and for a handful of staff that is
 the right trade against the complexity of two valid keys.
+
+---
+
+## 6. Staging beside production
+
+Deploy staging before production, and keep it for trying changes afterwards. One is enough:
+local development plus staging. A third environment is a third set of DNS, certificates and
+bills.
+
+- **Its own everything.** Its own resource group, databases and vault, its own GitHub
+  environment (`staging`, beside `production`) and its own copy of the deploy workflow. Its
+  `Site` rows are created in its own portal and carry the staging hostnames.
+- **Subdomains of the real domains**: `staging.shop.example` for each store and
+  `admin.staging.shop.example` for the portal. Not separate test domains, because staging is
+  then a rehearsal of production's DNS, certificate and mail steps (§3) in the same zone.
+  - **The container app's own address cannot stand in.** It is one hostname, and a store
+    answers on one host, so it shows one store at most.
+  - **Owning the domain comes first**, so its registration lead time is staging's too.
+- **Not public.** A staging store is a working shop, and nothing in the template stops a search
+  engine indexing it or a stranger reading its prices. Allow known addresses only, on both
+  apps. A deploy rewrites the app's ingress, so a restriction set by hand may not survive it.
+  Make it a step after *Deploy* in the staging workflow, with `STAGING_ALLOWED_IP` a CIDR such
+  as `203.0.113.10/32`:
+
+  ```yaml
+        - name: Staging is not public
+          run: |
+            for app in stock-api sm-store; do
+              az containerapp ingress access-restriction set -g "$Azure__ResourceGroup" -n "$app" \
+                --rule-name allowed --ip-address "${{ vars.STAGING_ALLOWED_IP }}" --action Allow
+            done
+  ```
+
+- **Its own sending domain** (`staging.shop.example`), verified with Communication Services
+  separately, so a test that goes wrong cannot hurt the real domain's sending reputation.
+- **No real customers.** Never copy production into staging. It holds people's addresses and
+  documents and the feed credentials, and staging sends real mail. The restore in §4 is
+  practised on staging's own data.
+- **The distributor.** The nightly sync is off by default (`Feeds:SyncEnabled`). Connecting
+  staging to the distributor's live server is the operator's decision.
+- **Cost.** Both apps keep one replica at all times and the databases bill whether used or
+  not. Deleting the resource group between rounds is not free either:
+  - §2 runs again.
+  - The vault's name stays reserved while it sits soft-deleted under purge protection, and
+    the name comes from the resource group. So the next one needs a new resource group name.
