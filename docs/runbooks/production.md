@@ -41,8 +41,11 @@ Under the repository's **staging** environment, with a required reviewer:
 | Variable | `ADMIN_BOOTSTRAP_EMAIL` | the first admin's address |
 | Secret | `ADMIN_BOOTSTRAP_PASSWORD` | their first password, which they change at once |
 | Variable | `ACS_ENDPOINT` | `https://<name>.communication.azure.com` |
-| Variable | `DATAPROTECTION_KEY_URI` | empty for the first deploy; see §2 |
-| Variable | `ADMIN_CERTIFICATE_0`, `STORE_CERTIFICATE_0` | empty until §3 |
+| Variable | `DATAPROTECTION_KEY_URI` | unset for the first deploy; see §2 |
+| Variable | `ADMIN_CERTIFICATE_0`, `STORE_CERTIFICATE_0` | unset until §3 |
+
+GitHub refuses a variable with an empty value, so "unset" means not created yet; the workflow
+reads a missing one as empty.
 
 ### The deploy workflow
 
@@ -56,7 +59,11 @@ env:
 ```
 
 Each store domain needs its own `Deployment__StoreDomains__N` line and a matching
-`Parameters__store-certificate-N` line. A business running stores deploys from its own copy of
+`Parameters__store-certificate-N` line. **Leave the domain lines out of the first deploy.** A
+domain's `asuid` record carries the verification ID of a Container Apps environment, and the
+first deploy is what creates it; the lines go in at §3, once the records exist.
+
+A business running stores deploys from its own copy of
 this workflow, in its own repository (`docs/runbooks/new-store.md` §1). That copy holds the
 lines, so the shared `StockManager.AppHost/appsettings.json` is never edited downstream, and
 merging the template does not fight over it.
@@ -80,8 +87,8 @@ merging the template does not fight over it.
    re-encrypts them; on a ring this young that is a few hours of sessions, which expire.
 3. **Sign in to the portal** at the admin domain (or the container app's own URL) as the
    bootstrap admin, and change the password (*Change password*, top bar).
-4. **Remove the bootstrap values**: set `ADMIN_BOOTSTRAP_EMAIL` and
-   `ADMIN_BOOTSTRAP_PASSWORD` to empty and run the workflow again. StockApi warns in its log
+4. **Remove the bootstrap values**: delete `ADMIN_BOOTSTRAP_EMAIL` and
+   `ADMIN_BOOTSTRAP_PASSWORD` from the environment and run the workflow again. StockApi warns in its log
    until they are gone; they do nothing once an admin exists.
 5. **Give `stock-api` its mail role** (§1, step 3).
 
@@ -110,7 +117,8 @@ hostname is a 404, deliberately (CLAUDE.md, *Multi-store rules*). Choose `www.sh
    static IP instead (`az containerapp env show ... --query properties.staticIp`).
 2. A `TXT` record `asuid.<hostname>` with the Container Apps environment's custom-domain
    verification ID (`az containerapp env show ... --query properties.customDomainConfiguration.customDomainVerificationId`).
-3. Deploy once with the certificate parameter empty; the domain is added with binding disabled.
+3. Add the domain's lines to the workflow (§1) and deploy, with the certificate variable
+   unset; the domain is added with binding disabled.
 4. Create a managed certificate for it in the environment
    (`az containerapp env certificate create --hostname <host> --validation-method CNAME ...`;
    `HTTP` for an apex domain), set `STORE_CERTIFICATE_N` to its name, and deploy again. The

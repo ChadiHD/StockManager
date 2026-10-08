@@ -120,9 +120,9 @@ rules.
 ## 5. The theme and the domain
 
 1. Add `SMStore/wwwroot/sites/{SiteKey}/` downstream (§1) and deploy.
-2. Add the domain's lines to the business's deploy workflow (§1), then its DNS and
-   certificate, as `docs/runbooks/production.md` §3 describes. A store answers on one host:
-   choose `www` or not before the DNS.
+2. The domain's DNS records, then its lines in the business's deploy workflow (§1), then its
+   certificate, in the order `docs/runbooks/production.md` §3 gives. A store answers on one
+   host: choose `www` or not before the DNS.
 3. **Mail:** verify the sending domain with Communication Services (same section). Until it is,
    the store's mail is dead-lettered with the reason.
 
