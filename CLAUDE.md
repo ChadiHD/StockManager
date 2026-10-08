@@ -1533,7 +1533,10 @@ is the ordinary case, and a red banner there teaches them to ignore the one that
 `StockApi` because that host holds the Data Protection ring that decrypts `SecretRef`, it loops
 active sites so a second country is a `Site` row rather than new sync code, and a host that
 starts after the hour waits for tomorrow — otherwise a restart loop re-imports every feed.
-Nothing guards against two replicas because the claim already does.
+Nothing guards against two replicas because the claim already does. **A deployment turns it on
+from its deploy workflow** (`Deployment__StockApi__Feeds__SyncEnabled: "true"`): every key under
+`Deployment:StockApi` is passed to the `stock-api` container app by `ProductionTopology`, which
+is how the quote-expiry reminders are turned on too. Until v1.2 nothing could.
 
 **Stale stock hides from the storefront when a store asks, and `Delisted` is a different
 thing.** Delisted means the distributor said it no longer supplies the product; stale means the
