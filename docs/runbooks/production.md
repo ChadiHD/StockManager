@@ -63,6 +63,19 @@ Each store domain needs its own `Deployment__StoreDomains__N` line and a matchin
 domain's `asuid` record carries the verification ID of a Container Apps environment, and the
 first deploy is what creates it; the lines go in at §3, once the records exist.
 
+**StockApi's scheduled work is set here too.** The nightly feed sync and the quote-expiry
+reminders are off by default, and any key under `Deployment__StockApi__` reaches the `stock-api`
+container app without the prefix. Production turns the sync on; staging leaves it off (§6):
+
+```yaml
+env:
+  Deployment__StockApi__Feeds__SyncEnabled: "true"
+  Deployment__StockApi__Feeds__SyncAtUtc: "02:00"
+  Deployment__StockApi__Quotes__ExpiryNoticeEnabled: "true"   # when the business wants reminders
+```
+
+These are plain environment values on the container app, so never a secret.
+
 A business running stores deploys from its own copy of
 this workflow, in its own repository (`docs/runbooks/new-store.md` §1). That copy holds the
 lines, so the shared `StockManager.AppHost/appsettings.json` is never edited downstream, and
