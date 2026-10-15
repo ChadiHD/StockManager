@@ -104,6 +104,20 @@ public class StoreSettingsTests
         SiteSettingsRules.WhyRefused(site).Should().BeNull();
     }
 
+    [Fact]
+    public void AStoreWhosePricesIncludeTaxHasNoMarginFloor()
+    {
+        // The floor compares a net cost with the price, which on this store has tax in (T10).
+        var site = Valid();
+        site.PricesIncludeTax = true;
+        site.MinMarginPct = 10m;
+
+        SiteSettingsRules.WhyRefused(site).Should().Contain("minimum margin");
+
+        site.MinMarginPct = 0m;
+        SiteSettingsRules.WhyRefused(site).Should().BeNull();
+    }
+
     // ---- The controller -----------------------------------------------------------------------
 
     private readonly ISiteData _sites = Substitute.For<ISiteData>();

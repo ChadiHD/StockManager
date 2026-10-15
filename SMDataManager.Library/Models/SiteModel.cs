@@ -96,6 +96,16 @@ namespace SMDataManager.Library.Models
         public string CompanyRegistrationNumber { get; set; }
 
         public string RegisteredAddress { get; set; }
+
+        /// <summary>
+        /// Whether this store's prices include tax (T10): a consumer shop's do, a trade store's
+        /// do not. The order backs tax out of the price rather than adding it on top.
+        /// </summary>
+        /// <remarks>
+        /// A product carries the same flag and sells only on a store of the same basis; see
+        /// <c>dbo.fnSite_ProductSellable</c>. Locked with the currency.
+        /// </remarks>
+        public bool PricesIncludeTax { get; set; }
     }
 
     /// <summary>A store's settings as the admin screen edits them.</summary>

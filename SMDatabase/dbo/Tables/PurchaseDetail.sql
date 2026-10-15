@@ -4,7 +4,10 @@
     [PurchaseId] INT NOT NULL, 
     [ProductId] INT NOT NULL, 
     [Quantity] INT NOT NULL DEFAULT 1,
-    [PurchasePrice] MONEY NOT NULL, 
+    -- A portal order's unit price on its store's basis (T10): net on a trade store, with tax in on
+    -- a store whose Site.PricesIncludeTax is set, where VAT is the part of it that is tax. A
+    -- desktop POS sale writes the line total here instead.
+    [PurchasePrice] MONEY NOT NULL,
     [VAT] MONEY NOT NULL DEFAULT 0,
 
     -- The rate that produced the VAT beside it. Per line rather than per order, because

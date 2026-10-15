@@ -13,7 +13,7 @@ BEGIN
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
 	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail],
 	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber], [MailFromAddress],
-	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress],
+	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress], [PricesIncludeTax],
 	       [IsActive], [CreatedDate],
 	       dbo.fnSite_CurrencyLocked([Id]) AS [CurrencyLocked]
 	FROM [dbo].[Site]

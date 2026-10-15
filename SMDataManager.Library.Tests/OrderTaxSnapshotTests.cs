@@ -98,6 +98,36 @@ public class OrderTaxSnapshotTests
     }
 
     [SkippableFact]
+    public void AStoreWhosePricesIncludeTaxTakesTheTaxOutOfThePriceShown()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var fixture = TaxFixture.Create(connection, transaction);
+
+            // Ten at 99.90 is where taxing the net figure and adding it back drifts: 81.22 net
+            // a unit, 812.20 net, 186.81 tax, 999.01 charged for a shelf that said 999.00 (T10).
+            fixture.MakeInclusive(taxableQuantity: 10, taxablePrice: 99.90m);
+
+            fixture.Convert(new TaxAssessment(TaxTreatment.DomesticStandard, 23m, "Tax at 23%."));
+
+            var order = fixture.Order();
+            var lines = fixture.Lines();
+
+            // 999.00 x 23 / 123 = 186.8049; the exempt 3 x 50 carries none.
+            lines.Single(line => line.Taxable).Vat.Should().Be(186.80m);
+            lines.Single(line => !line.Taxable).Vat.Should().Be(0m);
+
+            order.FinalPrice.Should().Be(10 * 99.90m + 3 * 50m);
+            order.Vat.Should().Be(186.80m);
+            order.SubTotal.Should().Be(order.FinalPrice - order.Vat);
+        }
+    }
+
+    [SkippableFact]
     public void AnUnassessedConversionRaisesAnUntaxedOrderRatherThanFailing()
     {
         Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
@@ -213,6 +243,21 @@ public class OrderTaxSnapshotTests
         }
 
         public int ContactId { get; private init; }
+
+        /// <summary>
+        /// Turns the fixture's store into one whose prices include tax, and the taxable line into
+        /// the given quantity at the given price with tax in.
+        /// </summary>
+        public void MakeInclusive(int taxableQuantity, decimal taxablePrice)
+        {
+            Execute(_connection, _transaction, """
+                UPDATE dbo.Site SET PricesIncludeTax = 1 WHERE Id = @siteId;
+                UPDATE dbo.QuoteLine SET Quantity = @quantity, ListPrice = @price, NetPrice = @price
+                WHERE QuoteId = @quoteId AND ProductId = @productId;
+                """,
+                ("@siteId", SiteId), ("@quantity", taxableQuantity), ("@price", taxablePrice),
+                ("@quoteId", QuoteId), ("@productId", TaxableProductId));
+        }
 
         public void Convert(TaxAssessment? assessment)
         {

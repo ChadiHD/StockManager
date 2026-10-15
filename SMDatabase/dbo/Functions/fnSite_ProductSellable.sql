@@ -4,10 +4,13 @@ Whether a store may sell a product at all (T9), before anything about where it s
 
   - The product must be priced in the store's currency. RetailPrice and Cost are bare numbers in
     Product.CurrencyCode, and a store formats every price in its own.
+  - And on the store's tax basis (T10). RetailPrice includes tax or does not, as
+    Product.PricesIncludeTax says. A store whose prices include tax would sell a net price at a
+    loss of the tax, and a trade store would charge tax twice on a gross one.
   - A distributor product belongs to the feed that imported it, and so to that feed's store. A
     store has no account with another store's distributor, and the price is that distributor's.
   - Own stock — FeedId NULL and not marked Distributor — may be sold by any store in its
-    currency, as one physical product could always be sold by two stores.
+    currency and on its basis, as one physical product could always be sold by two stores.
   - A distributor product with no feed is an orphan: its feed was deleted, or it predates FeedId
     and its feed's name was ambiguous. No store sells it.
 
@@ -24,10 +27,12 @@ and the quote submit read it directly. One definition, so none of them can disag
 CREATE FUNCTION [dbo].[fnSite_ProductSellable]
 (
 	@SiteId int,
-	-- dbo.Product.FeedId, Source and CurrencyCode, passed by a caller that has read them.
+	-- dbo.Product.FeedId, Source, CurrencyCode and PricesIncludeTax, passed by a caller that has
+	-- read them.
 	@FeedId int,
 	@Source nvarchar(20),
-	@CurrencyCode nvarchar(3)
+	@CurrencyCode nvarchar(3),
+	@PricesIncludeTax bit
 )
 RETURNS TABLE
 AS
@@ -48,6 +53,7 @@ RETURN
 	LEFT JOIN dbo.Site s
 		ON s.[Id] = @SiteId
 		AND s.[CurrencyCode] = @CurrencyCode
+		AND s.[PricesIncludeTax] = @PricesIncludeTax
 	LEFT JOIN dbo.DistributorFeed f
 		ON f.[Id] = @FeedId
 		AND f.[SiteId] = @SiteId

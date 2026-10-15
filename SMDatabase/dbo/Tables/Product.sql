@@ -54,6 +54,12 @@ CREATE TABLE [dbo].[Product]
     [FeedId] INT NULL,
     [CurrencyCode] NVARCHAR(3) NOT NULL CONSTRAINT [DF_Product_CurrencyCode] DEFAULT 'EUR',
 
+    -- Whether RetailPrice includes tax (T10): the acting store's Site.PricesIncludeTax for a
+    -- product an admin adds, and 0 for a feed's, whose price is a distributor's trade price.
+    -- Part of what a price is, like CurrencyCode, so dbo.fnSite_ProductSellable reads both. The
+    -- till adds tax on top and lists only rows where this is 0.
+    [PricesIncludeTax] BIT NOT NULL CONSTRAINT [DF_Product_PricesIncludeTax] DEFAULT 0,
+
     -- SET NULL: deleting a feed stops its stock selling anywhere, and quotes and orders that
     -- hold its products still resolve them.
     CONSTRAINT [FK_Product_ToDistributorFeed] FOREIGN KEY ([FeedId])
@@ -80,7 +86,7 @@ CREATE NONCLUSTERED INDEX [IX_Product_CatalogGate]
 	INCLUDE ([Sku], [ProductName], [ManufacturerPartNumber], [RetailPrice], [QuantityInStock],
 	         [Distributor], [Manufacturer],
 	         -- dbo.fnSite_ProductSellable's inputs, which every catalog query now asks first (T9).
-	         [FeedId], [CurrencyCode]);
+	         [FeedId], [CurrencyCode], [PricesIncludeTax]);
 GO
 
 -- The feed sync merges and delists on these (T9); before, on the feed's name and DistributorSku,

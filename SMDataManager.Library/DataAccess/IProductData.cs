@@ -25,8 +25,8 @@ namespace SMDataManager.Library.DataAccess
 
         /// <summary>A product <paramref name="siteId"/> may sell, by SKU (T9): unique within a feed, not across them.</summary>
         AdminProductModel GetProductBySku(int siteId, string sku);
-        /// <summary>Own stock, priced in the acting store's currency, read back as that store sees it.</summary>
-        AdminProductModel CreateProduct(AdminProductModel product, int siteId, string currencyCode);
+        /// <summary>Own stock, priced in the acting store's currency and on its tax basis, read back as that store sees it.</summary>
+        AdminProductModel CreateProduct(AdminProductModel product, SiteModel site);
         void UpdateProduct(AdminProductModel product);
 
         /// <summary>

@@ -107,7 +107,7 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spProduct_GetBySku", new { SiteId = siteId, Sku = sku }, "SMDatabase").FirstOrDefault();
         }
 
-        public AdminProductModel CreateProduct(AdminProductModel product, int siteId, string currencyCode)
+        public AdminProductModel CreateProduct(AdminProductModel product, SiteModel site)
         {
             _sqlDataAccess.SaveData("dbo.spProduct_Insert", new
             {
@@ -124,10 +124,11 @@ namespace SMDataManager.Library.DataAccess
                 product.QuantityInStock,
                 product.IsTaxable,
                 product.ProductImage,
-                CurrencyCode = currencyCode
+                site.CurrencyCode,
+                site.PricesIncludeTax
             }, "SMDatabase");
 
-            return GetProductBySku(siteId, product.Sku);
+            return GetProductBySku(site.Id, product.Sku);
         }
 
         public void UpdateProduct(AdminProductModel product)

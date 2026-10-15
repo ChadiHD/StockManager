@@ -27,9 +27,13 @@ public sealed class StoreSettings
     public string? LegalName { get; set; }
     public string? CompanyRegistrationNumber { get; set; }
     public string? RegisteredAddress { get; set; }
+    public bool PricesIncludeTax { get; set; }
     public bool IsActive { get; set; }
 
-    /// <summary>The store already holds prices in its currency, so the code cannot change.</summary>
+    /// <summary>
+    /// The store already holds prices in its currency, so the code cannot change, and neither can
+    /// whether those prices include tax.
+    /// </summary>
     public bool CurrencyLocked { get; set; }
 }
 

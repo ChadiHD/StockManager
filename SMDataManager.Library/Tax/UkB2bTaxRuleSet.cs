@@ -59,7 +59,7 @@ namespace SMDataManager.Library.Tax
                 || string.Equals(customer, context.SiteCountry?.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 return new TaxAssessment(TaxTreatment.DomesticStandard, context.StandardRatePct,
-                    $"VAT at {context.StandardRatePct:0.##}%.");
+                    FormattableString.Invariant($"VAT at {context.StandardRatePct:0.##}%."));
             }
 
             return new TaxAssessment(TaxTreatment.Export, 0m,

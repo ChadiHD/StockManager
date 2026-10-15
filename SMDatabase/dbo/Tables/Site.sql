@@ -105,6 +105,18 @@ CREATE TABLE [dbo].[Site]
 	[CompanyRegistrationNumber] NVARCHAR(50) NULL,
 	[RegisteredAddress] NVARCHAR(400) NULL,
 
+	/*
+	Whether this store's prices include tax (T10). A consumer sees, and pays, the price with tax
+	in; a trade buyer is quoted net. Off by default, which is every store before T10.
+
+	A product carries the same flag beside its currency, and dbo.fnSite_ProductSellable sells it
+	only on a store of the same basis: own stock may be sold by any store in its currency, and
+	one RetailPrice read as gross on one store and net on the next would undercharge by the tax
+	on one of them. Locked with the currency by fnSite_CurrencyLocked, for the same reason the
+	currency is. Last, like every column since T6.
+	*/
+	[PricesIncludeTax] BIT NOT NULL CONSTRAINT [DF_Site_PricesIncludeTax] DEFAULT 0,
+
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
 	-- Nothing validated this before T9: CatalogPresenter compares against 'Authenticated', so a
 	-- typo behaved as 'Public' and showed a trade store's prices to everyone. Written as the OR

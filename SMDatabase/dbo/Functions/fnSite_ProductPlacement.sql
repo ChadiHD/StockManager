@@ -18,7 +18,8 @@ rules are not placement -- they are the distributor's facts and the group's term
 fnCatalog_VisibleProducts applies them on top.
 
 Reason is for the admin; the storefront reads OnStore.
-  Elsewhere another store's stock, or priced in another currency: not this store's to place
+  Elsewhere another store's stock, or priced in another currency or on another tax basis:
+            not this store's to place
   Hidden    the store hid it
   Shown     the store showed it, overriding or extending its mapping
   Mapped    its feed category maps to one of the store's categories
@@ -28,12 +29,13 @@ CREATE FUNCTION [dbo].[fnSite_ProductPlacement]
 (
 	@SiteId int,
 	@ProductId int,
-	-- dbo.Product.Category, FeedId, Source and CurrencyCode, passed by the caller that has
-	-- already read them.
+	-- dbo.Product.Category, FeedId, Source, CurrencyCode and PricesIncludeTax, passed by the
+	-- caller that has already read them.
 	@FeedCategory nvarchar(50),
 	@FeedId int,
 	@Source nvarchar(20),
-	@CurrencyCode nvarchar(3)
+	@CurrencyCode nvarchar(3),
+	@PricesIncludeTax bit
 )
 RETURNS TABLE
 AS
@@ -60,7 +62,7 @@ RETURN
 		-- The override's own category, distinct from where the product ends up, so the admin
 		-- can tell "filed here by the mapping" from "filed here because we said so".
 		[sp].[SiteCategoryId] AS [OverrideCategoryId]
-	FROM [dbo].[fnSite_ProductSellable](@SiteId, @FeedId, @Source, @CurrencyCode) AS [sel]
+	FROM [dbo].[fnSite_ProductSellable](@SiteId, @FeedId, @Source, @CurrencyCode, @PricesIncludeTax) AS [sel]
 	LEFT JOIN dbo.SiteProduct sp
 		ON sp.[SiteId] = @SiteId
 		AND sp.[ProductId] = @ProductId

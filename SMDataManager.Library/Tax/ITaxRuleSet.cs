@@ -35,6 +35,12 @@ namespace SMDataManager.Library.Tax
     /// <summary>
     /// What to charge, and the sentence that has to appear on the document saying why.
     /// </summary>
+    /// <remarks>
+    /// A legend formats its rate in the invariant culture. It is snapshotted onto the order, and
+    /// since T10 the storefront runs in its store's culture while <c>StockApi</c> runs in its
+    /// server's, so the same acceptance would otherwise store "17,5%" from one host and "17.5%"
+    /// from the other.
+    /// </remarks>
     public sealed record TaxAssessment(string Treatment, decimal RatePct, string Legend)
     {
         /// <summary>The tax on a net amount, rounded the way every other money figure here is.</summary>

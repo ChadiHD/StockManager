@@ -14,6 +14,8 @@ the data can answer is refused here:
   50091  a domain another store already answers on
   50092  a percentage outside 0-100, or a negative staleness threshold
   50093  no such store
+  50096  the tax basis, under the same lock as the currency: a price the store holds is a number
+         on the current basis as well as in the current currency
 */
 CREATE PROCEDURE [dbo].[spSite_Update]
 	@SiteId int,
@@ -35,12 +37,17 @@ CREATE PROCEDURE [dbo].[spSite_Update]
 	@MailFromAddress nvarchar(320) = NULL,
 	@LegalName nvarchar(200) = NULL,
 	@CompanyRegistrationNumber nvarchar(50) = NULL,
-	@RegisteredAddress nvarchar(400) = NULL
+	@RegisteredAddress nvarchar(400) = NULL,
+	@PricesIncludeTax bit
 AS
 BEGIN
 	SET NOCOUNT ON;
 
-	DECLARE @CurrentCurrency nvarchar(3) = (SELECT [CurrencyCode] FROM dbo.Site WHERE [Id] = @SiteId);
+	DECLARE @CurrentCurrency nvarchar(3), @CurrentBasis bit;
+
+	SELECT @CurrentCurrency = [CurrencyCode], @CurrentBasis = [PricesIncludeTax]
+	FROM dbo.Site
+	WHERE [Id] = @SiteId;
 
 	IF @CurrentCurrency IS NULL
 	BEGIN
@@ -50,6 +57,11 @@ BEGIN
 	IF @CurrencyCode <> @CurrentCurrency AND dbo.fnSite_CurrencyLocked(@SiteId) = 1
 	BEGIN
 		THROW 50090, 'The currency cannot change once the store has accounts, quotes or a feed: every price it holds is in the current one.', 1;
+	END
+
+	IF @PricesIncludeTax <> @CurrentBasis AND dbo.fnSite_CurrencyLocked(@SiteId) = 1
+	BEGIN
+		THROW 50096, 'Whether prices include tax cannot change once the store has accounts, quotes or a feed: every price it holds is stated the current way.', 1;
 	END
 
 	IF EXISTS (SELECT 1 FROM dbo.Site WHERE [Domain] = @Domain AND [Id] <> @SiteId)
@@ -83,6 +95,7 @@ BEGIN
 	    [MailFromAddress] = NULLIF(LTRIM(RTRIM(@MailFromAddress)), N''),
 	    [LegalName] = NULLIF(LTRIM(RTRIM(@LegalName)), N''),
 	    [CompanyRegistrationNumber] = NULLIF(LTRIM(RTRIM(@CompanyRegistrationNumber)), N''),
-	    [RegisteredAddress] = NULLIF(LTRIM(RTRIM(@RegisteredAddress)), N'')
+	    [RegisteredAddress] = NULLIF(LTRIM(RTRIM(@RegisteredAddress)), N''),
+	    [PricesIncludeTax] = @PricesIncludeTax
 	WHERE [Id] = @SiteId;
 END

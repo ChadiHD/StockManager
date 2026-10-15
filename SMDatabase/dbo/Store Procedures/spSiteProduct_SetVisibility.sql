@@ -54,7 +54,7 @@ BEGIN
 		       FROM dbo.Product p
 		       INNER JOIN @Skus s ON s.[Sku] = p.[Sku]
 		       -- Only this store's to place (T9); a SKU is unique within a feed, not across them.
-		       CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+		       CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode], p.[PricesIncludeTax]) sel
 		       WHERE sel.[Sellable] = 1) AS s
 			ON t.[SiteId] = s.[SiteId] AND t.[ProductId] = s.[ProductId]
 		WHEN MATCHED THEN
@@ -66,7 +66,7 @@ BEGIN
 			VALUES (s.[SiteId], s.[ProductId], @Visibility, @SiteCategoryId);
 
 		SET @Matched = (SELECT COUNT(*) FROM dbo.Product p INNER JOIN @Skus s ON s.[Sku] = p.[Sku]
-		                CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+		                CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode], p.[PricesIncludeTax]) sel
 		                WHERE sel.[Sellable] = 1);
 
 		DELETE t

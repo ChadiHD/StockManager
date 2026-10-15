@@ -7,6 +7,11 @@ quote's lines, a feed's whole catalog — and changing the code would relabel al
 than convert any. Before any of those exist the code is still a setting; after, it is a fact
 about the data. One function, so the settings screen that greys the field out and spSite_Update
 that refuses the change cannot disagree.
+
+Site.PricesIncludeTax is locked by the same answer (T10). Those numbers are stated with tax in
+or without, and flipping the flag would restate them all, as changing the code would relabel
+them. It is also why an order carries no basis of its own: an order comes from a quote, and a
+store with a quote can no longer change its basis.
 */
 CREATE FUNCTION [dbo].[fnSite_CurrencyLocked]
 (

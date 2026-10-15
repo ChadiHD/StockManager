@@ -46,6 +46,12 @@ public static partial class SiteSettingsRules
         site.PriceDisplay = Canonical(SiteSettingKeys.PriceDisplays, site.PriceDisplay)!;
         if (site.PriceDisplay is null) return "Prices are shown to everyone or to signed-in customers only.";
 
+        // The floor compares Cost, which is net, with the price, which on this store is not. Making
+        // it gross would carry the rate and IsTaxable into PriceResolver and its SQL copy, for a
+        // floor that binds only under group discounts, which a consumer shop does not use (T10).
+        if (site.PricesIncludeTax && site.MinMarginPct != 0)
+            return "A store whose prices include tax has no minimum margin: its costs are net and its prices are not. Set the margin to zero.";
+
         foreach (var (label, address) in new[] { ("operator", site.OperatorEmail), ("sending", site.MailFromAddress) })
         {
             if (!string.IsNullOrWhiteSpace(address) && !MailAddress.TryCreate(address.Trim(), out _))

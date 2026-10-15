@@ -36,7 +36,7 @@ BEGIN
 	-- them, and another store's product is not this one's to place.
 	SELECT @ProductId = p.[Id], @FeedCategory = p.[Category]
 	FROM dbo.Product p
-	CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+	CROSS APPLY dbo.fnSite_ProductSellable(@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode], p.[PricesIncludeTax]) sel
 	WHERE p.[Sku] = @Sku AND sel.[Sellable] = 1;
 
 	IF @ProductId IS NULL

@@ -121,6 +121,14 @@ else
                         @(s.StandardTaxRatePct == 0 ? "At zero, domestic customers are charged no tax at all." : "Charged to domestic customers.")
                     </span>
                 </div>
+                <div class="field span2">
+                    <label class="switch-row"><InputCheckbox id="store-prices-include-tax" @bind-Value="s.PricesIncludeTax" disabled="@s.CurrencyLocked" /> Prices include tax</label>
+                    <span class="field-note">
+                        @(s.CurrencyLocked
+                            ? "Fixed with the currency: every price the store holds is stated this way."
+                            : "For a shop selling to consumers: the price typed is the price shown and paid, and the order takes the tax out of it. Such a store sells its own stock only, has no minimum margin, and is fixed once it holds any prices.")
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -231,6 +239,7 @@ else
         ("eu-b2b", false) => "EU VAT, with the intra-EU reverse charge",
         ("uk-b2b", true) => "UK business: Companies House number",
         ("uk-b2b", false) => "UK VAT, exports zero-rated",
+        ("flat", false) => "One rate on every sale, wherever the buyer is",
         _ => key
     };
 }

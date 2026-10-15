@@ -110,7 +110,7 @@ namespace SMDataManager.Library.Tax
 
         private static TaxAssessment Standard(TaxContext context) =>
             new(TaxTreatment.DomesticStandard, context.StandardRatePct,
-                $"VAT at {context.StandardRatePct:0.##}%.");
+                FormattableString.Invariant($"VAT at {context.StandardRatePct:0.##}%."));
 
         private static string Normalise(string country)
         {

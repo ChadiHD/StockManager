@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 
 namespace SMDataManager.Library.Models
@@ -33,7 +34,11 @@ namespace SMDataManager.Library.Models
 
             var code = site.CurrencyCode;
 
-            if (string.IsNullOrWhiteSpace(code))
+            // The locale already writes this currency its own way — R$ for pt-BR and BRL, ¥ for
+            // ja-JP and JPY — so the table below is only for a store trading in a currency that is
+            // not its locale's. Without this every currency missing from that table printed its
+            // code, and a Brazilian shop read "BRL 99,90" (T10).
+            if (string.IsNullOrWhiteSpace(code) || IsLocaleCurrency(culture, code))
             {
                 return culture;
             }
@@ -45,6 +50,19 @@ namespace SMDataManager.Library.Models
             withCurrency.NumberFormat.CurrencySymbol = CurrencySymbol(code);
 
             return withCurrency;
+        }
+
+        private static bool IsLocaleCurrency(CultureInfo culture, string code)
+        {
+            try
+            {
+                return string.Equals(new RegionInfo(culture.Name).ISOCurrencySymbol, code, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (ArgumentException)
+            {
+                // A neutral or invariant culture has no region, and so no currency of its own.
+                return false;
+            }
         }
 
         private static string CurrencySymbol(string code) => code.ToUpperInvariant() switch

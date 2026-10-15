@@ -153,8 +153,9 @@ namespace StockApi.Controllers
                 return Conflict($"A product with SKU '{product.Sku}' already exists.");
             }
 
-            // Own stock, in the acting store's currency: the prices were just typed for it.
-            return _productData.CreateProduct(product, site.SiteId, site.Site.CurrencyCode);
+            // Own stock, in the acting store's currency and on its tax basis: the prices were just
+            // typed for it.
+            return _productData.CreateProduct(product, site.Site);
         }
 
         [Authorize(Roles = "Admin")]

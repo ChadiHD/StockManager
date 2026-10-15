@@ -18,6 +18,7 @@ namespace SMDataManager.Library.Tax
         {
             services.AddSingleton<ITaxRuleSet, EuB2bTaxRuleSet>();
             services.AddSingleton<ITaxRuleSet, UkB2bTaxRuleSet>();
+            services.AddSingleton<ITaxRuleSet, FlatTaxRuleSet>();
             services.AddSingleton<TaxRuleSetProvider>();
             services.AddSingleton<TaxAssessor>();
 

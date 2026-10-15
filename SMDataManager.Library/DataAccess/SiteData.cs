@@ -68,7 +68,8 @@ namespace SMDataManager.Library.DataAccess
                     site.MailFromAddress,
                     site.LegalName,
                     site.CompanyRegistrationNumber,
-                    site.RegisteredAddress
+                    site.RegisteredAddress,
+                    site.PricesIncludeTax
                 }, "SMDatabase");
 
                 return null;

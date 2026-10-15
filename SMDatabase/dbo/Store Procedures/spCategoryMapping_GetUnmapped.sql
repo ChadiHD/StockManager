@@ -16,7 +16,7 @@ BEGIN
 		MIN([p].[Distributor]) AS [Distributor]
 	FROM [dbo].[Product] p
 	-- This store's feeds and currency only (T9), as spCategoryMapping_GetForSite.
-	CROSS APPLY [dbo].[fnSite_ProductSellable](@SiteId, [p].[FeedId], [p].[Source], [p].[CurrencyCode]) sel
+	CROSS APPLY [dbo].[fnSite_ProductSellable](@SiteId, [p].[FeedId], [p].[Source], [p].[CurrencyCode], [p].[PricesIncludeTax]) sel
 	WHERE [p].[Category] IS NOT NULL
 	  AND [p].[Delisted] = 0
 	  AND [sel].[Sellable] = 1

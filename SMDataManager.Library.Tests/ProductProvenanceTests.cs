@@ -134,6 +134,36 @@ public class ProductProvenanceTests
     }
 
     [SkippableFact]
+    public void OwnStockIsSoldOnlyByStoresWhosePricesAreStatedTheSameWay()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        var (connection, transaction) = TestDatabase.OpenRollbackScope();
+        using (connection)
+        using (transaction)
+        {
+            var db = new Db(connection, transaction);
+            var trade = db.Site("EUR");
+            var shop = db.Site("EUR", pricesIncludeTax: true);
+
+            // One currency, two bases (T10). Sold on the wrong store, the gross price undercharges
+            // the shop's tax, and the net price is taxed twice by the trade store.
+            db.Insert("NET", source: "Own", currency: "EUR");
+            db.Insert("GROSS", source: "Own", currency: "EUR", pricesIncludeTax: true);
+
+            foreach (var site in new[] { trade, shop }) db.MapCategory(site);
+
+            db.CatalogSkus(trade).Should().Equal($"NET-{db.RunId}");
+            db.CatalogSkus(shop).Should().Equal($"GROSS-{db.RunId}");
+
+            // The till adds tax on top of every price it rings.
+            db.Strings("EXEC dbo.spProduct_GetAll @CurrencyCode = N'EUR';", "Sku")
+                .Where(sku => sku.EndsWith(db.RunId))
+                .Should().Equal($"NET-{db.RunId}");
+        }
+    }
+
+    [SkippableFact]
     public void AProductRelabelledOwnStaysItsFeedsStoresAlone()
     {
         // spProduct_Update lets an admin rewrite Source. Keyed on Source, an imported product
@@ -208,14 +238,15 @@ public class ProductProvenanceTests
 
         private int _sites;
 
-        public int Site(string currency)
+        public int Site(string currency, bool pricesIncludeTax = false)
         {
             var n = ++_sites;
             return Scalar<int>("""
-                INSERT INTO dbo.Site (SiteKey, Name, Domain, Country, CurrencyCode, Locale, IsActive)
+                INSERT INTO dbo.Site (SiteKey, Name, Domain, Country, CurrencyCode, Locale, IsActive, PricesIncludeTax)
                 OUTPUT INSERTED.Id
-                VALUES (@key, N'Provenance store', @domain, N'IE', @currency, N'en-IE', 1);
-                """, ("@key", $"prov-{RunId}-{n}"), ("@domain", $"{RunId}-{n}.prov.invalid"), ("@currency", currency));
+                VALUES (@key, N'Provenance store', @domain, N'IE', @currency, N'en-IE', 1, @inclusive);
+                """, ("@key", $"prov-{RunId}-{n}"), ("@domain", $"{RunId}-{n}.prov.invalid"), ("@currency", currency),
+                ("@inclusive", pricesIncludeTax));
         }
 
         public int Feed(int siteId, string name) => Scalar<int>("""
@@ -254,12 +285,12 @@ public class ProductProvenanceTests
             using var reader = command.ExecuteReader();
         }
 
-        public void Insert(string sku, string source, string currency) => Execute("""
+        public void Insert(string sku, string source, string currency, bool pricesIncludeTax = false) => Execute("""
             INSERT INTO dbo.Product (ProductName, [Description], RetailPrice, Sku, Category, QuantityInStock,
-                                     Delisted, [Source], CurrencyCode)
-            VALUES (@name, N'Provenance fixture.', 100, @sku, @category, 5, 0, @source, @currency);
+                                     Delisted, [Source], CurrencyCode, PricesIncludeTax)
+            VALUES (@name, N'Provenance fixture.', 100, @sku, @category, 5, 0, @source, @currency, @inclusive);
             """, ("@name", $"Product {sku}"), ("@sku", $"{sku}-{RunId}"), ("@category", Category),
-            ("@source", source), ("@currency", currency));
+            ("@source", source), ("@currency", currency), ("@inclusive", pricesIncludeTax));
 
         public int ProductId(int feedId, string sku) => Scalar<int>(
             "SELECT Id FROM dbo.Product WHERE FeedId = @feed AND DistributorSku = @sku;",
@@ -283,13 +314,15 @@ public class ProductProvenanceTests
             "EXEC dbo.spCategoryMapping_GetForSite @SiteId = @site;", "FeedValue", ("@site", siteId))
             .Where(value => value.EndsWith(RunId)).ToList();
 
-        private List<string> Strings(string sql, string column, params (string Name, object Value)[] parameters)
+        public List<string> Strings(string sql, string column, params (string Name, object Value)[] parameters)
         {
             using var command = Command(sql, parameters);
             using var reader = command.ExecuteReader();
 
             var values = new List<string>();
-            while (reader.Read()) values.Add(reader.GetString(reader.GetOrdinal(column)));
+            var ordinal = reader.GetOrdinal(column);
+            // The till's list includes products with no SKU, which predate the column.
+            while (reader.Read()) if (!reader.IsDBNull(ordinal)) values.Add(reader.GetString(ordinal));
 
             return values;
         }

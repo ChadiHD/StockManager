@@ -12,7 +12,7 @@ BEGIN
 	       p.[Sku], p.[Category], p.[Cost], p.[Source], p.[Distributor], p.[DistributorSku], p.[LastSynced], p.[Delisted],
 	       p.[Manufacturer], p.[ManufacturerPartNumber], p.[Ean], p.[IcecatAvailable], p.[ImageSourcedUtc]
 	FROM [dbo].[Product] p
-	CROSS APPLY [dbo].[fnSite_ProductSellable](@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode]) sel
+	CROSS APPLY [dbo].[fnSite_ProductSellable](@SiteId, p.[FeedId], p.[Source], p.[CurrencyCode], p.[PricesIncludeTax]) sel
 	WHERE p.[Sku] = @Sku
 	  AND sel.[Sellable] = 1;
 END
