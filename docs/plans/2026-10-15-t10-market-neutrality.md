@@ -6,6 +6,11 @@ guests — as well as the trade stores T0–T9 built. The first of them is a clo
 launching in Brazil, and nothing shared may assume Brazil, because the next one could be
 anywhere.
 
+**Status: built** on `t10-market-neutrality`, in three commits:
+1. the tax basis, the `flat` rule set and the money symbol;
+2. the labels that state the basis;
+3. the culture and the localiser.
+
 ## 1. The B2C track
 
 The platform phases run before the first consumer tenant, as T0–T9 ran before aclitrade.ie:
