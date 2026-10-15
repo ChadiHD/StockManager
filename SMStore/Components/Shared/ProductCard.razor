@@ -1,6 +1,7 @@
 @using SMStore.Catalog
 @using SMStore.Ordering
 @inject OrderingModeProvider Ordering
+@inject ISiteContext SiteContext
 
 <article class="card blueprint product-card">
     <i class="corner tl"></i><i class="corner tr"></i>
@@ -95,7 +96,7 @@
     /// </remarks>
     [Parameter] public string? ReturnTo { get; set; }
 
-    private string PriceNote => Ordering.Current.ShowsPayableTotal
-        ? "excl. tax"
-        : "Volume pricing on quote";
+    private string PriceNote => !Ordering.Current.ShowsPayableTotal
+        ? "Volume pricing on quote"
+        : SiteContext.Site.PricesIncludeTax ? "incl. tax" : "excl. tax";
 }

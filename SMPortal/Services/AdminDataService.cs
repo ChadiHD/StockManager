@@ -121,8 +121,16 @@ public class AdminDataService : IAdminDataService
 
     public bool ManagesAllStores => _managesAllStores;
 
-    public string CurrentCurrency =>
-        _sites.FirstOrDefault(site => site.SiteKey == _currentSiteKey)?.CurrencyCode ?? string.Empty;
+    public string CurrentCurrency => CurrentSite?.CurrencyCode ?? string.Empty;
+
+    public bool CurrentPricesIncludeTax => CurrentSite?.PricesIncludeTax == true;
+
+    public decimal NetOfTax(decimal price, bool isTaxable) =>
+        CurrentPricesIncludeTax && isTaxable
+            ? price * 100m / (100m + CurrentSite!.StandardTaxRatePct)
+            : price;
+
+    private SiteOption? CurrentSite => _sites.FirstOrDefault(site => site.SiteKey == _currentSiteKey);
 
     public async Task SwitchSiteAsync(string siteKey)
     {

@@ -42,6 +42,15 @@ public interface IAdminDataService
     /// </summary>
     string CurrentCurrency { get; }
 
+    /// <summary>Whether the acting store's prices include tax (T10).</summary>
+    bool CurrentPricesIncludeTax { get; }
+
+    /// <summary>
+    /// A price of the acting store's with its tax taken out, to set against a cost, which is
+    /// always net (T10). Unchanged on a store whose prices exclude tax, or for an exempt product.
+    /// </summary>
+    decimal NetOfTax(decimal price, bool isTaxable);
+
     /// <summary>Changes the store this workspace is showing, and reloads everything.</summary>
     Task SwitchSiteAsync(string siteKey);
 

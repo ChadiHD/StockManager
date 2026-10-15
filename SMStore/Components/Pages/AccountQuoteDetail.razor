@@ -98,7 +98,9 @@ else
                 <dd>@_quote.Value</dd>
             </dl>
             <p class="text-muted basket__note">
-                Excluding tax and freight, which are calculated on the order.
+                @(SiteContext.Site.PricesIncludeTax
+                    ? "Including tax. Freight is calculated on the order."
+                    : "Excluding tax and freight, which are calculated on the order.")
             </p>
 
             <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}/print")"

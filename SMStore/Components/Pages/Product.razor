@@ -140,9 +140,13 @@ else
 
     private string? Price => _item is null ? null : Catalog.FormatPrice(_item);
 
-    private string PriceNote => Ordering.Current.ShowsPayableTotal
-        ? "excl. tax"
-        : "list, excl. tax — volume pricing on quote";
+    private string PriceNote => (Ordering.Current.ShowsPayableTotal, SiteContext.Site.PricesIncludeTax) switch
+    {
+        (true, true) => "incl. tax",
+        (true, false) => "excl. tax",
+        (false, true) => "list, incl. tax — volume pricing on quote",
+        (false, false) => "list, excl. tax — volume pricing on quote"
+    };
 
     /// <summary>Where an add returns to, so the customer stays on the product page.</summary>
     /// <remarks>

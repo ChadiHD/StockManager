@@ -34,6 +34,7 @@ public class ProductCardTests : Bunit.TestContext
         var siteContext = Substitute.For<ISiteContext>();
         siteContext.Site.Returns(new SiteModel { Id = 1, SiteKey = "test", Name = "Test store", OrderMode = RfqOrderingMode.ModeKey });
 
+        Services.AddSingleton(siteContext);
         Services.AddSingleton(new OrderingModeProvider(siteContext, [new RfqOrderingMode()]));
     }
 

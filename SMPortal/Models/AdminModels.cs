@@ -173,7 +173,12 @@ public class Product
     public string Badge { get; set; } = "";
 
     public bool IsDistributor => Source == "Distributor";
-    public int MarginPct => Price > 0 ? (int)Math.Round((1 - Cost / Price) * 100) : 0;
+    /// <summary>
+    /// The margin at <paramref name="netPrice"/>: this product's price with its tax taken out
+    /// (<c>IAdminDataService.NetOfTax</c>), because <see cref="Cost"/> is net on every store and
+    /// <see cref="Price"/> is not on one whose prices include tax (T10).
+    /// </summary>
+    public int MarginPctAt(decimal netPrice) => netPrice > 0 ? (int)Math.Round((1 - Cost / netPrice) * 100) : 0;
     public string StockKind => Avail <= 0 ? "Out of stock" : (Avail <= 6 ? "Low" : "In stock");
 }
 

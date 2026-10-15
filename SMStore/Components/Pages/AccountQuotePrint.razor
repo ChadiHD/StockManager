@@ -69,9 +69,13 @@ else
         (Mode.ShowsPayableTotal ? "Total" : "Quoted value", _quote.Value),
     ];
 
-    private string FooterNote => Mode.ShowsPayableTotal
-        ? "Excluding tax and freight, which are calculated at checkout."
-        : "Excluding tax and freight, which are calculated on the order.";
+    private string FooterNote => (Mode.ShowsPayableTotal, SiteContext.Site.PricesIncludeTax) switch
+    {
+        (true, true) => "Including tax. Freight is calculated at checkout.",
+        (true, false) => "Excluding tax and freight, which are calculated at checkout.",
+        (false, true) => "Including tax. Freight is calculated on the order.",
+        (false, false) => "Excluding tax and freight, which are calculated on the order."
+    };
 
     protected override void OnParametersSet()
     {

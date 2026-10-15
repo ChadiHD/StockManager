@@ -50,8 +50,8 @@ else
                        is set per store, in the panel beside this one. *@
                     <div class="field"><label>Feed category</label><span class="input input--readonly feed-category">@(string.IsNullOrWhiteSpace(_p.Cat) ? "None" : _p.Cat)</span></div>
                     <div class="field"><label>Stock source</label><InputSelect class="input" @bind-Value="_edit.Source"><option>Own</option><option>Distributor</option></InputSelect></div>
-                    <div class="field"><label>Feed cost (EUR)</label><InputNumber class="input" @bind-Value="_edit.Cost" /></div>
-                    <div class="field"><label>Sell price (EUR)</label><InputNumber class="input" @bind-Value="_edit.Price" /></div>
+                    <div class="field"><label>Feed cost (@Data.CurrentCurrency)</label><InputNumber class="input" @bind-Value="_edit.Cost" /></div>
+                    <div class="field"><label>Sell price (@Data.CurrentCurrency@(Data.CurrentPricesIncludeTax ? ", incl. tax" : null))</label><InputNumber class="input" @bind-Value="_edit.Price" /></div>
                     <div class="field"><label>Available units</label><InputNumber class="input" @bind-Value="_edit.Avail" /></div>
                     <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_edit.Dist" /></div>
                     <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_edit.DistSku" /></div>
@@ -103,7 +103,7 @@ else
                 <span class="card-kicker">Pricing</span>
                 <div class="kv"><span class="k">Feed cost</span><span class="v-strong">@AdminUi.Money(_p.Cost, Data.CurrentCurrency)</span></div>
                 <div class="kv mt"><span class="k">Sell price</span><span class="v-strong">@AdminUi.Money(_p.Price, Data.CurrentCurrency)</span></div>
-                <div class="kv mt"><span class="k">Gross margin</span><span class="v accent">@_p.MarginPct%</span></div>
+                <div class="kv mt"><span class="k">Gross margin</span><span class="v accent">@_p.MarginPctAt(Data.NetOfTax(_p.Price, _p.IsTaxable))%</span></div>
                 <div class="divider"></div>
                 <div class="kv"><span class="k">Availability</span><span class="badge @AdminUi.StockClass(_p.Avail)">@_p.Avail · @_p.StockKind</span></div>
             </div>

@@ -223,7 +223,11 @@
     /// </summary>
     private string ValueLabel => Mode.ShowsPayableTotal ? "Total" : "Indicative value";
 
-    private string SummaryNote => Mode.ShowsPayableTotal
-        ? "Tax and freight are calculated at checkout."
-        : "Prices are list, excluding tax and freight. Final pricing is returned with your quote.";
+    private string SummaryNote => (Mode.ShowsPayableTotal, SiteContext.Site.PricesIncludeTax) switch
+    {
+        (true, true) => "Prices include tax. Freight is calculated at checkout.",
+        (true, false) => "Tax and freight are calculated at checkout.",
+        (false, true) => "Prices are list, including tax and excluding freight. Final pricing is returned with your quote.",
+        (false, false) => "Prices are list, excluding tax and freight. Final pricing is returned with your quote."
+    };
 }

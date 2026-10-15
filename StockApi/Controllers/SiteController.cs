@@ -32,7 +32,10 @@ namespace StockApi.Controllers
         /// margin floor, price visibility, ordering mode — that a selector has no use for,
         /// and this endpoint exists to populate a dropdown.
         /// </summary>
-        public record SiteOption(int Id, string SiteKey, string Name, string Country, string CurrencyCode, bool IsActive);
+        // The basis and rate are display values, like the currency (T10): the portal takes the tax
+        // out of an inclusive store's prices before setting them against a net cost.
+        public record SiteOption(int Id, string SiteKey, string Name, string Country, string CurrencyCode, bool IsActive,
+            bool PricesIncludeTax = false, decimal StandardTaxRatePct = 0);
 
         [HttpGet]
         public ActionResult<List<SiteOption>> Get()
@@ -51,7 +54,8 @@ namespace StockApi.Controllers
                 .Where(site => given is null || (site.IsActive && given.Contains(site.Id)))
                 .OrderBy(site => site.Name)
                 .Select(site => new SiteOption(
-                    site.Id, site.SiteKey, site.Name, site.Country, site.CurrencyCode, site.IsActive))
+                    site.Id, site.SiteKey, site.Name, site.Country, site.CurrencyCode, site.IsActive,
+                    site.PricesIncludeTax, site.StandardTaxRatePct))
                 .ToList();
 
             return Ok(options);

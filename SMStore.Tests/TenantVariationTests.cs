@@ -118,16 +118,42 @@ public class TenantVariationTests
         gatedCard.PriceLabel.Should().BeNull();
 
         using var publicStore = new Bunit.TestContext();
+        publicStore.Services.AddSingleton(SiteContextReturning(publicSite));
         publicStore.Services.AddSingleton(new OrderingModeProvider(SiteContextReturning(publicSite), [new RfqOrderingMode()]));
         var publicRender = publicStore.RenderComponent<ProductCard>(p => p.Add(x => x.Product, publicCard));
 
         using var gatedStore = new Bunit.TestContext();
+        gatedStore.Services.AddSingleton(SiteContextReturning(gatedSite));
         gatedStore.Services.AddSingleton(new OrderingModeProvider(SiteContextReturning(gatedSite), [new RfqOrderingMode()]));
         var gatedRender = gatedStore.RenderComponent<ProductCard>(p => p.Add(x => x.Product, gatedCard));
 
         publicRender.Find(".product-card__amount").TextContent.Should().Contain("€");
         gatedRender.FindAll(".product-card__amount").Should().BeEmpty();
         gatedRender.Find(".product-card__note").TextContent.Should().Be("Sign in to see pricing");
+    }
+
+    [Fact]
+    public void APriceSaysWhetherItIncludesTaxAsItsStoreStatesIt()
+    {
+        // A consumer shop's price has tax in, a trade store's does not (T10), and the card is the
+        // first place a customer reads which one they are looking at.
+        var card = new ProductCardView("SKU1", "Widget", "Acme", null, "In stock", true, "€10.00", null);
+
+        string NoteOn(bool pricesIncludeTax)
+        {
+            var site = SiteWith("Store", "DirectCheckout");
+            site.PricesIncludeTax = pricesIncludeTax;
+
+            using var store = new Bunit.TestContext();
+            store.Services.AddSingleton(SiteContextReturning(site));
+            store.Services.AddSingleton(new OrderingModeProvider(SiteContextReturning(site), [new FakeCheckoutOrderingMode()]));
+
+            return store.RenderComponent<ProductCard>(p => p.Add(x => x.Product, card))
+                .Find(".product-card__note").TextContent;
+        }
+
+        NoteOn(pricesIncludeTax: true).Should().Be("incl. tax");
+        NoteOn(pricesIncludeTax: false).Should().Be("excl. tax");
     }
 
     [Fact]

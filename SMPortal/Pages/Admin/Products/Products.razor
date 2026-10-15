@@ -144,11 +144,11 @@
                     </span>
                 </div>
                 <div class="field">
-                    <label>Cost (EUR)</label>
+                    <label>Cost (@Data.CurrentCurrency)</label>
                     <input class="input" type="number" min="0" step="0.01" value="@_draft.Cost" @onchange="SetCost" />
                 </div>
                 <div class="field">
-                    <label>Sell price (EUR)</label>
+                    <label>Sell price (@Data.CurrentCurrency@(Data.CurrentPricesIncludeTax ? ", incl. tax" : null))</label>
                     <input class="input" type="number" min="0" step="0.01" value="@_draft.Price" @onchange="SetPrice" />
                     <span class="field-note @(NegativeMargin ? "field-note--warn" : null)">@MarginNote</span>
                 </div>
@@ -252,16 +252,18 @@
 
     // Selling under cost is occasionally deliberate (clearing stock) so it warns rather than
     // blocks; a missing name or SKU does block, because the row would be unusable.
-    private bool NegativeMargin => _draft.Price > 0 && _draft.Cost > _draft.Price;
+    private decimal DraftNet => Data.NetOfTax(_draft.Price, _draft.IsTaxable);
+
+    private bool NegativeMargin => _draft.Price > 0 && _draft.Cost > DraftNet;
 
     private string MarginNote
     {
         get
         {
             if (_draft.Price <= 0) return "Set a price to see the margin.";
-            if (NegativeMargin) return $"Below cost — margin {_draft.MarginPct}%.";
+            if (NegativeMargin) return $"Below cost — margin {_draft.MarginPctAt(DraftNet)}%.";
 
-            return _draft.Cost <= 0 ? "No cost recorded." : $"Margin {_draft.MarginPct}%.";
+            return _draft.Cost <= 0 ? "No cost recorded." : $"Margin {_draft.MarginPctAt(DraftNet)}%.";
         }
     }
 
