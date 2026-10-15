@@ -1,4 +1,5 @@
 using SMDataManager.Library.Models;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Registration;
 
@@ -65,7 +66,7 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
             {
                 if (requirement == RegistrationRequirement.Required)
                 {
-                    errors.Add(new RegistrationError(field, $"{Label(field)} is required."));
+                    errors.Add(new RegistrationError(field, L["{0} is required.", Label(field)]));
                 }
 
                 continue;
@@ -74,7 +75,7 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
             if (value.Trim().Length > MaxLengths[field])
             {
                 errors.Add(new RegistrationError(field,
-                    $"{Label(field)} cannot be longer than {MaxLengths[field]} characters."));
+                    L["{0} cannot be longer than {1} characters.", Label(field), MaxLengths[field]]));
             }
         }
 
@@ -111,7 +112,7 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
         if (!plausible)
         {
             errors.Add(new RegistrationError(RegistrationField.Email,
-                "That does not look like an email address."));
+                L["That does not look like an email address."]));
         }
     }
 
@@ -130,7 +131,7 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
         if (country.Length != 2 || !char.IsAsciiLetter(country[0]) || !char.IsAsciiLetter(country[1]))
         {
             errors.Add(new RegistrationError(RegistrationField.Country,
-                "Choose a country from the list."));
+                L["Choose a country from the list."]));
         }
     }
 
@@ -138,7 +139,7 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
     {
         if (string.IsNullOrEmpty(submission.Password))
         {
-            errors.Add(new RegistrationError(null, "Choose a password."));
+            errors.Add(new RegistrationError(null, L["Choose a password."]) { AboutPassword = true });
             return;
         }
 
@@ -147,7 +148,7 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
         // Identity refuses it, registration fails and says so.
         if (submission.Password != submission.ConfirmPassword)
         {
-            errors.Add(new RegistrationError(null, "The two passwords do not match."));
+            errors.Add(new RegistrationError(null, L["The two passwords do not match."]) { AboutPassword = true });
         }
     }
 
@@ -158,19 +159,19 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
     /// </summary>
     public virtual string Label(RegistrationField field) => field switch
     {
-        RegistrationField.Company => "Company name",
-        RegistrationField.VatNumber => "VAT number",
-        RegistrationField.RegistrationNumber => "Company registration number",
-        RegistrationField.FirstName => "First name",
-        RegistrationField.LastName => "Last name",
-        RegistrationField.Email => "Email address",
-        RegistrationField.Phone => "Phone number",
-        RegistrationField.AddressLine1 => "Address",
-        RegistrationField.AddressLine2 => "Address line 2",
-        RegistrationField.City => "Town or city",
-        RegistrationField.Region => "County or region",
-        RegistrationField.PostCode => "Postcode",
-        RegistrationField.Country => "Country",
+        RegistrationField.Company => L["Company name"],
+        RegistrationField.VatNumber => L["VAT number"],
+        RegistrationField.RegistrationNumber => L["Company registration number"],
+        RegistrationField.FirstName => L["First name"],
+        RegistrationField.LastName => L["Last name"],
+        RegistrationField.Email => L["Email address"],
+        RegistrationField.Phone => L["Phone number"],
+        RegistrationField.AddressLine1 => L["Address"],
+        RegistrationField.AddressLine2 => L["Address line 2"],
+        RegistrationField.City => L["Town or city"],
+        RegistrationField.Region => L["County or region"],
+        RegistrationField.PostCode => L["Postcode"],
+        RegistrationField.Country => L["Country"],
         _ => field.ToString()
     };
 }

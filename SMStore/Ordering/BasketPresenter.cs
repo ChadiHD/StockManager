@@ -1,5 +1,6 @@
 using SMDataManager.Library.Models;
 using SMStore.Catalog;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Ordering;
 
@@ -68,7 +69,7 @@ public sealed class BasketPresenter
             line.Available,
             // The feed carries no lead time, so this says what stock says and nothing more —
             // the same wording the catalog uses, for the same reason.
-            line.QuantityInStock > 0 ? "In stock" : "Lead time on request");
+            line.QuantityInStock > 0 ? L["In stock"] : L["Lead time on request"]);
     }
 }
 

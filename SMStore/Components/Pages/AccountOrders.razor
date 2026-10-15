@@ -7,28 +7,28 @@
 @inject CustomerOrderPresenter Documents
 @inject NavigationManager Navigation
 
-<PageTitle>Your orders · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Your orders"] · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="_crumbs" />
 
 <div class="page-header">
     <div>
-        <h1>Your orders</h1>
-        <p class="page-lede">Confirmed orders, their status and their paperwork.</p>
+        <h1>@L["Your orders"]</h1>
+        <p class="page-lede">@L["Confirmed orders, their status and their paperwork."]</p>
     </div>
 </div>
 
 <DocumentList Items="_orders" Href="@(reference => $"/account/orders/{reference}")"
-              EmptyMessage="You have no orders yet."
+              EmptyMessage="@(L["You have no orders yet."])"
               EmptyActionHref="@QuoteDecisionEndpoints.QuotesPath"
-              EmptyActionLabel="See your quotes" />
+              EmptyActionLabel="@(L["See your quotes"])" />
 
 @code {
     private readonly NavItem[] _crumbs =
     [
-        new("Home", "/"),
-        new("Your account", "/account"),
-        new("Orders", "/account/orders"),
+        new(L["Home"], "/"),
+        new(L["Your account"], "/account"),
+        new(L["Orders"], "/account/orders"),
     ];
 
     private IReadOnlyList<DocumentSummary> _orders = [];

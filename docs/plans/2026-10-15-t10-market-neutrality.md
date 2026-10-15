@@ -118,20 +118,45 @@ What this changes today:
   route constraints are invariant.
 - `SiteMoney` already used the store's culture.
 
-### 3.5 The storefront's words go through `IStringLocalizer<StoreText>`
+### 3.5 The storefront's words go through `StoreText.L`
 
 - **The English text is the key.** No `.resx` exists until a translation is added, and a
   missing key renders the English. That is the framework's own fallback, so an English store
   needs no file, and a page's markup still reads as its words.
-- **Razor uses `L["…"]`**, injected once in `_Imports.razor`. C# that produces customer-facing
-  text takes `IStringLocalizer<StoreText>` and calls the same indexer.
+- **One static `IStringLocalizer`, `StoreText.L`.** Razor writes `L["…"]` through
+  `@using static` in `_Imports.razor`, and C# uses the same `using static`. It is not injected:
+  a lookup over embedded resources has no per-request state and nothing to substitute, and
+  injecting it would have made every component, and every bUnit test context, register a
+  service, for no behaviour.
 - **A phrase is a key, never assembled from pieces.** Lowercasing a label, or adding "s" to
   it, goes. The words become whole keys with placeholders, because word order and plurals are
   per language.
-- **`StoreTextKeysTests`** scans the storefront for `L["…"]` and fails when any translation
-  file under `SMStore/Resources/` lacks one of those keys, or carries a key nobody uses. With
-  no translation yet it passes vacuously. It is in place so the first `StoreText.pt-BR.resx` is
-  held to the whole storefront.
+  - **A sentence that names the basket** takes the mode's new `IOrderingMode.BasketNoun`
+    ("quote", "cart") as a placeholder, in place of `BasketLabel` lowercased.
+  - **This is the one deliberate exception, and why it is safe for now.** A language whose
+    nouns have gender, Portuguese among them ("sua cotação", "seu carrinho"), cannot write
+    "Your {0}" for both. When a gendered translation arrives with a second mode, those
+    phrases move onto the mode, which is T12's to shape.
+  - **The quote pages name quotes, plurals included.** That is what they list, so the words are
+    literal there.
+- **`StoreTextKeysTests`** scans the storefront for `L["…"]`.
+  - It fails when any translation (`SMStore/Localization/StoreText.{culture}.resx`) lacks one of
+    those keys, or carries a key nobody uses.
+  - It fails on a key built at run time.
+  - It fails when the scan finds suspiciously few keys.
+  - With no translation yet, the translation check passes vacuously. It is in place so the
+    first `StoreText.pt-BR.resx` is held to the whole storefront.
+- **What the conversion left for the first translation**, all of it English-safe today:
+  - **The catalog's count** chooses between "product" and "products" by count. A language with
+    more plural forms needs a plural-aware key.
+  - **Splits around markup.** A few sentences wrap a link or a `<strong>` and are split around
+    it: "from" before a quote link on the order page, and the sign-in and registration
+    prompts. Each piece is a key, but a translator sees fragments.
+  - **The development error page** is also split around markup. It is ASP.NET's boilerplate,
+    and no customer sees it.
+- **A form decides which field an error belongs to from the error, not its wording.**
+  `Register.razor` found the password's errors with `Message.Contains("password")`, which no
+  translation survives.
 - **Out of this phase, and why:**
   - **Tax legends and treatments** are snapshotted onto an order as a legal statement
     (`Purchase.TaxLegend`). Which language that statement takes is the rule set's decision, and

@@ -25,7 +25,7 @@
         <a href="/catalog" class="btn btn-primary blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            Browse the catalog
+            @L["Browse the catalog"]
         </a>
         <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
             @Ordering.Current.SubmitBasketLabel
@@ -42,7 +42,7 @@
 @if (_categories.Count > 0)
 {
     <section class="home-section home-categories">
-        <h2>Shop by category</h2>
+        <h2>@L["Shop by category"]</h2>
         <div class="home-category-grid">
             @foreach (var category in _categories)
             {
@@ -61,7 +61,7 @@
 @if (_featured.Count > 0)
 {
     <section class="home-section home-featured">
-        <h2>Featured</h2>
+        <h2>@L["Featured"]</h2>
         <div class="product-grid">
             @foreach (var item in _featured)
             {

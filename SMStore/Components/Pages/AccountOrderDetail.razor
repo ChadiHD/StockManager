@@ -16,12 +16,12 @@
     @* Same answer for "not yours" as for "not here"; see AccountQuoteDetail. *@
     <div class="page-header">
         <div>
-            <h1>Not found</h1>
-            <p class="page-lede">We have no order with that reference on your account.</p>
+            <h1>@L["Not found"]</h1>
+            <p class="page-lede">@L["We have no order with that reference on your account."]</p>
         </div>
     </div>
 
-    <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">Back to your orders</a>
+    <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">@L["Back to your orders"]</a>
 }
 else
 {
@@ -29,10 +29,10 @@ else
         <div>
             <h1 class="mono">@_order.Reference</h1>
             <p class="page-lede">
-                Placed @_order.Placed.ToString("d MMM yyyy")
+                @L["Placed {0}", _order.Placed.ToString("d MMM yyyy")]
                 @if (_order.FromQuoteReference is not null)
                 {
-                    <text> · from </text>
+                    <text> · @L["from"] </text>
                     <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{_order.FromQuoteReference}")"
                        class="mono">@_order.FromQuoteReference</a>
                 }
@@ -46,10 +46,10 @@ else
             <table class="table">
                 <thead>
                     <tr>
-                        <th scope="col">Product</th>
-                        <th scope="col" class="document-list__num">Quantity</th>
-                        <th scope="col" class="document-list__num">Unit</th>
-                        <th scope="col" class="document-list__num">Line</th>
+                        <th scope="col">@L["Product"]</th>
+                        <th scope="col" class="document-list__num">@L["Quantity"]</th>
+                        <th scope="col" class="document-list__num">@L["Unit"]</th>
+                        <th scope="col" class="document-list__num">@L["Line"]</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -72,22 +72,22 @@ else
         <aside class="document__summary card blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Summary</h5>
+            <h5>@L["Summary"]</h5>
             <dl class="basket__totals">
-                <dt>Lines</dt>
+                <dt>@L["Lines"]</dt>
                 <dd>@_order.Lines.Count</dd>
                 @if (_order.PoNumber is not null)
                 {
-                    <dt>Your reference</dt>
+                    <dt>@L["Your reference"]</dt>
                     <dd class="mono">@_order.PoNumber</dd>
                 }
-                <dt>Net</dt>
+                <dt>@L["Net"]</dt>
                 <dd>@_order.SubTotal</dd>
                 @* Labelled by treatment, so a zero on a reverse-charged order reads as a
                    reason rather than as a number nobody filled in. *@
-                <dt>@(string.IsNullOrWhiteSpace(_order.TaxTreatment) ? "Tax" : _order.TaxTreatment)</dt>
+                <dt>@(string.IsNullOrWhiteSpace(_order.TaxTreatment) ? L["Tax"] : _order.TaxTreatment)</dt>
                 <dd>@_order.Tax</dd>
-                <dt>Total</dt>
+                <dt>@L["Total"]</dt>
                 <dd>@_order.Total</dd>
             </dl>
             <p class="text-muted basket__note">
@@ -95,11 +95,11 @@ else
                 {
                     @_order.TaxLegend<text> </text>
                 }
-                Freight is confirmed on the invoice.
+                @L["Freight is confirmed on the invoice."]
             </p>
 
             <a href="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}/print")"
-               class="btn btn-secondary btn-block">Print or save as PDF</a>
+               class="btn btn-secondary btn-block">@L["Print or save as PDF"]</a>
         </aside>
     </div>
 }
@@ -111,9 +111,9 @@ else
 
     private NavItem[] Crumbs =>
     [
-        new("Home", "/"),
-        new("Your account", "/account"),
-        new("Orders", QuoteDecisionEndpoints.OrdersPath),
+        new(L["Home"], "/"),
+        new(L["Your account"], "/account"),
+        new(L["Orders"], QuoteDecisionEndpoints.OrdersPath),
         new(Reference, $"{QuoteDecisionEndpoints.OrdersPath}/{Reference}"),
     ];
 

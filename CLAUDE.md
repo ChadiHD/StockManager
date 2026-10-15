@@ -50,14 +50,17 @@ dispatcher, every message on it in per-site wording, the quote-expiry sweep, and
 where two customers are charged differently for the same product. The plan opens with the four
 things that were already wrong — three numbers for one tax among them.
 
-**Since T9 there are two rule sets**, registered once through `AddTaxRuleSets` for both hosts:
+**There are three rule sets** (two since T9, `flat` since T10), registered once through
+`AddTaxRuleSets` for both hosts:
 
 - **`eu-b2b`**: domestic, intra-EU reverse charge, or export.
 - **`uk-b2b`**: anywhere in the United Kingdom is domestic, Northern Ireland included.
   Everywhere else is a zero-rated export, Ireland and the EU included, whatever VAT number the
   customer gave.
+- **`flat`**: the store rate on every taxable sale, wherever the buyer is. It is for a consumer
+  shop selling at home.
 
-Neither is tax advice. Both are signed off by an accountant before launch, and the UK domestic
+None is tax advice. Each is signed off by an accountant before launch, and the UK domestic
 reverse charge on phones and chips is not built.
 
 **T8 — store catalog control is built**, ahead of T7: the admin choosing which products each
@@ -100,6 +103,20 @@ distributor) now launches with aclitrade.ie, from one deployment and one portal.
 Its §1 lists what reading the code found. A new store is now `docs/runbooks/new-store.md`, and
 none of it is code: a store's theme files and domains live in a downstream repository, of which
 this template is the upstream.
+
+**A B2C track follows, T10–T14**, so the template runs consumer shops as well: a cart, card
+payment, guests. The first is a clothing store launching in Brazil, and nothing shared may assume
+Brazil. **T10 is market neutrality**, per `docs/plans/2026-10-15-t10-market-neutrality.md`, and
+it brings:
+
+- prices stated with tax in (`Site.PricesIncludeTax`, and the same flag on `Product`);
+- a `flat` tax rule set, charging one rate to every buyer;
+- money in its own currency's symbol;
+- each request in its store's culture;
+- the storefront's words behind `StoreText.L`, in English only for now.
+
+Its §1 lists T11–T14: apparel variants and images, the `DirectCheckout` mode with guests,
+Stripe Checkout with shipping, and a fiscal-document seam for Brazil's NF-e.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -157,6 +174,20 @@ before anything else runs. Consequences that are easy to get wrong:
   theme for any asset a site is missing.
 - `Sites:ForceSiteKey` pins every request to one store for local work. `SMStore` refuses to
   start with it set outside Development.
+- **A storefront request runs in its store's culture** (T10). `SiteResolutionMiddleware` sets
+  `CurrentCulture` and `CurrentUICulture` from `Site.Locale`, never from `Accept-Language`.
+  `StockApi` does not, so anything snapshotted from both hosts formats invariantly: a tax legend
+  printed "17,5%" from one and "17.5%" from the other.
+- **The storefront's words are `L["…"]`** (`SMStore/Localization/StoreText.cs`). The English
+  text is the key, and a translation is a `StoreText.{culture}.resx` beside it.
+  - **A phrase is one key.** Never lowercase a localised word, append "s" to it, or join two
+    keys into a sentence. A variable is a placeholder, and the basket's name in a sentence is
+    `IOrderingMode.BasketNoun`.
+  - **`StoreTextKeysTests`** holds every translation to every key, and fails on a key built at
+    run time.
+  - **Not localised:** tax legends and treatments, which are snapshotted on the order as a legal
+    statement; stored statuses; Identity's own errors; and the portal.
+  - **Email wording is per store** at `/admin/email`, not localised.
 
 ### An admin acts for one store at a time, and only for stores they were given
 
@@ -1226,6 +1257,23 @@ placement decides where it sits.
   or a GBP feed would put pound prices on a euro till.
 - `ProductProvenanceTests` holds all of it, and runs the merge and delisting SQL against a
   database, which no test did before.
+
+**A price is stated with tax in or without, and the product says which** (T10).
+`Product.PricesIncludeTax` sits beside `CurrencyCode`, and `fnSite_ProductSellable` sells a
+product only on a store with the same `Site.PricesIncludeTax`. Own stock is shared by every
+store in its currency, so a flag on the store alone would read one number gross on one store and
+net on the next.
+
+- **Who is on which basis.** An admin's product takes the acting store's basis. A feed's
+  product is net, so an inclusive store sells own stock only. The till lists net products only.
+- **The basis is locked with the currency**, through `fnSite_CurrencyLocked` (50096 in
+  `spSite_Update`). That lock is why an order carries no basis of its own.
+- **An inclusive order backs the tax out per line.** `spOrder_ConvertFromQuote` computes
+  `qty × price × rate / (100 + rate)`, so `FinalPrice` is exactly the sum of the shown prices.
+  Taxing the net figure drifted a cent at ten units.
+- **An inclusive store has no margin floor.** `Cost` is net, and the floor compares it with the
+  price, so `SiteSettingsRules` refuses the combination.
+- **The portal sets cost against `NetOfTax(price)`**, never against the price itself.
 
 `spCatalog_Search` decides visibility inside the query rather than filtering afterwards — a
 product removed from an already-fetched page has still been counted, still shifted the paging,

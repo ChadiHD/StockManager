@@ -37,7 +37,7 @@
 
     <section class="sheet__parties">
         <div>
-            <h2 class="sheet__label">For</h2>
+            <h2 class="sheet__label">@L["For"]</h2>
             <p class="sheet__party-name">@Party.Company</p>
             <p class="sheet__party-meta">@Party.Contact</p>
             <p class="sheet__party-meta">@Party.Email</p>
@@ -54,10 +54,10 @@
     <table class="table sheet__lines">
         <thead>
             <tr>
-                <th scope="col">Product</th>
-                <th scope="col" class="document-list__num">Quantity</th>
-                <th scope="col" class="document-list__num">Unit</th>
-                <th scope="col" class="document-list__num">Line</th>
+                <th scope="col">@L["Product"]</th>
+                <th scope="col" class="document-list__num">@L["Quantity"]</th>
+                <th scope="col" class="document-list__num">@L["Unit"]</th>
+                <th scope="col" class="document-list__num">@L["Line"]</th>
             </tr>
         </thead>
         <tbody>
@@ -98,7 +98,7 @@
 
     <footer class="sheet__foot">
         <p>@FooterNote</p>
-        <p class="sheet__issued">Produced @DateTime.UtcNow.ToString("d MMM yyyy") from @SiteContext.Site.Domain</p>
+        <p class="sheet__issued">@L["Produced {0} from {1}", DateTime.UtcNow.ToString("d MMM yyyy"), SiteContext.Site.Domain]</p>
     </footer>
 </article>
 
@@ -119,7 +119,7 @@
 
     [Parameter] public string? Note { get; set; }
 
-    [Parameter] public string NoteHeading { get; set; } = "Your note";
+    [Parameter] public string NoteHeading { get; set; } = L["Your note"];
 
     [Parameter] public string? FooterNote { get; set; }
 }

@@ -18,13 +18,13 @@
        document download's 404. *@
     <div class="page-header">
         <div>
-            <h1>Not found</h1>
-            <p class="page-lede">We have no @Mode.BasketLabel.ToLowerInvariant() with that reference on your account.</p>
+            <h1>@L["Not found"]</h1>
+            <p class="page-lede">@L["We have no quote with that reference on your account."]</p>
         </div>
     </div>
 
     <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">
-        Back to your @Label
+        @L["Back to your quotes"]
     </a>
 }
 else
@@ -33,10 +33,10 @@ else
         <div>
             <h1 class="mono">@_quote.Reference</h1>
             <p class="page-lede">
-                Raised @_quote.Raised.ToString("d MMM yyyy")
+                @L["Raised {0}", _quote.Raised.ToString("d MMM yyyy")]
                 @if (_quote.Expires is not null)
                 {
-                    <text> · valid until @_quote.Expires.Value.ToString("d MMM yyyy")</text>
+                    <text> · @L["valid until {0}", _quote.Expires.Value.ToString("d MMM yyyy")]</text>
                 }
             </p>
         </div>
@@ -53,10 +53,10 @@ else
             <table class="table">
                 <thead>
                     <tr>
-                        <th scope="col">Product</th>
-                        <th scope="col" class="document-list__num">Quantity</th>
-                        <th scope="col" class="document-list__num">Unit</th>
-                        <th scope="col" class="document-list__num">Line</th>
+                        <th scope="col">@L["Product"]</th>
+                        <th scope="col" class="document-list__num">@L["Quantity"]</th>
+                        <th scope="col" class="document-list__num">@L["Unit"]</th>
+                        <th scope="col" class="document-list__num">@L["Line"]</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -81,7 +81,7 @@ else
                    contents originate with a customer, so nothing here may reach a MarkupString
                    — the SiteContent.BodyHtml rule in reverse. *@
                 <div class="document__note">
-                    <h5>What you told us</h5>
+                    <h5>@L["What you told us"]</h5>
                     <p>@_quote.CustomerNote</p>
                 </div>
             }
@@ -90,21 +90,21 @@ else
         <aside class="document__summary card blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Summary</h5>
+            <h5>@L["Summary"]</h5>
             <dl class="basket__totals">
-                <dt>Lines</dt>
+                <dt>@L["Lines"]</dt>
                 <dd>@_quote.Lines.Count</dd>
                 <dt>@ValueLabel</dt>
                 <dd>@_quote.Value</dd>
             </dl>
             <p class="text-muted basket__note">
                 @(SiteContext.Site.PricesIncludeTax
-                    ? "Including tax. Freight is calculated on the order."
-                    : "Excluding tax and freight, which are calculated on the order.")
+                    ? L["Including tax. Freight is calculated on the order."]
+                    : L["Excluding tax and freight, which are calculated on the order."])
             </p>
 
             <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}/print")"
-               class="btn btn-secondary btn-block">Print or save as PDF</a>
+               class="btn btn-secondary btn-block">@L["Print or save as PDF"]</a>
 
             @if (_quote.CanDecide)
             {
@@ -112,10 +112,10 @@ else
                     <AntiforgeryToken />
                     <input type="hidden" name="reference" value="@_quote.Reference" />
                     <label class="basket__note-label" for="po-number">
-                        Your purchase order number (optional)
+                        @L["Your purchase order number (optional)"]
                     </label>
                     <input class="input" type="text" id="po-number" name="poNumber" maxlength="50" />
-                    <button type="submit" class="btn btn-primary btn-block">Accept this quote</button>
+                    <button type="submit" class="btn btn-primary btn-block">@L["Accept this quote"]</button>
                 </form>
 
                 @* Rejection asks for a reason, and the procedure requires one: "they said no"
@@ -124,11 +124,11 @@ else
                     <AntiforgeryToken />
                     <input type="hidden" name="reference" value="@_quote.Reference" />
                     <label class="basket__note-label" for="reject-reason">
-                        Not for you? Tell us why
+                        @L["Not for you? Tell us why"]
                     </label>
                     <textarea class="input" id="reject-reason" name="reason" rows="2"
-                              maxlength="500" placeholder="Too expensive, lead time too long, ordered elsewhere"></textarea>
-                    <button type="submit" class="btn btn-secondary btn-block">Turn it down</button>
+                              maxlength="500" placeholder="@(L["Too expensive, lead time too long, ordered elsewhere"])"></textarea>
+                    <button type="submit" class="btn btn-secondary btn-block">@L["Turn it down"]</button>
                 </form>
             }
             else
@@ -153,15 +153,13 @@ else
 
     private IOrderingMode Mode => Documents.Mode;
 
-    private string Label => Mode.BasketLabel.ToLowerInvariant() + "s";
-
-    private string ValueLabel => Mode.ShowsPayableTotal ? "Total" : "Quoted value";
+    private string ValueLabel => Mode.ShowsPayableTotal ? L["Total"] : L["Quoted value"];
 
     private NavItem[] Crumbs =>
     [
-        new("Home", "/"),
-        new("Your account", "/account"),
-        new("Quotes", QuoteDecisionEndpoints.QuotesPath),
+        new(L["Home"], "/"),
+        new(L["Your account"], "/account"),
+        new(L["Quotes"], QuoteDecisionEndpoints.QuotesPath),
         new(Reference, $"{QuoteDecisionEndpoints.QuotesPath}/{Reference}"),
     ];
 
@@ -175,19 +173,17 @@ else
     private string? DecisionMessage => Decision switch
     {
         "AlreadyDecided" =>
-            "Somebody at your company decided this quote while this page was open. "
-            + "Its current state is shown above.",
-        "NotDecidable" => "This quote is no longer awaiting a decision.",
+            L["Somebody at your company decided this quote while this page was open. Its current state is shown above."],
+        "NotDecidable" => L["This quote is no longer awaiting a decision."],
         // What they can do about it, not just that it failed. The figures are deliberately
         // absent: the limit is the store's business with this company and the page would be
         // telling one signed-in buyer what their colleagues have been told.
         "OverCreditLimit" =>
-            "This order is larger than the credit currently available on your account. "
-            + "Nothing has been ordered — please contact us and we will sort it out.",
-        "ReasonRequired" => "Please tell us why, so we know what to change.",
-        "Rejected" => "Thank you — we have recorded that and will follow up.",
-        "Failed" => "We could not record that. Nothing was changed, so please try again.",
-        _ => null
+            L["This order is larger than the credit currently available on your account. Nothing has been ordered — please contact us and we will sort it out."],
+        "ReasonRequired" => L["Please tell us why, so we know what to change."],
+        "Rejected" => L["Thank you — we have recorded that and will follow up."],
+        "Failed" => L["We could not record that. Nothing was changed, so please try again."],
+        _ => (string?)null
     };
 
     protected override void OnParametersSet()

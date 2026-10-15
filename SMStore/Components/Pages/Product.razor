@@ -9,18 +9,18 @@
 {
     @* A hidden or unmapped product is indistinguishable from a wrong SKU, deliberately: a
        404 for both means a guessed SKU cannot confirm that a product exists but is withheld. *@
-    <PageTitle>Product not found · @SiteContext.Site.Name</PageTitle>
+    <PageTitle>@L["Product not found"] · @SiteContext.Site.Name</PageTitle>
 
     <div class="page-header">
         <div>
-            <h1>Product not found</h1>
+            <h1>@L["Product not found"]</h1>
             <p class="page-lede">
-                No product with that code is available on this store.
+                @L["No product with that code is available on this store."]
             </p>
         </div>
     </div>
 
-    <a href="/catalog" class="btn btn-secondary">Back to the catalog</a>
+    <a href="/catalog" class="btn btn-secondary">@L["Back to the catalog"]</a>
 }
 else
 {
@@ -38,7 +38,7 @@ else
             }
             else
             {
-                <div class="product__noimage">No image</div>
+                <div class="product__noimage">@L["No image"]</div>
             }
         </div>
 
@@ -47,14 +47,14 @@ else
             <h1>@_item.ProductName</h1>
 
             <div class="product__ids">
-                <span>SKU @_item.Sku</span>
+                <span>@L["SKU {0}", _item.Sku]</span>
                 @if (!string.IsNullOrWhiteSpace(_item.ManufacturerPartNumber))
                 {
-                    <span>MPN @_item.ManufacturerPartNumber</span>
+                    <span>@L["MPN {0}", _item.ManufacturerPartNumber]</span>
                 }
                 @if (!string.IsNullOrWhiteSpace(_item.Ean))
                 {
-                    <span>EAN @_item.Ean</span>
+                    <span>@L["EAN {0}", _item.Ean]</span>
                 }
             </div>
 
@@ -69,7 +69,7 @@ else
             }
             else
             {
-                <p class="text-muted">Sign in to see pricing for your account.</p>
+                <p class="text-muted">@L["Sign in to see pricing for your account."]</p>
             }
 
             <div class="product__actions">
@@ -80,7 +80,7 @@ else
                     <AntiforgeryToken />
                     <input type="hidden" name="sku" value="@_item.Sku" />
                     <input type="hidden" name="returnUrl" value="@CurrentPath" />
-                    <label class="visually-hidden" for="add-qty">Quantity</label>
+                    <label class="visually-hidden" for="add-qty">@L["Quantity"]</label>
                     <input class="input product__add-qty" type="number" id="add-qty"
                            name="quantity" value="1" min="1" max="9999" step="1" />
                     <button type="submit" class="btn btn-primary blueprint">
@@ -90,7 +90,7 @@ else
                     </button>
                 </form>
                 <a href="@Ordering.Current.BasketRoute" class="btn btn-secondary">
-                    View your @Ordering.Current.BasketLabel.ToLowerInvariant()
+                    @L["View your {0}", Ordering.Current.BasketNoun]
                 </a>
             </div>
 
@@ -99,29 +99,28 @@ else
                 @* Distributor stock is only as fresh as the last sync, so the page says when
                    rather than implying the number is live. *@
                 <p class="text-muted product__freshness">
-                    Distributor stock last confirmed @_item.LastSynced.Value.ToString("d MMM yyyy HH:mm") UTC.
-                    Subject to confirmation at quote.
+                    @L["Distributor stock last confirmed {0} UTC. Subject to confirmation at quote.", _item.LastSynced.Value.ToString("d MMM yyyy HH:mm")]
                 </p>
             }
         </div>
     </div>
 
     <section class="product__detail">
-        <h2>Description</h2>
+        <h2>@L["Description"]</h2>
         @if (!string.IsNullOrWhiteSpace(_item.Description))
         {
             <p class="product__description">@_item.Description</p>
         }
         else
         {
-            <div class="stub">No description is published for this product.</div>
+            <div class="stub">@L["No description is published for this product."]</div>
         }
 
-        <h2>Specifications</h2>
+        <h2>@L["Specifications"]</h2>
         @* The artboard renders a spec table and a document list. Nothing stores either, and
            the Icecat licence that would populate them is deferred, so this empty state is the
            common case rather than an edge case — see the plan's risks. *@
-        <div class="stub">No specifications are published for this product.</div>
+        <div class="stub">@L["No specifications are published for this product."]</div>
     </section>
 }
 
@@ -132,7 +131,7 @@ else
 
     private bool InStock => _item is { QuantityInStock: > 0 };
 
-    private string Availability => InStock ? "In stock" : "Lead time on request";
+    private string Availability => InStock ? L["In stock"] : L["Lead time on request"];
 
     private string Brand => string.IsNullOrWhiteSpace(_item?.Manufacturer)
         ? _item?.Distributor ?? string.Empty
@@ -142,10 +141,10 @@ else
 
     private string PriceNote => (Ordering.Current.ShowsPayableTotal, SiteContext.Site.PricesIncludeTax) switch
     {
-        (true, true) => "incl. tax",
-        (true, false) => "excl. tax",
-        (false, true) => "list, incl. tax — volume pricing on quote",
-        (false, false) => "list, excl. tax — volume pricing on quote"
+        (true, true) => L["incl. tax"],
+        (true, false) => L["excl. tax"],
+        (false, true) => L["list, incl. tax — volume pricing on quote"],
+        (false, false) => L["list, excl. tax — volume pricing on quote"]
     };
 
     /// <summary>Where an add returns to, so the customer stays on the product page.</summary>
@@ -159,8 +158,8 @@ else
 
     private NavItem[] Crumbs =>
     [
-        new("Home", "/"),
-        new("Catalog", "/catalog"),
+        new(L["Home"], "/"),
+        new(L["Catalog"], "/catalog"),
         new(_item!.CategoryName, $"/catalog?cat={_item.CategorySlug}"),
         new(_item.Sku, $"/product/{_item.Sku}")
     ];

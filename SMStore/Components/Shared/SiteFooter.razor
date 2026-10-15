@@ -57,7 +57,7 @@
         <div class="site-footer__legal">
             <span>© @DateTime.UtcNow.Year @(SiteContext.Site.LegalName ?? SiteContext.Site.Name)</span>
             <div class="site-footer__legal-links">
-                <span>@(SiteContext.Site.PricesIncludeTax ? "Prices include tax" : "Prices exclude tax and freight")</span>
+                <span>@(SiteContext.Site.PricesIncludeTax ? L["Prices include tax"] : L["Prices exclude tax and freight"])</span>
                 @foreach (var link in Nav.Legal)
                 {
                     <a href="@link.Href">@link.Label</a>

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using SMDataManager.Library.Models;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Registration;
 
@@ -19,8 +20,7 @@ public sealed partial class UkB2bRegistrationFieldSet : RegistrationFieldSet
     public override string Key => "uk-b2b";
 
     public override string Summary =>
-        "Trade accounts are for businesses. Have your Companies House number to hand if you are a "
-        + "limited company, and a document showing the business exists.";
+        L["Trade accounts are for businesses. Have your Companies House number to hand if you are a limited company, and a document showing the business exists."];
 
     private static readonly Dictionary<RegistrationField, RegistrationRequirement> Rules = new()
     {
@@ -49,20 +49,21 @@ public sealed partial class UkB2bRegistrationFieldSet : RegistrationFieldSet
 
     // The document kind is the existing ChamberOfCommerce: CK_AccountDocument_Kind's name for
     // "proof the company exists", whatever the paper is called in a given country. The label is
-    // what the applicant reads.
-    public override IReadOnlyList<RegistrationDocumentRequirement> Documents { get; } =
+    // what the applicant reads. Built per read rather than once, because the words are in the
+    // culture of the request reading them and this field set is a singleton.
+    public override IReadOnlyList<RegistrationDocumentRequirement> Documents =>
     [
-        new("ChamberOfCommerce", "Proof the business exists", true,
-            "A certificate of incorporation, a Companies House extract, or for a sole trader a recent business bank statement. PDF or an image, up to 10 MB."),
-        new("VatCertificate", "VAT registration certificate", false,
-            "If you are VAT-registered, this speeds up approval.")
+        new("ChamberOfCommerce", L["Proof the business exists"], true,
+            L["A certificate of incorporation, a Companies House extract, or for a sole trader a recent business bank statement. PDF or an image, up to 10 MB."]),
+        new("VatCertificate", L["VAT registration certificate"], false,
+            L["If you are VAT-registered, this speeds up approval."])
     ];
 
     public override string Label(RegistrationField field) => field switch
     {
-        RegistrationField.RegistrationNumber => "Companies House number",
-        RegistrationField.Region => "County",
-        RegistrationField.PostCode => "Postcode",
+        RegistrationField.RegistrationNumber => L["Companies House number"],
+        RegistrationField.Region => L["County"],
+        RegistrationField.PostCode => L["Postcode"],
         _ => base.Label(field)
     };
 
@@ -79,7 +80,7 @@ public sealed partial class UkB2bRegistrationFieldSet : RegistrationFieldSet
         if (!string.IsNullOrEmpty(vat) && !UkVatNumber().IsMatch(vat))
         {
             errors.Add(new RegistrationError(RegistrationField.VatNumber,
-                "A UK VAT number is GB followed by 9 digits, such as GB123456789."));
+                L["A UK VAT number is GB followed by 9 digits, such as GB123456789."]));
         }
 
         var company = Compact(submission.RegistrationNumber);
@@ -87,7 +88,7 @@ public sealed partial class UkB2bRegistrationFieldSet : RegistrationFieldSet
         if (!string.IsNullOrEmpty(company) && !CompaniesHouseNumber().IsMatch(company))
         {
             errors.Add(new RegistrationError(RegistrationField.RegistrationNumber,
-                "A Companies House number is 8 characters: 8 digits, or 2 letters and 6 digits, such as 01234567 or SC123456."));
+                L["A Companies House number is 8 characters: 8 digits, or 2 letters and 6 digits, such as 01234567 or SC123456."]));
         }
 
         return errors;

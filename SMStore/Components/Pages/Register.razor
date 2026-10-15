@@ -11,7 +11,7 @@
 @inject IEmailOutbox Outbox
 @inject ILogger<Register> Logger
 
-<PageTitle>Open an account · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Open an account"] · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="_crumbs" />
 
@@ -22,15 +22,14 @@
        as well as of the endpoint. *@
     <div class="page-header">
         <div>
-            <h1>Check your email</h1>
+            <h1>@L["Check your email"]</h1>
             <p class="page-lede">
-                If that address has an application with us, a fresh confirmation link is on its
-                way. Links expire, so use this one within a day.
+                @L["If that address has an application with us, a fresh confirmation link is on its way. Links expire, so use this one within a day."]
             </p>
         </div>
     </div>
 
-    <a href="@CustomerAuthentication.LoginPath" class="btn btn-secondary">Back to sign in</a>
+    <a href="@CustomerAuthentication.LoginPath" class="btn btn-secondary">@L["Back to sign in"]</a>
 }
 else if (_reference is not null || _submitted)
 {
@@ -40,10 +39,11 @@ else if (_reference is not null || _submitted)
        the person who can already sign in. *@
     <div class="page-header">
         <div>
-            <h1>Application received</h1>
+            <h1>@L["Application received"]</h1>
             <p class="page-lede">
-                Thanks. We have your details@(_reference is null ? "" : $" under reference {_reference}")
-                and will email you at the address you gave once someone has looked at them.
+                @(_reference is null
+                    ? L["Thanks. We have your details and will email you at the address you gave once someone has looked at them."]
+                    : L["Thanks. We have your details under reference {0} and will email you at the address you gave once someone has looked at them.", _reference])
             </p>
         </div>
     </div>
@@ -52,31 +52,30 @@ else if (_reference is not null || _submitted)
         <i class="corner tl"></i><i class="corner tr"></i>
         <i class="corner bl"></i><i class="corner br"></i>
         <p>
-            Reviews usually take a working day or two. @*
+            @L["Reviews usually take a working day or two."] @*
             Until the "someone tried to register with your address" mail exists, this line is
             the only route back for an applicant who had already applied and was answered
             neutrally. Do not remove it before that mail lands. *@
-            <strong>If you do not hear from us, get in touch</strong> — we would rather hear twice
-            than leave an application sitting.
+            <strong>@L["If you do not hear from us, get in touch"]</strong> @L["— we would rather hear twice than leave an application sitting."]
         </p>
-        <a href="/catalog" class="btn btn-secondary">Browse the catalog</a>
+        <a href="/catalog" class="btn btn-secondary">@L["Browse the catalog"]</a>
     </div>
 }
 else if (Customer.IsSignedIn)
 {
     <div class="page-header">
         <div>
-            <h1>You already have an account</h1>
-            <p class="page-lede">You are signed in as @Customer.Contact!.FullName.</p>
+            <h1>@L["You already have an account"]</h1>
+            <p class="page-lede">@L["You are signed in as {0}.", Customer.Contact!.FullName]</p>
         </div>
     </div>
-    <a href="/account" class="btn btn-primary">Go to your account</a>
+    <a href="/account" class="btn btn-primary">@L["Go to your account"]</a>
 }
 else
 {
     <div class="page-header">
         <div>
-            <h1>Customer application</h1>
+            <h1>@L["Customer application"]</h1>
             <p class="page-lede">@_fieldSet.Summary</p>
         </div>
     </div>
@@ -84,7 +83,7 @@ else
     @if (_errors.Count > 0)
     {
         <div class="alert error" role="alert">
-            <strong>@(_errors.Any(error => error.Blocks) ? "We could not submit this yet." : "Worth a check before you send this.")</strong>
+            <strong>@(_errors.Any(error => error.Blocks) ? L["We could not submit this yet."] : L["Worth a check before you send this."])</strong>
             <ul>
                 @foreach (var error in _errors.Where(error => error.Field is null))
                 {
@@ -101,7 +100,7 @@ else
         <AntiforgeryToken />
 
         <section class="register__section">
-            <div class="register__legend"><span class="register__num">01</span><h4>Company</h4></div>
+            <div class="register__legend"><span class="register__num">01</span><h4>@L["Company"]</h4></div>
             <div class="register__grid">
                 @Text(RegistrationField.Company, "organization")
                 @Text(RegistrationField.VatNumber, null)
@@ -110,7 +109,7 @@ else
         </section>
 
         <section class="register__section">
-            <div class="register__legend"><span class="register__num">02</span><h4>Billing address</h4></div>
+            <div class="register__legend"><span class="register__num">02</span><h4>@L["Billing address"]</h4></div>
             <div class="register__grid">
                 @Text(RegistrationField.AddressLine1, "address-line1")
                 @Text(RegistrationField.AddressLine2, "address-line2")
@@ -122,7 +121,7 @@ else
         </section>
 
         <section class="register__section">
-            <div class="register__legend"><span class="register__num">03</span><h4>Your details</h4></div>
+            <div class="register__legend"><span class="register__num">03</span><h4>@L["Your details"]</h4></div>
             <div class="register__grid">
                 @Text(RegistrationField.FirstName, "given-name")
                 @Text(RegistrationField.LastName, "family-name")
@@ -132,13 +131,13 @@ else
                 @* Never echoed back. Repopulating the rest of the form after an error is a
                    courtesy; repopulating a password field means the password is in the HTML
                    of a page that can be cached, printed or shoulder-read. *@
-                <FormField Label="Password" FieldId="reg-password" Required="true"
-                           Hint="At least six characters." Error="@PasswordError">
+                <FormField Label="@L["Password"]" FieldId="reg-password" Required="true"
+                           Hint="@L["At least six characters."]" Error="@PasswordError">
                     <input class="input" type="password" id="reg-password" name="Password"
                            autocomplete="new-password" required />
                 </FormField>
 
-                <FormField Label="Confirm password" FieldId="reg-confirm" Required="true">
+                <FormField Label="@L["Confirm password"]" FieldId="reg-confirm" Required="true">
                     <input class="input" type="password" id="reg-confirm" name="ConfirmPassword"
                            autocomplete="new-password" required />
                 </FormField>
@@ -148,7 +147,7 @@ else
         @if (_fieldSet.Documents.Count > 0)
         {
             <section class="register__section">
-                <div class="register__legend"><span class="register__num">04</span><h4>Paperwork</h4></div>
+                <div class="register__legend"><span class="register__num">04</span><h4>@L["Paperwork"]</h4></div>
                 <div class="register__grid">
                     @foreach (var requirement in _fieldSet.Documents)
                     {
@@ -170,7 +169,7 @@ else
         <button type="submit" class="btn btn-primary blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            Submit application
+            @L["Submit application"]
         </button>
     </form>
 }
@@ -178,7 +177,7 @@ else
 @code {
     [CascadingParameter] public HttpContext? Http { get; set; }
 
-    private readonly NavItem[] _crumbs = [new("Home", "/"), new("Open an account", "/register")];
+    private NavItem[] _crumbs => [new(L["Home"], "/"), new(L["Open an account"], "/register")];
 
     private IRegistrationFieldSet _fieldSet = default!;
     private List<RegistrationError> _errors = [];
@@ -215,8 +214,7 @@ else
         _errors.FirstOrDefault(error => error.Field == field)?.Message;
 
     private string? PasswordError =>
-        _errors.FirstOrDefault(error => error.Field is null
-            && error.Message.Contains("password", StringComparison.OrdinalIgnoreCase))?.Message;
+        _errors.FirstOrDefault(error => error.AboutPassword)?.Message;
 
     /// <summary>One text input, or nothing at all when this store does not ask for it.</summary>
     private RenderFragment? Text(RegistrationField field, string? autocomplete, string type = "text")
@@ -275,7 +273,7 @@ else
 
         if (_posted is null)
         {
-            _errors = [new RegistrationError(null, "That form did not arrive intact. Please try again.")];
+            _errors = [new RegistrationError(null, L["That form did not arrive intact. Please try again."])];
             return;
         }
 

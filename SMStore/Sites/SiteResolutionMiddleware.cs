@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SMStore.Sites;
 
 /// <summary>
@@ -29,6 +31,18 @@ public sealed class SiteResolutionMiddleware
         }
 
         siteContext.Set(site);
+
+        // The store's language and formats, not the browser's or the server's (T10). The store
+        // decides its language as it decides its currency, and its content rows are written in
+        // it. SiteSettingsRules only saves a locale this platform knows; a row written by hand
+        // that names none keeps the server's culture rather than taking the store down.
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(site.Locale, predefinedOnly: true);
+        }
+        catch (ArgumentException)
+        {
+        }
 
         await _next(context);
     }

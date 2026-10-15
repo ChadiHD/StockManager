@@ -4,7 +4,7 @@
 @inject ICustomerContext Customer
 @inject NavigationManager Navigation
 
-<PageTitle>Sign in · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Sign in"] · @SiteContext.Site.Name</PageTitle>
 
 <div class="signin">
     <div class="signin__panel card blueprint">
@@ -13,17 +13,17 @@
 
         @if (Customer.IsSignedIn)
         {
-            <h1 class="signin__title">Already signed in</h1>
+            <h1 class="signin__title">@L["Already signed in"]</h1>
             <p class="text-muted signin__lede">
-                You are signed in as @Customer.Contact!.FullName.
+                @L["You are signed in as {0}.", Customer.Contact!.FullName]
             </p>
-            <a href="/catalog" class="btn btn-primary btn-block">Continue to the catalog</a>
+            <a href="/catalog" class="btn btn-primary btn-block">@L["Continue to the catalog"]</a>
         }
         else
         {
-            <h1 class="signin__title">Sign in</h1>
+            <h1 class="signin__title">@L["Sign in"]</h1>
             <p class="text-muted signin__lede">
-                Trade accounts only. Prices and stock shown after sign-in reflect your account's terms.
+                @L["Trade accounts only. Prices and stock shown after sign-in reflect your account's terms."]
             </p>
 
             @* Posts to the endpoint in CustomerAuthEndpoints rather than handling the submit
@@ -40,35 +40,34 @@
                        is a question worth answering only to the person who can already sign
                        in — see the endpoint for the full reasoning. *@
                     <div class="alert error" role="alert">
-                        <strong>We could not sign you in.</strong>
+                        <strong>@L["We could not sign you in."]</strong>
                         <span>
-                            Check your email address and password. If your application is still being
-                            reviewed, you will hear from us by email.
+                            @L["Check your email address and password. If your application is still being reviewed, you will hear from us by email."]
                         </span>
                     </div>
                 }
 
                 <div class="field">
-                    <label for="signin-email">Email address</label>
+                    <label for="signin-email">@L["Email address"]</label>
                     <input class="input" type="email" id="signin-email" name="email"
                            autocomplete="username" required />
                 </div>
 
                 <div class="field">
-                    <label for="signin-password">Password</label>
+                    <label for="signin-password">@L["Password"]</label>
                     <input class="input" type="password" id="signin-password" name="password"
                            autocomplete="current-password" required />
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+                <button type="submit" class="btn btn-primary btn-block">@L["Sign in"]</button>
             </form>
 
             <p class="signin__alt">
-                No account yet? <a href="/register">Apply for one</a>.
+                @L["No account yet?"] <a href="/register">@L["Apply for one"]</a>.
             </p>
 
             <p class="signin__alt">
-                <a href="@CustomerAuthentication.ForgotPasswordPath">Forgotten your password?</a>
+                <a href="@CustomerAuthentication.ForgotPasswordPath">@L["Forgotten your password?"]</a>
             </p>
 
             @* The way out of the one refusal the uniform message above cannot explain.
@@ -76,8 +75,8 @@
                otherwise have no route in and nothing to ask for. Offered to everyone, because
                showing it only to the people who need it would say which people those are. *@
             <p class="signin__alt">
-                Waiting on a confirmation email?
-                <a href="@CustomerAuthentication.ConfirmEmailPath">Get a new link</a>.
+                @L["Waiting on a confirmation email?"]
+                <a href="@CustomerAuthentication.ConfirmEmailPath">@L["Get a new link"]</a>.
             </p>
         }
     </div>

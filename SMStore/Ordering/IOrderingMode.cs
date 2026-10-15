@@ -26,6 +26,14 @@ public interface IOrderingMode
     /// </summary>
     string BasketLabel { get; }
 
+    /// <summary>
+    /// The same noun inside a sentence — "quote", "cart" — for "Your {0} is empty" and the like
+    /// (T10). A word of its own rather than <see cref="BasketLabel"/> lowercased, because a
+    /// language that capitalises its nouns, or whose label is not one word, cannot be lowercased
+    /// into a sentence.
+    /// </summary>
+    string BasketNoun { get; }
+
     /// <summary>Text on the control that submits the basket.</summary>
     string SubmitBasketLabel { get; }
 

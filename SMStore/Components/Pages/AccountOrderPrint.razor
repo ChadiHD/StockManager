@@ -13,23 +13,23 @@
 {
     <div class="page-header">
         <div>
-            <h1>Not found</h1>
-            <p class="page-lede">We have no order with that reference on your account.</p>
+            <h1>@L["Not found"]</h1>
+            <p class="page-lede">@L["We have no order with that reference on your account."]</p>
         </div>
     </div>
 
-    <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">Back to your orders</a>
+    <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">@L["Back to your orders"]</a>
 }
 else
 {
     <div class="sheet__actions">
         <a href="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}")" class="btn btn-secondary">
-            Back to the order
+            @L["Back to the order"]
         </a>
-        <button type="button" class="btn btn-primary" data-print>Print or save as PDF</button>
+        <button type="button" class="btn btn-primary" data-print>@L["Print or save as PDF"]</button>
     </div>
 
-    <DocumentSheet Kind="Order"
+    <DocumentSheet Kind="@(L["Order"])"
                    Reference="@_order.Reference"
                    Party="_party"
                    Meta="Meta"
@@ -50,20 +50,20 @@ else
         {
             var meta = new List<(string, string)>
             {
-                ("Status", _order!.Status),
-                ("Placed", _order.Placed.ToString("d MMM yyyy")),
+                (L["Status"], _order!.Status),
+                (L["Placed"], _order.Placed.ToString("d MMM yyyy")),
             };
 
             // Both are absent on a POS-shaped row and on an order raised without one, so
             // neither gets an empty line on a document somebody files.
             if (!string.IsNullOrWhiteSpace(_order.PoNumber))
             {
-                meta.Add(("Your PO number", _order.PoNumber));
+                meta.Add((L["Your PO number"], _order.PoNumber));
             }
 
             if (!string.IsNullOrWhiteSpace(_order.FromQuoteReference))
             {
-                meta.Add(("From quote", _order.FromQuoteReference));
+                meta.Add((L["From quote"], _order.FromQuoteReference));
             }
 
             return meta;
@@ -72,13 +72,13 @@ else
 
     private IReadOnlyList<(string, string)> Totals =>
     [
-        ("Lines", _order!.Lines.Count.ToString()),
-        ("Subtotal", _order.SubTotal),
+        (L["Lines"], _order!.Lines.Count.ToString()),
+        (L["Subtotal"], _order.SubTotal),
         // Named by treatment rather than "VAT", because a reverse-charged or exported order
         // carries nothing and saying "VAT 0.00" without saying why is what an accountant
         // sends back.
-        (string.IsNullOrWhiteSpace(_order.TaxTreatment) ? "Tax" : _order.TaxTreatment, _order.Tax),
-        ("Total", _order.Total),
+        (string.IsNullOrWhiteSpace(_order.TaxTreatment) ? L["Tax"] : _order.TaxTreatment, _order.Tax),
+        (L["Total"], _order.Total),
     ];
 
     /// <summary>
@@ -88,8 +88,8 @@ else
     /// thing instead.
     /// </summary>
     private string FooterNote => string.IsNullOrWhiteSpace(_order!.TaxLegend)
-        ? "Tax and freight are confirmed on the invoice."
-        : $"{_order.TaxLegend} Freight is confirmed on the invoice.";
+        ? L["Tax and freight are confirmed on the invoice."]
+        : $"{_order.TaxLegend} {L["Freight is confirmed on the invoice."]}";
 
     protected override void OnParametersSet()
     {

@@ -3,6 +3,7 @@ using SMDataManager.Library.Models;
 using SMDataManager.Library.Pricing;
 using SMStore.Accounts;
 using SMStore.Sites;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Catalog;
 
@@ -191,7 +192,7 @@ public sealed class CatalogPresenter
     /// here promises a date.
     /// </summary>
     private static string Availability(int quantityInStock) =>
-        quantityInStock > 0 ? "In stock" : "Lead time on request";
+        quantityInStock > 0 ? L["In stock"] : L["Lead time on request"];
 
     private CatalogQuery BuildQuery(
         string? categorySlug, string? brand, bool inStockOnly, string? search, string? sort, int page)

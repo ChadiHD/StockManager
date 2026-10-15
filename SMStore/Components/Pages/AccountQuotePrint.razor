@@ -16,23 +16,23 @@
        which ones exist. *@
     <div class="page-header">
         <div>
-            <h1>Not found</h1>
-            <p class="page-lede">We have no @Label with that reference on your account.</p>
+            <h1>@L["Not found"]</h1>
+            <p class="page-lede">@L["We have no quote with that reference on your account."]</p>
         </div>
     </div>
 
-    <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">Back to your @Label.ToLowerInvariant()s</a>
+    <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">@L["Back to your quotes"]</a>
 }
 else
 {
     <div class="sheet__actions">
         <a href="@($"{QuoteDecisionEndpoints.QuotesPath}/{Reference}")" class="btn btn-secondary">
-            Back to the @Label.ToLowerInvariant()
+            @L["Back to the quote"]
         </a>
         @* data-print, handled by wwwroot/print.js, and not an inline onclick: the storefront's
            Content-Security-Policy allows no inline script. It needs no circuit and no render
            round trip, and without JavaScript the browser's own print command does the same. *@
-        <button type="button" class="btn btn-primary" data-print>Print or save as PDF</button>
+        <button type="button" class="btn btn-primary" data-print>@L["Print or save as PDF"]</button>
     </div>
 
     <DocumentSheet Kind="@Label"
@@ -42,7 +42,7 @@ else
                    Lines="_quote.Lines"
                    Totals="Totals"
                    Note="@_quote.CustomerNote"
-                   NoteHeading="What you told us"
+                   NoteHeading="@(L["What you told us"])"
                    FooterNote="@FooterNote" />
 }
 
@@ -58,23 +58,23 @@ else
 
     private IReadOnlyList<(string, string)> Meta =>
     [
-        ("Status", _quote!.Status),
-        ("Raised", _quote.Raised.ToString("d MMM yyyy")),
-        ("Valid until", _quote.Expires?.ToString("d MMM yyyy") ?? "No expiry set"),
+        (L["Status"], _quote!.Status),
+        (L["Raised"], _quote.Raised.ToString("d MMM yyyy")),
+        (L["Valid until"], _quote.Expires?.ToString("d MMM yyyy") ?? L["No expiry set"]),
     ];
 
     private IReadOnlyList<(string, string)> Totals =>
     [
-        ("Lines", _quote!.Lines.Count.ToString()),
-        (Mode.ShowsPayableTotal ? "Total" : "Quoted value", _quote.Value),
+        (L["Lines"], _quote!.Lines.Count.ToString()),
+        (Mode.ShowsPayableTotal ? L["Total"] : L["Quoted value"], _quote.Value),
     ];
 
     private string FooterNote => (Mode.ShowsPayableTotal, SiteContext.Site.PricesIncludeTax) switch
     {
-        (true, true) => "Including tax. Freight is calculated at checkout.",
-        (true, false) => "Excluding tax and freight, which are calculated at checkout.",
-        (false, true) => "Including tax. Freight is calculated on the order.",
-        (false, false) => "Excluding tax and freight, which are calculated on the order."
+        (true, true) => L["Including tax. Freight is calculated at checkout."],
+        (true, false) => L["Excluding tax and freight, which are calculated at checkout."],
+        (false, true) => L["Including tax. Freight is calculated on the order."],
+        (false, false) => L["Excluding tax and freight, which are calculated on the order."]
     };
 
     protected override void OnParametersSet()

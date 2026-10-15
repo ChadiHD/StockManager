@@ -2,23 +2,22 @@
 @layout MainLayout
 @inject ISiteContext SiteContext
 
-<PageTitle>Page not found · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Page not found"] · @SiteContext.Site.Name</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1>Page not found</h1>
+        <h1>@L["Page not found"]</h1>
         <p class="page-lede">
-            That address does not exist on this store. It may have moved, or the link that
-            brought you here may be out of date.
+            @L["That address does not exist on this store. It may have moved, or the link that brought you here may be out of date."]
         </p>
     </div>
 </div>
 
 <div class="notfound__actions">
-    <a href="/" class="btn btn-secondary">Back to home</a>
+    <a href="/" class="btn btn-secondary">@L["Back to home"]</a>
     <a href="/catalog" class="btn btn-primary blueprint">
         <i class="corner tl"></i><i class="corner tr"></i>
         <i class="corner bl"></i><i class="corner br"></i>
-        Browse the catalog
+        @L["Browse the catalog"]
     </a>
 </div>

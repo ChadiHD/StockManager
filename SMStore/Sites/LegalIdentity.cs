@@ -1,4 +1,5 @@
 using SMDataManager.Library.Models;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Sites;
 
@@ -13,9 +14,9 @@ public static class LegalIdentity
         var lines = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(site.LegalName)) lines.Add(site.LegalName);
-        if (!string.IsNullOrWhiteSpace(site.CompanyRegistrationNumber)) lines.Add($"Company no. {site.CompanyRegistrationNumber}");
-        if (!string.IsNullOrWhiteSpace(site.TaxRegistrationNumber)) lines.Add($"VAT no. {site.TaxRegistrationNumber}");
-        if (!string.IsNullOrWhiteSpace(site.RegisteredAddress)) lines.Add($"Registered office: {site.RegisteredAddress}");
+        if (!string.IsNullOrWhiteSpace(site.CompanyRegistrationNumber)) lines.Add(L["Company no. {0}", site.CompanyRegistrationNumber]);
+        if (!string.IsNullOrWhiteSpace(site.TaxRegistrationNumber)) lines.Add(L["VAT no. {0}", site.TaxRegistrationNumber]);
+        if (!string.IsNullOrWhiteSpace(site.RegisteredAddress)) lines.Add(L["Registered office: {0}", site.RegisteredAddress]);
 
         return lines;
     }

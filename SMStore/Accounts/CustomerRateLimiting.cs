@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using SMStore.Ordering;
 using SMStore.Registration;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Accounts;
 
@@ -179,7 +180,7 @@ public static class CustomerRateLimiting
                 Writing anything at all suppresses that.
                 */
                 await context.HttpContext.Response.WriteAsync(
-                    "Too many attempts from this connection. Please wait a few minutes and try again.",
+                    L["Too many attempts from this connection. Please wait a few minutes and try again."],
                     cancellationToken);
             };
         });

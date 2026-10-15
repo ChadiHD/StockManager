@@ -36,6 +36,7 @@ public class TenantVariationTests
         public string AddToBasketLabel => "Add to cart";
         public string BasketRoute => "/cart";
         public string BasketLabel => "Cart";
+        public string BasketNoun => "cart";
         public string SubmitBasketLabel => "Checkout";
         public bool RequiresApprovedAccount => true;
         public bool ShowsPayableTotal => true;

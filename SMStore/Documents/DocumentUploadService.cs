@@ -4,6 +4,7 @@ using SMDataManager.Library.Models;
 using SMStore.Registration;
 using SMStore.Sites;
 using StockManager.Documents;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Documents;
 
@@ -87,7 +88,7 @@ public sealed class DocumentUploadService
             {
                 if (requirement.IsRequired)
                 {
-                    errors.Add(new RegistrationError(null, $"{requirement.Label} is required."));
+                    errors.Add(new RegistrationError(null, L["{0} is required.", requirement.Label]));
                 }
 
                 continue;
@@ -96,8 +97,8 @@ public sealed class DocumentUploadService
             if (file.Length > _options.MaxBytes)
             {
                 errors.Add(new RegistrationError(null,
-                    $"{requirement.Label} is {file.Length / (1024 * 1024)} MB. " +
-                    $"The limit is {_options.MaxBytes / (1024 * 1024)} MB."));
+                    L["{0} is {1} MB. The limit is {2} MB.",
+                        requirement.Label, file.Length / (1024 * 1024), _options.MaxBytes / (1024 * 1024)]));
 
                 continue;
             }
@@ -115,8 +116,8 @@ public sealed class DocumentUploadService
                 // would turn this into a tool for probing what the sniffer recognises, and
                 // the applicant only needs to know what to send instead.
                 errors.Add(new RegistrationError(null,
-                    $"{requirement.Label} must be a PDF, a JPEG or a PNG. That file is none of them, " +
-                    "whatever it is named."));
+                    L["{0} must be a PDF, a JPEG or a PNG. That file is none of them, whatever it is named.",
+                        requirement.Label]));
 
                 continue;
             }

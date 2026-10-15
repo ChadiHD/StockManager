@@ -19,11 +19,11 @@ else
     <table class="table document-list">
         <thead>
             <tr>
-                <th scope="col">Reference</th>
-                <th scope="col">Raised</th>
-                <th scope="col">Status</th>
-                <th scope="col" class="document-list__num">Lines</th>
-                <th scope="col" class="document-list__num">Value</th>
+                <th scope="col">@L["Reference"]</th>
+                <th scope="col">@L["Raised"]</th>
+                <th scope="col">@L["Status"]</th>
+                <th scope="col" class="document-list__num">@L["Lines"]</th>
+                <th scope="col" class="document-list__num">@L["Value"]</th>
             </tr>
         </thead>
         <tbody>
@@ -53,7 +53,7 @@ else
     /// <summary>Builds the link for a row, so this component knows nothing about routes.</summary>
     [Parameter, EditorRequired] public Func<string, string> Href { get; set; } = default!;
 
-    [Parameter] public string EmptyMessage { get; set; } = "Nothing here yet.";
+    [Parameter] public string EmptyMessage { get; set; } = L["Nothing here yet."];
 
     [Parameter] public string? EmptyActionHref { get; set; }
 

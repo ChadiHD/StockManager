@@ -25,7 +25,7 @@
         {
             @* Distributor feeds carry no image for a long tail of SKUs, and Icecat enrichment
                will not close that gap entirely, so the empty state is a permanent case. *@
-            <div class="product-card__noimage" aria-hidden="true">No image</div>
+            <div class="product-card__noimage" aria-hidden="true">@L["No image"]</div>
         }
     </div>
 
@@ -34,7 +34,7 @@
 
         <a href="@Product.Href" class="product-card__title">@Product.Title</a>
 
-        <div class="text-muted product-card__sku">SKU @Product.Sku</div>
+        <div class="text-muted product-card__sku">@L["SKU {0}", Product.Sku]</div>
 
         <div class="product-card__foot">
             <div class="product-card__price">
@@ -45,7 +45,7 @@
                 }
                 else
                 {
-                    <span class="text-muted product-card__note">Sign in to see pricing</span>
+                    <span class="text-muted product-card__note">@L["Sign in to see pricing"]</span>
                 }
             </div>
 
@@ -71,7 +71,7 @@
                 </form>
 
                 <a href="@Product.Href" class="btn btn-secondary product-card__view">
-                    <span class="visually-hidden">View @Product.Title</span>
+                    <span class="visually-hidden">@L["View {0}", Product.Title]</span>
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
@@ -97,6 +97,6 @@
     [Parameter] public string? ReturnTo { get; set; }
 
     private string PriceNote => !Ordering.Current.ShowsPayableTotal
-        ? "Volume pricing on quote"
-        : SiteContext.Site.PricesIncludeTax ? "incl. tax" : "excl. tax";
+        ? L["Volume pricing on quote"]
+        : SiteContext.Site.PricesIncludeTax ? L["incl. tax"] : L["excl. tax"];
 }

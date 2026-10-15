@@ -6,7 +6,7 @@
 @inject UserManager<IdentityUser> Users
 @inject ILogger<ConfirmEmail> Logger
 
-<PageTitle>Confirm your email · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Confirm your email"] · @SiteContext.Site.Name</PageTitle>
 
 <div class="signin">
     <div class="signin__panel card blueprint">
@@ -15,12 +15,11 @@
 
         @if (_confirmed)
         {
-            <h1 class="signin__title">Address confirmed</h1>
+            <h1 class="signin__title">@L["Address confirmed"]</h1>
             <p class="text-muted signin__lede">
-                Thank you. We will email you again once your application has been reviewed, and
-                you will be able to sign in then.
+                @L["Thank you. We will email you again once your application has been reviewed, and you will be able to sign in then."]
             </p>
-            <a href="@CustomerAuthentication.LoginPath" class="btn btn-primary btn-block">Go to sign in</a>
+            <a href="@CustomerAuthentication.LoginPath" class="btn btn-primary btn-block">@L["Go to sign in"]</a>
         }
         else
         {
@@ -34,18 +33,16 @@
                their link did not work would be nonsense. *@
             @if (_attempted)
             {
-                <h1 class="signin__title">That link did not work</h1>
+                <h1 class="signin__title">@L["That link did not work"]</h1>
                 <p class="text-muted signin__lede">
-                    It may have expired, or already been used. Ask for a fresh one and we will
-                    send it to the address on the application.
+                    @L["It may have expired, or already been used. Ask for a fresh one and we will send it to the address on the application."]
                 </p>
             }
             else
             {
-                <h1 class="signin__title">Confirm your email address</h1>
+                <h1 class="signin__title">@L["Confirm your email address"]</h1>
                 <p class="text-muted signin__lede">
-                    Tell us the address you applied with and we will send you a fresh
-                    confirmation link.
+                    @L["Tell us the address you applied with and we will send you a fresh confirmation link."]
                 </p>
             }
 
@@ -54,12 +51,12 @@
                 <AntiforgeryToken />
 
                 <div class="field">
-                    <label for="confirm-email-address">Email address</label>
+                    <label for="confirm-email-address">@L["Email address"]</label>
                     <input class="input" type="email" id="confirm-email-address" name="email"
                            autocomplete="username" required />
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block">Send a new link</button>
+                <button type="submit" class="btn btn-primary btn-block">@L["Send a new link"]</button>
             </form>
         }
     </div>

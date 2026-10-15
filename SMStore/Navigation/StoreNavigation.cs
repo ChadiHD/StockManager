@@ -1,5 +1,6 @@
 using SMStore.Ordering;
 using SMStore.Sites;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Navigation;
 
@@ -27,16 +28,18 @@ public sealed class StoreNavigation
         _ordering = ordering;
     }
 
-    public IReadOnlyList<NavItem> Primary { get; } =
+    // Every label here is read per call rather than held in an initialiser, so it is looked up
+    // in the culture of the request rendering it.
+    public IReadOnlyList<NavItem> Primary =>
     [
-        new("Home", "/"),
-        new("Catalog", "/catalog"),
-        new("Solutions", "/solutions"),
+        new(L["Home"], "/"),
+        new(L["Catalog"], "/catalog"),
+        new(L["Solutions"], "/solutions"),
     ];
 
-    public NavItem SignIn { get; } = new("Sign in", "/login");
+    public NavItem SignIn => new(L["Sign in"], "/login");
 
-    public NavItem Register { get; } = new("Open an account", "/register");
+    public NavItem Register => new(L["Open an account"], "/register");
 
     /// <summary>
     /// The basket. Label and route come from the ordering mode — "Add to quote" stores send
@@ -45,31 +48,31 @@ public sealed class StoreNavigation
     /// </summary>
     public NavItem Basket => new(_ordering.Current.BasketLabel, _ordering.Current.BasketRoute);
 
-    public IReadOnlyList<NavGroup> FooterGroups { get; } =
+    public IReadOnlyList<NavGroup> FooterGroups =>
     [
-        new("Catalog",
+        new(L["Catalog"],
         [
-            new NavItem("All products", "/catalog"),
-            new NavItem("Solutions", "/solutions"),
+            new NavItem(L["All products"], "/catalog"),
+            new NavItem(L["Solutions"], "/solutions"),
         ]),
-        new("Company",
+        new(L["Company"],
         [
-            new NavItem("About", "/about"),
-            new NavItem("Contact", "/contact"),
+            new NavItem(L["About"], "/about"),
+            new NavItem(L["Contact"], "/contact"),
         ]),
-        new("Account",
+        new(L["Account"],
         [
-            new NavItem("Sign in", "/login"),
-            new NavItem("Open an account", "/register"),
+            new NavItem(L["Sign in"], "/login"),
+            new NavItem(L["Open an account"], "/register"),
         ]),
     ];
 
     /// <summary>Shown in the footer's legal strip alongside the copyright.</summary>
-    public IReadOnlyList<NavItem> Legal { get; } =
+    public IReadOnlyList<NavItem> Legal =>
     [
-        new("Terms", "/terms"),
-        new("Privacy", "/privacy"),
-        new("Cookies", "/cookies"),
+        new(L["Terms"], "/terms"),
+        new(L["Privacy"], "/privacy"),
+        new(L["Cookies"], "/cookies"),
     ];
 
     public string StoreName => _siteContext.Site.Name;

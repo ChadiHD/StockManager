@@ -1,4 +1,5 @@
 using SMDataManager.Library.Models;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Registration;
 
@@ -18,8 +19,7 @@ public sealed class EuB2bRegistrationFieldSet : RegistrationFieldSet
     public override string Key => "eu-b2b";
 
     public override string Summary =>
-        "Trade accounts are for registered businesses. You will need your VAT number and a "
-        + "recent company registration document.";
+        L["Trade accounts are for registered businesses. You will need your VAT number and a recent company registration document."];
 
     private static readonly Dictionary<RegistrationField, RegistrationRequirement> Rules = new()
     {
@@ -48,12 +48,14 @@ public sealed class EuB2bRegistrationFieldSet : RegistrationFieldSet
 
     protected override IReadOnlyDictionary<RegistrationField, RegistrationRequirement> Requirements => Rules;
 
-    public override IReadOnlyList<RegistrationDocumentRequirement> Documents { get; } =
+    // Built per read rather than once, because the words are in the culture of the request
+    // reading them and this field set is a singleton.
+    public override IReadOnlyList<RegistrationDocumentRequirement> Documents =>
     [
-        new("ChamberOfCommerce", "Company registration document", true,
-            "A certificate of incorporation, a Chamber of Commerce extract, or your CRO printout. PDF or an image, up to 10 MB."),
-        new("VatCertificate", "VAT registration certificate", false,
-            "Speeds up approval if your VAT number is recent and not yet showing on VIES.")
+        new("ChamberOfCommerce", L["Company registration document"], true,
+            L["A certificate of incorporation, a Chamber of Commerce extract, or your CRO printout. PDF or an image, up to 10 MB."]),
+        new("VatCertificate", L["VAT registration certificate"], false,
+            L["Speeds up approval if your VAT number is recent and not yet showing on VIES."])
     ];
 
     /// <summary>
@@ -72,9 +74,9 @@ public sealed class EuB2bRegistrationFieldSet : RegistrationFieldSet
     {
         // What an Irish applicant will be looking for. The generic name sends people hunting
         // for a document that is filed under another title in their own paperwork.
-        RegistrationField.RegistrationNumber => "Company registration number (CRO)",
-        RegistrationField.Region => "County",
-        RegistrationField.PostCode => "Eircode or postcode",
+        RegistrationField.RegistrationNumber => L["Company registration number (CRO)"],
+        RegistrationField.Region => L["County"],
+        RegistrationField.PostCode => L["Eircode or postcode"],
         _ => base.Label(field)
     };
 
@@ -114,7 +116,7 @@ public sealed class EuB2bRegistrationFieldSet : RegistrationFieldSet
         if (vat.Length < 4 || !char.IsAsciiLetter(vat[0]) || !char.IsAsciiLetter(vat[1]))
         {
             yield return new RegistrationError(RegistrationField.VatNumber,
-                "A VAT number starts with a two-letter country code, for example IE1234567X.");
+                L["A VAT number starts with a two-letter country code, for example IE1234567X."]);
             yield break;
         }
 
@@ -123,14 +125,14 @@ public sealed class EuB2bRegistrationFieldSet : RegistrationFieldSet
         if (!VatPrefixes.Contains(prefix))
         {
             yield return new RegistrationError(RegistrationField.VatNumber,
-                $"'{prefix}' is not an EU VAT country code. Trade accounts here are for EU-registered businesses.");
+                L["'{0}' is not an EU VAT country code. Trade accounts here are for EU-registered businesses.", prefix]);
             yield break;
         }
 
         if (vat.Length > 14 || !vat[2..].All(char.IsAsciiLetterOrDigit))
         {
             yield return new RegistrationError(RegistrationField.VatNumber,
-                "That VAT number has characters or a length we do not recognise. Check it and try again.");
+                L["That VAT number has characters or a length we do not recognise. Check it and try again."]);
             yield break;
         }
 
@@ -145,8 +147,8 @@ public sealed class EuB2bRegistrationFieldSet : RegistrationFieldSet
                  && string.Equals(country.Trim(), "GR", StringComparison.OrdinalIgnoreCase)))
         {
             yield return RegistrationError.Advisory(RegistrationField.VatNumber,
-                $"This VAT number is registered in {prefix.ToUpperInvariant()} but the address is in "
-                + $"{country.Trim().ToUpperInvariant()}. Check both are right — we can still accept it if they are.");
+                L["This VAT number is registered in {0} but the address is in {1}. Check both are right — we can still accept it if they are.",
+                    prefix.ToUpperInvariant(), country.Trim().ToUpperInvariant()]);
         }
     }
 }

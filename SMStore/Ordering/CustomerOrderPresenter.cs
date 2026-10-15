@@ -3,6 +3,7 @@ using SMDataManager.Library.Models;
 using SMStore.Accounts;
 using SMStore.Catalog;
 using SMStore.Sites;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Ordering;
 
@@ -114,7 +115,7 @@ public sealed class CustomerOrderPresenter
                 order.PurchaseDate,
                 order.Items,
                 Money(order.FinalPrice),
-                order.PoNumber is null ? null : $"Your reference {order.PoNumber}"))
+                order.PoNumber is null ? null : L["Your reference {0}", order.PoNumber].Value))
             .ToList();
     }
 
@@ -214,15 +215,15 @@ public sealed class CustomerOrderPresenter
 
         if (IsExpired(quote))
         {
-            return "This quote has expired. Ask us to re-quote it and we will price it again.";
+            return L["This quote has expired. Ask us to re-quote it and we will price it again."];
         }
 
         return quote.Status switch
         {
-            QuoteStatus.Requested => "We are pricing this now. You will hear from us shortly.",
-            QuoteStatus.Accepted => "You accepted this quote, and it is now an order.",
-            QuoteStatus.Rejected => "This quote was turned down.",
-            _ => "This quote is not awaiting a decision."
+            QuoteStatus.Requested => L["We are pricing this now. You will hear from us shortly."],
+            QuoteStatus.Accepted => L["You accepted this quote, and it is now an order."],
+            QuoteStatus.Rejected => L["This quote was turned down."],
+            _ => L["This quote is not awaiting a decision."]
         };
     }
 
@@ -230,7 +231,7 @@ public sealed class CustomerOrderPresenter
         quote.ExpiresDate is { } expires && expires < DateTime.UtcNow;
 
     private string? Expiry(QuoteModel quote) => quote.ExpiresDate is { } expires
-        ? (expires < DateTime.UtcNow ? "Expired" : $"Valid until {expires:d MMM yyyy}")
+        ? (expires < DateTime.UtcNow ? L["Expired"].Value : L["Valid until {0}", expires.ToString("d MMM yyyy")].Value)
         : null;
 
     /// <summary>

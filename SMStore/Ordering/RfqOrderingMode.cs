@@ -1,3 +1,5 @@
+using static SMStore.Localization.StoreText;
+
 namespace SMStore.Ordering;
 
 /// <summary>
@@ -10,10 +12,11 @@ public sealed class RfqOrderingMode : IOrderingMode
     public const string ModeKey = "Rfq";
 
     public string Key => ModeKey;
-    public string AddToBasketLabel => "Add to quote";
+    public string AddToBasketLabel => L["Add to quote"];
     public string BasketRoute => "/quote";
-    public string BasketLabel => "Quote";
-    public string SubmitBasketLabel => "Submit quote request";
+    public string BasketLabel => L["Quote"];
+    public string BasketNoun => L["quote"];
+    public string SubmitBasketLabel => L["Submit quote request"];
 
     // An RFQ is a conversation opener, so anyone may send one; qualification happens when the
     // account application is reviewed.

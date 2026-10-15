@@ -106,6 +106,16 @@ public sealed record RegistrationDocumentRequirement(
 /// </remarks>
 public sealed record RegistrationError(RegistrationField? Field, string Message, bool Blocks = true)
 {
+    /// <summary>
+    /// Whether this is about the password, so the form also shows it under the password box.
+    /// </summary>
+    /// <remarks>
+    /// A flag because the password has no <see cref="RegistrationField"/> — it is never stored
+    /// or echoed — and the form used to find these by searching the message for "password",
+    /// which stops working the moment the message is in another language (T10).
+    /// </remarks>
+    public bool AboutPassword { get; init; }
+
     /// <summary>A notice worth showing that does not stop submission.</summary>
     public static RegistrationError Advisory(RegistrationField? field, string message) =>
         new(field, message, Blocks: false);

@@ -38,7 +38,7 @@
 else
 {
     <div class="stub">
-        No content is published for "@Key" on this store yet.
+        @L["No content is published for \"{0}\" on this store yet.", Key]
     </div>
 }
 
@@ -52,9 +52,9 @@ else
     /// exists as a route but has no content still reads as itself rather than as blank.
     /// </summary>
     private string Title => _page?.Title
-        ?? (Key.Length == 0 ? "Page" : char.ToUpperInvariant(Key[0]) + Key[1..]);
+        ?? (Key.Length == 0 ? L["Page"] : char.ToUpperInvariant(Key[0]) + Key[1..]);
 
-    private NavItem[] Crumbs => [new("Home", "/"), new(Title, "/" + Key)];
+    private NavItem[] Crumbs => [new(L["Home"], "/"), new(Title, "/" + Key)];
 
     protected override async Task OnParametersSetAsync()
         => _page = await Content.GetAsync(SiteContext.Site.Id, Key);

@@ -4,6 +4,7 @@ using SMDataManager.Library.Models;
 using SMStore.Accounts;
 using SMStore.Sites;
 using StockManager.Identity;
+using static SMStore.Localization.StoreText;
 
 namespace SMStore.Registration;
 
@@ -140,7 +141,11 @@ public sealed class RegistrationService : IRegistrationService
             errors.AddRange(created.Errors
                 .Where(error => !error.Code.Contains("UserName", StringComparison.OrdinalIgnoreCase)
                              && !error.Code.Contains("Email", StringComparison.OrdinalIgnoreCase))
-                .Select(error => new RegistrationError(null, error.Description)));
+                .Select(error => new RegistrationError(null, error.Description)
+                {
+                    // Identity's codes, not its descriptions: the codes are not translated.
+                    AboutPassword = error.Code.Contains("Password", StringComparison.OrdinalIgnoreCase)
+                }));
 
             if (errors.All(error => !error.Blocks))
             {
@@ -210,7 +215,7 @@ public sealed class RegistrationService : IRegistrationService
             await CompensateAsync(user);
 
             return new RegistrationOutcome(false, [new RegistrationError(null,
-                "Something went wrong setting up your account. Nothing has been saved — please try again.")]);
+                L["Something went wrong setting up your account. Nothing has been saved — please try again."])]);
         }
     }
 

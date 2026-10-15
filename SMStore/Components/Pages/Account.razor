@@ -13,7 +13,7 @@
 @inject IAccountDocumentData Documents
 @inject NavigationManager Navigation
 
-<PageTitle>Your account · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Your account"] · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="_crumbs" />
 
@@ -24,8 +24,8 @@
        mid-request — say so rather than rendering empty panels. *@
     <div class="page-header">
         <div>
-            <h1>Your account</h1>
-            <p class="page-lede">We could not load your account. Please sign in again.</p>
+            <h1>@L["Your account"]</h1>
+            <p class="page-lede">@L["We could not load your account. Please sign in again."]</p>
         </div>
     </div>
 }
@@ -38,7 +38,7 @@ else
                 @_account.Reference · @_account.Status
                 @if (_contact!.CustomerGroupDiscount > 0)
                 {
-                    <text> · your prices are @_contact.CustomerGroupDiscount.ToString("0.##")% off list</text>
+                    <text> · @L["your prices are {0}% off list", _contact.CustomerGroupDiscount.ToString("0.##")]</text>
                 }
             </p>
         </div>
@@ -48,33 +48,33 @@ else
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Profile</h5>
+            <h5>@L["Profile"]</h5>
             <dl class="account__facts">
-                <dt>Company</dt><dd>@_account.Company</dd>
-                <dt>Account reference</dt><dd>@_account.Reference</dd>
+                <dt>@L["Company"]</dt><dd>@_account.Company</dd>
+                <dt>@L["Account reference"]</dt><dd>@_account.Reference</dd>
                 @if (!string.IsNullOrWhiteSpace(_account.VatNumber))
                 {
-                    <dt>VAT number</dt><dd>@_account.VatNumber</dd>
+                    <dt>@L["VAT number"]</dt><dd>@_account.VatNumber</dd>
                 }
                 @if (!string.IsNullOrWhiteSpace(_account.RegistrationNumber))
                 {
-                    <dt>Registration number</dt><dd>@_account.RegistrationNumber</dd>
+                    <dt>@L["Registration number"]</dt><dd>@_account.RegistrationNumber</dd>
                 }
-                <dt>Payment</dt><dd>@_account.PaymentMethod · @_account.PaymentTerms</dd>
+                <dt>@L["Payment"]</dt><dd>@_account.PaymentMethod · @_account.PaymentTerms</dd>
             </dl>
             @* Editing lands with the contact-management work. A panel that shows what we
                hold is worth having before the panel that changes it. *@
-            <p class="text-muted account__when">To change any of this, talk to your account manager.</p>
+            <p class="text-muted account__when">@L["To change any of this, talk to your account manager."]</p>
         </section>
 
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Contacts</h5>
+            <h5>@L["Contacts"]</h5>
             @foreach (var contact in _contacts)
             {
                 <div class="account__row">
-                    <strong>@contact.FullName@(contact.IsPrimary ? " · primary" : "")</strong>
+                    <strong>@contact.FullName@(contact.IsPrimary ? " · " + L["primary"] : "")</strong>
                     <span class="text-muted">@contact.RoleInAccount · @contact.Email</span>
                     @if (!string.IsNullOrWhiteSpace(contact.Phone))
                     {
@@ -87,15 +87,15 @@ else
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Addresses</h5>
+            <h5>@L["Addresses"]</h5>
             @if (_addresses.Count == 0)
             {
-                <p class="text-muted">No addresses on file.</p>
+                <p class="text-muted">@L["No addresses on file."]</p>
             }
             @foreach (var address in _addresses)
             {
                 <div class="account__row">
-                    <strong>@address.Kind@(address.IsDefault ? " · default" : "")</strong>
+                    <strong>@address.Kind@(address.IsDefault ? " · " + L["default"] : "")</strong>
                     <span class="text-muted">@OneLine(address)</span>
                 </div>
             }
@@ -104,10 +104,10 @@ else
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Documents</h5>
+            <h5>@L["Documents"]</h5>
             @if (_documents.Count == 0)
             {
-                <p class="text-muted">Nothing on file.</p>
+                <p class="text-muted">@L["Nothing on file."]</p>
             }
             @foreach (var document in _documents)
             {
@@ -123,27 +123,27 @@ else
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>@Ordering.Current.BasketLabel history</h5>
-            <p class="card-body">Everything you have submitted, and what we sent back.</p>
+            <h5>@L["Quote history"]</h5>
+            <p class="card-body">@L["Everything you have submitted, and what we sent back."]</p>
             <a href="@QuoteDecisionEndpoints.QuotesPath" class="btn btn-secondary">
-                See your @Ordering.Current.BasketLabel.ToLowerInvariant()s
+                @L["See your quotes"]
             </a>
         </section>
 
         <section class="card blueprint account__panel">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            <h5>Orders</h5>
-            <p class="card-body">Confirmed orders, their status and their paperwork.</p>
+            <h5>@L["Orders"]</h5>
+            <p class="card-body">@L["Confirmed orders, their status and their paperwork."]</p>
             <a href="@QuoteDecisionEndpoints.OrdersPath" class="btn btn-secondary">
-                See your orders
+                @L["See your orders"]
             </a>
         </section>
     </div>
 }
 
 @code {
-    private readonly NavItem[] _crumbs = [new("Home", "/"), new("Your account", "/account")];
+    private readonly NavItem[] _crumbs = [new(L["Home"], "/"), new(L["Your account"], "/account")];
 
     private AccountModel? _account;
     private ContactModel? _contact;
@@ -195,9 +195,9 @@ else
 
     private static string Kind(string kind) => kind switch
     {
-        "ChamberOfCommerce" => "Company registration",
-        "VatCertificate" => "VAT certificate",
-        _ => "Other"
+        "ChamberOfCommerce" => L["Company registration"],
+        "VatCertificate" => L["VAT certificate"],
+        _ => L["Other"]
     };
 
 }

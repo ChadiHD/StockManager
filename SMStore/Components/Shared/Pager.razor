@@ -6,12 +6,12 @@
 
 @if (TotalPages > 1)
 {
-    <nav class="pager" aria-label="Pagination">
+    <nav class="pager" aria-label="@L["Pagination"]">
         <a href="@PageHref(CurrentPage - 1)"
            class="btn btn-secondary pager__step"
            aria-disabled="@(CurrentPage <= 1)"
            tabindex="@(CurrentPage <= 1 ? "-1" : null)">
-            <span aria-hidden="true">←</span> Previous
+            <span aria-hidden="true">←</span> @L["Previous"]
         </a>
 
         <ol class="pager__pages">
@@ -38,7 +38,7 @@
            class="btn btn-secondary pager__step"
            aria-disabled="@(CurrentPage >= TotalPages)"
            tabindex="@(CurrentPage >= TotalPages ? "-1" : null)">
-            Next <span aria-hidden="true">→</span>
+            @L["Next"] <span aria-hidden="true">→</span>
         </a>
     </nav>
 }

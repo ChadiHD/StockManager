@@ -7,36 +7,33 @@
 @inject CustomerOrderPresenter Documents
 @inject NavigationManager Navigation
 
-<PageTitle>Your @Label · @SiteContext.Site.Name</PageTitle>
+<PageTitle>@L["Your quotes"] · @SiteContext.Site.Name</PageTitle>
 
 <Breadcrumb Items="_crumbs" />
 
 <div class="page-header">
     <div>
-        <h1>Your @Label</h1>
-        <p class="page-lede">Everything you have asked us to price, and what we sent back.</p>
+        <h1>@L["Your quotes"]</h1>
+        <p class="page-lede">@L["Everything you have asked us to price, and what we sent back."]</p>
     </div>
 </div>
 
 <DocumentList Items="_quotes" Href="@(reference => $"/account/quotes/{reference}")"
-              EmptyMessage="@($"You have not submitted a {Mode.BasketLabel.ToLowerInvariant()} yet.")"
+              EmptyMessage="@(L["You have not submitted a {0} yet.", Mode.BasketNoun])"
               EmptyActionHref="@Mode.BasketRoute"
-              EmptyActionLabel="@($"Go to your {Mode.BasketLabel.ToLowerInvariant()}")" />
+              EmptyActionLabel="@(L["Go to your {0}", Mode.BasketNoun])" />
 
 @code {
     private readonly NavItem[] _crumbs =
     [
-        new("Home", "/"),
-        new("Your account", "/account"),
-        new("Quotes", "/account/quotes"),
+        new(L["Home"], "/"),
+        new(L["Your account"], "/account"),
+        new(L["Quotes"], "/account/quotes"),
     ];
 
     private IReadOnlyList<DocumentSummary> _quotes = [];
 
     private IOrderingMode Mode => Documents.Mode;
-
-    /// <summary>Plural of the store's word for a basket, so a checkout store reads "carts".</summary>
-    private string Label => Mode.BasketLabel.ToLowerInvariant() + "s";
 
     protected override void OnInitialized()
     {

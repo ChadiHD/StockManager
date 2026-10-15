@@ -25,25 +25,25 @@
            the browser assembles the query string. *@
         <form method="get" action="/catalog">
             <div class="catalog__filters-head">
-                <h6>Filters</h6>
+                <h6>@L["Filters"]</h6>
                 @if (HasFilters)
                 {
-                    <a href="/catalog" class="btn btn-ghost">Clear</a>
+                    <a href="/catalog" class="btn btn-ghost">@L["Clear"]</a>
                 }
             </div>
 
             <div class="field catalog__filter-block">
-                <label for="cat-q">Search</label>
+                <label for="cat-q">@L["Search"]</label>
                 <input class="input" type="search" id="cat-q" name="q" value="@Q"
-                       placeholder="SKU, part number or name" />
+                       placeholder="@L["SKU, part number or name"]" />
             </div>
 
             <div class="catalog__filter-block">
-                <h6>Category</h6>
+                <h6>@L["Category"]</h6>
                 <ul class="catalog__facets">
                     <li>
                         <a href="@FacetHref("cat", null)" class="@(Cat is null ? "is-current" : null)">
-                            <span>All categories</span>
+                            <span>@L["All categories"]</span>
                         </a>
                     </li>
                     @foreach (var facet in _result.Categories)
@@ -62,7 +62,7 @@
             @if (_result.Brands.Count > 0)
             {
                 <div class="catalog__filter-block">
-                    <h6>Brand</h6>
+                    <h6>@L["Brand"]</h6>
                     <ul class="catalog__facets">
                         @foreach (var facet in _result.Brands.Take(12))
                         {
@@ -79,11 +79,11 @@
             }
 
             <div class="catalog__filter-block">
-                <h6>Availability</h6>
+                <h6>@L["Availability"]</h6>
                 <label class="radio">
                     <input type="checkbox" name="stock" value="1" checked="@InStock" />
                     <span class="dot"></span>
-                    <span>In stock only</span>
+                    <span>@L["In stock only"]</span>
                 </label>
             </div>
 
@@ -97,7 +97,7 @@
                 <input type="hidden" name="brand" value="@Brand" />
             }
 
-            <button type="submit" class="btn btn-secondary btn-block">Apply</button>
+            <button type="submit" class="btn btn-secondary btn-block">@L["Apply"]</button>
         </form>
     </aside>
 
@@ -105,15 +105,15 @@
         <div class="catalog__toolbar">
             <div class="catalog__count-line">
                 <strong>@_result.TotalCount.ToString("N0")</strong>
-                @(_result.TotalCount == 1 ? "product" : "products")
+                @(_result.TotalCount == 1 ? L["product"] : L["products"])
                 @if (!string.IsNullOrWhiteSpace(Q))
                 {
-                    <span class="tag tag-neutral catalog__term">“@Q”</span>
+                    <span class="tag tag-neutral catalog__term">@L["“{0}”", Q]</span>
                 }
             </div>
 
             <div class="catalog__sort">
-                <span class="text-muted">Sort</span>
+                <span class="text-muted">@L["Sort"]</span>
                 @foreach (var option in SortOptions.Where(option => Presenter.SortFor(option.Key) is not null))
                 {
                     <a href="@FacetHref("sort", option.Key)"
@@ -125,9 +125,9 @@
         @if (_result.Items.Count == 0)
         {
             <div class="stub">
-                <p><strong>No products match</strong></p>
-                <p>Try widening your filters, or ask us to source it.</p>
-                <a href="/contact" class="btn btn-secondary">Ask us to source it</a>
+                <p><strong>@L["No products match"]</strong></p>
+                <p>@L["Try widening your filters, or ask us to source it."]</p>
+                <a href="/contact" class="btn btn-secondary">@L["Ask us to source it"]</a>
             </div>
         }
         else
@@ -178,22 +178,24 @@
     private bool HasFilters =>
         Cat is not null || Brand is not null || !string.IsNullOrWhiteSpace(Q) || InStock;
 
-    private static readonly (string Key, string Label)[] SortOptions =
+    // A property rather than a static field, so the labels are looked up in this request's
+    // culture rather than in whichever one first touched the type.
+    private static (string Key, string Label)[] SortOptions =>
     [
-        ("featured", "Featured"),
-        ("price-asc", "Price ↑"),
-        ("price-desc", "Price ↓"),
-        ("name", "Name")
+        ("featured", L["Featured"]),
+        ("price-asc", L["Price ↑"]),
+        ("price-desc", L["Price ↓"]),
+        ("name", L["Name"])
     ];
 
-    private string Heading => _category?.Name ?? "Catalog";
+    private string Heading => _category?.Name ?? L["Catalog"];
 
     private string? Blurb => _category?.Blurb
-        ?? "Everything the store carries, from own stock and distributor feeds alike.";
+        ?? L["Everything the store carries, from own stock and distributor feeds alike."];
 
     private NavItem[] Crumbs => _category is null
-        ? [new("Home", "/"), new("Catalog", "/catalog")]
-        : [new("Home", "/"), new("Catalog", "/catalog"), new(_category.Name, $"/catalog?cat={_category.Slug}")];
+        ? [new(L["Home"], "/"), new(L["Catalog"], "/catalog")]
+        : [new(L["Home"], "/"), new(L["Catalog"], "/catalog"), new(_category.Name, $"/catalog?cat={_category.Slug}")];
 
     protected override void OnParametersSet()
     {
