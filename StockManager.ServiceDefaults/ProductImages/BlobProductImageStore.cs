@@ -1,7 +1,6 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace StockManager.ProductImages;
@@ -23,7 +22,7 @@ public sealed class BlobProductImageStore : IProductImageStore
     private readonly ILogger<BlobProductImageStore> _logger;
 
     public BlobProductImageStore(
-        [FromKeyedServices(ProductImageExtensions.ContainerName)] BlobContainerClient container,
+        BlobContainerClient container,
         ILogger<BlobProductImageStore> logger)
     {
         _container = container;

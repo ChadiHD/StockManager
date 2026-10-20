@@ -6,6 +6,9 @@ one shirt in several sizes and colours, shows photographs its own staff took, an
 products in its own words. T0–T10 sell one SKU per row, show at most one image, and that image is
 a URL a content provider supplied. Nothing in the portal can describe or brand a product.
 
+**Status: built** on `t11-apparel-catalogue`, items 1 to 5 in four commits (variants and their facets
+together), then the journey and these notes.
+
 ## 1. What reading the code found
 
 1. **No variants anywhere.** One `dbo.Product` row is one SKU. `BasketLine`, `QuoteLine` and
@@ -97,8 +100,9 @@ of (Name, Value) pairs.
 ### 2.4 Images are blobs, served from each host's own origin
 
 - **Storage.** A new blob container, `product-images`, beside `documents` in the same storage
-  account. It is registered as a keyed client, because both hosts already hold one unkeyed
-  `BlobContainerClient` for documents. `IProductImageStore` and `BlobProductImageStore` mirror
+  account. The hosts reach it through the documents client's own account rather than a second
+  Aspire client: a keyed second registration broke the documents client's health check, and
+  no host started. `IProductImageStore` and `BlobProductImageStore` mirror
   `IDocumentStore`, without the site key: `dbo.Product` is shared, so its photographs are too.
 - **What a stored image is.**
   - The type is decided by reading the bytes, through `ProductImageTypes.TryDetect`: JPEG, PNG
@@ -155,7 +159,7 @@ of (Name, Value) pairs.
 - **A post of the style's own SKU** to the basket is refused.
 - **Hiding the style on a store** hides all three variants there.
 - **Existing behaviour is unchanged.** Every existing test passes, the T-SQL suite included,
-  as do the 13 journeys. A second publish reports nothing, an upgrade from main rebuilds no
+  as do the 13 journeys before it. A second publish reports nothing, an upgrade from main rebuilds no
   table, and the 50,000-product load check is no slower than on main.
 
 ## 4. Order of work, one commit each

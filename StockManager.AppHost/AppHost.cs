@@ -28,7 +28,9 @@ var storage = builder.AddAzureStorage("storage")
 var documents = storage.AddBlobContainer("documents");
 
 // Product photographs (T11), in a container of their own beside it: the storefront and the
-// portal both serve them, and nothing about a product belongs among customers' paperwork.
+// portal both serve them, and nothing about a product belongs among customers' paperwork. Not
+// referenced by the hosts, only waited for: they reach it through the documents client's
+// account (see AddProductImageStore), which is why both containers are on this one resource.
 var productImages = storage.AddBlobContainer("product-images");
 
 // Distributor feeds are no longer configured here. They are created in the admin portal and
@@ -195,7 +197,6 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithReference(identityDatabase)
 	.WithReference(stockDatabase)
 	.WithReference(documents)
-	.WithReference(productImages)
 	.WaitFor(identityDatabase)
 	.WaitFor(stockDatabase)
 	.WaitFor(documents)
@@ -218,7 +219,6 @@ var store = builder.AddProject<Projects.SMStore>("sm-store")
 	// never migrates it — StockApi owns the migrations, and both start together.
 	.WithReference(identityDatabase)
 	.WithReference(documents)
-	.WithReference(productImages)
 	.WaitFor(stockDatabase)
 	.WaitFor(identityDatabase)
 	.WaitFor(documents)
