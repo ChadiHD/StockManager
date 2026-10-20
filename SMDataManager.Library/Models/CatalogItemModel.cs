@@ -36,6 +36,15 @@ namespace SMDataManager.Library.Models
         public string CategorySlug { get; set; }
         public string CategoryName { get; set; }
 
+        /// <summary>The style this row is a size or colour of (T11), or null for a style or a plain product.</summary>
+        public int? ParentProductId { get; set; }
+
+        /// <summary>
+        /// A style with variants: it is chosen from on its page, and cannot itself go in a basket.
+        /// Its <see cref="QuantityInStock"/> is its live variants' together.
+        /// </summary>
+        public bool HasVariants { get; set; }
+
         /// <summary>
         /// Rows matching the query before paging, repeated on every row by the window function
         /// in spCatalog_Search so the pager needs no second round trip.

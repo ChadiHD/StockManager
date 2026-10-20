@@ -174,6 +174,75 @@ namespace StockApi.Controllers
             return NoContent();
         }
 
+        public record VariantOptionModel(string Name, string Value);
+
+        public record NewVariantModel(string Sku, int QuantityInStock, List<VariantOptionModel>? Options);
+
+        /// <summary>
+        /// A size or colour of a style (T11), with its own SKU and stock. The rest is the style's.
+        /// </summary>
+        /// <remarks>
+        /// Read through the acting store's sellable set like every action here, so a style from
+        /// another store is a 404. The procedure's refusals (a feed product, a variant of a
+        /// variant, a repeated set of options) come back as a 400 with its own sentence, as a
+        /// placement refusal does.
+        /// </remarks>
+        [Authorize(Roles = "Admin")]
+        [HttpPost("Catalog/{sku}/Variants")]
+        public ActionResult<AdminProductModel> AddVariant(
+            string sku, NewVariantModel variant, [FromServices] IAdminSiteContext site)
+        {
+            var style = _productData.GetProductBySku(site.SiteId, sku);
+            if (style is null)
+            {
+                return NotFound();
+            }
+
+            var variantSku = variant.Sku?.Trim();
+            if (string.IsNullOrEmpty(variantSku))
+            {
+                return BadRequest("A variant needs a SKU of its own.");
+            }
+
+            if (_productData.GetProductBySku(site.SiteId, variantSku) is not null)
+            {
+                return Conflict($"A product with SKU '{variantSku}' already exists.");
+            }
+
+            var result = _productData.AddVariant(site.SiteId, style.Id, variantSku, variant.QuantityInStock,
+                (variant.Options ?? []).Select(option => (option.Name, option.Value)));
+
+            return result.Refusal is null
+                ? _productData.GetProductBySku(site.SiteId, variantSku)
+                : BadRequest(result.Refusal);
+        }
+
+        /// <summary>A style's variants, for its page in the portal (T11).</summary>
+        [Authorize(Roles = "Admin")]
+        [HttpGet("Catalog/{sku}/Variants")]
+        public ActionResult<List<VariantModel>> GetVariants(string sku, [FromServices] IAdminSiteContext site)
+        {
+            var style = _productData.GetProductBySku(site.SiteId, sku);
+
+            return style is null ? NotFound() : _productData.GetVariants(site.SiteId, style.Id);
+        }
+
+        /// <summary>Removes a variant no basket, quote or order holds (T11).</summary>
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("Catalog/{sku}/Variant")]
+        public IActionResult RemoveVariant(string sku, [FromServices] IAdminSiteContext site)
+        {
+            var variant = _productData.GetProductBySku(site.SiteId, sku);
+            if (variant?.ParentProductId is null)
+            {
+                return NotFound();
+            }
+
+            var refusal = _productData.RemoveVariant(site.SiteId, variant.Id);
+
+            return refusal is null ? NoContent() : BadRequest(refusal);
+        }
+
         // Pulls the configured distributor SFTP feeds and upserts what they contain.
         // Products added from your own warehouse use POST Catalog with Source = "Own" and are
         // never touched by a feed sync (it matches on Distributor + DistributorSku).

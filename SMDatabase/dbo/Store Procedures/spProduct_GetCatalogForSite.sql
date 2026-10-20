@@ -19,6 +19,10 @@ BEGIN
 	       [p].[Distributor], [p].[DistributorSku], [p].[LastSynced], [p].[Delisted],
 	       [p].[Manufacturer], [p].[ManufacturerPartNumber], [p].[Ean], [p].[IcecatAvailable],
 	       [p].[ImageSourcedUtc],
+	       -- So the list can show styles and leave their variants to the style's page (T11). The
+	       -- column only: a join to the style or to the option labels here cost the 50,000-row
+	       -- snapshot 500 and 700 ms, and the page fetches its own variants when it opens.
+	       [p].[ParentProductId],
 	       [pl].[OnStore],
 	       [pl].[Reason] AS [Placement],
 	       -- Only when it is on sale. A hidden product still has a category its mapping would
@@ -29,7 +33,8 @@ BEGIN
 	       [pl].[Featured],
 	       [pl].[Badge]
 	FROM [dbo].[Product] p
-	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category], [p].[FeedId], [p].[Source], [p].[CurrencyCode], [p].[PricesIncludeTax]) pl
+	-- A variant is placed by its style, as the storefront places it.
+	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, ISNULL([p].[ParentProductId], [p].[Id]), [p].[Category], [p].[FeedId], [p].[Source], [p].[CurrencyCode], [p].[PricesIncludeTax]) pl
 	-- Only what this store may sell at all (T9): another store's feed, or a price in another
 	-- currency, is not this admin's to see or place.
 	WHERE [pl].[Sellable] = 1

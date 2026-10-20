@@ -9,6 +9,7 @@ namespace SMDataManager.Library.Internal.DataAccess
         string GetConnectionString(string name);
         List<T> LoadData<T, U>(string storeProcedure, U parameters, string connectionStringName);
         (List<T1>, List<T2>) LoadTwoResultSets<T1, T2, U>(string storeProcedure, U parameters, string connectionStringName);
+        (List<T1>, List<T2>, List<T3>) LoadThreeResultSets<T1, T2, T3, U>(string storeProcedure, U parameters, string connectionStringName);
         List<T> LoadDataInTransaction<T, U>(string storeProcedure, U parameters);
         void RollbackTransaction();
         void SaveData<T>(string storeProcedure, T parameters, string connectionStringName);

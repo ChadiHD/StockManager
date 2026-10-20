@@ -46,7 +46,8 @@ RETURN
 		[p].[Description],
 		[p].[RetailPrice],
 		[p].[Cost],
-		[p].[QuantityInStock],
+		-- A style's is the sum of its live variants' (T11); see [stock] below.
+		[stock].[Quantity] AS [QuantityInStock],
 		[p].[ProductImage],
 		[p].[Manufacturer],
 		[p].[ManufacturerPartNumber],
@@ -57,6 +58,11 @@ RETURN
 		[p].[LastSynced],
 		[p].[Distributor],
 		[p].[Source],
+		-- T11. The listing, the facets and the featured strip read the rows where ParentProductId
+		-- is NULL; the basket and the detail page read any row. HasVariants is what stops a style
+		-- itself being added to a basket.
+		[p].[ParentProductId],
+		CAST(CASE WHEN [kids].[ParentProductId] IS NULL THEN 0 ELSE 1 END AS bit) AS [HasVariants],
 		-- The store's, not the product's: since T8 one store's ribbon is not another's.
 		[pl].[Badge],
 		[pl].[Featured],
@@ -99,12 +105,35 @@ RETURN
 	FROM [dbo].[Product] p
 
 	/*
+	A style's variants (T11), grouped once and joined, not summed in a subquery per row: that
+	shape ran once per product, and the 50,000-product browse is already over its target. Every
+	variant counts towards HasVariants, a discontinued one included, so a style whose sizes are
+	all gone is still a style and still cannot be put in a basket itself. Only live variants
+	count towards its stock.
+	*/
+	LEFT JOIN (
+		SELECT [v].[ParentProductId],
+		       SUM(CASE WHEN [v].[Delisted] = 0 AND [v].[QuantityInStock] > 0
+		                THEN [v].[QuantityInStock] ELSE 0 END) AS [Quantity]
+		FROM [dbo].[Product] v
+		WHERE [v].[ParentProductId] IS NOT NULL
+		GROUP BY [v].[ParentProductId]
+	) AS [kids] ON [kids].[ParentProductId] = [p].[Id]
+
+	CROSS APPLY (VALUES (ISNULL([kids].[Quantity], [p].[QuantityInStock]))) AS [stock]([Quantity])
+
+	/*
 	Whether this store sells the product, and under which of its categories: the category
 	mapping, overridden by the store's own row in dbo.SiteProduct. The same function the admin's
 	product list reads, so the screen and the shop cannot disagree. It checks that the category
 	is this store's and active, which this query used to do with its own joins.
+
+	A variant is placed by its style's id (T11). A store hides or files a shirt, not its size M,
+	so dbo.SiteProduct holds one row per style and each variant follows it. Its other columns are
+	its style's, kept in step by spProduct_Update. Its style's Delisted is not read: only own stock
+	has variants, and nothing delists own stock.
 	*/
-	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, [p].[Id], [p].[Category], [p].[FeedId], [p].[Source], [p].[CurrencyCode], [p].[PricesIncludeTax]) pl
+	CROSS APPLY [dbo].[fnSite_ProductPlacement](@SiteId, ISNULL([p].[ParentProductId], [p].[Id]), [p].[Category], [p].[FeedId], [p].[Source], [p].[CurrencyCode], [p].[PricesIncludeTax]) pl
 
 	-- Named intermediates rather than one nested CASE repeated three times. CROSS APPLY
 	-- (VALUES ...) is the T-SQL idiom for it and costs nothing: the optimiser folds these into
@@ -176,7 +205,7 @@ RETURN
 	       OR (p.[LastSynced] IS NOT NULL AND p.[LastSynced] >= @StaleBeforeUtc))
 	  AND (@CategorySlug IS NULL OR pl.[CategorySlug] = @CategorySlug)
 	  AND (@Brand IS NULL OR p.[Manufacturer] = @Brand)
-	  AND (@InStockOnly = 0 OR p.[QuantityInStock] > 0)
+	  AND (@InStockOnly = 0 OR [stock].[Quantity] > 0)
 	  -- An IncludeCategory rule turns the group's visibility into an allow-list; without one,
 	  -- everything is visible except what the exclusions remove.
 	  AND (@HasIncludeRule = 0 OR EXISTS (

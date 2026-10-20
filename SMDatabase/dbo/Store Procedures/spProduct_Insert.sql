@@ -17,17 +17,20 @@ CREATE PROCEDURE [dbo].[spProduct_Insert]
 	@CurrencyCode nvarchar(3),
 	-- And its tax basis (T10), for the same reason: the price just typed is the one its shelf
 	-- shows, with tax in or without.
-	@PricesIncludeTax bit
+	@PricesIncludeTax bit,
+	-- The store's own brand for its own stock (T11). Until then nothing wrote one, so own stock
+	-- showed no brand at all.
+	@Manufacturer nvarchar(100)
 AS
 BEGIN
 	SET NOCOUNT ON;
 
 	INSERT INTO dbo.Product([ProductName], [Description], [RetailPrice], [QuantityInStock], [IsTaxable],
 	                        [ProductImage], [Sku], [Category], [Cost], [Source], [Distributor], [DistributorSku],
-	                        [CurrencyCode], [PricesIncludeTax])
+	                        [CurrencyCode], [PricesIncludeTax], [Manufacturer])
 	VALUES (@ProductName, @Description, @RetailPrice, @QuantityInStock, @IsTaxable,
 	        @ProductImage, @Sku, @Category, @Cost, @Source, @Distributor, @DistributorSku,
-	        @CurrencyCode, @PricesIncludeTax);
+	        @CurrencyCode, @PricesIncludeTax, NULLIF(LTRIM(RTRIM(@Manufacturer)), N''));
 
 	SELECT @Id = SCOPE_IDENTITY();
 END

@@ -30,6 +30,9 @@ namespace SMDataManager.Library.Models
         public bool? IcecatAvailable { get; set; }
         public DateTime? ImageSourcedUtc { get; set; }
 
+        /// <summary>The style this is a variant of (T11), or null.</summary>
+        public int? ParentProductId { get; set; }
+
         /*
         Where the product sits on the store the admin is acting for, from
         dbo.fnSite_ProductPlacement -- the function the storefront reads -- so the list cannot
@@ -67,4 +70,17 @@ namespace SMDataManager.Library.Models
     {
         public bool Saved => Refusal is null;
     }
+
+    /// <summary>One variant of a style as the admin's product page lists it (T11).</summary>
+    public class VariantModel
+    {
+        public int Id { get; set; }
+        public string Sku { get; set; }
+        public string Label { get; set; }
+        public int QuantityInStock { get; set; }
+        public bool Delisted { get; set; }
+    }
+
+    /// <summary>The new variant's id, or why spProduct_AddVariant refused it (T11).</summary>
+    public sealed record VariantResult(int? Id, string Refusal);
 }

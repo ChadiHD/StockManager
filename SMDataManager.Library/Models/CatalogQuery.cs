@@ -26,6 +26,23 @@ namespace SMDataManager.Library.Models
 
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 24;
+
+        /// <summary>
+        /// The option values a shopper filtered by (T11), Size M and Colour Navy. Several values
+        /// for one name mean any of them.
+        /// </summary>
+        public List<CatalogOption> Options { get; set; } = new List<CatalogOption>();
+    }
+
+    /// <summary>One option value: a name in the store's own words, and one of its values.</summary>
+    public sealed record CatalogOption(string Name, string Value);
+
+    /// <summary>How many styles have a variant with this value, within the current filter.</summary>
+    public class CatalogOptionFacetModel
+    {
+        public string Name { get; set; }
+        public string Value { get; set; }
+        public int Count { get; set; }
     }
 
     public class CatalogFacetModel
@@ -39,6 +56,7 @@ namespace SMDataManager.Library.Models
     {
         public List<CatalogFacetModel> Categories { get; set; } = new List<CatalogFacetModel>();
         public List<CatalogFacetModel> Brands { get; set; } = new List<CatalogFacetModel>();
+        public List<CatalogOptionFacetModel> Options { get; set; } = new List<CatalogOptionFacetModel>();
     }
 
     public class CatalogPage

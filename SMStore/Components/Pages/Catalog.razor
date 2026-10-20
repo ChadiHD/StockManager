@@ -78,6 +78,27 @@
                 </div>
             }
 
+            @* A group per option the store's variants carry (T11). The heading is the store's
+               own word for it, Size or Tamanho, so it is data rather than a key. *@
+            @foreach (var group in _result.Options.GroupBy(facet => facet.Name))
+            {
+                <div class="catalog__filter-block">
+                    <h6>@group.Key</h6>
+                    <ul class="catalog__facets">
+                        @foreach (var facet in group)
+                        {
+                            var option = new SMDataManager.Library.Models.CatalogOption(facet.Name, facet.Value);
+                            <li>
+                                <a href="@OptionHref(option)" class="@(_options.Contains(option) ? "is-current" : null)">
+                                    <span>@facet.Value</span>
+                                    <span class="catalog__count">@facet.Count</span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
             <div class="catalog__filter-block">
                 <h6>@L["Availability"]</h6>
                 <label class="radio">
@@ -95,6 +116,10 @@
             @if (Brand is not null)
             {
                 <input type="hidden" name="brand" value="@Brand" />
+            }
+            @foreach (var option in _options)
+            {
+                <input type="hidden" name="opt" value="@CatalogPresenter.Encode(option)" />
             }
 
             <button type="submit" class="btn btn-secondary btn-block">@L["Apply"]</button>
@@ -150,6 +175,9 @@
     [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
     [SupplyParameterFromQuery(Name = "sort")] public string? Sort { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] public string? Stock { get; set; }
+    // Several values, each "Name:Value" (T11), parsed by the presenter because they arrive in a
+    // URL anybody can write.
+    [SupplyParameterFromQuery(Name = "opt")] public string[]? Opt { get; set; }
     // Bound as text rather than int?. Blazor's query binding throws on a value it cannot
     // convert, and that surfaces as an unauthenticated 500 from one query string — "?page=abc"
     // from a crawler, or any number past int.MaxValue. Anything unparseable is page 1, which
@@ -159,6 +187,7 @@
     private int PageNumber => int.TryParse(Page, out var page) ? page : 1;
 
     private CatalogResult _result = default!;
+    private IReadOnlyList<SMDataManager.Library.Models.CatalogOption> _options = [];
     private SMDataManager.Library.Models.SiteCategoryModel? _category;
 
     /// <summary>
@@ -176,7 +205,7 @@
     private string CurrentSort => Presenter.SortFor(Sort) ?? "featured";
 
     private bool HasFilters =>
-        Cat is not null || Brand is not null || !string.IsNullOrWhiteSpace(Q) || InStock;
+        Cat is not null || Brand is not null || !string.IsNullOrWhiteSpace(Q) || InStock || _options.Count > 0;
 
     // A property rather than a static field, so the labels are looked up in this request's
     // culture rather than in whichever one first touched the type.
@@ -201,7 +230,8 @@
     {
         _returnTo = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
 
-        _result = Presenter.Search(Cat, Brand, InStock, Q, Sort, PageNumber);
+        _options = CatalogPresenter.ParseOptions(Opt);
+        _result = Presenter.Search(Cat, Brand, InStock, Q, Sort, PageNumber, _options);
 
         _category = Cat is null
             ? null
@@ -221,5 +251,24 @@
         });
 
         return uri;
+    }
+
+    /// <summary>
+    /// Adds an option value to the filter, or takes it away when it is already there, and drops
+    /// the page number for <see cref="FacetHref"/>'s reason.
+    /// </summary>
+    private string OptionHref(SMDataManager.Library.Models.CatalogOption option)
+    {
+        var next = _options.Contains(option)
+            ? _options.Where(selected => selected != option)
+            : _options.Append(option);
+
+        var encoded = next.Select(CatalogPresenter.Encode).ToArray();
+
+        return Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["opt"] = encoded.Length == 0 ? null : encoded,
+            ["page"] = null
+        });
     }
 }

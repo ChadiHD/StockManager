@@ -45,11 +45,15 @@ BEGIN
 	-- Through fnCatalog_VisibleProducts so "visible" means exactly what it means on the
 	-- listing, the facet rail and the detail page. Discount and margin are zeroed: no price is
 	-- read here, only existence.
+	--
+	-- A style with variants is not something to ship until a size is chosen (T11), so only the
+	-- variant itself may be added. The product page posts a variant's SKU; a post of the
+	-- style's own is a crafted one, and is refused as though the product did not exist.
 	IF NOT EXISTS (
 		SELECT 1 FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, NULL, NULL, 0, NULL, NULL, NULL, 0, 0,
 			@StaleBeforeUtc)
-		WHERE [Id] = @ProductId)
+		WHERE [Id] = @ProductId AND [HasVariants] = 0)
 	BEGIN
 		THROW 50021, 'That product is not available in this store.', 1;
 	END

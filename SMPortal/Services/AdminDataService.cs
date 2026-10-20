@@ -762,7 +762,9 @@ public class AdminDataService : IAdminDataService
                 RetailPrice = edited.Price,
                 QuantityInStock = edited.Avail,
                 IsTaxable = edited.IsTaxable,
-                ProductImage = edited.Image
+                ProductImage = edited.Image,
+                // Written by spProduct_Update since T11, so it has to come back too.
+                Manufacturer = edited.Manufacturer
             });
         response.EnsureSuccessStatusCode();
 

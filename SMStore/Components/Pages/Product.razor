@@ -78,7 +78,26 @@ else
                    so no database id appears in storefront markup. *@
                 <form method="post" action="@BasketEndpoints.AddPath" class="product__add">
                     <AntiforgeryToken />
-                    <input type="hidden" name="sku" value="@_item.Sku" />
+                    @if (_page!.Variants.Count > 0)
+                    {
+                        @* The size and colour are chosen here, and the variant's own SKU is what
+                           posts: a style with variants cannot itself go in a basket (T11). One
+                           select rather than a control per option, because without a script
+                           a second control could not narrow the first. *@
+                        <label class="visually-hidden" for="add-variant">@_page.ChoiceLabel</label>
+                        <select class="input product__variant" id="add-variant" name="sku">
+                            @foreach (var variant in _page.Variants)
+                            {
+                                <option value="@variant.Sku" selected="@(variant.Sku == _page.SelectedSku)">
+                                    @(variant.InStock ? variant.Label : L["{0} (out of stock)", variant.Label])
+                                </option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <input type="hidden" name="sku" value="@_item.Sku" />
+                    }
                     <input type="hidden" name="returnUrl" value="@CurrentPath" />
                     <label class="visually-hidden" for="add-qty">@L["Quantity"]</label>
                     <input class="input product__add-qty" type="number" id="add-qty"
@@ -127,7 +146,9 @@ else
 @code {
     [Parameter] public string Sku { get; set; } = string.Empty;
 
-    private SMDataManager.Library.Models.CatalogItemModel? _item;
+    private ProductPage? _page;
+
+    private SMDataManager.Library.Models.CatalogItemModel? _item => _page?.Product;
 
     private bool InStock => _item is { QuantityInStock: > 0 };
 
@@ -164,5 +185,5 @@ else
         new(_item.Sku, $"/product/{_item.Sku}")
     ];
 
-    protected override void OnParametersSet() => _item = Catalog.GetBySku(Sku);
+    protected override void OnParametersSet() => _page = Catalog.GetProductPage(Sku);
 }

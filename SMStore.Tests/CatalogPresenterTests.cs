@@ -276,4 +276,107 @@ public class CatalogPresenterTests
 
         categories.Should().ContainSingle().Which.Slug.Should().Be("active");
     }
+
+    // --- Product page (T11) ---
+
+    private void FamilyOfAShirt()
+    {
+        var style = new CatalogItemModel { Id = 10, Sku = "SHIRT", ProductName = "Linen shirt", HasVariants = true, QuantityInStock = 3 };
+        var medium = new CatalogItemModel { Id = 11, Sku = "SHIRT-M", ParentProductId = 10, QuantityInStock = 3 };
+        var large = new CatalogItemModel { Id = 12, Sku = "SHIRT-L", ParentProductId = 10, QuantityInStock = 0 };
+
+        _catalog.GetBySku(1, "SHIRT", Arg.Any<int?>()).Returns(style);
+        _catalog.GetBySku(1, "SHIRT-L", Arg.Any<int?>()).Returns(large);
+        _catalog.GetFamily(1, 10, Arg.Any<int?>()).Returns(new CatalogFamily
+        {
+            Style = style,
+            Variants = [medium, large],
+            Options =
+            [
+                // Out of order on purpose: the label follows SortOrder, as the variant's name does.
+                new ProductOptionModel { ProductId = 11, Name = "Colour", Value = "Navy", SortOrder = 1 },
+                new ProductOptionModel { ProductId = 11, Name = "Size", Value = "M", SortOrder = 0 },
+                new ProductOptionModel { ProductId = 12, Name = "Size", Value = "L", SortOrder = 0 },
+                new ProductOptionModel { ProductId = 12, Name = "Colour", Value = "Navy", SortOrder = 1 }
+            ]
+        });
+    }
+
+    [Fact]
+    public void AStylesPageOffersEveryVariantByItsOptions()
+    {
+        FamilyOfAShirt();
+
+        var page = PresenterFor(SiteWith()).GetProductPage("SHIRT")!;
+
+        page.Product.Sku.Should().Be("SHIRT");
+        page.ChoiceLabel.Should().Be("Size / Colour");
+        page.Variants.Should().Equal(
+            new VariantChoice("SHIRT-M", "M / Navy", true),
+            new VariantChoice("SHIRT-L", "L / Navy", false));
+        page.SelectedSku.Should().BeNull();
+    }
+
+    [Fact]
+    public void AVariantsSkuOpensItsStylesPageWithThatVariantChosen()
+    {
+        // A basket line or a quote links to the variant it holds, and the page that opens is
+        // the one where the size can be changed.
+        FamilyOfAShirt();
+
+        var page = PresenterFor(SiteWith()).GetProductPage("SHIRT-L")!;
+
+        page.Product.Sku.Should().Be("SHIRT");
+        page.SelectedSku.Should().Be("SHIRT-L");
+    }
+
+    [Fact]
+    public void AVariantOfAStyleThatIsNotOnSaleHasNoPage()
+    {
+        FamilyOfAShirt();
+        _catalog.GetFamily(1, 10, Arg.Any<int?>()).Returns(new CatalogFamily());
+
+        PresenterFor(SiteWith()).GetProductPage("SHIRT-L").Should().BeNull();
+    }
+
+    // --- Option filter (T11) ---
+
+    [Fact]
+    public void AnOptionFilterFromTheUrlKeepsOnlyWhatTheQueryCanTake()
+    {
+        // Each of these would otherwise reach a table-valued parameter keyed on the pair, with
+        // 50-character columns, and fail there as a 500.
+        var parsed = CatalogPresenter.ParseOptions(
+        [
+            "Size:M",
+            "Size:M",
+            " Colour : Navy ",
+            "no-colon",
+            ":M",
+            "Size:",
+            null,
+            $"Size:{new string('x', 51)}",
+            "Note:a:b"
+        ]);
+
+        parsed.Should().Equal(
+            new CatalogOption("Size", "M"),
+            new CatalogOption("Colour", "Navy"),
+            new CatalogOption("Note", "a:b"));
+    }
+
+    [Fact]
+    public void AnOptionFilterIsCapped()
+    {
+        CatalogPresenter.ParseOptions(Enumerable.Range(0, 50).Select(i => $"Size:{i}"))
+            .Should().HaveCount(20);
+    }
+
+    [Fact]
+    public void AnOptionRoundTripsThroughItsUrlForm()
+    {
+        var option = new CatalogOption("Colour", "Navy");
+
+        CatalogPresenter.ParseOptions([CatalogPresenter.Encode(option)]).Should().Equal(option);
+    }
 }

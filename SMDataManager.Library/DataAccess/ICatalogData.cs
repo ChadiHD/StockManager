@@ -11,6 +11,9 @@ namespace SMDataManager.Library.DataAccess
 
         CatalogItemModel GetBySku(int siteId, string sku, int? customerGroupId);
 
+        /// <summary>A style and its variants for this viewer (T11).</summary>
+        CatalogFamily GetFamily(int siteId, int styleId, int? customerGroupId);
+
         List<SiteCategoryModel> GetCategories(int siteId);
 
         /// <summary>Feed category values with no mapping for this store, and what they are holding back.</summary>
