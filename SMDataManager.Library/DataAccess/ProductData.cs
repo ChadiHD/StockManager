@@ -180,6 +180,24 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spProduct_GetVariants", new { SiteId = siteId, ProductId = styleId }, "SMDatabase");
         }
 
+        public void AddImage(int productId, string storedName, string contentType)
+        {
+            _sqlDataAccess.SaveData("dbo.spProductImage_Add",
+                new { ProductId = productId, StoredName = storedName, ContentType = contentType }, "SMDatabase");
+        }
+
+        public bool RemoveImage(int productId, string storedName)
+        {
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spProductImage_Remove",
+                new { ProductId = productId, StoredName = storedName }, "SMDatabase").Single() > 0;
+        }
+
+        public List<string> GetImages(int productId)
+        {
+            return _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spProductImage_GetByProduct", new { ProductId = productId }, "SMDatabase");
+        }
+
         public string RemoveVariant(int siteId, int variantId)
         {
             try

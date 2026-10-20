@@ -285,6 +285,7 @@ public class CatalogPresenterTests
         var medium = new CatalogItemModel { Id = 11, Sku = "SHIRT-M", ParentProductId = 10, QuantityInStock = 3 };
         var large = new CatalogItemModel { Id = 12, Sku = "SHIRT-L", ParentProductId = 10, QuantityInStock = 0 };
 
+        _catalog.GetImages(Arg.Any<int>()).Returns([]);
         _catalog.GetBySku(1, "SHIRT", Arg.Any<int?>()).Returns(style);
         _catalog.GetBySku(1, "SHIRT-L", Arg.Any<int?>()).Returns(large);
         _catalog.GetFamily(1, 10, Arg.Any<int?>()).Returns(new CatalogFamily
@@ -328,6 +329,16 @@ public class CatalogPresenterTests
 
         page.Product.Sku.Should().Be("SHIRT");
         page.SelectedSku.Should().Be("SHIRT-L");
+    }
+
+    [Fact]
+    public void APageShowsTheStylesOwnPhotographsFromThisOrigin()
+    {
+        FamilyOfAShirt();
+        _catalog.GetImages(10).Returns(["0123456789abcdef0123456789abcdef.jpg"]);
+
+        PresenterFor(SiteWith()).GetProductPage("SHIRT-L")!.Images
+            .Should().Equal("/img/0123456789abcdef0123456789abcdef.jpg");
     }
 
     [Fact]

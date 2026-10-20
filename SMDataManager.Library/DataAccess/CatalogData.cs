@@ -92,6 +92,12 @@ namespace SMDataManager.Library.DataAccess
             };
         }
 
+        public List<string> GetImages(int productId)
+        {
+            return _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spProductImage_GetByProduct", new { ProductId = productId }, "SMDatabase");
+        }
+
         public List<SiteCategoryModel> GetCategories(int siteId)
         {
             return _sqlDataAccess.LoadData<SiteCategoryModel, dynamic>(

@@ -7,6 +7,7 @@ using SMDataManager.Library.Models;
 using StockApi.Feeds;
 using StockApi.Security;
 using StockApi.Sites;
+using StockManager.ProductImages;
 using System.Data;
 
 namespace StockApi.Controllers
@@ -241,6 +242,116 @@ namespace StockApi.Controllers
             var refusal = _productData.RemoveVariant(site.SiteId, variant.Id);
 
             return refusal is null ? NoContent() : BadRequest(refusal);
+        }
+
+        /// <summary>A product's photographs, in order, as stored names served from /img/ (T11).</summary>
+        [Authorize(Roles = "Admin")]
+        [HttpGet("Catalog/{sku}/Images")]
+        public ActionResult<List<string>> GetImages(string sku, [FromServices] IAdminSiteContext site)
+        {
+            var product = _productData.GetProductBySku(site.SiteId, sku);
+
+            return product is null ? NotFound() : _productData.GetImages(product.Id);
+        }
+
+        /// <summary>
+        /// Adds a photograph to a product (T11), last in its order. The first one becomes the
+        /// product's image everywhere it is shown.
+        /// </summary>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item>The type is decided by reading the bytes, as for a customer's document. The
+        /// declared type and the filename are the uploader's, and neither is evidence.</item>
+        /// <item>The request is capped as well as the file, because a check in code runs after
+        /// the body has been read.</item>
+        /// <item>A variant has no photographs of its own: its style's page shows the style's.</item>
+        /// <item>The bytes are written before the row and deleted if the row fails, so a public page
+        /// never names an image that is not there.</item>
+        /// </list>
+        /// </remarks>
+        [Authorize(Roles = "Admin")]
+        [HttpPost("Catalog/{sku}/Images")]
+        [RequestSizeLimit(ProductImageTypes.MaxBytes + 64 * 1024)]
+        [RequestFormLimits(MultipartBodyLengthLimit = ProductImageTypes.MaxBytes + 64 * 1024)]
+        public async Task<IActionResult> AddImage(
+            string sku, IFormFile? file,
+            [FromServices] IAdminSiteContext site,
+            [FromServices] IProductImageStore images,
+            CancellationToken cancellationToken)
+        {
+            var product = _productData.GetProductBySku(site.SiteId, sku);
+            if (product is null)
+            {
+                return NotFound();
+            }
+
+            if (product.ParentProductId is not null)
+            {
+                return BadRequest("A variant shows its style's photographs. Add this one to the style.");
+            }
+
+            if (file is null || file.Length == 0)
+            {
+                return BadRequest("Choose a photograph to upload.");
+            }
+
+            if (file.Length > ProductImageTypes.MaxBytes)
+            {
+                return BadRequest("A photograph can be at most 5 MB.");
+            }
+
+            var leading = new byte[ProductImageTypes.SignatureLength];
+            int read;
+            await using (var head = file.OpenReadStream())
+            {
+                read = await head.ReadAtLeastAsync(leading, leading.Length, throwOnEndOfStream: false, cancellationToken);
+            }
+
+            if (!ProductImageTypes.TryDetect(leading.AsSpan(0, read), out var contentType, out var extension))
+            {
+                return BadRequest("A photograph is a JPEG, PNG or WebP image.");
+            }
+
+            string storedName;
+            await using (var content = file.OpenReadStream())
+            {
+                storedName = await images.SaveAsync(content, extension, contentType, cancellationToken);
+            }
+
+            try
+            {
+                _productData.AddImage(product.Id, storedName, contentType);
+            }
+            catch
+            {
+                await images.DeleteAsync(storedName, CancellationToken.None);
+                throw;
+            }
+
+            return Ok(storedName);
+        }
+
+        /// <summary>Removes one of a product's photographs, and its bytes (T11).</summary>
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("Catalog/{sku}/Images/{name}")]
+        public async Task<IActionResult> RemoveImage(
+            string sku, string name,
+            [FromServices] IAdminSiteContext site,
+            [FromServices] IProductImageStore images,
+            CancellationToken cancellationToken)
+        {
+            var product = _productData.GetProductBySku(site.SiteId, sku);
+
+            // Only a name this product holds: the row is checked before the bytes are touched, so
+            // a photograph of another store's product cannot be deleted through this one's SKU.
+            if (product is null || !ProductImageNames.IsStoredName(name) || !_productData.RemoveImage(product.Id, name))
+            {
+                return NotFound();
+            }
+
+            await images.DeleteAsync(name, cancellationToken);
+
+            return NoContent();
         }
 
         // Pulls the configured distributor SFTP feeds and upserts what they contain.

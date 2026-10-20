@@ -3,6 +3,7 @@ using SMDataManager.Library.Models;
 using SMDataManager.Library.Pricing;
 using SMStore.Accounts;
 using SMStore.Sites;
+using StockManager.ProductImages;
 using static SMStore.Localization.StoreText;
 
 namespace SMStore.Catalog;
@@ -189,7 +190,7 @@ public sealed class CatalogPresenter
 
         if (item.ParentProductId is null && !item.HasVariants)
         {
-            return new ProductPage(item, [], null, null);
+            return new ProductPage(item, [], null, null, ImagesOf(item.Id));
         }
 
         var family = _catalog.GetFamily(_siteContext.Site.Id, item.ParentProductId ?? item.Id, CustomerGroupId);
@@ -216,8 +217,12 @@ public sealed class CatalogPresenter
             family.Style,
             family.Variants.Select(variant => new VariantChoice(variant.Sku, LabelOf(variant.Id), variant.QuantityInStock > 0)).ToList(),
             item.ParentProductId is null ? null : item.Sku,
-            names.Count == 0 ? null : string.Join(" / ", names));
+            names.Count == 0 ? null : string.Join(" / ", names),
+            ImagesOf(family.Style.Id));
     }
+
+    private IReadOnlyList<string> ImagesOf(int productId) =>
+        _catalog.GetImages(productId).Select(name => ProductImageNames.PathPrefix + name).ToList();
 
     public IReadOnlyList<SiteCategoryModel> GetCategories()
         => _catalog.GetCategories(_siteContext.Site.Id).Where(c => c.IsActive).ToList();

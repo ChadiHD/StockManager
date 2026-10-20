@@ -101,3 +101,16 @@
 .product__variant {
     min-width: 10rem;
 }
+
+.product__gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.product__gallery img {
+    width: 100%;
+    height: auto;
+    display: block;
+}

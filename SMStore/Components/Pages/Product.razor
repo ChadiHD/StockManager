@@ -32,9 +32,9 @@ else
         <div class="product__media blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            @if (!string.IsNullOrWhiteSpace(_item.ProductImage))
+            @if (!string.IsNullOrWhiteSpace(MainImage))
             {
-                <img src="@_item.ProductImage" alt="@_item.ProductName" />
+                <img src="@MainImage" alt="@_item.ProductName" />
             }
             else
             {
@@ -124,6 +124,18 @@ else
         </div>
     </div>
 
+    @if (_page!.Images.Count > 1)
+    {
+        @* The rest of the store's own photographs (T11). Shown together rather than as a
+           carousel: this page has no script, and every photograph is worth seeing. *@
+        <section class="product__gallery" aria-label="@L["More photographs"]">
+            @foreach (var image in _page.Images.Skip(1))
+            {
+                <img src="@image" alt="@_item.ProductName" loading="lazy" />
+            }
+        </section>
+    }
+
     <section class="product__detail">
         <h2>@L["Description"]</h2>
         @if (!string.IsNullOrWhiteSpace(_item.Description))
@@ -149,6 +161,9 @@ else
     private ProductPage? _page;
 
     private SMDataManager.Library.Models.CatalogItemModel? _item => _page?.Product;
+
+    // The store's own first photograph, or whatever the product row carries: a provider's, or none.
+    private string? MainImage => _page?.Images.FirstOrDefault() ?? _item?.ProductImage;
 
     private bool InStock => _item is { QuantityInStock: > 0 };
 

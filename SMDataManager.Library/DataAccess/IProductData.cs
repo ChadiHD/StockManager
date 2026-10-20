@@ -42,6 +42,15 @@ namespace SMDataManager.Library.DataAccess
         /// <summary>A style's variants, for the admin's product page (T11).</summary>
         List<VariantModel> GetVariants(int siteId, int styleId);
 
+        /// <summary>Records a photograph whose bytes are stored; the first becomes the product's image (T11).</summary>
+        void AddImage(int productId, string storedName, string contentType);
+
+        /// <summary>Forgets one, and says whether it was this product's.</summary>
+        bool RemoveImage(int productId, string storedName);
+
+        /// <summary>A product's photographs, in order: stored names.</summary>
+        List<string> GetImages(int productId);
+
         /// <summary>
         /// Applies an entire distributor feed in a single round trip, and delists products the
         /// feed no longer supplies. Keyed on the feed, not its name (T9).

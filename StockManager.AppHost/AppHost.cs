@@ -20,11 +20,16 @@ var jwtSigningKey = builder.AddParameter("jwt-signing-key", secret: true);
 // Customer documents: one private blob container both hosts read, since a container app's own
 // filesystem is neither shared nor kept across revisions. Azurite locally, on a volume and
 // persistent like SQL, because the database rows that name these blobs outlive a restart too.
-var documents = builder.AddAzureStorage("storage")
+var storage = builder.AddAzureStorage("storage")
 	.RunAsEmulator(emulator => emulator
 		.WithDataVolume("stockmanager-documents")
-		.WithLifetime(ContainerLifetime.Persistent))
-	.AddBlobContainer("documents");
+		.WithLifetime(ContainerLifetime.Persistent));
+
+var documents = storage.AddBlobContainer("documents");
+
+// Product photographs (T11), in a container of their own beside it: the storefront and the
+// portal both serve them, and nothing about a product belongs among customers' paperwork.
+var productImages = storage.AddBlobContainer("product-images");
 
 // Distributor feeds are no longer configured here. They are created in the admin portal and
 // stored in dbo.DistributorFeed, with credentials held by an IFeedSecretStore (Data Protection
@@ -190,9 +195,11 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WithReference(identityDatabase)
 	.WithReference(stockDatabase)
 	.WithReference(documents)
+	.WithReference(productImages)
 	.WaitFor(identityDatabase)
 	.WaitFor(stockDatabase)
 	.WaitFor(documents)
+	.WaitFor(productImages)
 	.WithEndpoint("https", endpoint => endpoint.Port = 7042)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints();
@@ -211,9 +218,11 @@ var store = builder.AddProject<Projects.SMStore>("sm-store")
 	// never migrates it — StockApi owns the migrations, and both start together.
 	.WithReference(identityDatabase)
 	.WithReference(documents)
+	.WithReference(productImages)
 	.WaitFor(stockDatabase)
 	.WaitFor(identityDatabase)
 	.WaitFor(documents)
+	.WaitFor(productImages)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints();
 
