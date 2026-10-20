@@ -118,6 +118,16 @@ it brings:
 Its §1 lists T11–T14: apparel variants and images, the `DirectCheckout` mode with guests,
 Stripe Checkout with shipping, and a fiscal-document seam for Brazil's NF-e.
 
+**T11 — the apparel catalogue is built**, per `docs/plans/2026-10-20-t11-apparel-catalogue.md`.
+It brings:
+
+- sizes and colours as `Product` rows under a style;
+- option facets;
+- the store's own photographs, as blobs served from `/img/`;
+- a portal that describes, brands, photographs and sizes a product.
+
+See *Variants and photographs* under SMStore architecture.
+
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
 
@@ -755,7 +765,7 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All thirteen journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All fourteen journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
 the old one.
 
@@ -782,6 +792,17 @@ euro stock is filed in it too.
 It found that `AdminPortal.EnsureActingForSiteAsync` returned before the store selector
 rendered. That was harmless while every journey acted for the store already selected, and it
 now waits for the workspace to load.
+
+T11's fourteenth has an admin build a shirt in the portal: two sizes, one out of stock, and a
+photograph whose filename claims JPEG while its bytes are PNG.
+- Both hosts serve the photograph from `/img/` as `image/png`.
+- The catalogue lists the shirt once, with "Choose options". `opt=Size:M` finds it, `opt=Size:XL`
+  does not, and L in stock finds nothing.
+- The product page offers both sizes, marks L out of stock, and puts M in the basket as
+  "Linen shirt … — M / Navy".
+
+Its first run found every journey timing out: the image store's keyed blob client had taken
+the documents client's health check down, which no unit test could see.
 
 T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
@@ -1327,6 +1348,49 @@ Three rules keep that duplication safe, and none is optional:
 `ProductCardView` excludes it; the detail page binds the raw model, so it is one field
 reference away from publishing margin on a public page. Do not add it to a view record, and
 prefer removing it from the projection over relying on review.
+
+### Variants and photographs (T11)
+
+**A variant is a `Product` row under its style**: `Product.ParentProductId`, with its options in
+`dbo.ProductOption` (Size = M, Colour = Navy, in the store's own words). Baskets, quotes, orders,
+documents and mail key on `ProductId` and need nothing new. The variant's name is its style's
+plus its options ("Linen shirt — M / Navy"), from `fnProduct_VariantLabels`, so every line says
+which size was bought.
+
+- **A variant inherits from its style.** `spProduct_AddVariant` copies the style's columns, and
+  `spProduct_Update` cascades a style's name, price and the rest to its variants.
+  - **For a variant it writes stock and nothing else.** One style has one price; a variant priced
+    apart would list one price and charge another.
+  - **One level, own stock only.** A feed would overwrite variants of a feed product on its next
+    sync.
+- **`fnCatalog_VisibleProducts` places a variant by its style's id**, so hiding a shirt on a
+  store hides every size there.
+  - It rolls a style's stock up from its live variants, through **one grouped join, never a
+    subquery per row**.
+  - **`ParentProductId`** marks a variant: the listing, the facets and the featured strip read
+    styles only.
+  - **`HasVariants`** marks a style: `spBasket_AddLine` refuses one, and its card links to its
+    page.
+- **Option facets.** `spCatalog_Search` and `spCatalog_GetFacets` take a
+  `dbo.ProductOptionList`, matched through `fnProduct_MatchesOptions`: one variant carrying every
+  selected name. `?opt=Size:M` arrives in a URL, so `CatalogPresenter.ParseOptions` drops
+  repeats and oversized values and caps the count; any of those would be a 500 from the TVP.
+- **The admin's products snapshot carries `ParentProductId` and nothing more about variants.** A
+  join to the style or to the labels cost it over a second at 50,000 rows; the product page
+  fetches its own variants and photographs when it opens.
+- **Photographs are blobs in `product-images`**, a container of their own on the same storage
+  resource as `documents`. **It is reached through the documents client's account, not a second
+  Aspire client.** A keyed second registration took the documents client's health check down
+  ("No service for type BlobContainerClient"), both hosts went unhealthy, and every journey timed
+  out waiting for them.
+  - **Typed by their bytes** (`ProductImageTypes`: JPEG, PNG or WebP, never a PDF), capped at
+    5 MB on the request, under a generated name.
+  - **The bytes before the row**, and the bytes deleted if the row fails.
+  - **Both hosts serve `GET /img/{name}`**, a year's cache and every refusal a 404. So the
+    storefront's CSP stays `img-src 'self'`, and the portal shows the same photograph without a
+    token.
+  - **The first photograph is written into `Product.ProductImage` as `/img/{name}`**, so every
+    page that already rendered that column shows it.
 
 ### The basket
 

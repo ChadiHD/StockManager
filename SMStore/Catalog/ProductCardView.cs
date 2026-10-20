@@ -19,7 +19,9 @@ public sealed record ProductCardView(
     string Availability,
     bool InStock,
     string? PriceLabel,
-    string? ImageUrl)
+    string? ImageUrl,
+    // A style with sizes and colours (T11): the card links to its page instead of adding it.
+    bool HasVariants = false)
 {
     public string Href => $"/product/{Uri.EscapeDataString(Sku)}";
 }

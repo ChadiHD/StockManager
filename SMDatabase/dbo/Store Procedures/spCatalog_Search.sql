@@ -59,10 +59,16 @@ CREATE PROCEDURE [dbo].[spCatalog_Search]
 	-- 'featured' | 'price-asc' | 'price-desc' | 'name'
 	@Sort nvarchar(20) = NULL,
 	@Page int = 1,
-	@PageSize int = 24
+	@PageSize int = 24,
+	-- The (option, value) pairs a shopper filtered by (T11): Size M, Colour Navy. Empty when none.
+	@Options dbo.ProductOptionList READONLY
 AS
 BEGIN
 	SET NOCOUNT ON;
+
+	-- Resolved once, so OPTION (RECOMPILE) folds the option predicate away when nobody is
+	-- filtering by one, and a catalogue with no variants pays nothing for the feature.
+	DECLARE @HasOptions bit = CASE WHEN EXISTS (SELECT 1 FROM @Options) THEN 1 ELSE 0 END;
 
 	-- Caps the page size so a crafted query cannot ask for the whole catalog in one response.
 	SET @PageSize = CASE WHEN @PageSize NOT BETWEEN 1 AND 96 THEN 24 ELSE @PageSize END;
@@ -160,14 +166,16 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
 			-- One window function rather than a second query: the caller needs the total to
 			-- build the pager, and a separate COUNT would re-evaluate the whole predicate.
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
 			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
-		WHERE [Relevance] > 0
+		-- Styles and standalone products only (T11): a variant is reached through its style.
+		WHERE [Relevance] > 0 AND [ParentProductId] IS NULL
+		  AND (@HasOptions = 0 OR EXISTS (SELECT 1 FROM dbo.fnProduct_MatchesOptions([Id], @InStockOnly, @Options)))
 		ORDER BY
 			[Relevance] DESC,
 			CASE WHEN @Sort = N'price-asc'  THEN [NetPrice]    END ASC,
@@ -186,11 +194,13 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
 			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
+		WHERE [ParentProductId] IS NULL
+		  AND (@HasOptions = 0 OR EXISTS (SELECT 1 FROM dbo.fnProduct_MatchesOptions([Id], @InStockOnly, @Options)))
 		ORDER BY [NetPrice] ASC, [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);
@@ -200,11 +210,13 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
 			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
+		WHERE [ParentProductId] IS NULL
+		  AND (@HasOptions = 0 OR EXISTS (SELECT 1 FROM dbo.fnProduct_MatchesOptions([Id], @InStockOnly, @Options)))
 		ORDER BY [NetPrice] DESC, [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);
@@ -214,11 +226,13 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
 			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
+		WHERE [ParentProductId] IS NULL
+		  AND (@HasOptions = 0 OR EXISTS (SELECT 1 FROM dbo.fnProduct_MatchesOptions([Id], @InStockOnly, @Options)))
 		ORDER BY [ProductName] ASC, [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);
@@ -228,11 +242,13 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
 			@Term, @Prefix, @Contains, @DiscountPct, @MinMarginPct, @StaleBeforeUtc)
+		WHERE [ParentProductId] IS NULL
+		  AND (@HasOptions = 0 OR EXISTS (SELECT 1 FROM dbo.fnProduct_MatchesOptions([Id], @InStockOnly, @Options)))
 		ORDER BY [Featured] DESC, [CategorySortOrder], [Id]
 		OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 		OPTION (RECOMPILE);

@@ -30,6 +30,28 @@ namespace SMDataManager.Library.DataAccess
         void UpdateProduct(AdminProductModel product);
 
         /// <summary>
+        /// A size or colour of <paramref name="styleId"/> (T11), its options in the order given. Refused
+        /// with a reason, never thrown, like a placement.
+        /// </summary>
+        VariantResult AddVariant(int siteId, int styleId, string sku, int quantityInStock,
+            IEnumerable<(string Name, string Value)> options);
+
+        /// <summary>Removes a variant nothing holds; otherwise the reason it cannot be.</summary>
+        string RemoveVariant(int siteId, int variantId);
+
+        /// <summary>A style's variants, for the admin's product page (T11).</summary>
+        List<VariantModel> GetVariants(int siteId, int styleId);
+
+        /// <summary>Records a photograph whose bytes are stored; the first becomes the product's image (T11).</summary>
+        void AddImage(int productId, string storedName, string contentType);
+
+        /// <summary>Forgets one, and says whether it was this product's.</summary>
+        bool RemoveImage(int productId, string storedName);
+
+        /// <summary>A product's photographs, in order: stored names.</summary>
+        List<string> GetImages(int productId);
+
+        /// <summary>
         /// Applies an entire distributor feed in a single round trip, and delists products the
         /// feed no longer supplies. Keyed on the feed, not its name (T9).
         /// </summary>

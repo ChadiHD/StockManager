@@ -12,6 +12,7 @@ using SMStore.Navigation;
 using SMStore.Ordering;
 using SMStore.Registration;
 using StockManager.Documents;
+using StockManager.ProductImages;
 using StockManager.Identity;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
@@ -68,6 +69,9 @@ builder.AddSharedDataProtection();
 // an endpoint that re-checks who is asking. StockApi registers the same store so a reviewer
 // can read what an applicant sent.
 builder.AddDocumentStore();
+
+// Product photographs (T11), uploaded in the portal and shown here from /img/, this origin.
+builder.AddProductImageStore();
 
 // Outbound customer mail is queued here and sent by StockApi's dispatcher. Queueing is a row in
 // dbo.EmailOutbox, so a mail relay that is down can no longer fail a registration; see
@@ -276,6 +280,7 @@ app.MapCustomerAuth();
 app.MapBasket();
 app.MapQuoteDecisions();
 app.MapAccountDocuments();
+app.MapProductImages();
 app.MapEmailConfirmation();
 app.MapPasswordReset();
 app.MapRazorComponents<App>();

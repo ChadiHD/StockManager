@@ -12,7 +12,7 @@ dimension itself. Availability is the exception — it is a narrowing toggle, so
 to the base set and its count reflects the filter as it stands.
 
 The temp table is not incidental. A CTE is in scope only for the statement immediately after
-it and this procedure returns two grids, so a CTE gives "Invalid object name" on the second —
+it and this procedure returns three grids, so a CTE gives "Invalid object name" on the second —
 and calling the function twice would evaluate the whole predicate twice.
 */
 CREATE PROCEDURE [dbo].[spCatalog_GetFacets]
@@ -21,10 +21,14 @@ CREATE PROCEDURE [dbo].[spCatalog_GetFacets]
 	@CategorySlug nvarchar(80) = NULL,
 	@Brand nvarchar(100) = NULL,
 	@InStockOnly bit = 0,
-	@Search nvarchar(200) = NULL
+	@Search nvarchar(200) = NULL,
+	-- spCatalog_Search's, with the same meaning (T11).
+	@Options dbo.ProductOptionList READONLY
 AS
 BEGIN
 	SET NOCOUNT ON;
+
+	DECLARE @HasOptions bit = CASE WHEN EXISTS (SELECT 1 FROM @Options) THEN 1 ELSE 0 END;
 
 	-- The same degradation spCatalog_Search applies, and needed here for the same reason: a
 	-- group from another store must not filter this store's counts through its allow-list.
@@ -58,6 +62,7 @@ BEGIN
 
 	CREATE TABLE #visible
 	(
+		[Id] INT NOT NULL,
 		[Manufacturer] NVARCHAR(100) NULL,
 		[CategorySlug] NVARCHAR(80) NOT NULL,
 		[CategoryName] NVARCHAR(120) NOT NULL,
@@ -68,14 +73,17 @@ BEGIN
 	-- NetPrice is an unreferenced output column here, which the optimiser drops. Passing the
 	-- real values would mean duplicating the group and site lookups for a number nothing
 	-- reads.
-	INSERT INTO #visible ([Manufacturer], [CategorySlug], [CategoryName], [SortOrder])
-	SELECT [Manufacturer], [CategorySlug], [CategoryName], [CategorySortOrder]
+	INSERT INTO #visible ([Id], [Manufacturer], [CategorySlug], [CategoryName], [SortOrder])
+	SELECT [Id], [Manufacturer], [CategorySlug], [CategoryName], [CategorySortOrder]
 	FROM dbo.fnCatalog_VisibleProducts(
 		@SiteId, @CustomerGroupId, @HasIncludeRule,
 		-- Deliberately unfiltered on both facet dimensions; see the header.
 		NULL, NULL,
 		@InStockOnly, @Term, @Prefix, @Contains, 0, 0, @StaleBeforeUtc)
-	WHERE @Term IS NULL OR [Relevance] > 0
+	-- Styles only (T11), as the listing counts them.
+	WHERE (@Term IS NULL OR [Relevance] > 0) AND [ParentProductId] IS NULL
+	  -- The page's own option filter, so the category and brand counts agree with it.
+	  AND (@HasOptions = 0 OR EXISTS (SELECT 1 FROM dbo.fnProduct_MatchesOptions([Id], @InStockOnly, @Options)))
 	OPTION (RECOMPILE);
 
 	-- Categories, counted without the category filter applied.
@@ -94,6 +102,28 @@ BEGIN
 	  AND (@CategorySlug IS NULL OR [CategorySlug] = @CategorySlug)
 	GROUP BY [Manufacturer]
 	ORDER BY COUNT(*) DESC, [Manufacturer];
+
+	/*
+	Options (T11): how many styles have a live variant with each value, within the category and
+	brand chosen. Counted over the set the option filter already narrowed, unlike the two grids
+	above, which each leave their own dimension out; excluding each option name from its own
+	count would mean one pass per name, for a rail that reads well enough without it.
+
+	An option's name is the store's word, so the rail groups on whatever the store wrote. Values
+	come in the order their first variant was added, which is the order the admin entered sizes
+	(S, M, L) rather than the alphabet's (L, M, S).
+	*/
+	SELECT [o].[Name], [o].[Value], COUNT(DISTINCT [v].[ParentProductId]) AS [Count]
+	FROM #visible s
+	INNER JOIN dbo.Product v
+		ON [v].[ParentProductId] = s.[Id]
+		AND [v].[Delisted] = 0
+		AND (@InStockOnly = 0 OR [v].[QuantityInStock] > 0)
+	INNER JOIN dbo.ProductOption o ON [o].[ProductId] = [v].[Id]
+	WHERE (@CategorySlug IS NULL OR s.[CategorySlug] = @CategorySlug)
+	  AND (@Brand IS NULL OR s.[Manufacturer] = @Brand)
+	GROUP BY [o].[Name], [o].[Value]
+	ORDER BY MIN([o].[SortOrder]), [o].[Name], MIN([v].[Id]);
 
 	DROP TABLE #visible;
 END

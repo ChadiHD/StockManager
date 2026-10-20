@@ -723,7 +723,7 @@ public class AdminDataService : IAdminDataService
         {
             Sku = draft.Sku,
             ProductName = draft.Name,
-            Description = string.Empty,
+            Description = draft.Desc,
             Category = draft.Cat,
             Source = ownStock ? "Own" : "Distributor",
             Distributor = ownStock ? null : draft.Dist,
@@ -731,8 +731,10 @@ public class AdminDataService : IAdminDataService
             Cost = draft.Cost,
             RetailPrice = draft.Price,
             QuantityInStock = draft.Avail,
-            IsTaxable = true,
-            ProductImage = draft.Image
+            IsTaxable = draft.IsTaxable,
+            ProductImage = draft.Image,
+            // The store's own brand for its own stock (T11); a feed writes its own over a feed's.
+            Manufacturer = ownStock ? draft.Manufacturer : null
         });
         response.EnsureSuccessStatusCode();
 
@@ -762,7 +764,9 @@ public class AdminDataService : IAdminDataService
                 RetailPrice = edited.Price,
                 QuantityInStock = edited.Avail,
                 IsTaxable = edited.IsTaxable,
-                ProductImage = edited.Image
+                ProductImage = edited.Image,
+                // Written by spProduct_Update since T11, so it has to come back too.
+                Manufacturer = edited.Manufacturer
             });
         response.EnsureSuccessStatusCode();
 
@@ -787,6 +791,101 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
 
         return null;
+    }
+
+    public async Task<IReadOnlyList<VariantItem>> GetVariants(string styleSku)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var variants = await GetListAsync<VariantDto>(
+            $"api/Product/Catalog/{Uri.EscapeDataString(styleSku)}/Variants");
+
+        return variants.Select(variant => new VariantItem(variant.Sku, variant.Label ?? "", variant.QuantityInStock)).ToList();
+    }
+
+    public async Task<string?> AddVariant(
+        string styleSku, string sku, int stock, IReadOnlyList<(string Name, string Value)> options)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"{_api}/api/Product/Catalog/{Uri.EscapeDataString(styleSku)}/Variants",
+            new
+            {
+                Sku = sku,
+                QuantityInStock = stock,
+                Options = options.Select(option => new { option.Name, option.Value })
+            });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That variant could not be added.");
+        }
+
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<string?> RemoveVariant(string sku)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.DeleteAsync($"{_api}/api/Product/Catalog/{Uri.EscapeDataString(sku)}/Variant");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That variant could not be removed.");
+        }
+
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task<IReadOnlyList<string>> GetImages(string sku)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await GetListAsync<string>($"api/Product/Catalog/{Uri.EscapeDataString(sku)}/Images");
+    }
+
+    public async Task<string?> UploadImage(string sku, Stream content, string fileName)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        // Multipart, as a browser form would send it. The type the browser claims is not sent
+        // as evidence of anything: the API decides it from the bytes.
+        using var form = new MultipartFormDataContent { { new StreamContent(content), "file", fileName } };
+
+        var response = await _client.PostAsync($"{_api}/api/Product/Catalog/{Uri.EscapeDataString(sku)}/Images", form);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await Problem(response, "That photograph could not be added.");
+        }
+
+        // The first photograph becomes the product's image, which the snapshot carries.
+        await RefreshAsync();
+
+        return null;
+    }
+
+    public async Task RemoveImage(string sku, string storedName)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.DeleteAsync(
+            $"{_api}/api/Product/Catalog/{Uri.EscapeDataString(sku)}/Images/{Uri.EscapeDataString(storedName)}");
+        response.EnsureSuccessStatusCode();
+
+        await RefreshAsync();
     }
 
     public async Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility)
@@ -1387,6 +1486,8 @@ public class AdminDataService : IAdminDataService
 
         return new Product
         {
+            Id = dto.Id,
+            ParentId = dto.ParentProductId,
             Sku = dto.Sku ?? dto.Id.ToString(),
             Name = dto.ProductName ?? string.Empty,
             // Not defaulted to a made-up category: the save sends this back, and an invented
@@ -1497,12 +1598,14 @@ public class AdminDataService : IAdminDataService
     private sealed record OrderLineDto(int Id, int PurchaseId, int ProductId, string? Sku, string? Name,
         int Quantity, decimal Price, decimal VAT);
 
+    private sealed record VariantDto(string Sku, string? Label, int QuantityInStock);
+
     private sealed record ProductDto(int Id, string? ProductName, string? Description, decimal RetailPrice,
         int QuantityInStock, bool IsTaxable, string? ProductImage, string? Sku, string? Category,
         decimal? Cost, string? Source, string? Distributor, string? DistributorSku, DateTime? LastSynced,
         string? Manufacturer, string? ManufacturerPartNumber, string? Ean,
         bool OnStore, string? Placement, string? StoreCategory, string? Visibility,
-        int? OverrideCategoryId, bool Featured, string? Badge);
+        int? OverrideCategoryId, bool Featured, string? Badge, int? ParentProductId);
 
     private sealed record CategoryMappingDto(
         List<SiteCategoryDto>? Categories, List<FeedCategoryDto>? FeedCategories);

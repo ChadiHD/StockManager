@@ -60,10 +60,26 @@ CREATE TABLE [dbo].[Product]
     -- till adds tax on top and lists only rows where this is 0.
     [PricesIncludeTax] BIT NOT NULL CONSTRAINT [DF_Product_PricesIncludeTax] DEFAULT 0,
 
+    /*
+    The style this row is a variant of (T11): one size and colour of a shirt, with its own SKU
+    and stock. NULL for a style and for every product that has no variants.
+
+    A variant is a Product row rather than a row in a variant table so that baskets, quotes,
+    orders, documents and mail, which all key on ProductId, need nothing new. Its name, price,
+    cost, category and the rest are its parent's, copied by spProduct_AddVariant and kept in step
+    by spProduct_Update; its options are in dbo.ProductOption. One level only, own stock only,
+    both enforced by spProduct_AddVariant. Last, like every column since T6.
+    */
+    [ParentProductId] INT NULL,
+
     -- SET NULL: deleting a feed stops its stock selling anywhere, and quotes and orders that
     -- hold its products still resolve them.
     CONSTRAINT [FK_Product_ToDistributorFeed] FOREIGN KEY ([FeedId])
-        REFERENCES [DistributorFeed]([Id]) ON DELETE SET NULL
+        REFERENCES [DistributorFeed]([Id]) ON DELETE SET NULL,
+
+    -- No cascade: a style is not deleted while it has variants, and a variant on a quote or an
+    -- order is not deleted at all.
+    CONSTRAINT [FK_Product_ToParent] FOREIGN KEY ([ParentProductId]) REFERENCES [Product]([Id])
 
     /*
     No Published, Featured or Badge. They were here until T8, and they were store decisions on a
@@ -94,3 +110,12 @@ GO
 CREATE NONCLUSTERED INDEX [IX_Product_Feed]
 	ON [dbo].[Product] ([FeedId], [DistributorSku])
 	WHERE [FeedId] IS NOT NULL;
+GO
+
+-- A style's variants (T11), which the catalogue rolls up into the style's stock on every row it
+-- reads. Filtered, so a catalogue with no variants carries an empty index rather than one entry
+-- per product.
+CREATE NONCLUSTERED INDEX [IX_Product_Parent]
+	ON [dbo].[Product] ([ParentProductId])
+	INCLUDE ([QuantityInStock], [Delisted], [Sku])
+	WHERE [ParentProductId] IS NOT NULL;

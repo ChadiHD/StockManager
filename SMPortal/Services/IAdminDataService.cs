@@ -233,6 +233,30 @@ public interface IAdminDataService
     Task<string> FetchProductImages(int take);
 
     /// <summary>
+    /// A style's sizes and colours (T11). Fetched when its page opens, not held in the snapshot:
+    /// the snapshot holds every product, and the label and stock of each variant is a page's
+    /// question. A variant's stock is changed with <see cref="UpdateProduct"/>, like any product's.
+    /// </summary>
+    Task<IReadOnlyList<VariantItem>> GetVariants(string styleSku);
+
+    /// <summary>
+    /// Adds a variant with its own SKU and stock, its options in the order given. Returns the
+    /// API's refusal, a repeated set of options or a feed product, or null.
+    /// </summary>
+    Task<string?> AddVariant(string styleSku, string sku, int stock, IReadOnlyList<(string Name, string Value)> options);
+
+    /// <summary>Removes a variant nothing holds. Returns why not, or null.</summary>
+    Task<string?> RemoveVariant(string sku);
+
+    /// <summary>A product's photographs in order, as stored names served from /img/ (T11).</summary>
+    Task<IReadOnlyList<string>> GetImages(string sku);
+
+    /// <summary>Adds a photograph, last in the order. Returns the API's refusal, or null.</summary>
+    Task<string?> UploadImage(string sku, Stream content, string fileName);
+
+    Task RemoveImage(string sku, string storedName);
+
+    /// <summary>
     /// The acting store's choice about one product: Show, Hide or null to follow the category
     /// mapping, the category a shown product is filed under, and its featured flag and badge.
     /// Returns why it was refused, or null.

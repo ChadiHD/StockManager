@@ -99,6 +99,19 @@ public class ProductCardTests : Bunit.TestContext
     }
 
     [Fact]
+    public void AStyleWithVariantsLinksToItsPageInsteadOfPostingToTheBasket()
+    {
+        // The basket refuses a style, because nothing can be shipped until a size is chosen
+        // (T11), so a card that posted one would hand the customer an error.
+        var cut = RenderComponent<ProductCard>(p => p.Add(x => x.Product, Card() with { HasVariants = true }));
+
+        cut.FindAll("form.product-card__add-form").Should().BeEmpty();
+        var choose = cut.Find("a.product-card__add");
+        choose.TextContent.Trim().Should().Be("Choose options");
+        choose.GetAttribute("href").Should().Be("/product/SKU1");
+    }
+
+    [Fact]
     public void RendersABadgeOnlyWhenTheProductHasOne()
     {
         var withBadge = RenderComponent<ProductCard>(p => p.Add(x => x.Product, Card(badge: "New")));

@@ -28,7 +28,8 @@ namespace SMDataManager.Library.DataAccess
                     query.Search,
                     query.Sort,
                     query.Page,
-                    query.PageSize
+                    query.PageSize,
+                    Options = ProductOptionTable.From(query.Options.Select(option => (option.Name, option.Value)))
                 },
                 "SMDatabase");
 
@@ -44,9 +45,8 @@ namespace SMDataManager.Library.DataAccess
         }
 
         /// <summary>
-        /// Reads the two result sets spCatalog_GetFacets returns. This is the one place the
-        /// codebase needs more than a single grid back from a procedure, which is why it uses
-        /// the transaction helpers rather than LoadData.
+        /// Reads the three result sets spCatalog_GetFacets returns: categories, brands and, since
+        /// T11, option values.
         /// </summary>
         public CatalogFacets GetFacets(CatalogQuery query)
         {
@@ -57,14 +57,15 @@ namespace SMDataManager.Library.DataAccess
                 query.CategorySlug,
                 query.Brand,
                 query.InStockOnly,
-                query.Search
+                query.Search,
+                Options = ProductOptionTable.From(query.Options.Select(option => (option.Name, option.Value)))
             };
 
-            var (categories, brands) = _sqlDataAccess
-                .LoadTwoResultSets<CatalogFacetModel, CatalogFacetModel, dynamic>(
+            var (categories, brands, options) = _sqlDataAccess
+                .LoadThreeResultSets<CatalogFacetModel, CatalogFacetModel, CatalogOptionFacetModel, dynamic>(
                     "dbo.spCatalog_GetFacets", parameters, "SMDatabase");
 
-            return new CatalogFacets { Categories = categories, Brands = brands };
+            return new CatalogFacets { Categories = categories, Brands = brands, Options = options };
         }
 
         public CatalogItemModel GetBySku(int siteId, string sku, int? customerGroupId)
@@ -73,6 +74,28 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spCatalog_GetBySku",
                 new { SiteId = siteId, Sku = sku, CustomerGroupId = customerGroupId },
                 "SMDatabase").FirstOrDefault();
+        }
+
+        public CatalogFamily GetFamily(int siteId, int styleId, int? customerGroupId)
+        {
+            var (rows, options) = _sqlDataAccess
+                .LoadTwoResultSets<CatalogItemModel, ProductOptionModel, dynamic>(
+                    "dbo.spCatalog_GetFamily",
+                    new { SiteId = siteId, ProductId = styleId, CustomerGroupId = customerGroupId },
+                    "SMDatabase");
+
+            return new CatalogFamily
+            {
+                Style = rows.FirstOrDefault(row => row.Id == styleId && row.ParentProductId is null),
+                Variants = rows.Where(row => row.ParentProductId == styleId).ToList(),
+                Options = options
+            };
+        }
+
+        public List<string> GetImages(int productId)
+        {
+            return _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spProductImage_GetByProduct", new { ProductId = productId }, "SMDatabase");
         }
 
         public List<SiteCategoryModel> GetCategories(int siteId)

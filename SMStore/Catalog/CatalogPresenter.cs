@@ -3,6 +3,7 @@ using SMDataManager.Library.Models;
 using SMDataManager.Library.Pricing;
 using SMStore.Accounts;
 using SMStore.Sites;
+using StockManager.ProductImages;
 using static SMStore.Localization.StoreText;
 
 namespace SMStore.Catalog;
@@ -77,9 +78,11 @@ public sealed class CatalogPresenter
     public int? CustomerGroupId => _customer.CustomerGroupId;
 
     public CatalogResult Search(
-        string? categorySlug, string? brand, bool inStockOnly, string? search, string? sort, int page)
+        string? categorySlug, string? brand, bool inStockOnly, string? search, string? sort, int page,
+        IReadOnlyList<CatalogOption>? options = null)
     {
         var query = BuildQuery(categorySlug, brand, inStockOnly, search, sort, page);
+        query.Options = options?.ToList() ?? [];
 
         var result = _catalog.Search(query);
 
@@ -110,7 +113,8 @@ public sealed class CatalogPresenter
             facets.Brands,
             result.TotalCount,
             result.Page,
-            result.TotalPages);
+            result.TotalPages,
+            facets.Options);
     }
 
     /// <summary>
@@ -126,8 +130,99 @@ public sealed class CatalogPresenter
         return _catalog.Search(query).Items.Select(ToCard).ToList();
     }
 
+    /// <summary>
+    /// The option filter a URL carries (T11): <c>?opt=Size:M&amp;opt=Colour:Navy</c>.
+    /// </summary>
+    /// <remarks>
+    /// The values arrive in a URL anybody can write, and they become a table-valued parameter
+    /// keyed on the pair with 50-character columns. So a repeat is dropped rather than failing
+    /// the key, an oversized or malformed one is dropped rather than failing the truncation
+    /// check, and the count is capped. Either failure would be an unauthenticated 500 from one
+    /// query string. A dropped value filters by nothing, which is what a mistyped URL meant.
+    /// </remarks>
+    public static IReadOnlyList<CatalogOption> ParseOptions(IEnumerable<string?>? raw) =>
+        (raw ?? [])
+            .Select(ParseOption)
+            .OfType<CatalogOption>()
+            .Distinct()
+            .Take(MaxOptions)
+            .ToList();
+
+    /// <summary>How an option travels in <c>?opt=</c>. A name may not contain the colon.</summary>
+    public static string Encode(CatalogOption option) => $"{option.Name}:{option.Value}";
+
+    private const int MaxOptions = 20;
+
+    private const int MaxOptionLength = 50;
+
+    private static CatalogOption? ParseOption(string? raw)
+    {
+        var colon = raw?.IndexOf(':') ?? -1;
+        if (colon < 1)
+        {
+            return null;
+        }
+
+        var name = raw![..colon].Trim();
+        var value = raw[(colon + 1)..].Trim();
+
+        return name.Length is > 0 and <= MaxOptionLength && value.Length is > 0 and <= MaxOptionLength
+            ? new CatalogOption(name, value)
+            : null;
+    }
+
     public CatalogItemModel? GetBySku(string sku)
         => _catalog.GetBySku(_siteContext.Site.Id, sku, CustomerGroupId);
+
+    /// <summary>
+    /// The page for a SKU (T11). A variant's SKU opens its style's page with that variant chosen,
+    /// so a link from a basket line or a quote lands where the size can be changed. Null when
+    /// nothing is on sale here, a variant of a style the store hid included.
+    /// </summary>
+    public ProductPage? GetProductPage(string sku)
+    {
+        var item = GetBySku(sku);
+
+        if (item is null)
+        {
+            return null;
+        }
+
+        if (item.ParentProductId is null && !item.HasVariants)
+        {
+            return new ProductPage(item, [], null, null, ImagesOf(item.Id));
+        }
+
+        var family = _catalog.GetFamily(_siteContext.Site.Id, item.ParentProductId ?? item.Id, CustomerGroupId);
+
+        if (family.Style is null)
+        {
+            return null;
+        }
+
+        // Values in the order fnProduct_VariantLabels writes them into the variant's name, so the
+        // choice here and the line in the basket read the same.
+        string LabelOf(int id) => string.Join(" / ", family.Options
+            .Where(option => option.ProductId == id)
+            .OrderBy(option => option.SortOrder).ThenBy(option => option.Name, StringComparer.Ordinal)
+            .Select(option => option.Value));
+
+        var names = family.Options
+            .GroupBy(option => option.Name)
+            .OrderBy(group => group.Min(option => option.SortOrder)).ThenBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.Key)
+            .ToList();
+
+        return new ProductPage(
+            family.Style,
+            family.Variants.Select(variant => new VariantChoice(variant.Sku, LabelOf(variant.Id), variant.QuantityInStock > 0)).ToList(),
+            item.ParentProductId is null ? null : item.Sku,
+            names.Count == 0 ? null : string.Join(" / ", names),
+            ImagesOf(family.Style.Id));
+    }
+
+    private IReadOnlyList<string> ImagesOf(int productId) =>
+        _catalog.GetImages(productId).Select(name => ProductImageNames.PathPrefix + name).ToList();
 
     public IReadOnlyList<SiteCategoryModel> GetCategories()
         => _catalog.GetCategories(_siteContext.Site.Id).Where(c => c.IsActive).ToList();
@@ -142,7 +237,8 @@ public sealed class CatalogPresenter
         Availability(item.QuantityInStock),
         item.QuantityInStock > 0,
         FormatPrice(item),
-        string.IsNullOrWhiteSpace(item.ProductImage) ? null : item.ProductImage);
+        string.IsNullOrWhiteSpace(item.ProductImage) ? null : item.ProductImage,
+        item.HasVariants);
 
     /// <summary>Null when this viewer may not see prices, which the card renders differently.</summary>
     public string? FormatPrice(CatalogItemModel item)
@@ -218,4 +314,5 @@ public sealed record CatalogResult(
     IReadOnlyList<CatalogFacetModel> Brands,
     int TotalCount,
     int Page,
-    int TotalPages);
+    int TotalPages,
+    IReadOnlyList<CatalogOptionFacetModel> Options);

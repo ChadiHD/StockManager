@@ -125,7 +125,8 @@ namespace SMDataManager.Library.DataAccess
                 product.IsTaxable,
                 product.ProductImage,
                 site.CurrencyCode,
-                site.PricesIncludeTax
+                site.PricesIncludeTax,
+                product.Manufacturer
             }, "SMDatabase");
 
             return GetProductBySku(site.Id, product.Sku);
@@ -146,8 +147,68 @@ namespace SMDataManager.Library.DataAccess
                 product.RetailPrice,
                 product.QuantityInStock,
                 product.IsTaxable,
-                product.ProductImage
+                product.ProductImage,
+                product.Manufacturer
             }, "SMDatabase");
+        }
+
+        public VariantResult AddVariant(int siteId, int styleId, string sku, int quantityInStock,
+            IEnumerable<(string Name, string Value)> options)
+        {
+            try
+            {
+                var id = _sqlDataAccess.LoadData<int, dynamic>("dbo.spProduct_AddVariant", new
+                {
+                    SiteId = siteId,
+                    ParentProductId = styleId,
+                    Sku = sku,
+                    QuantityInStock = quantityInStock,
+                    Options = ProductOptionTable.From(options)
+                }, "SMDatabase").Single();
+
+                return new VariantResult(id, null);
+            }
+            catch (SqlException ex) when (ex.Number is >= 50120 and <= 50129)
+            {
+                return new VariantResult(null, ex.Message);
+            }
+        }
+
+        public List<VariantModel> GetVariants(int siteId, int styleId)
+        {
+            return _sqlDataAccess.LoadData<VariantModel, dynamic>(
+                "dbo.spProduct_GetVariants", new { SiteId = siteId, ProductId = styleId }, "SMDatabase");
+        }
+
+        public void AddImage(int productId, string storedName, string contentType)
+        {
+            _sqlDataAccess.SaveData("dbo.spProductImage_Add",
+                new { ProductId = productId, StoredName = storedName, ContentType = contentType }, "SMDatabase");
+        }
+
+        public bool RemoveImage(int productId, string storedName)
+        {
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spProductImage_Remove",
+                new { ProductId = productId, StoredName = storedName }, "SMDatabase").Single() > 0;
+        }
+
+        public List<string> GetImages(int productId)
+        {
+            return _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spProductImage_GetByProduct", new { ProductId = productId }, "SMDatabase");
+        }
+
+        public string RemoveVariant(int siteId, int variantId)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spProduct_RemoveVariant", new { SiteId = siteId, Id = variantId }, "SMDatabase");
+                return null;
+            }
+            catch (SqlException ex) when (ex.Number is >= 50120 and <= 50129)
+            {
+                return ex.Message;
+            }
         }
 
         public List<ProductImageCandidate> GetImageCandidates(int take)

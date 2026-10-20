@@ -80,6 +80,24 @@ namespace SMDataManager.Library.Internal.DataAccess
             }
         }
 
+        /// <summary>As <see cref="LoadTwoResultSets"/>, for a procedure that returns three grids.</summary>
+        public (List<T1>, List<T2>, List<T3>) LoadThreeResultSets<T1, T2, T3, U>(
+            string storeProcedure, U parameters, string connectionStringName)
+        {
+            string connectionString = GetConnectionString(connectionStringName);
+
+            using (IDbConnection connection = new SqlConnection(connectionString))
+            using (var grids = connection.QueryMultiple(storeProcedure, parameters,
+                       commandType: CommandType.StoredProcedure))
+            {
+                List<T1> first = grids.Read<T1>().ToList();
+                List<T2> second = grids.Read<T2>().ToList();
+                List<T3> third = grids.Read<T3>().ToList();
+
+                return (first, second, third);
+            }
+        }
+
         // Start transaction method
         private IDbConnection _connection;
         private IDbTransaction _transaction;

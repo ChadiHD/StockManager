@@ -55,20 +55,33 @@
                    no circuit for a handler to run on, so the button could never have worked as
                    written. The convention it was following still holds — the control was in
                    place before the behaviour was — only the mechanism was wrong. *@
-                <form method="post" action="@BasketEndpoints.AddPath" class="product-card__add-form">
-                    <AntiforgeryToken />
-                    <input type="hidden" name="sku" value="@Product.Sku" />
-                    <input type="hidden" name="returnUrl" value="@ReturnTo" />
-                    <button type="submit" class="btn btn-primary blueprint product-card__add">
+                @if (Product.HasVariants)
+                {
+                    @* A style is bought in a size (T11), so the card sends the customer to the page
+                       where one is chosen rather than posting something the basket refuses. *@
+                    <a href="@Product.Href" class="btn btn-primary blueprint product-card__add">
                         <i class="corner tl"></i><i class="corner tr"></i>
                         <i class="corner bl"></i><i class="corner br"></i>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                            <path d="M5 12h14" /><path d="M12 5v14" />
-                        </svg>
-                        @Ordering.Current.AddToBasketLabel
-                    </button>
-                </form>
+                        @L["Choose options"]
+                    </a>
+                }
+                else
+                {
+                    <form method="post" action="@BasketEndpoints.AddPath" class="product-card__add-form">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="sku" value="@Product.Sku" />
+                        <input type="hidden" name="returnUrl" value="@ReturnTo" />
+                        <button type="submit" class="btn btn-primary blueprint product-card__add">
+                            <i class="corner tl"></i><i class="corner tr"></i>
+                            <i class="corner bl"></i><i class="corner br"></i>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                                <path d="M5 12h14" /><path d="M12 5v14" />
+                            </svg>
+                            @Ordering.Current.AddToBasketLabel
+                        </button>
+                    </form>
+                }
 
                 <a href="@Product.Href" class="btn btn-secondary product-card__view">
                     <span class="visually-hidden">@L["View {0}", Product.Title]</span>

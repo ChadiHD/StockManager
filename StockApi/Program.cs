@@ -16,6 +16,7 @@ using StockApi.Scheduling;
 using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
+using StockManager.ProductImages;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
@@ -136,6 +137,10 @@ builder.AddSharedDataProtection();
 // application. Both hosts must resolve the same container root, or a reviewer opens an empty
 // store — see AddDocumentStore.
 builder.AddDocumentStore();
+
+// Product photographs (T11): written by the product screens, and served from /img/ here as well
+// as on the storefront, so the portal shows them from its own origin.
+builder.AddProductImageStore();
 
 // Outbound mail. The transport is still the logger — see AddEmail — and since T6 nothing
 // calls it but the dispatcher: call sites queue through IEmailOutbox, procedures queue inside
@@ -306,6 +311,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapProductImages();
 app.MapDefaultEndpoints();
 
 // The portal's own routes load its page; nothing else does. A catch-all would answer a

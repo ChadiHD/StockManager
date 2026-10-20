@@ -39,7 +39,9 @@ BEGIN
 		[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost],
 		[QuantityInStock], [ProductImage], [Manufacturer], [ManufacturerPartNumber],
 		[Ean], [Distributor], [Source], [Badge], [Featured], [LastSynced],
-		[CategorySlug], [CategoryName]
+		[CategorySlug], [CategoryName],
+		-- A variant's SKU opens its style's page with that variant chosen (T11).
+		[ParentProductId], [HasVariants]
 	FROM dbo.fnCatalog_VisibleProducts(
 		@SiteId, @CustomerGroupId, @HasIncludeRule, NULL, NULL, 0, NULL, NULL, NULL, 0, 0,
 		@StaleBeforeUtc)
