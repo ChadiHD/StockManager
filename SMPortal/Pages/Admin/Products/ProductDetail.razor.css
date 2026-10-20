@@ -19,3 +19,11 @@
 .placement-status--off { color:var(--muted-3); }
 .check { display:flex; align-items:center; gap:8px; font-size:.88rem; }
 .placement-error { margin:12px 0 0; }
+
+/* T11: a product's photographs and its sizes and colours. */
+.image-strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:12px; }
+.image-strip__item { margin:0; display:flex; flex-direction:column; gap:6px; }
+.image-strip__item img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
+.image-error, .variant-error { margin:12px 0 0; }
+.variant-table { width:100%; }
+.product-description { resize:vertical; }

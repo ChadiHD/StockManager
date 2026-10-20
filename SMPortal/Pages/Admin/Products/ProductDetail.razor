@@ -41,6 +41,30 @@ else
                 </div>
             </div>
 
+            @if (_p.ParentId is not null)
+            {
+                @* A variant is its style in one size (T11): spProduct_Update writes only its stock,
+                   so the form offers nothing else rather than accepting edits it would discard. *@
+                <EditForm Model="_edit" OnValidSubmit="Save" class="panel panel-pad variant-edit">
+                    <span class="card-kicker">Variant</span>
+                    <p class="field-note">
+                        A size or colour of
+                        @if (Style is not null)
+                        {
+                            <a href="@($"admin/products/{Uri.EscapeDataString(Style.Sku)}")">@Style.Name</a>
+                        }
+                        else
+                        {
+                            <span>its style</span>
+                        }.
+                        Its name, price and description are the style's; only its stock is its own.
+                    </p>
+                    <div class="field"><label>Available units</label><InputNumber class="input" @bind-Value="_edit.Avail" /></div>
+                    <button type="submit" class="btn btn-primary mt">Save stock</button>
+                </EditForm>
+            }
+            else
+            {
             <EditForm Model="_edit" OnValidSubmit="Save" class="panel panel-pad">
                 <span class="card-kicker">Edit product</span>
                 <div class="form-grid">
@@ -56,9 +80,90 @@ else
                     <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_edit.Dist" /></div>
                     <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_edit.DistSku" /></div>
                     <div class="field span2"><label>Image URL (optional)</label><InputText class="input" @bind-Value="_edit.Image" /></div>
+                    <div class="field span2"><label>Description</label><InputTextArea class="input product-description" rows="4" @bind-Value="_edit.Desc" /></div>
+                    @if (!_p.IsDistributor)
+                    {
+                        @* A feed writes its own brand over a feed product's on every sync, so the
+                           field is offered on own stock only, where it sticks (T11). *@
+                        <div class="field"><label>Brand</label><InputText class="input" @bind-Value="_edit.Manufacturer" /></div>
+                    }
+                    <div class="field">
+                        <label class="check"><InputCheckbox @bind-Value="_edit.IsTaxable" /> Charge tax on this product</label>
+                        <span class="field-note">Untick for goods the store's rules exempt, such as children's clothing in some countries.</span>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary mt">Save changes</button>
             </EditForm>
+
+            <div class="panel panel-pad product-images">
+                <span class="card-kicker">Photographs</span>
+                @if (_images.Count == 0)
+                {
+                    <p class="field-note">None uploaded. The first one becomes the product's image everywhere it is shown.</p>
+                }
+                else
+                {
+                    <div class="image-strip">
+                        @foreach (var name in _images)
+                        {
+                            <figure class="image-strip__item">
+                                <img src="@($"/img/{name}")" alt="@_p.Name" />
+                                <button class="btn btn-ghost btn-sm image-remove" @onclick="() => RemoveImage(name)">Remove</button>
+                            </figure>
+                        }
+                    </div>
+                }
+                <div class="field mt">
+                    <label for="image-upload">Add a photograph <span class="label-optional">JPEG, PNG or WebP, up to 5 MB</span></label>
+                    <InputFile id="image-upload" accept=".jpg,.jpeg,.png,.webp" OnChange="UploadImage" disabled="@_uploading" />
+                </div>
+                @if (_imageError is not null)
+                {
+                    <p class="field-note field-note--warn image-error">@_imageError</p>
+                }
+            </div>
+
+            @if (!_p.IsDistributor)
+            {
+                <div class="panel panel-pad product-variants">
+                    <span class="card-kicker">Sizes and colours</span>
+                    @if (_variants.Count == 0)
+                    {
+                        <p class="field-note">None. Add one and the product is sold in that size or colour only, each with its own SKU and stock.</p>
+                    }
+                    else
+                    {
+                        <table class="table variant-table">
+                            <thead><tr><th>Variant</th><th>SKU</th><th class="num">Stock</th><th class="trail"><span class="vh">Remove</span></th></tr></thead>
+                            <tbody>
+                                @foreach (var variant in _variants)
+                                {
+                                    <tr>
+                                        <td>@variant.Label</td>
+                                        <td class="mono"><a href="@($"admin/products/{Uri.EscapeDataString(variant.Sku)}")">@variant.Sku</a></td>
+                                        <td class="num">@variant.Avail</td>
+                                        <td class="trail"><button class="btn btn-ghost btn-sm variant-remove" @onclick="() => RemoveVariant(variant.Sku)">Remove</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="form-grid mt variant-add">
+                        <div class="field"><label for="variant-sku">SKU</label><input id="variant-sku" class="input" @bind="_variantSku" /></div>
+                        <div class="field"><label for="variant-stock">Stock</label><input id="variant-stock" class="input" type="number" min="0" @bind="_variantStock" /></div>
+                        <div class="field"><label for="variant-name-1">Option</label><input id="variant-name-1" class="input" placeholder="Size" @bind="_option1Name" /></div>
+                        <div class="field"><label for="variant-value-1">Value</label><input id="variant-value-1" class="input" placeholder="M" @bind="_option1Value" /></div>
+                        <div class="field"><label for="variant-name-2">Second option <span class="label-optional">optional</span></label><input id="variant-name-2" class="input" placeholder="Colour" @bind="_option2Name" /></div>
+                        <div class="field"><label for="variant-value-2">Value</label><input id="variant-value-2" class="input" placeholder="Navy" @bind="_option2Value" /></div>
+                    </div>
+                    @if (_variantError is not null)
+                    {
+                        <p class="field-note field-note--warn variant-error">@_variantError</p>
+                    }
+                    <button class="btn btn-secondary mt variant-save" @onclick="AddVariant">Add variant</button>
+                </div>
+            }
+            }
         </div>
 
         <div class="stack">
@@ -135,6 +240,17 @@ else
     private bool _savingPlacement;
     private IReadOnlyList<StoreCategoryOption> _categories = [];
 
+    private IReadOnlyList<string> _images = [];
+    private string? _imageError;
+    private bool _uploading;
+
+    private IReadOnlyList<VariantItem> _variants = [];
+    private string _variantSku = "", _option1Name = "", _option1Value = "", _option2Name = "", _option2Value = "";
+    private int _variantStock;
+    private string? _variantError;
+
+    private Product? Style => _p?.ParentId is { } parentId ? Data.Products.FirstOrDefault(p => p.Id == parentId) : null;
+
     private string SyncLabel => _p is null ? "" :
         (_p.IsDistributor ? (_p.Stale ? "Feed out of date" : "Synced " + _p.Synced) : "Own warehouse");
 
@@ -149,14 +265,22 @@ else
         // category and made an exempt product taxable.
         _edit = new()
         {
+            Id = _p.Id, ParentId = _p.ParentId,
             Sku = _p.Sku, Name = _p.Name, Cat = _p.Cat, Desc = _p.Desc, IsTaxable = _p.IsTaxable,
             Source = _p.Source, Cost = _p.Cost, Price = _p.Price, Avail = _p.Avail,
-            Dist = _p.Dist, DistSku = _p.DistSku, Image = _p.Image
+            Dist = _p.Dist, DistSku = _p.DistSku, Image = _p.Image,
+            // spProduct_Update writes the brand since T11, so it has to come back too.
+            Manufacturer = _p.Manufacturer
         };
 
         LoadPlacement(_p);
 
         _categories = (await Data.GetCategoryMappings()).Categories;
+
+        // Per product and fetched on opening it, the GetContacts precedent: the snapshot holds every
+        // product, and a style's variants and photographs are this page's question (T11).
+        _images = _p.ParentId is null ? await Data.GetImages(Sku) : [];
+        _variants = _p.ParentId is null && !_p.IsDistributor ? await Data.GetVariants(Sku) : [];
     }
 
     private void LoadPlacement(Product product)
@@ -173,6 +297,77 @@ else
         await Data.UpdateProduct(_edit);
         _p = Data.GetProduct(Sku);
         Toast.Show("Product saved");
+    }
+
+    private async Task AddVariant()
+    {
+        var options = new List<(string Name, string Value)>();
+        if (!string.IsNullOrWhiteSpace(_option1Name)) options.Add((_option1Name.Trim(), _option1Value.Trim()));
+        if (!string.IsNullOrWhiteSpace(_option2Name)) options.Add((_option2Name.Trim(), _option2Value.Trim()));
+
+        // The API refuses these too; saying so here spares a round trip for the obvious ones.
+        if (string.IsNullOrWhiteSpace(_variantSku) || options.Count == 0 || options.Any(option => option.Value.Length == 0))
+        {
+            _variantError = "A variant needs a SKU and at least one option with a value, such as Size: M.";
+            return;
+        }
+
+        _variantError = await Data.AddVariant(Sku, _variantSku.Trim(), _variantStock, options);
+        if (_variantError is not null) return;
+
+        _variantSku = _option1Value = _option2Value = "";
+        _variantStock = 0;
+        _variants = await Data.GetVariants(Sku);
+        _p = Data.GetProduct(Sku);
+        Toast.Show("Variant added");
+    }
+
+    private async Task RemoveVariant(string sku)
+    {
+        _variantError = await Data.RemoveVariant(sku);
+        if (_variantError is not null) return;
+
+        _variants = await Data.GetVariants(Sku);
+        _p = Data.GetProduct(Sku);
+        Toast.Show("Variant removed");
+    }
+
+    private async Task UploadImage(InputFileChangeEventArgs e)
+    {
+        _imageError = null;
+
+        // The API's own limit, checked first so a large file is refused before it is sent.
+        const long maxBytes = 5 * 1024 * 1024;
+        if (e.File.Size > maxBytes)
+        {
+            _imageError = "A photograph can be at most 5 MB.";
+            return;
+        }
+
+        _uploading = true;
+
+        try
+        {
+            await using var content = e.File.OpenReadStream(maxBytes);
+            _imageError = await Data.UploadImage(Sku, content, e.File.Name);
+            if (_imageError is not null) return;
+
+            _images = await Data.GetImages(Sku);
+            _p = Data.GetProduct(Sku);
+            Toast.Show("Photograph added");
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task RemoveImage(string storedName)
+    {
+        await Data.RemoveImage(Sku, storedName);
+        _images = await Data.GetImages(Sku);
+        _p = Data.GetProduct(Sku);
+        Toast.Show("Photograph removed");
     }
 
     private async Task SavePlacement()

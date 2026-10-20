@@ -120,6 +120,15 @@ public class Order
 
 public class Product
 {
+    /// <summary>
+    /// The database ids (T11), which the page needs only to find a style's variants in the snapshot;
+    /// every call to the API still names a product by its SKU.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>The style this is a size or colour of, or null.</summary>
+    public int? ParentId { get; set; }
+
     public string Sku { get; set; } = "";
     public string Name { get; set; } = "";
 
@@ -337,3 +346,6 @@ public sealed record FeedCategoryRow(string FeedValue, int Products, int? SiteCa
 
 public sealed record CategoryMappingView(
     IReadOnlyList<StoreCategoryOption> Categories, IReadOnlyList<FeedCategoryRow> FeedCategories);
+
+/// <summary>One variant of a style as its product page lists it (T11): "M / Navy", and its stock.</summary>
+public sealed record VariantItem(string Sku, string Label, int Avail);

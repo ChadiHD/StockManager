@@ -59,6 +59,7 @@
         <table class="tbl">
             <thead><tr><th class="select-col"><input type="checkbox" aria-label="Select this page" checked="@PageSelected" @onchange="TogglePage" /></th><th class="thumb-col"></th><th>Product</th><th>On this store</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
             <tbody>
+                @{ var variantCounts = VariantCounts(); }
                 @foreach (var p in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/products/{p.Sku}")'>
@@ -76,6 +77,10 @@
                                 <span class="cell-sub">@p.Name</span>
                             }
                             <span class="cell-sub mono">@p.Sku</span>
+                            @if (variantCounts.TryGetValue(p.Id, out var variants))
+                            {
+                                <span class="cell-sub variant-count">@variants @(variants == 1 ? "variant" : "variants")</span>
+                            }
                         </td>
                         <td class="placement-cell">
                             <span class="placement @(p.OnStore ? "placement--on" : "placement--off")">
@@ -169,6 +174,21 @@
                 }
 
                 <div class="field span2">
+                    <label>Description <span class="label-optional">optional</span></label>
+                    <InputTextArea class="input" rows="3" @bind-Value="_draft.Desc" />
+                </div>
+                @if (_draft.Source != "Distributor")
+                {
+                    <div class="field">
+                        <label>Brand <span class="label-optional">optional</span></label>
+                        <InputText class="input" @bind-Value="_draft.Manufacturer" />
+                    </div>
+                }
+                <div class="field">
+                    <label class="check"><InputCheckbox @bind-Value="_draft.IsTaxable" /> Charge tax on this product</label>
+                </div>
+
+                <div class="field span2">
                     <label>Image URL <span class="label-optional">optional</span></label>
                     <InputText class="input" @bind-Value="_draft.Image" />
                     <span class="field-note">Left blank, the Icecat lookup fills it in on the next image fetch.</span>
@@ -246,6 +266,13 @@
     private bool _showNew;
     private Product _draft = new();
 
+    // Once per render rather than per row: the snapshot holds every product, and a count per row
+    // would read all of them for each one on the page.
+    private Dictionary<int, int> VariantCounts() => Data.Products
+        .Where(p => p.ParentId is not null)
+        .GroupBy(p => p.ParentId!.Value)
+        .ToDictionary(group => group.Key, group => group.Count());
+
     private bool SkuTaken =>
         !string.IsNullOrWhiteSpace(_draft.Sku) &&
         Data.Products.Any(p => string.Equals(p.Sku, _draft.Sku, StringComparison.OrdinalIgnoreCase));
@@ -288,7 +315,9 @@
     private int _page = 1;
     private int _pageSize = 25;
 
-    private List<Product> Filtered => Data.Products.Where(p => _filter switch
+    // Styles and plain products: a variant is listed on its style's page (T11), and a shirt in
+    // six sizes is one row here as it is one card in the shop.
+    private List<Product> Filtered => Data.Products.Where(p => p.ParentId is null).Where(p => _filter switch
     {
         "On this store" => p.OnStore,
         "Not on this store" => !p.OnStore,

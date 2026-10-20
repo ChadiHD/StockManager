@@ -54,6 +54,8 @@ public class StoreCatalogTests : TestContext
         // NSubstitute hands back null for an unconfigured list, which the real service never does.
         data.Products.Returns(products);
         data.GetProduct(Arg.Any<string>()).Returns(call => products.FirstOrDefault(p => p.Sku == call.Arg<string>()));
+        data.GetImages(default!).ReturnsForAnyArgs(Task.FromResult<IReadOnlyList<string>>([]));
+        data.GetVariants(default!).ReturnsForAnyArgs(Task.FromResult<IReadOnlyList<VariantItem>>([]));
         data.GetCategoryMappings().Returns(new CategoryMappingView(
             [new StoreCategoryOption(7, "Laptops", true), new StoreCategoryOption(8, "Retired", false)],
             [new FeedCategoryRow("Keyboards / Desktops", 12, 7, "Laptops"), new FeedCategoryRow("Tablet PC's", 4, null, null)]));
@@ -89,6 +91,21 @@ public class StoreCatalogTests : TestContext
             edited.Desc == "LENOVO ThinkPad E14 G2"
             && edited.Cat == "Keyboards / Desktops"
             && edited.IsTaxable == false));
+    }
+
+    [Fact]
+    public void SavingTheProductSendsItsBrandBack()
+    {
+        // spProduct_Update writes the brand since T11, so a form that dropped it would blank the
+        // brand of every product somebody corrected a price on.
+        var product = Listed();
+        product.Manufacturer = "Lenovo";
+        var data = Data(product);
+        var cut = RenderComponent<ProductDetail>(p => p.Add(x => x.Sku, "SKU-1"));
+
+        cut.Find("form").Submit();
+
+        data.Received(1).UpdateProduct(Arg.Is<Product>(edited => edited.Manufacturer == "Lenovo"));
     }
 
     [Fact]
