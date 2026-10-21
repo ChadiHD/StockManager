@@ -32,11 +32,11 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
 
-    <!-- Pinned to 13.4.6 to match the Aspire.AppHost.Sdk/13.4.6 that
+    <!-- Pinned to 13.5.3 to match the Aspire.AppHost.Sdk/13.5.3 that
          StockManager.AppHost.csproj is built with. Aspire.Hosting.Testing has to be the same
          version as the app host it drives; the two drifting apart is a startup failure in this
          project that has nothing to do with anything this suite is testing. -->
-    <PackageReference Include="Aspire.Hosting.Testing" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.5.3" />
     <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
 
     <!-- Held at 7.2.2, matching SMStore.Tests: FluentAssertions 8.0 moved to a licence that is
