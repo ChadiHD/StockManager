@@ -974,6 +974,12 @@ after writing a deploy report. The app host's in-process publish turns it off an
 mode only. A change the production path refuses needs a pre-deployment step that keeps the data,
 never the flag.
 
+**The DACPAC targets SQL Server 2022 and is published to Azure SQL anyway**, with
+`AllowIncompatiblePlatform`: local runs and CI publish to SQL Server, a deployment to Azure SQL.
+CI's "The schema builds for Azure SQL" step builds it a second time for Azure SQL
+(`--no-incremental`, or the shared `obj/` skips the check), and that is what keeps the flag safe.
+Do not drop that step.
+
 **A project gets one pre-deployment and one post-deployment script**, so each is a wrapper that
 `:r`-includes its steps, and the steps are `None` items in the sqlproj. Data that a column drop
 would lose is saved aside before the diff and filed afterwards: `HoldProductFlags.sql` copies
