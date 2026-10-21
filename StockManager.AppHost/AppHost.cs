@@ -234,7 +234,7 @@ if (builder.ExecutionContext.IsRunMode)
 }
 else
 {
-	ProductionTopology.Apply(builder, api, store, jwtSigningKey);
+	ProductionTopology.Apply(builder, api, store, jwtSigningKey, sql, [identityDatabase, stockDatabase]);
 }
 
 // The WPF POS and its UI tests are Windows desktop programs: run mode on Windows only. Published,
