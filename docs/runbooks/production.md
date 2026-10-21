@@ -121,7 +121,9 @@ merging the template does not fight over it.
    bootstrap admin, and change the password (*Change password*, top bar).
 4. **Remove the bootstrap values**: delete `ADMIN_BOOTSTRAP_EMAIL` and
    `ADMIN_BOOTSTRAP_PASSWORD` from the environment and run the workflow again. StockApi warns in its log
-   until they are gone; they do nothing once an admin exists.
+   until they are gone; they do nothing once an admin exists. With the email unset the deployment
+   carries neither, but the vault keeps the `admin-bootstrap-password` secret it was given: delete
+   it there too.
 5. **Give `stock-api` its mail role** (§1, step 3).
 
 ### Each deploy after that
