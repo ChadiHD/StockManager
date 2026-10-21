@@ -52,11 +52,15 @@ az sql server ad-admin create -g "$Azure__ResourceGroup" -s "$server_name" \
 token=$(az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv)
 target="Server=tcp:${server},1433;Database=SMDatabase;Encrypt=True;TrustServerCertificate=False"
 
+# The DACPAC targets SQL Server 2022, which local runs and CI publish to, and sqlpackage refuses
+# it for Azure SQL without AllowIncompatiblePlatform. CI's "The schema builds for Azure SQL"
+# step is what makes that safe: anything Azure SQL lacks fails there, not here.
+
 # A new admin can take a little while to be accepted at sign-in.
 for attempt in 1 2 3 4; do
   if sqlpackage /Action:DeployReport /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
       "/TargetConnectionString:$target" "/AccessToken:$token" \
-      "/OutputPath:schema-$phase.xml" /p:BlockOnPossibleDataLoss=true; then
+      "/OutputPath:schema-$phase.xml" /p:BlockOnPossibleDataLoss=true /p:AllowIncompatiblePlatform=true; then
     break
   fi
   if [ "$attempt" = 4 ]; then exit 1; fi
@@ -65,7 +69,7 @@ for attempt in 1 2 3 4; do
 done
 
 sqlpackage /Action:Publish /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
-  "/TargetConnectionString:$target" "/AccessToken:$token" /p:BlockOnPossibleDataLoss=true
+  "/TargetConnectionString:$target" "/AccessToken:$token" /p:BlockOnPossibleDataLoss=true /p:AllowIncompatiblePlatform=true
 
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "published=true" >> "$GITHUB_OUTPUT"
