@@ -21,6 +21,15 @@
     <!-- 7.x, as StockApi: EF brings 6.1.1, which brings Azure.Identity, and Azure.Core 1.55+ now
          defines DefaultAzureCredential itself, so the two together make it ambiguous (CS0433). -->
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <!-- 7.x moved Entra sign-in out of the core package. Aspire's Azure SQL connection strings say
+         Authentication=Active Directory Default, and SqlClient looks for this assembly by name to
+         serve it; without it both apps crash at startup on Azure with "Cannot find an
+         authentication provider for 'ActiveDirectoryDefault'". Local SQL Server never asks for
+         Entra sign-in, so nothing here notices it missing. Keep it on SqlClient's version. -->
+    <PackageReference Include="Microsoft.Data.SqlClient.Extensions.Azure" Version="7.0.2" />
+    <!-- That package brings Azure.Identity 1.18, which defines DefaultAzureCredential beside
+         Azure.Core's own (CS0433, as above). 1.21 is the first that forwards it to Azure.Core. -->
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="10.6.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
