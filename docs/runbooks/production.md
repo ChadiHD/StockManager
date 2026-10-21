@@ -18,11 +18,20 @@ All of this is done once per environment, staging first (§6).
 1. **A resource group** in the region the tenant's customers are in (`AZURE_LOCATION`,
    `AZURE_RESOURCE_GROUP`).
 2. **An Entra app registration for the pipeline** with a federated credential for the
-   deploying repository's `staging` environment (subject `repo:<owner>/<repo>:environment:staging`).
+   deploying repository's `staging` environment. Use the *Other issuer* scenario, issuer
+   `https://token.actions.githubusercontent.com`, and the subject GitHub actually sends, which
+   now carries the account and repository ids:
+   `repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:staging`. The *GitHub Actions*
+   scenario writes the old form without them, and sign-in fails with `AADSTS700213`; that error
+   quotes the exact subject to paste.
    That is the business's own repository (`docs/runbooks/new-store.md` §1), not the template,
    which needs no Azure credential.
-   Give it **Owner** on the resource group: the deployment creates role assignments, and it
-   becomes the SQL server's Entra administrator, which is how the pipeline publishes the schema.
+   Give it **Owner** on the resource group: the deployment creates role assignments. Aspire makes
+   its own managed identity the SQL server's Entra admin, so `publish-schema.sh` makes the
+   pipeline the admin while it publishes the schema and puts Aspire's back afterwards.
+   Register `Microsoft.ContainerInstance` on the subscription, with the other providers the
+   deployment uses: Aspire gives each app its database user from a deployment script, which
+   runs in Container Instances.
 3. **Communication Services, with Email.** Create the resource and an Email Communication
    Service, connect them, and add each store's sending domain (§3). The endpoint is
    `ACS_ENDPOINT`. After the first deploy, give `stock-api`'s managed identity the
