@@ -76,6 +76,16 @@ env:
 
 These are plain environment values on the container app, so never a secret.
 
+**Each database's tier is set here too**, by its database name. Unset, it is S0 (about $15 a
+month). Never the free offer: StockApi's scheduled work keeps the database awake, so its monthly
+allowance runs out in two or three days and the database pauses until the next month.
+
+```yaml
+env:
+  Deployment__Sql__SMDatabase: S1   # production's catalog; S0 is enough on staging
+  Deployment__Sql__ApiAuthDb: S0
+```
+
 A business running stores deploys from its own copy of
 this workflow, in its own repository (`docs/runbooks/new-store.md` §1). That copy holds the
 lines, so the shared `StockManager.AppHost/appsettings.json` is never edited downstream, and

@@ -3,6 +3,7 @@
 using Aspire.Hosting.Azure;
 using Azure.Provisioning.AppContainers;
 using Azure.Provisioning.KeyVault;
+using Azure.Provisioning.Sql;
 using Microsoft.Extensions.Configuration;
 
 /// <summary>
@@ -33,6 +34,8 @@ using Microsoft.Extensions.Configuration;
 /// - **StockApi's own settings** from <c>Deployment:StockApi</c>, also set by the workflow:
 ///   <c>Deployment__StockApi__Feeds__SyncEnabled</c> becomes <c>Feeds__SyncEnabled</c> on the
 ///   container app.
+/// - **A fixed-price SQL tier** per database from <c>Deployment:Sql:{database}</c>, S0 when
+///   unset, never the free offer, which pauses the database once its monthly allowance is spent.
 /// - **Mail** through Communication Services at <c>acs-endpoint</c>. The resource and its sender
 ///   domains are created and verified by hand — domain verification is DNS work — so it is a
 ///   parameter here rather than a resource.
@@ -43,8 +46,32 @@ internal static class ProductionTopology
         IDistributedApplicationBuilder builder,
         IResourceBuilder<ProjectResource> api,
         IResourceBuilder<ProjectResource> store,
-        IResourceBuilder<ParameterResource> jwtSigningKey)
+        IResourceBuilder<ParameterResource> jwtSigningKey,
+        IResourceBuilder<AzureSqlServerResource> sql,
+        IResourceBuilder<AzureSqlDatabaseResource>[] databases)
     {
+        // Aspire's default is the free offer, which pauses a database for the rest of the month
+        // once its 100,000 vCore-seconds are spent. StockApi's loops keep the database awake, so
+        // that is two or three days in: the shop goes down with it. A fixed-price tier instead,
+        // per database from the workflow (Deployment__Sql__SMDatabase: S1), S0 when unset.
+        var tiers = new Dictionary<string, string>();
+        foreach (var database in databases)
+        {
+            database.WithDefaultAzureSku();
+            tiers[database.Resource.Name] = builder.Configuration[$"Deployment:Sql:{database.Resource.DatabaseName}"] is { Length: > 0 } tier ? tier : "S0";
+        }
+
+        sql.ConfigureInfrastructure(infrastructure =>
+        {
+            foreach (var database in infrastructure.GetProvisionableResources().OfType<SqlDatabase>())
+            {
+                if (tiers.TryGetValue(database.BicepIdentifier, out var tier))
+                {
+                    database.Sku = new SqlSku { Name = tier };
+                }
+            }
+        });
+
         var vault = builder.AddAzureKeyVault("vault")
             .ConfigureInfrastructure(infrastructure =>
             {
