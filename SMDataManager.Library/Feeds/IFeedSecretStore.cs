@@ -6,10 +6,11 @@ namespace SMDataManager.Library.Feeds
     // Keeps distributor passwords out of the database and out of configuration.
     //
     // A store turns a plaintext secret into a reference that is safe to persist, and resolves
-    // it back when a sync runs. Two implementations live in the API: Data Protection (the
-    // reference IS the ciphertext) and Key Vault (the reference is the secret's name, and the
-    // value never leaves the vault's control). Which one is active is an appsettings choice per
-    // environment, so development and production can differ without any code change.
+    // it back when a sync runs. The API's one implementation is Data Protection: the reference
+    // IS the ciphertext, and a deployment wraps the key ring with its vault key. A Key Vault
+    // store existed until template v1.9 and was removed: no deployment ever wired it, and it
+    // named each secret after the feed alone, so two stores' feeds of one name shared a
+    // password. A second store must keep its references apart per site.
     public interface IFeedSecretStore
     {
         /// <summary>Name recorded on the feed row so the right store resolves it later.</summary>
