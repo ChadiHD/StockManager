@@ -3,8 +3,8 @@ using SMDataManager.Library.Feeds;
 namespace StockApi.Security
 {
     // Picks the store for new secrets from configuration, but resolves existing ones using the
-    // provider recorded on the feed row. That means switching environments (or migrating from
-    // Data Protection to Key Vault) does not strand credentials written under the old store.
+    // provider recorded on the feed row. That means switching stores does not strand
+    // credentials written under the old one.
     public class FeedSecretStoreResolver : IFeedSecretStoreResolver
     {
         private readonly IEnumerable<IFeedSecretStore> _stores;

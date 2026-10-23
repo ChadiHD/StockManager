@@ -178,13 +178,6 @@ builder.Services.AddTransient<IHousekeepingData, HousekeepingData>();
 builder.Services.AddHostedService<HousekeepingBackgroundService>();
 
 builder.Services.AddSingleton<IFeedSecretStore, DataProtectionFeedSecretStore>();
-
-// Key Vault store, registered only when configured so local development needs no Azure.
-if (!string.IsNullOrWhiteSpace(builder.Configuration["FeedSecrets:KeyVaultUri"]))
-{
-    builder.Services.AddSingleton<IFeedSecretStore, KeyVaultFeedSecretStore>();
-}
-
 builder.Services.AddSingleton<IFeedSecretStoreResolver, FeedSecretStoreResolver>();
 
 // Which store a request is acting for. Scoped, written once by the middleware, read-only to
