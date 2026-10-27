@@ -34,7 +34,7 @@ namespace StockApi.Controllers
         }
 
         // What the client is allowed to see. Deliberately has no password and no SecretRef —
-        // the reference is ciphertext or a vault name, and neither belongs in a browser.
+        // the reference is ciphertext, and that does not belong in a browser.
         public record FeedView(int Id, string Name, string Host, int Port, string Username,
             string RemoteDirectory, string HostKeySha256, bool Enabled, bool HasCredential,
             string SecretProvider, DateTime? LastSyncedUtc, string LastSyncStatus,
