@@ -32,11 +32,13 @@ public class CheckoutServiceTests
     private readonly IOrderData _orders = Substitute.For<IOrderData>();
     private readonly IBasketData _baskets = Substitute.For<IBasketData>();
     private readonly IAccountData _accounts = Substitute.For<IAccountData>();
+    private readonly IShippingRateData _rates = Substitute.For<IShippingRateData>();
     private readonly ICatalogData _catalog = Substitute.For<ICatalogData>();
     private readonly IEmailOutbox _outbox = Substitute.For<IEmailOutbox>();
     private readonly ICustomerContext _customer = Substitute.For<ICustomerContext>();
     private readonly DefaultHttpContext _http = new();
     private OrderPlacement? _placed;
+    private List<ShippingRateModel> _storeRates = [];
 
     private static readonly CheckoutForm Guest = new(
         "ana@example.test", "Ana", "Silva", null, "Rua A, 10", null, "São Paulo", null, null, "US");
@@ -67,6 +69,8 @@ public class CheckoutServiceTests
             new BasketLineModel { ProductId = 13, Sku = "GONE", Name = "Gone", Quantity = 1, RetailPrice = 5m, Available = false }
         ]);
 
+        _rates.GetBySite(SiteId).Returns(_storeRates);
+
         _orders.PlaceFromBasket(Arg.Do<OrderPlacement>(placement => _placed = placement))
             .Returns(new OrderPlacementResult { Reference = "SO-0042" });
         _orders.GetOrderByGuestToken(Arg.Any<string>(), SiteId).Returns(Order());
@@ -75,7 +79,7 @@ public class CheckoutServiceTests
         var presenter = new CatalogPresenter(_catalog, new PriceResolver(), siteContext, _customer);
 
         return new CheckoutService(
-            _orders, _baskets, _accounts,
+            _orders, _baskets, _accounts, _rates,
             new BasketService(_baskets, presenter, siteContext, _customer, accessor, NullLogger<BasketService>.Instance),
             presenter,
             new TaxAssessor(new TaxRuleSetProvider(new ITaxRuleSet[] { new EuB2bTaxRuleSet() })),
@@ -145,6 +149,34 @@ public class CheckoutServiceTests
 
         outcome.Errors.Keys.Should().BeEquivalentTo(nameof(CheckoutForm.Email), nameof(CheckoutForm.Line1),
             nameof(CheckoutForm.City), nameof(CheckoutForm.Country));
+        _orders.DidNotReceiveWithAnyArgs().PlaceFromBasket(default!);
+    }
+
+    [Fact]
+    public void DeliveryIsTheCheapestRateThatGoesThereOnTheGoodsAsPriced()
+    {
+        // 2 x 40 of goods: the US rate's threshold of 75 waives it, so it beats the cheaper-looking one.
+        _storeRates.AddRange(
+        [
+            new ShippingRateModel { Name = "Americas", Countries = "US,BR", Price = 12m, FreeOver = 75m, IsActive = true },
+            new ShippingRateModel { Name = "Everywhere", Price = 9m, IsActive = true },
+            new ShippingRateModel { Name = "Old", Countries = "US", Price = 1m, IsActive = false }
+        ]);
+
+        ServiceFor().Place(Guest).Succeeded.Should().BeTrue();
+
+        _placed!.ShippingName.Should().Be("Americas");
+        _placed.ShippingPrice.Should().Be(0m);
+    }
+
+    [Fact]
+    public void AStoreThatDoesNotDeliverThereSaysSoAndPlacesNothing()
+    {
+        _storeRates.Add(new ShippingRateModel { Name = "Brazil", Countries = "BR", Price = 10m, IsActive = true });
+
+        var outcome = ServiceFor().Place(Guest);
+
+        outcome.Errors.Should().ContainKey(nameof(CheckoutForm.Country)).WhoseValue.Should().Contain("United States");
         _orders.DidNotReceiveWithAnyArgs().PlaceFromBasket(default!);
     }
 }

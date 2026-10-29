@@ -2,6 +2,7 @@ using System.Net.Mail;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Email;
 using SMDataManager.Library.Models;
+using SMDataManager.Library.Shipping;
 using SMDataManager.Library.Tax;
 using SMStore.Accounts;
 using SMStore.Catalog;
@@ -33,6 +34,7 @@ public sealed class CheckoutService
     private readonly IOrderData _orders;
     private readonly IBasketData _baskets;
     private readonly IAccountData _accounts;
+    private readonly IShippingRateData _rates;
     private readonly BasketService _basket;
     private readonly CatalogPresenter _catalog;
     private readonly TaxAssessor _tax;
@@ -45,6 +47,7 @@ public sealed class CheckoutService
         IOrderData orders,
         IBasketData baskets,
         IAccountData accounts,
+        IShippingRateData rates,
         BasketService basket,
         CatalogPresenter catalog,
         TaxAssessor tax,
@@ -56,6 +59,7 @@ public sealed class CheckoutService
         _orders = orders;
         _baskets = baskets;
         _accounts = accounts;
+        _rates = rates;
         _basket = basket;
         _catalog = catalog;
         _tax = tax;
@@ -93,8 +97,24 @@ public sealed class CheckoutService
             return CheckoutOutcome.Empty;
         }
 
-        var account = _customer.AccountId is { } accountId ? _accounts.GetAccountById(accountId, site.Id) : null;
         var country = form.Country!.Trim().ToUpperInvariant();
+        var lineItems = available.Select(ToLine).ToList();
+
+        // Delivery from the store's rates (T13), on the goods as priced. A store with rates that
+        // cover nowhere the customer is going cannot deliver there, and says so on the field. A store
+        // with none charges nothing, and cannot open as a checkout store.
+        var rates = DeliveryRates();
+        var delivery = ShippingQuote.Choose(rates, country, lineItems.Sum(line => line.Quantity * line.NetPrice));
+
+        if (rates.Count > 0 && delivery is null)
+        {
+            return CheckoutOutcome.Invalid(new Dictionary<string, string>
+            {
+                [nameof(CheckoutForm.Country)] = L["We do not deliver to {0}.", RegistrationCountries.Name(country)]
+            });
+        }
+
+        var account = _customer.AccountId is { } accountId ? _accounts.GetAccountById(accountId, site.Id) : null;
         var assessment = _tax.ForOrder(site, new AccountModel { Country = country, VatNumber = account?.VatNumber });
         var token = contact is null ? BasketToken.Mint() : null;
         var email = contact?.Email ?? form.Email!.Trim();
@@ -122,9 +142,11 @@ public sealed class CheckoutService
                     PostCode = Trimmed(form.PostCode),
                     Country = country
                 },
-                Lines = available.Select(ToLine).ToList(),
+                Lines = lineItems,
                 Tax = assessment,
-                GuestToken = token
+                GuestToken = token,
+                ShippingName = delivery?.Name,
+                ShippingPrice = delivery?.Price ?? 0m
             });
         }
         catch (Exception exception)
@@ -155,6 +177,12 @@ public sealed class CheckoutService
 
         return CheckoutOutcome.Placed(result.Reference, token, dropped);
     }
+
+    /// <summary>The store's active delivery rates, which the checkout page lists and the checkout charges from.</summary>
+    public IReadOnlyList<ShippingRateModel> DeliveryRates() =>
+        _deliveryRates ??= _rates.GetBySite(_siteContext.Site.Id).Where(rate => rate.IsActive).ToList();
+
+    private IReadOnlyList<ShippingRateModel>? _deliveryRates;
 
     /// <summary>
     /// Queues <c>order.placed</c>, after the order is written.

@@ -15,7 +15,10 @@ BEGIN
 	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber], [MailFromAddress],
 	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress], [PricesIncludeTax],
 	       [IsActive], [CreatedDate],
-	       dbo.fnSite_CurrencyLocked([Id]) AS [CurrencyLocked]
+	       dbo.fnSite_CurrencyLocked([Id]) AS [CurrencyLocked],
+	       -- Whether the store's payment keys are set (T13). Never the keys: they are write-only.
+	       CAST(CASE WHEN [PaymentSecretRef] IS NOT NULL AND [PaymentWebhookSecretRef] IS NOT NULL
+	                 THEN 1 ELSE 0 END AS bit) AS [PaymentConfigured]
 	FROM [dbo].[Site]
 	WHERE [Id] = @SiteId;
 END

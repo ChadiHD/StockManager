@@ -23,5 +23,14 @@ namespace SMDataManager.Library.DataAccess
         /// store's checklist is met; see <c>spSite_SetActive</c>.
         /// </summary>
         string SetActive(int siteId, bool isActive);
+
+        /// <summary>
+        /// Stores a store's payment keys as ciphertext (T13), both or neither. Null when stored,
+        /// otherwise why not.
+        /// </summary>
+        string SetPaymentSecrets(int siteId, string secretRef, string webhookSecretRef);
+
+        /// <summary>A store's payment keys, as ciphertext. The storefront's read, never a screen's.</summary>
+        SitePaymentSecrets GetPaymentSecrets(int siteId);
     }
 }

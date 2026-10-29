@@ -8,7 +8,10 @@ customers, so it is refused, naming everything still missing, until the store:
   - has written the pages @RequiredContent names (SiteContentKeys.RequiredToOpen: its terms of
     sale, privacy notice and cookie notice), passed in rather than repeated here so the list is
     one list;
-  - has a category to sell anything under.
+  - has a category to sell anything under;
+  - and, for a checkout store (T13), can take payment, can charge for delivery, and has written
+    the pages @CheckoutContent names (SiteContentKeys.RequiredToOpenForCheckout: its returns
+    policy).
 
 A store already open is not re-checked: this gates the change, and closing a live store because
 a later edit blanked a field would be the wrong way round.
@@ -19,7 +22,8 @@ a later edit blanked a field would be the wrong way round.
 CREATE PROCEDURE [dbo].[spSite_SetActive]
 	@SiteId int,
 	@IsActive bit,
-	@RequiredContent nvarchar(400) = N'terms,privacy,cookies'
+	@RequiredContent nvarchar(400) = N'terms,privacy,cookies',
+	@CheckoutContent nvarchar(400) = N'returns'
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -44,10 +48,23 @@ BEGIN
 			(4, CASE WHEN s.[TaxRegistrationNumber] IS NULL THEN N'its VAT number' END),
 			(5, CASE WHEN s.[LegalName] IS NULL THEN N'its legal name' END),
 			(6, CASE WHEN NOT EXISTS (SELECT 1 FROM dbo.SiteCategory c WHERE c.[SiteId] = s.[Id] AND c.[IsActive] = 1)
-			         THEN N'a category to sell under' END)
+			         THEN N'a category to sell under' END),
+			-- A checkout store (T13) sells to whoever arrives, so it must be able to take their
+			-- money and deliver to them before anyone can.
+			(7, CASE WHEN s.[OrderMode] = N'DirectCheckout'
+			          AND (s.[PaymentSecretRef] IS NULL OR s.[PaymentWebhookSecretRef] IS NULL)
+			         THEN N'its payment keys' END),
+			(8, CASE WHEN s.[OrderMode] = N'DirectCheckout'
+			          AND NOT EXISTS (SELECT 1 FROM dbo.ShippingRate r WHERE r.[SiteId] = s.[Id] AND r.[IsActive] = 1)
+			         THEN N'a delivery rate' END)
 		) AS checks([Ordinal], [What])
 		WHERE s.[Id] = @SiteId AND checks.[What] IS NOT NULL
 		ORDER BY checks.[Ordinal];
+
+		IF EXISTS (SELECT 1 FROM dbo.Site WHERE [Id] = @SiteId AND [OrderMode] = N'DirectCheckout')
+		BEGIN
+			SET @RequiredContent = CONCAT(@RequiredContent, N',', @CheckoutContent);
+		END
 
 		INSERT INTO @Missing ([What])
 		SELECT N'its "' + LTRIM(RTRIM(required.[value])) + N'" page'

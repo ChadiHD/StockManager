@@ -75,6 +75,24 @@ CREATE TABLE [dbo].[Purchase]
     */
     [GuestTokenHash] BINARY(32) NULL,
 
+    /*
+    Delivery, charged from the store's dbo.ShippingRate at checkout (T13). On the order rather
+    than as a line, because PurchaseDetail.ProductId is a product. ShippingPrice is on the store's
+    basis, like a line's price, and ShippingVat is the tax in or on it; both are already in
+    SubTotal, VAT and FinalPrice. NULL name and zero for every order from a quote.
+    */
+    [ShippingName] NVARCHAR(100) NULL,
+    [ShippingPrice] MONEY NOT NULL CONSTRAINT [DF_Purchase_ShippingPrice] DEFAULT 0,
+    [ShippingVat] MONEY NOT NULL CONSTRAINT [DF_Purchase_ShippingVat] DEFAULT 0,
+
+    -- The payment provider's current checkout session for this order (T13). Only its events may
+    -- cancel the order: expiring an older one, as "Pay now" does, must change nothing.
+    [PaymentSessionId] NVARCHAR(200) NULL,
+    [PaidUtc] DATETIME2 NULL,
+
+    -- The carrier's tracking number, given when a cart order is marked fulfilled (T13).
+    [TrackingNumber] NVARCHAR(100) NULL,
+
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
     -- Composite, like Quote's. A POS sale leaves AccountId, QuoteId and SiteId all NULL, and
     -- a composite foreign key is not checked when any column is NULL, so the desktop path is
@@ -97,7 +115,8 @@ CREATE TABLE [dbo].[Purchase]
     -- question "who placed this?" with a guess. Making StaffId nullable removed the only thing
     -- that was stopping a row with no placer at all, so this replaces it.
     /*
-    The four states a portal order moves through, and NULL for a POS sale.
+    The states a portal order moves through, and NULL for a POS sale. Paid (T13) is set by the
+    payment provider's webhook, never by the redirect that brings a customer back.
 
     They had been a comment on the column since it was written, which is exactly where
     CK_Quote_Status was before T5 — and the same thing followed from it: spOrder_UpdateStatus
@@ -110,7 +129,7 @@ CREATE TABLE [dbo].[Purchase]
     */
     CONSTRAINT [CK_Purchase_Status] CHECK (
         [Status] IS NULL
-        OR ([Status]=N'Cancelled' OR [Status]=N'Fulfilled' OR [Status]=N'Processing' OR [Status]=N'Awaiting payment')),
+        OR ([Status]=N'Paid' OR [Status]=N'Cancelled' OR [Status]=N'Fulfilled' OR [Status]=N'Processing' OR [Status]=N'Awaiting payment')),
 
     CONSTRAINT [CK_Purchase_Placer] CHECK (
         CASE WHEN [StaffId] IS NULL THEN 0 ELSE 1 END

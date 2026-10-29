@@ -105,6 +105,25 @@ namespace SMDataManager.Library.DataAccess
             }
         }
 
+        public string SetPaymentSecrets(int siteId, string secretRef, string webhookSecretRef)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spSite_SetPaymentSecrets",
+                    new { SiteId = siteId, SecretRef = secretRef, WebhookSecretRef = webhookSecretRef }, "SMDatabase");
+
+                return null;
+            }
+            catch (SqlException ex) when (ex.Number == 50140)
+            {
+                return ex.Message;
+            }
+        }
+
+        public SitePaymentSecrets GetPaymentSecrets(int siteId) =>
+            _sqlDataAccess.LoadData<SitePaymentSecrets, dynamic>(
+                "dbo.spSite_GetPaymentSecrets", new { SiteId = siteId }, "SMDatabase").FirstOrDefault();
+
         public string SetActive(int siteId, bool isActive)
         {
             try
@@ -114,7 +133,8 @@ namespace SMDataManager.Library.DataAccess
                     SiteId = siteId,
                     IsActive = isActive,
                     // One list of the pages a store must have written, the library's.
-                    RequiredContent = string.Join(",", SiteContentKeys.RequiredToOpen)
+                    RequiredContent = string.Join(",", SiteContentKeys.RequiredToOpen),
+                    CheckoutContent = string.Join(",", SiteContentKeys.RequiredToOpenForCheckout)
                 }, "SMDatabase");
 
                 return null;

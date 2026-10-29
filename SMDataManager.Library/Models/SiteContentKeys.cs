@@ -25,6 +25,7 @@ namespace SMDataManager.Library.Models
             ("terms", "Terms of sale"),
             ("privacy", "Privacy"),
             ("cookies", "Cookies"),
+            ("returns", "Returns"),
         };
 
         /// <summary>
@@ -32,6 +33,13 @@ namespace SMDataManager.Library.Models
         /// terms, and it collects personal data and sets cookies from the first visit.
         /// </summary>
         public static readonly IReadOnlyList<string> RequiredToOpen = new[] { "terms", "privacy", "cookies" };
+
+        /// <summary>
+        /// What a checkout store must also have written (T13): how to send something back. A consumer
+        /// has a statutory right to withdraw from a distance sale, seven days in Brazil and fourteen in
+        /// the EU, and a shop that takes their money must say how.
+        /// </summary>
+        public static readonly IReadOnlyList<string> RequiredToOpenForCheckout = new[] { "returns" };
 
         public static bool IsKnown(string key) => All.Any(entry => entry.Key == key);
     }

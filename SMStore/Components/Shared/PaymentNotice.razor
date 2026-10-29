@@ -1,0 +1,37 @@
+@* What the provider's return, or a failed "Pay now", means for this order (T13). *@
+@using SMDataManager.Library.Models
+@using SMStore.Ordering
+
+@if (Confirming)
+{
+    @* Back from paying, and the webhook has not said so yet. The return proves nothing, so the
+       page waits for the webhook, and asks the browser to look again: there is no script here
+       to do it. *@
+    <HeadContent>
+        <meta http-equiv="refresh" content="5" />
+    </HeadContent>
+    <p class="document__notice" role="status">
+        @L["Thank you. We are confirming your payment, and this page will show it as soon as we have."]
+    </p>
+}
+else if (Paid == "1" && Order.Status == OrderStatus.Paid)
+{
+    <p class="document__notice" role="status">@L["Thank you. Your payment is confirmed."]</p>
+}
+else if (Payment == "failed")
+{
+    <p class="document__notice" role="alert">
+        @L["We could not start the payment, and nothing was charged. Please try again."]
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public OrderView Order { get; set; } = default!;
+
+    /// <summary>The query's <c>paid</c> and <c>payment</c>, compared against an allow-list only.</summary>
+    [Parameter] public string? Paid { get; set; }
+
+    [Parameter] public string? Payment { get; set; }
+
+    private bool Confirming => Paid == "1" && Order.Status == OrderStatus.AwaitingPayment;
+}

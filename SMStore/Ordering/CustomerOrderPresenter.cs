@@ -34,6 +34,7 @@ public sealed class CustomerOrderPresenter
     private readonly ISiteContext _siteContext;
     private readonly ICustomerContext _customer;
     private readonly OrderingModeProvider _ordering;
+    private readonly ISiteData _sites;
     private readonly ILogger<CustomerOrderPresenter> _logger;
 
     public CustomerOrderPresenter(
@@ -44,6 +45,7 @@ public sealed class CustomerOrderPresenter
         ISiteContext siteContext,
         ICustomerContext customer,
         OrderingModeProvider ordering,
+        ISiteData sites,
         ILogger<CustomerOrderPresenter> logger)
     {
         _quotes = quotes;
@@ -53,6 +55,7 @@ public sealed class CustomerOrderPresenter
         _siteContext = siteContext;
         _customer = customer;
         _ordering = ordering;
+        _sites = sites;
         _logger = logger;
     }
 
@@ -207,7 +210,13 @@ public sealed class CustomerOrderPresenter
             order.PoNumber,
             order.FromQuoteReference,
             lines,
-            _orders.GetDeliveryAddress(order.Id, siteId) is { } address ? Delivery(address) : null);
+            _orders.GetDeliveryAddress(order.Id, siteId) is { } address ? Delivery(address) : null,
+            order.ShippingName,
+            order.ShippingName is null ? null : Money(order.ShippingPrice),
+            order.TrackingNumber,
+            // Only a cart order is paid online (T13), and only on a store that takes payment.
+            CanPay: order.Status == OrderStatus.AwaitingPayment && order.FromQuoteReference is null
+                    && _sites.GetPaymentSecrets(siteId)?.IsConfigured == true);
     }
 
     /// <summary>An address as the lines of a label, the country by name.</summary>
@@ -333,4 +342,12 @@ public sealed record OrderView(
     IReadOnlyList<DocumentLineView> Lines,
 
     /// <summary>Where it goes, as lines of a label, or null for an order from a quote (T12).</summary>
-    IReadOnlyList<string>? Delivery = null);
+    IReadOnlyList<string>? Delivery = null,
+
+    /// <summary>The delivery charged (T13), on the store's basis, and the parcel's tracking number.</summary>
+    string? ShippingName = null,
+    string? Shipping = null,
+    string? TrackingNumber = null,
+
+    /// <summary>Whether the page offers "Pay now": an unpaid cart order on a store that takes payment.</summary>
+    bool CanPay = false);

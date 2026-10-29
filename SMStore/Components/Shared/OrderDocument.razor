@@ -1,6 +1,7 @@
 @* One order's lines and summary. Shared by the account area's order page and a guest's
    (T12), so the two cannot show one order two ways. *@
 @using SMStore.Ordering
+@using SMStore.Payments
 
 <div class="document">
     <section class="document__lines">
@@ -42,6 +43,13 @@
                 <dt>@L["Your reference"]</dt>
                 <dd class="mono">@Order.PoNumber</dd>
             }
+            @if (Order.Shipping is not null)
+            {
+                @* On the store's basis, like the lines: informational, and already in the net and the
+                   tax below. *@
+                <dt>@L["Delivery"] · @Order.ShippingName</dt>
+                <dd>@Order.Shipping</dd>
+            }
             <dt>@L["Net"]</dt>
             <dd>@Order.SubTotal</dd>
             @* Labelled by treatment, so a zero on a reverse-charged order reads as a
@@ -71,6 +79,22 @@
                     @addressLine<br />
                 }
             </address>
+            @if (Order.TrackingNumber is not null)
+            {
+                <p class="document__tracking">@L["Tracking number"]: <span class="mono">@Order.TrackingNumber</span></p>
+            }
+        }
+
+        @if (Order.CanPay)
+        {
+            @* A fresh session at the provider (T13): the first may have failed, been abandoned or
+               expired. The token or the reference names the order the way its page found it. *@
+            <form method="post" action="@PaymentEndpoints.PayPath" class="document__pay">
+                <AntiforgeryToken />
+                <input type="hidden" name="token" value="@PayToken" />
+                <input type="hidden" name="reference" value="@(PayToken is null ? Order.Reference : null)" />
+                <button type="submit" class="btn btn-primary btn-block">@L["Pay now"]</button>
+            </form>
         }
 
         @if (PrintHref is not null)
@@ -85,4 +109,7 @@
 
     /// <summary>The printable sheet, or null where there is none: a guest has no account area.</summary>
     [Parameter] public string? PrintHref { get; set; }
+
+    /// <summary>A guest's token, which "Pay now" posts back in place of a reference.</summary>
+    [Parameter] public string? PayToken { get; set; }
 }

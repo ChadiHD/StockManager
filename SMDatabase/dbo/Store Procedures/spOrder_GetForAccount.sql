@@ -12,6 +12,8 @@ BEGIN
 	       [p].[Currency], [p].[Status], [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice],
 	       [q].[Reference] AS [FromQuoteReference],
 	       [p].[PoNumber], [p].[TaxTreatment], [p].[TaxLegend],
+	       [p].[ShippingName], [p].[ShippingPrice], [p].[TrackingNumber],
+	       [a].[Email] AS [AccountEmail],
 	       COUNT([d].[Id]) AS [Items]
 	FROM [dbo].[Purchase] p
 	INNER JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId] AND a.[SiteId] = @SiteId
@@ -22,5 +24,6 @@ BEGIN
 	  AND [p].[SiteId] = @SiteId
 	GROUP BY [p].[Id], [p].[Reference], [p].[AccountId], [a].[Company], [p].[Currency], [p].[Status],
 	         [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice], [q].[Reference],
-	         [p].[PoNumber], [p].[TaxTreatment], [p].[TaxLegend];
+	         [p].[PoNumber], [p].[TaxTreatment], [p].[TaxLegend],
+	         [p].[ShippingName], [p].[ShippingPrice], [p].[TrackingNumber], [a].[Email];
 END

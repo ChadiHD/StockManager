@@ -27,5 +27,15 @@ namespace SMDataManager.Library.Models
         /// <summary>The customer's own purchase-order number, captured at acceptance.</summary>
         public string PoNumber { get; set; }
         public int Items { get; set; }
+
+        /// <summary>The delivery charged (T13), on the store's basis; already in the totals.</summary>
+        public string ShippingName { get; set; }
+        public decimal ShippingPrice { get; set; }
+
+        /// <summary>Given when a cart order is marked fulfilled (T13).</summary>
+        public string TrackingNumber { get; set; }
+
+        /// <summary>The account's address, which the hosted payment page starts with (T13). Customer reads only.</summary>
+        public string AccountEmail { get; set; }
     }
 }

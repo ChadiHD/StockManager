@@ -189,6 +189,30 @@ else
             <button type="submit" class="btn btn-primary store-settings-save" disabled="@_saving">Save settings</button>
         </div>
     </EditForm>
+
+    @* Its own form (T13): the keys are write-only, so saving the settings must not send them, and
+       saving the keys must not send the settings. *@
+    <div class="panel panel-pad store-payment">
+        <span class="card-kicker">Payments (Stripe)</span>
+        <p class="field-note store-payment-status">
+            @(_view.Site.PaymentConfigured
+                ? "Keys are set. Enter both again to replace them."
+                : "No keys: this store takes no payment online, and a checkout store cannot open.")
+        </p>
+        <div class="form-grid">
+            <div class="field">
+                <label for="store-payment-secret">Secret key</label>
+                <input id="store-payment-secret" class="input" type="password" autocomplete="off" @bind="_secretKey" />
+                <span class="field-note">From Stripe's API keys page: sk_live_ or sk_test_.</span>
+            </div>
+            <div class="field">
+                <label for="store-payment-webhook">Webhook signing secret</label>
+                <input id="store-payment-webhook" class="input" type="password" autocomplete="off" @bind="_webhookSecret" />
+                <span class="field-note">For the endpoint https://@_view.Site.Domain/webhooks/stripe: whsec_.</span>
+            </div>
+        </div>
+        <button type="button" class="btn btn-secondary store-payment-save" disabled="@_saving" @onclick="SavePaymentKeys">Save keys</button>
+    </div>
 }
 
 @code {
@@ -212,6 +236,29 @@ else
         {
             _loadError = exception.Message;
         }
+    }
+
+    private string? _secretKey;
+    private string? _webhookSecret;
+
+    private async Task SavePaymentKeys()
+    {
+        if (_view is null) return;
+
+        _saving = true;
+        var refusal = await Data.SavePaymentKeys(_secretKey ?? "", _webhookSecret ?? "");
+        _saving = false;
+
+        if (refusal is not null)
+        {
+            Toast.Show(refusal);
+            return;
+        }
+
+        // Forgotten as soon as they are sent: nothing on this page should hold them.
+        _secretKey = _webhookSecret = null;
+        _view.Site.PaymentConfigured = true;
+        Toast.Show("Payment keys saved");
     }
 
     private async Task Save()
@@ -240,6 +287,8 @@ else
         ("uk-b2b", true) => "UK business: Companies House number",
         ("uk-b2b", false) => "UK VAT, exports zero-rated",
         ("flat", false) => "One rate on every sale, wherever the buyer is",
+        ("DirectCheckout", _) => "Checkout: customers pay online, guests welcome",
+        ("b2c", true) => "Consumer: a name and an email address, no paperwork",
         _ => key
     };
 }

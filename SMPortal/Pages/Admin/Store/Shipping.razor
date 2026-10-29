@@ -1,0 +1,114 @@
+@page "/admin/shipping"
+@inject IAdminDataService Data
+@inject IToastService Toast
+
+<PageTitle>Delivery rates · StockManager</PageTitle>
+
+@* What this store charges for delivery (T13). The cheapest active rate covering the delivery
+   country is charged, so a rate is switched off rather than deleted: an order names the rate it
+   was charged. *@
+<div class="page-head">
+    <div><span class="eyebrow">Administration</span><h1>Delivery rates</h1></div>
+</div>
+
+<div class="panel panel-clip">
+    <div class="tbl-wrap">
+        <table class="tbl shipping-table">
+            <thead><tr><th class="lead">Rate</th><th>Countries</th><th class="num">Price</th><th class="num">Free over</th><th class="trail">Active</th></tr></thead>
+            <tbody>
+                @if (_rates.Count == 0)
+                {
+                    <tr><td class="lead" colspan="5">No delivery rates. A checkout store charges nothing for delivery and cannot open until it has one.</td></tr>
+                }
+                @foreach (var rate in _rates)
+                {
+                    <tr>
+                        <td class="lead"><span class="cell-strong">@rate.Name</span></td>
+                        <td>@(string.IsNullOrWhiteSpace(rate.Countries) ? "Every country" : rate.Countries)</td>
+                        <td class="num">@AdminUi.Money(rate.Price, Data.CurrentCurrency, 2)</td>
+                        <td class="num">@(rate.FreeOver is { } over ? AdminUi.Money(over, Data.CurrentCurrency, 2) : "—")</td>
+                        <td class="trail">
+                            <button type="button" class="btn btn-secondary btn-sm shipping-toggle" @onclick="() => Toggle(rate)">
+                                @(rate.IsActive ? "Switch off" : "Switch on")
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel panel-pad shipping-add">
+    <span class="card-kicker">Add a rate</span>
+    <div class="form-grid">
+        <div class="field">
+            <label for="shipping-name">Name</label>
+            <input id="shipping-name" class="input" @bind="_draft.Name" />
+            <span class="field-note">What the customer reads, such as "Standard delivery".</span>
+        </div>
+        <div class="field">
+            <label for="shipping-countries">Countries</label>
+            <input id="shipping-countries" class="input" @bind="_draft.Countries" />
+            <span class="field-note">Two-letter codes, such as BR, PT. Blank: every country.</span>
+        </div>
+        <div class="field">
+            <label for="shipping-price">Price</label>
+            <input id="shipping-price" class="input" type="number" step="0.01" min="0" @bind="_draft.Price" />
+            <span class="field-note">On this store's basis: with tax in if its prices include tax.</span>
+        </div>
+        <div class="field">
+            <label for="shipping-free-over">Free over</label>
+            <input id="shipping-free-over" class="input" type="number" step="0.01" min="0" @bind="_draft.FreeOver" />
+            <span class="field-note">Blank: never free.</span>
+        </div>
+    </div>
+    <button type="button" class="btn btn-primary shipping-save" disabled="@_saving" @onclick="Add">Add rate</button>
+</div>
+
+@code {
+    [CascadingParameter] public AdminLayout? Layout { get; set; }
+
+    private IReadOnlyList<ShippingRate> _rates = [];
+    private ShippingRate _draft = new();
+    private bool _saving;
+
+    protected override void OnParametersSet() => Layout?.SetPage("Delivery rates", "What this store charges to deliver, and where");
+
+    protected override async Task OnInitializedAsync() => _rates = await Data.GetShippingRates() ?? [];
+
+    private async Task Add()
+    {
+        if (await SaveAsync(_draft))
+        {
+            Toast.Show($"Rate {_draft.Name} added");
+            _draft = new ShippingRate();
+        }
+    }
+
+    private async Task Toggle(ShippingRate rate)
+    {
+        rate.IsActive = !rate.IsActive;
+
+        if (!await SaveAsync(rate))
+        {
+            rate.IsActive = !rate.IsActive;
+        }
+    }
+
+    private async Task<bool> SaveAsync(ShippingRate rate)
+    {
+        _saving = true;
+        var refusal = await Data.SaveShippingRate(rate);
+        _saving = false;
+
+        if (refusal is not null)
+        {
+            Toast.Show(refusal);
+            return false;
+        }
+
+        _rates = await Data.GetShippingRates() ?? [];
+        return true;
+    }
+}

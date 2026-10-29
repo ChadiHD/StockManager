@@ -434,6 +434,53 @@ namespace SMDataManager.Library.Email
             carriesCredential: true,
             "OrderLink", "TaxLegend");
 
+        /// <summary>
+        /// The payment provider said an order is paid (T13). Queued by the webhook's procedure.
+        /// </summary>
+        /// <remarks>
+        /// No link, so no credential and nothing to encrypt: a guest already has theirs, in
+        /// <see cref="OrderPlaced"/>, and a procedure can only queue plain JSON.
+        /// </remarks>
+        public static readonly EmailTemplate<OrderPaidPayload> OrderPaid = new(
+            "order.paid",
+            EmailAudience.Customer,
+            "Payment received for order {Reference} — {SiteName}",
+            """
+            Thank you. We have your payment of {Total} for order {Reference}, and we are getting it
+            ready. We will email you again when it is on its way.
+
+            — {SiteName}
+            """,
+            (site, payload) => new Dictionary<string, string>
+            {
+                ["Reference"] = payload.Reference ?? string.Empty,
+                ["Total"] = SiteMoney.Format(site, payload.Total),
+            },
+            carriesCredential: false,
+            "Reference");
+
+        /// <summary>A cart order marked fulfilled (T13), with its tracking number when one was given.</summary>
+        public static readonly EmailTemplate<OrderShippedPayload> OrderShipped = new(
+            "order.shipped",
+            EmailAudience.Customer,
+            "Order {Reference} is on its way — {SiteName}",
+            """
+            Order {Reference} has left us.
+
+            {TrackingLine}
+
+            — {SiteName}
+            """,
+            (_, payload) => new Dictionary<string, string>
+            {
+                ["Reference"] = payload.Reference ?? string.Empty,
+                ["TrackingLine"] = string.IsNullOrWhiteSpace(payload.TrackingNumber)
+                    ? string.Empty
+                    : $"Its tracking number is {payload.TrackingNumber}.",
+            },
+            carriesCredential: false,
+            "Reference");
+
         /// <summary>A scheduled sync that failed, and had not failed the time before.</summary>
         /// <remarks>
         /// Sent on the transition into failure, not on every failing run — see
@@ -573,6 +620,8 @@ namespace SMDataManager.Library.Email
             QuoteExpiring,
             OrderConfirmed,
             OrderPlaced,
+            OrderPaid,
+            OrderShipped,
             FeedFailed,
             FeedsStale,
             MailUndeliverable,

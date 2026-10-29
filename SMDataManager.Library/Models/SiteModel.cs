@@ -109,6 +109,15 @@ namespace SMDataManager.Library.Models
     }
 
     /// <summary>A store's settings as the admin screen edits them.</summary>
+    /// <summary>A store's payment keys, as Data Protection ciphertext (T13). Never sent to a browser.</summary>
+    public class SitePaymentSecrets
+    {
+        public string SecretRef { get; set; }
+        public string WebhookSecretRef { get; set; }
+
+        public bool IsConfigured => !string.IsNullOrEmpty(SecretRef) && !string.IsNullOrEmpty(WebhookSecretRef);
+    }
+
     public class SiteSettingsModel : SiteModel
     {
         /// <summary>
@@ -116,5 +125,11 @@ namespace SMDataManager.Library.Models
         /// <c>dbo.fnSite_CurrencyLocked</c>.
         /// </summary>
         public bool CurrencyLocked { get; set; }
+
+        /// <summary>
+        /// Whether the store's payment keys are set (T13). The keys themselves are write-only and
+        /// never on this model.
+        /// </summary>
+        public bool PaymentConfigured { get; set; }
     }
 }

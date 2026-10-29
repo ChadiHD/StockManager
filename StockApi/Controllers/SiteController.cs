@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using SMDataManager.Library.DataAccess;
@@ -180,6 +181,52 @@ namespace StockApi.Controllers
             AdminSiteResolutionMiddleware.Forget(cache, current.SiteKey);
 
             return NoContent();
+        }
+
+        /// <summary>The acting store's Stripe keys, as typed. Never read back by any endpoint.</summary>
+        public record PaymentKeysModel(string? SecretKey, string? WebhookSecret);
+
+        /// <summary>
+        /// Sets the acting store's payment keys (T13), encrypted before they reach the database.
+        /// </summary>
+        /// <remarks>
+        /// Write-only: the settings read says whether they are set and nothing more, so a session
+        /// left open on the portal cannot be used to copy a store's ability to take money. The
+        /// shapes are Stripe's: a secret or restricted key, and an endpoint signing secret. A
+        /// publishable key in the secret box is the likeliest mistake, and it is caught here
+        /// rather than at a customer's checkout.
+        /// </remarks>
+        [HttpPut("Payment")]
+        public IActionResult SetPayment(
+            PaymentKeysModel keys, [FromServices] IAdminSiteContext site,
+            [FromServices] IDataProtectionProvider protection)
+        {
+            var secretKey = keys.SecretKey?.Trim();
+            var webhookSecret = keys.WebhookSecret?.Trim();
+
+            if (secretKey is null || !(secretKey.StartsWith("sk_", StringComparison.Ordinal) || secretKey.StartsWith("rk_", StringComparison.Ordinal)))
+            {
+                return BadRequest("The secret key starts sk_ (or rk_ for a restricted key). A pk_ key is the publishable one, which cannot take payment.");
+            }
+
+            if (webhookSecret is null || !webhookSecret.StartsWith("whsec_", StringComparison.Ordinal))
+            {
+                return BadRequest("The webhook signing secret starts whsec_. It is on the webhook endpoint's page in Stripe.");
+            }
+
+            var protector = StockManager.Payments.PaymentSecrets.Protector(protection);
+            var refusal = _siteData.SetPaymentSecrets(site.SiteId, protector.Protect(secretKey), protector.Protect(webhookSecret));
+
+            return refusal is null ? NoContent() : BadRequest(refusal);
+        }
+
+        /// <summary>Removes the acting store's payment keys: it takes no payment from the next checkout.</summary>
+        [HttpDelete("Payment")]
+        public IActionResult ClearPayment([FromServices] IAdminSiteContext site)
+        {
+            var refusal = _siteData.SetPaymentSecrets(site.SiteId, null, null);
+
+            return refusal is null ? NoContent() : BadRequest(refusal);
         }
 
         private bool ManagesEveryStore()

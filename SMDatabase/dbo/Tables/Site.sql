@@ -117,6 +117,16 @@ CREATE TABLE [dbo].[Site]
 	*/
 	[PricesIncludeTax] BIT NOT NULL CONSTRAINT [DF_Site_PricesIncludeTax] DEFAULT 0,
 
+	/*
+	The store's payment provider keys (T13): its Stripe secret key and its webhook signing secret,
+	each Data Protection ciphertext under PaymentSecrets.Purpose, as a feed's SecretRef is. Each
+	store is its own Stripe account. NULL takes no payment, and a checkout store cannot open
+	without both. Written and read by their own procedures, never by spSite_Update or a settings
+	read, so no screen can be handed them back. Last, like every column since T6.
+	*/
+	[PaymentSecretRef] NVARCHAR(MAX) NULL,
+	[PaymentWebhookSecretRef] NVARCHAR(MAX) NULL,
+
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
 	-- Nothing validated this before T9: CatalogPresenter compares against 'Authenticated', so a
 	-- typo behaved as 'Public' and showed a trade store's prices to everyone. Written as the OR

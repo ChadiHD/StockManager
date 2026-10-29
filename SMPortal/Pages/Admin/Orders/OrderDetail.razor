@@ -28,6 +28,11 @@ else
                 @* Cancelling an order from the cart gives its stock back (T12). *@
                 <button class="btn btn-secondary order-cancel" @onclick="() => SetStatus(OrderStatusCancelled)">Cancel order</button>
             }
+            @if (_delivery.Length > 0 && _o.Status is not ("Fulfilled" or "Cancelled"))
+            {
+                @* A cart order ships to its customer (T13), who is mailed the tracking number. *@
+                <input id="order-tracking" class="input order-tracking" placeholder="Tracking number" aria-label="Tracking number" @bind="_tracking" />
+            }
             <button class="btn btn-primary" @onclick="() => SetStatus(OrderStatusFulfilled)">Mark fulfilled</button>
         </div>
     </div>
@@ -53,6 +58,11 @@ else
                     </table>
                 </div>
                 <div class="totals">
+                    @if (_o.ShippingName is not null)
+                    {
+                        @* Informational, on the store's basis: already in the net and the tax below. *@
+                        <div class="kv"><span class="k">Delivery · @_o.ShippingName</span><span class="v">@AdminUi.Money(_o.Shipping, _o.Currency, 2)</span></div>
+                    }
                     <div class="kv"><span class="k">Subtotal (net)</span><span class="v-strong">@AdminUi.Money(_sub, _o.Currency, 2)</span></div>
                     @* The treatment rather than a hardcoded rate: this store's standard rate
                        is a Site column, and a reverse-charged or exported order is taxed at
@@ -100,6 +110,10 @@ else
                 else
                 {
                     <p class="ship">@foreach (var line in _delivery) { @line<br /> }</p>
+                    @if (_o.TrackingNumber is not null)
+                    {
+                        <p class="ship">Tracking <span class="mono">@_o.TrackingNumber</span></p>
+                    }
                 }
             </div>
         </div>
@@ -138,6 +152,7 @@ else
     private record Step(string Label, bool Done, bool Active, string Mark);
 
     private string[] _delivery = [];
+    private string? _tracking;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -188,7 +203,7 @@ else
         if (_o is null) return;
 
         var id = _o.Id;
-        var refused = await Data.SetOrderStatus(id, status);
+        var refused = await Data.SetOrderStatus(id, status, status == OrderStatusFulfilled ? _tracking : null);
         Recalc();
 
         if (refused is not null)

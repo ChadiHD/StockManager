@@ -118,6 +118,11 @@ public class Order
     public string TaxTreatment { get; set; } = "";
     public string TaxLegend { get; set; } = "";
 
+    /// <summary>The delivery charged (T13), on the store's basis and already in the totals, and its tracking number.</summary>
+    public string? ShippingName { get; set; }
+    public decimal Shipping { get; set; }
+    public string? TrackingNumber { get; set; }
+
     public List<OrderLine> LineItems { get; set; } = new();
 }
 

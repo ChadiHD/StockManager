@@ -206,6 +206,7 @@ builder.Services.AddTransient<IAccountDocumentData, AccountDocumentData>();
 builder.Services.AddTransient<ICustomerGroupData, CustomerGroupData>();
 builder.Services.AddTransient<IQuoteData, QuoteData>();
 builder.Services.AddTransient<IOrderData, OrderData>();
+builder.Services.AddTransient<IShippingRateData, ShippingRateData>();
 
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException("Missing configuration value: Jwt:SigningKey");

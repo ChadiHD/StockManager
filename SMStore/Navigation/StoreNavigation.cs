@@ -67,12 +67,16 @@ public sealed class StoreNavigation
         ]),
     ];
 
-    /// <summary>Shown in the footer's legal strip alongside the copyright.</summary>
+    /// <summary>
+    /// Shown in the footer's legal strip alongside the copyright. A checkout store also links its
+    /// returns policy (T13), which it cannot open without.
+    /// </summary>
     public IReadOnlyList<NavItem> Legal =>
     [
         new(L["Terms"], "/terms"),
         new(L["Privacy"], "/privacy"),
         new(L["Cookies"], "/cookies"),
+        .. _ordering.Current.TakesQuotes ? Array.Empty<NavItem>() : [new NavItem(L["Returns"], "/returns")],
     ];
 
     public string StoreName => _siteContext.Site.Name;
