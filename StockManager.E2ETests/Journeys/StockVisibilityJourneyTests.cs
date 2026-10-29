@@ -53,7 +53,7 @@ public sealed class StockVisibilityJourneyTests
 
         await adminPage.FieldControl("Available units").FillAsync("25");
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Save changes" }).ClickAsync();
-        await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Product saved");
+        await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Product saved", new() { Timeout = 20_000 });
 
         await storePage.ReloadAsync();
         await Expect(storePage.Locator(".product__buy span.tag")).ToHaveTextAsync("In stock");

@@ -5,7 +5,7 @@ Detail plan for the thirteenth template phase, the fourth in the B2C track
 `Awaiting payment`. This phase takes the payment, charges for delivery, tells the customer when
 it ships, and lets a checkout store open only once all of that is set up.
 
-**Status: in progress** on `t13-payment-shipping`.
+**Status: built** on `t13-payment-shipping`.
 
 ## 1. What reading the code found
 

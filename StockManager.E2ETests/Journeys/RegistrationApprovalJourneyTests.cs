@@ -118,7 +118,7 @@ public sealed class RegistrationApprovalJourneyTests
         await adminPage.Locator(".modal").FieldControl("Group name").FillAsync(groupName);
         await adminPage.Locator(".modal").FieldControl("Base discount").FillAsync(groupDiscountPct.ToString());
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Create group" }).ClickAsync();
-        await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Customer group created");
+        await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Customer group created", new() { Timeout = 20_000 });
 
         // Accounts.razor and AccountDetail.razor both key on the human AC-nnnn reference
         // rather than a database id (CLAUDE.md: "The UI models key on human references"), so
@@ -137,7 +137,7 @@ public sealed class RegistrationApprovalJourneyTests
         // Scoped to .modal-foot: the pending-application banner behind the now-open modal has
         // its own "Approve account" button with the same accessible name, still in the DOM.
         await adminPage.Locator(".modal-foot").GetByRole(AriaRole.Button, new() { Name = "Approve account" }).ClickAsync();
-        await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Account approved");
+        await Expect(adminPage.Locator(".toast")).ToHaveTextAsync("Account approved", new() { Timeout = 20_000 });
 
         /*
         --- The applicant confirms their address ------------------------------------

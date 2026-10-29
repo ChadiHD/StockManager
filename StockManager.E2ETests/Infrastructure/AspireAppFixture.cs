@@ -75,6 +75,9 @@ public sealed class AspireAppFixture : IAsyncLifetime
     /// <summary>The one operator every admin-facing journey signs in as.</summary>
     public IdentityTestSupport.Credentials Admin { get; private set; } = null!;
 
+    /// <summary>The stand-in for Stripe's API that the storefront pays through (T13).</summary>
+    public StripeStub Stripe { get; private set; } = null!;
+
     public async Task InitializeAsync()
     {
         if (!await ContainerRuntimeProbe.IsAnyRuntimeAvailableAsync())
@@ -137,6 +140,14 @@ public sealed class AspireAppFixture : IAsyncLifetime
             var store = appHostBuilder.Resources.First(resource => resource.Name == "sm-store");
             store.Annotations.Add(new EnvironmentCallbackAnnotation((EnvironmentCallbackContext context) =>
                 context.EnvironmentVariables["Sites__CacheDuration"] = "00:00:01"));
+
+            // Stripe is the stub (T13): its API for the sessions, its origin for the CSP's form-action.
+            Stripe = await StripeStub.StartAsync();
+            store.Annotations.Add(new EnvironmentCallbackAnnotation((EnvironmentCallbackContext context) =>
+            {
+                context.EnvironmentVariables["Payments__Stripe__ApiBase"] = Stripe.BaseUrl.ToString();
+                context.EnvironmentVariables["Payments__Stripe__CheckoutOrigin"] = Stripe.Origin;
+            }));
 
             _app = await appHostBuilder.BuildAsync();
             RecordResourceLogs();
@@ -346,6 +357,11 @@ public sealed class AspireAppFixture : IAsyncLifetime
         }
 
         _playwright?.Dispose();
+
+        if (Stripe is not null)
+        {
+            await Stripe.DisposeAsync();
+        }
 
         if (_app is not null)
         {
