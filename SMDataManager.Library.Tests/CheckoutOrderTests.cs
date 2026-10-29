@@ -180,6 +180,101 @@ public class CheckoutOrderTests
             .Should().Equal("Consumer", "Approved", "Ana Silva");
     }
 
+    [SkippableFact]
+    public void DeliveryIsTaxedWithTheGoodsAndInTheTotals()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        var shirt = db.Product("SHIRT", price: 40m, stock: 3);
+
+        var placed = db.PlaceWithDelivery(db.Basket(), (shirt, 2, 40m), "Standard", 10m);
+
+        // 80 of goods and 10 of delivery, net, both at 17%: 13.60 and 1.70 of tax (T13).
+        db.Row("SELECT ShippingName, ShippingPrice, ShippingVat, SubTotal, VAT, FinalPrice FROM dbo.Purchase WHERE Reference = @ref;",
+                ("@ref", placed.Reference))
+            .Should().Equal("Standard", 10m, 1.70m, 90m, 15.30m, 105.30m);
+    }
+
+    [SkippableFact]
+    public void APaidEventPaysTheOrderOnceAndTellsTheCustomer()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        var shirt = db.Product("SHIRT", price: 40m, stock: 3);
+        var placed = db.Place(db.Basket(), guest: true, (shirt, 1, 40m));
+        db.Session(placed.Reference!, "cs_1");
+
+        db.Apply("evt_1", placed.Reference!, "cs_1", "Paid").Should().Be("Paid");
+        db.Apply("evt_1", placed.Reference!, "cs_1", "Paid").Should().Be("Duplicate", "a replayed event changes nothing");
+
+        db.Row("SELECT Status, CAST(CASE WHEN PaidUtc IS NULL THEN 0 ELSE 1 END AS bit) FROM dbo.Purchase WHERE Reference = @ref;",
+                ("@ref", placed.Reference))
+            .Should().Equal("Paid", true);
+        db.Mailed("order.paid").Should().ContainSingle().Which.Should().Contain(placed.Reference);
+    }
+
+    [SkippableFact]
+    public void OnlyTheOrdersCurrentSessionCanCancelIt()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        var shirt = db.Product("SHIRT", price: 40m, stock: 3);
+        var placed = db.Place(db.Basket(), guest: true, (shirt, 2, 40m));
+
+        db.Session(placed.Reference!, "cs_old").Should().BeNull();
+        db.Session(placed.Reference!, "cs_new").Should().Be("cs_old", "the caller expires the one it replaces");
+
+        // "Pay now" expired the old session; its expiry must not cancel an order still being paid for.
+        db.Apply("evt_old", placed.Reference!, "cs_old", "Failed").Should().Be("Unchanged");
+        db.Stock(shirt).Should().Be(1);
+
+        db.Apply("evt_new", placed.Reference!, "cs_new", "Failed").Should().Be("Cancelled");
+        db.Stock(shirt).Should().Be(3, "an expired checkout gives its stock back");
+        db.Session(placed.Reference!, "cs_later").Should().BeNull("a cancelled order takes no new session");
+    }
+
+    [SkippableFact]
+    public void ACartOrderShippedWithATrackingNumberTellsTheCustomer()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        var shirt = db.Product("SHIRT", price: 40m, stock: 3);
+        var placed = db.Place(db.Basket(), guest: true, (shirt, 1, 40m));
+        var order = db.Scalar<int>("SELECT Id FROM dbo.Purchase WHERE Reference = @ref;", ("@ref", placed.Reference));
+
+        db.Execute("EXEC dbo.spOrder_UpdateStatus @Id = @id, @Status = N'Fulfilled', @SiteId = @site, @TrackingNumber = N' BR123 ';",
+            ("@id", order), ("@site", db.SiteId));
+
+        db.Scalar<string>("SELECT TrackingNumber FROM dbo.Purchase WHERE Id = @id;", ("@id", order)).Should().Be("BR123");
+
+        // The procedure's JSON, read back through the record the renderer reads it with.
+        var payload = System.Text.Json.JsonSerializer.Deserialize<SMDataManager.Library.Email.OrderShippedPayload>(
+            db.Mailed("order.shipped").Single(), new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        payload.Should().Be(new SMDataManager.Library.Email.OrderShippedPayload(placed.Reference!, "BR123"));
+    }
+
+    [SkippableFact]
+    public void ACheckoutStoreCannotOpenWithoutPaymentDeliveryAndAReturnsPage()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        db.Execute("UPDATE dbo.Site SET IsActive = 0 WHERE Id = @site;", ("@site", db.SiteId));
+
+        // Raised before anything is written, so this scope survives it.
+        db.Invoking(d => d.Execute("EXEC dbo.spSite_SetActive @SiteId = @site, @IsActive = 1;", ("@site", d.SiteId)))
+            .Should().Throw<SqlException>().Which.Message
+            .Should().Contain("its payment keys").And.Contain("a delivery rate").And.Contain("\"returns\" page");
+
+        db.Invoking(d => d.Execute("EXEC dbo.spSite_SetPaymentSecrets @SiteId = @site, @SecretRef = N'x', @WebhookSecretRef = NULL;",
+                ("@site", d.SiteId)))
+            .Should().Throw<SqlException>().Which.Number.Should().Be(50140, "a key with no webhook secret takes money and never hears of it");
+    }
+
     private sealed record Placed(string? Reference, string? ShortSkus);
 
     private sealed class Scenario : IDisposable
@@ -250,13 +345,18 @@ public class CheckoutOrderTests
         public Placed Place(int basketId, bool guest, (int ProductId, int Quantity, decimal Price) line, int contactId) =>
             Place(basketId, guest, [line], contactId);
 
-        private Placed Place(int basketId, bool guest, (int ProductId, int Quantity, decimal Price)[] lines, int? contactId)
+        /// <summary>A guest's order of one line, with a delivery charge (T13).</summary>
+        public Placed PlaceWithDelivery(int basketId, (int ProductId, int Quantity, decimal Price) line, string delivery, decimal price) =>
+            Place(basketId, guest: true, [line], contactId: null, delivery, price);
+
+        private Placed Place(int basketId, bool guest, (int ProductId, int Quantity, decimal Price)[] lines, int? contactId,
+            string? delivery = null, decimal deliveryPrice = 0m)
         {
             var values = string.Join(", ", lines.Select((_, i) => $"(@p{i}, @q{i}, @n{i}, 0, @n{i})"));
             var parameters = new List<(string, object?)>
             {
                 ("@site", SiteId), ("@basket", basketId), ("@contact", contactId),
-                ("@token", guest ? Token : null)
+                ("@token", guest ? Token : null), ("@sn", delivery), ("@sp", deliveryPrice)
             };
             for (var i = 0; i < lines.Length; i++)
             {
@@ -272,7 +372,7 @@ public class CheckoutOrderTests
                      @ContactId = @contact, @Email = N'ana@example.invalid', @FirstName = N'Ana', @LastName = N'Silva',
                      @Line1 = N'Rua A, 10', @City = N'São Paulo', @Country = N'br',
                      @TaxTreatment = N'Domestic', @TaxLegend = N'Tax included.', @TaxRatePct = 17,
-                     @GuestToken = @token;
+                     @GuestToken = @token, @ShippingName = @sn, @ShippingPrice = @sp;
                 """, parameters.ToArray());
             using var reader = command.ExecuteReader();
             reader.Read();
@@ -295,6 +395,30 @@ public class CheckoutOrderTests
             ("@id", orderId), ("@status", status), ("@site", SiteId));
 
         public int Stock(int id) => Scalar<int>("SELECT QuantityInStock FROM dbo.Product WHERE Id = @id;", ("@id", id));
+
+        /// <summary>Records a session on the order (T13), returning the one it replaced.</summary>
+        public string? Session(string reference, string sessionId)
+        {
+            using var command = Command("EXEC dbo.spOrder_SetPaymentSession @SiteId = @site, @Reference = @ref, @SessionId = @s;",
+                ("@site", SiteId), ("@ref", reference), ("@s", sessionId));
+            using var reader = command.ExecuteReader();
+            return reader.Read() && !reader.IsDBNull(0) ? reader.GetString(0) : null;
+        }
+
+        public string Apply(string eventId, string reference, string sessionId, string outcome) => Scalar<string>(
+            "EXEC dbo.spOrder_ApplyPaymentEvent @SiteId = @site, @EventId = @e, @EventType = N'test', @Reference = @ref, @SessionId = @s, @Outcome = @o;",
+            ("@site", SiteId), ("@e", $"{eventId}-{_runId}"), ("@ref", reference), ("@s", sessionId), ("@o", outcome));
+
+        /// <summary>The payloads this store queued under a template.</summary>
+        public List<string> Mailed(string templateKey)
+        {
+            using var command = Command("SELECT PayloadJson FROM dbo.EmailOutbox WHERE SiteId = @site AND TemplateKey = @k;",
+                ("@site", SiteId), ("@k", templateKey));
+            using var reader = command.ExecuteReader();
+            var payloads = new List<string>();
+            while (reader.Read()) payloads.Add(reader.GetString(0));
+            return payloads;
+        }
 
         public object[] Row(string sql, params (string Name, object? Value)[] parameters)
         {

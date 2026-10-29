@@ -3,6 +3,7 @@
 @page "/checkout"
 
 @using SMStore.Accounts
+@using SMStore.Catalog
 @using SMStore.Ordering
 @using SMStore.Registration
 @inject ISiteContext SiteContext
@@ -10,6 +11,8 @@
 @inject CheckoutService Orders
 @inject ICustomerContext Customer
 @inject NavigationManager Navigation
+@inject SMStore.Payments.PaymentService Payments
+@inject CatalogPresenter Catalog
 
 <PageTitle>@L["Checkout"] · @SiteContext.Site.Name</PageTitle>
 
@@ -103,13 +106,29 @@ else
                 <p class="text-muted">@L["Lines that are no longer available are left out of the order."]</p>
             }
             <dl class="checkout__totals">
-                <dt>@L["Total"]</dt>
+                <dt>@L["Goods"]</dt>
                 <dd>@_view.Total</dd>
             </dl>
+            @if (_rates.Count > 0)
+            {
+                @* Every rate, because the one charged depends on the country in the form, and this
+                   page has no script to work it out as somebody types. The cheapest covering the
+                   country is charged, and the payment page shows the total. *@
+                <h5>@L["Delivery"]</h5>
+                <ul class="checkout__lines checkout__rates">
+                    @foreach (var rate in _rates)
+                    {
+                        <li>
+                            <span>@rate.Name</span>
+                            <span class="mono">@Money(rate.Price)@(rate.FreeOver is { } over ? " · " + L["free over {0}", Money(over)].Value : "")</span>
+                        </li>
+                    }
+                </ul>
+            }
             <p class="text-muted">
                 @(SiteContext.Site.PricesIncludeTax
-                    ? L["Prices include tax. Delivery is arranged once you have paid."]
-                    : L["Tax is added for the country we deliver to. Delivery is arranged once you have paid."])
+                    ? L["Prices include tax. You pay on the next page."]
+                    : L["Tax is added for the country we deliver to. You pay on the next page."])
             </p>
             <a href="@Mode.BasketRoute" class="btn btn-secondary btn-block">@L["Change your {0}", Mode.BasketNoun]</a>
         </aside>
@@ -142,7 +161,12 @@ else
         }
 
         _view = Presenter.Read();
+        _rates = Orders.DeliveryRates();
     }
+
+    private IReadOnlyList<SMDataManager.Library.Models.ShippingRateModel> _rates = [];
+
+    private string Money(decimal amount) => Catalog.Money(amount);
 
     /// <summary>
     /// Read from the posted form, not model-bound, as Register.razor reads it. A signed-in
@@ -174,7 +198,7 @@ else
         </FormField>;
     }
 
-    private void Place()
+    private async Task Place()
     {
         var outcome = Orders.Place(new CheckoutForm(
             Value(nameof(CheckoutForm.Email)),
@@ -190,10 +214,20 @@ else
 
         if (outcome.Succeeded)
         {
-            // A guest's way back is the token; a signed-in customer has the account area.
-            Navigation.NavigateTo(outcome.GuestToken is { } token
-                ? $"{CheckoutService.GuestOrderPath}/{token}?placed=1"
-                : $"{QuoteDecisionEndpoints.OrdersPath}/{Uri.EscapeDataString(outcome.Reference!)}?placed=1");
+            // To the hosted payment page when the store takes payment (T13). A guest's way back is
+            // the token; a signed-in customer has the account area.
+            var order = outcome.GuestToken is { } token
+                ? $"{CheckoutService.GuestOrderPath}/{token}"
+                : $"{QuoteDecisionEndpoints.OrdersPath}/{Uri.EscapeDataString(outcome.Reference!)}";
+
+            if (!Payments.IsAvailable)
+            {
+                Navigation.NavigateTo(order + "?placed=1");
+                return;
+            }
+
+            var payment = await Payments.StartAsync(outcome.GuestToken, outcome.Reference, Http?.RequestAborted ?? default);
+            Navigation.NavigateTo(payment ?? order + "?payment=failed");
             return;
         }
 

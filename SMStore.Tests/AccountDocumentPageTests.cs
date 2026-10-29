@@ -103,7 +103,7 @@ public class AccountDocumentPageTests : Bunit.TestContext
         });
 
         Services.AddSingleton(new CustomerOrderPresenter(
-            _quotes, _orders, _accounts, catalogPresenter, siteContext, _customer, ordering,
+            _quotes, _orders, _accounts, catalogPresenter, siteContext, _customer, ordering, Substitute.For<ISiteData>(),
             NullLogger<CustomerOrderPresenter>.Instance));
     }
 

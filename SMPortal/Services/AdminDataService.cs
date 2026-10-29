@@ -560,10 +560,10 @@ public class AdminDataService : IAdminDataService
             .ToArray();
     }
 
-    public async Task<string?> SetOrderStatus(string id, string status)
+    public async Task<string?> SetOrderStatus(string id, string status, string? trackingNumber = null)
     {
         var response = await _client.PutAsJsonAsync(
-            $"{_api}/api/Order/{Uri.EscapeDataString(id)}/Status", new { Status = status });
+            $"{_api}/api/Order/{Uri.EscapeDataString(id)}/Status", new { Status = status, TrackingNumber = trackingNumber });
 
         // A 409 is the store refusing to reopen a cancelled cart order, and its message says why.
         if (response.StatusCode == HttpStatusCode.Conflict)
@@ -1241,6 +1241,35 @@ public class AdminDataService : IAdminDataService
         return await _client.GetFromJsonAsync<StoreSettingsView>($"{_api}/api/Site/Settings");
     }
 
+    public async Task<string?> SavePaymentKeys(string secretKey, string webhookSecret)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PutAsJsonAsync($"{_api}/api/Site/Payment",
+            new { SecretKey = secretKey, WebhookSecret = webhookSecret });
+
+        return response.IsSuccessStatusCode ? null : await Problem(response, "The payment keys could not be saved.");
+    }
+
+    public async Task<IReadOnlyList<ShippingRate>> GetShippingRates()
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await GetListAsync<ShippingRate>("api/ShippingRate");
+    }
+
+    public async Task<string?> SaveShippingRate(ShippingRate rate)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.PutAsJsonAsync($"{_api}/api/ShippingRate", rate);
+
+        return response.IsSuccessStatusCode ? null : await Problem(response, "That delivery rate could not be saved.");
+    }
+
     public async Task<string?> SaveStoreSettings(StoreSettings settings)
     {
         await EnsureAuthHeaderAsync();
@@ -1504,6 +1533,9 @@ public class AdminDataService : IAdminDataService
         Vat = dto.VAT,
         TaxTreatment = dto.TaxTreatment ?? string.Empty,
         TaxLegend = dto.TaxLegend ?? string.Empty,
+        ShippingName = dto.ShippingName,
+        Shipping = dto.ShippingPrice,
+        TrackingNumber = dto.TrackingNumber,
         LineItems = lines.Select(line => new OrderLine
         {
             Sku = line.Sku ?? string.Empty,
@@ -1631,7 +1663,8 @@ public class AdminDataService : IAdminDataService
     private sealed record OrderDto(int Id, string? Reference, int? AccountId, string? AccountName,
         string? Currency, string? Status, DateTime PurchaseDate, decimal SubTotal, decimal VAT,
         decimal FinalPrice, string? FromQuoteReference, int Items,
-        string? TaxTreatment, string? TaxLegend);
+        string? TaxTreatment, string? TaxLegend, string? ShippingName = null, decimal ShippingPrice = 0,
+        string? TrackingNumber = null);
 
     private sealed record OrderLineDto(int Id, int PurchaseId, int ProductId, string? Sku, string? Name,
         int Quantity, decimal Price, decimal VAT);

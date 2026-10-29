@@ -35,6 +35,9 @@ public sealed class StoreSettings
     /// whether those prices include tax.
     /// </summary>
     public bool CurrencyLocked { get; set; }
+
+    /// <summary>Whether its payment keys are set (T13). The keys are write-only and never come back.</summary>
+    public bool PaymentConfigured { get; set; }
 }
 
 /// <summary>The settings, and what each keyed one may be — the API's lists, not the portal's.</summary>
@@ -94,4 +97,20 @@ public sealed class NewStore
     public string Locale { get; set; } = "";
     public string RegistrationFieldSet { get; set; } = "";
     public string TaxRuleSet { get; set; } = "";
+}
+
+/// <summary>One of a store's delivery rates (T13), as /admin/shipping edits it.</summary>
+public sealed class ShippingRate
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+
+    /// <summary>Two-letter codes, comma-separated; blank for every country.</summary>
+    public string? Countries { get; set; }
+
+    /// <summary>On the store's basis: with tax in on a store whose prices include it.</summary>
+    public decimal Price { get; set; }
+
+    public decimal? FreeOver { get; set; }
+    public bool IsActive { get; set; } = true;
 }

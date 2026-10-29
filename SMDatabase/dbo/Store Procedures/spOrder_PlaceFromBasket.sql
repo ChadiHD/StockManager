@@ -41,7 +41,12 @@ CREATE PROCEDURE [dbo].[spOrder_PlaceFromBasket]
 
 	-- A guest's way back to the order. Hashed here and by spOrder_GetByGuestToken, as
 	-- nvarchar both times: HASHBYTES hashes the bytes it is given, and the two must agree.
-	@GuestToken nvarchar(64) = NULL
+	@GuestToken nvarchar(64) = NULL,
+
+	-- Delivery, chosen from the store's rates by the caller (T13), on the store's basis like the
+	-- lines' prices. NULL and zero charge nothing.
+	@ShippingName nvarchar(100) = NULL,
+	@ShippingPrice money = 0
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -206,14 +211,20 @@ BEGIN
 		INNER JOIN dbo.Product p ON p.[Id] = [l].[ProductId]
 		CROSS APPLY dbo.fnOrder_LineTax([l].[Quantity], [l].[NetPrice], @TaxRatePct, [p].[IsTaxable], @Inclusive) t;
 
-		-- Summed from the lines, as spOrder_ConvertFromQuote sums them, and net of tax on either
-		-- basis.
-		DECLARE @Vat money = (SELECT ISNULL(SUM([VAT]), 0) FROM dbo.PurchaseDetail WHERE [PurchaseId] = @Id);
-		DECLARE @Gross money = (SELECT ISNULL(SUM([Quantity] * [PurchasePrice]), 0) FROM dbo.PurchaseDetail WHERE [PurchaseId] = @Id);
+		-- Delivery (T13) is taxed with the goods, at the order's rate, as a line of one would be.
+		DECLARE @ShippingVat money = (
+			SELECT [Vat] FROM dbo.fnOrder_LineTax(1, @ShippingPrice, @TaxRatePct, 1, @Inclusive));
+
+		-- Summed from the lines, as spOrder_ConvertFromQuote sums them, with the delivery, and net
+		-- of tax on either basis.
+		DECLARE @Vat money = (SELECT ISNULL(SUM([VAT]), 0) FROM dbo.PurchaseDetail WHERE [PurchaseId] = @Id) + @ShippingVat;
+		DECLARE @Gross money = (SELECT ISNULL(SUM([Quantity] * [PurchasePrice]), 0) FROM dbo.PurchaseDetail WHERE [PurchaseId] = @Id) + @ShippingPrice;
 		DECLARE @SubTotal money = @Gross - CASE WHEN @Inclusive = 1 THEN @Vat ELSE 0 END;
 
 		UPDATE dbo.Purchase
-		SET [SubTotal] = @SubTotal, [VAT] = @Vat, [FinalPrice] = @SubTotal + @Vat
+		SET [SubTotal] = @SubTotal, [VAT] = @Vat, [FinalPrice] = @SubTotal + @Vat,
+		    [ShippingName] = NULLIF(LTRIM(RTRIM(@ShippingName)), N''), [ShippingPrice] = @ShippingPrice,
+		    [ShippingVat] = @ShippingVat
 		WHERE [Id] = @Id;
 
 		INSERT INTO dbo.PurchaseAddress([PurchaseId], [Name], [Line1], [Line2], [City], [Region],

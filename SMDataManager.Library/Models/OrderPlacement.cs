@@ -33,6 +33,10 @@ namespace SMDataManager.Library.Models
 
         /// <summary>A guest's way back to the order. Only its hash is stored.</summary>
         public string GuestToken { get; set; }
+
+        /// <summary>The delivery chosen from the store's rates (T13), on the store's basis. Null charges none.</summary>
+        public string ShippingName { get; set; }
+        public decimal ShippingPrice { get; set; }
     }
 
     /// <summary>Where an order goes, as <c>dbo.PurchaseAddress</c> holds it.</summary>
@@ -61,5 +65,26 @@ namespace SMDataManager.Library.Models
         public string ShortSkus { get; set; }
 
         public bool Placed => !string.IsNullOrEmpty(Reference);
+    }
+
+    /// <summary>What a payment provider event means for its order (T13).</summary>
+    public enum PaymentOutcome
+    {
+        /// <summary>Recorded and nothing else: a completed session still waiting on its payment.</summary>
+        None,
+
+        Paid,
+
+        /// <summary>The payment failed or the session expired: cancel, and return the stock.</summary>
+        Failed
+    }
+
+    /// <summary>A checkout session recorded on an order, and the one it replaced (T13).</summary>
+    public class PaymentSessionChange
+    {
+        /// <summary>False when the order no longer awaits payment, so the new session must not be used.</summary>
+        public bool Recorded { get; set; }
+
+        public string PreviousSessionId { get; set; }
     }
 }

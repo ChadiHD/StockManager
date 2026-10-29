@@ -10,6 +10,7 @@ using SMStore.Content;
 using SMStore.Documents;
 using SMStore.Navigation;
 using SMStore.Ordering;
+using SMStore.Payments;
 using SMStore.Registration;
 using StockManager.Documents;
 using StockManager.ProductImages;
@@ -118,10 +119,17 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<IBasketData, BasketData>();
 builder.Services.AddTransient<IQuoteData, QuoteData>();
 builder.Services.AddTransient<IOrderData, OrderData>();
+builder.Services.AddTransient<IShippingRateData, ShippingRateData>();
 builder.Services.AddScoped<BasketService>();
 builder.Services.AddScoped<BasketPresenter>();
 builder.Services.AddScoped<QuoteSubmissionService>();
 builder.Services.AddScoped<CheckoutService>();
+
+// Payment (T13). The provider is a typed client, so it gets the resilience handler; StripeCheckout
+// sends an idempotency key for that reason.
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
+builder.Services.AddHttpClient<IPaymentProvider, StripeCheckout>();
+builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<CustomerOrderPresenter>();
 builder.Services.AddScoped<QuoteDecisionService>();
 
@@ -252,9 +260,16 @@ Everything from this origin and nothing inline. The storefront has two scripts o
 attribute appears in its markup — so the one thing a third party gets is product images, which
 enrichment links from the content provider's own servers.
 */
+
+// form-action names the payment provider's hosted page too (T13): Chrome applies it to the redirect
+// that follows the checkout's post. From the provider's own settings, so the journey's stub is allowed
+// where Stripe is in production, and never a literal here.
+var checkoutOrigin = builder.Configuration.GetSection(StripeOptions.SectionName).Get<StripeOptions>()?.CheckoutOrigin
+    ?? new StripeOptions().CheckoutOrigin;
+
 app.UseSecurityHeaders(
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; " +
-    "font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; " +
+    $"font-src 'self'; connect-src 'self'; form-action 'self' {checkoutOrigin}; frame-ancestors 'none'; " +
     "base-uri 'self'; object-src 'none'");
 
 // Health probes are addressed by container host or IP, which no Site row claims, so they must
@@ -279,6 +294,7 @@ app.UseRateLimiter();
 app.MapStaticAssets();
 app.MapCustomerAuth();
 app.MapBasket();
+app.MapPayments();
 app.MapQuoteDecisions();
 app.MapAccountDocuments();
 app.MapProductImages();

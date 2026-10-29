@@ -137,8 +137,18 @@ brings:
 - a guest's order page that only its token opens;
 - the `b2c` registration field set.
 
-Payment is T13's: until then an order waits at `Awaiting payment`. See *Checkout* under SMStore
-architecture.
+See *Checkout* under SMStore architecture.
+
+**T13 — payment and shipping are built**, per `docs/plans/2026-10-29-t13-payment-shipping.md`.
+It brings:
+
+- Stripe Checkout, the hosted page, with each store's own keys;
+- a signed webhook that marks an order `Paid`, once per event;
+- delivery rates, charged at checkout and taxed with the goods;
+- a tracking number when an order ships, and the mail for each step;
+- an open checklist that knows what a checkout store needs.
+
+See *Payment* under SMStore architecture.
 
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
@@ -181,7 +191,7 @@ before anything else runs. Consequences that are easy to get wrong:
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
   leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
   (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`,
-  `SiteEmailTemplate`, `SiteProduct`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
+  `SiteEmailTemplate`, `SiteProduct`, `ShippingRate`, `PaymentEvent`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
   dispatcher drains every store and renders each row with its own store's values.
 - **A join to a scoped table needs the predicate even when the join path looks safe.** A
   `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
@@ -477,8 +487,9 @@ else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands 
   ACS's delivery events, which are not built.
 
 - **Where there is a procedure, it queues the message in its own transaction.**
-  `spAccount_Approve`, `spAccount_Reject`, `spQuote_SubmitRequest`, `spQuote_Price` and
-  `spOrder_ConvertFromQuote` call `spEmailOutbox_Enqueue` beside the write, so a change and
+  `spAccount_Approve`, `spAccount_Reject`, `spQuote_SubmitRequest`, `spQuote_Price`,
+  `spOrder_ConvertFromQuote`, `spOrder_ApplyPaymentEvent` and `spOrder_UpdateStatus` call
+  `spEmailOutbox_Enqueue` beside the write, so a change and
   the intent to tell somebody commit together, and a host dying after the commit can no
   longer lose the message. Where there is none — a registration spans two databases, a
   password reset is Identity's, a feed alert follows an import — the call site queues through
@@ -586,7 +597,8 @@ given these terms.
 
 Data Protection keys are shared by `StockApi` and `SMStore` through `AddSharedDataProtection`,
 persisted to `dbo.DataProtectionKeys` in `ApiAuthDb`. Both apps must keep the same application
-name, or neither can read the other's cookies or the feed credentials in `dbo.DistributorFeed`.
+name, or neither can read the other's cookies, the feed credentials in `dbo.DistributorFeed`, or
+a store's payment keys on `dbo.Site` (T13), which `StockApi` encrypts and only `SMStore` decrypts.
 
 **Moving the key ring orphans everything already encrypted against the old one.** When
 `AddSharedDataProtection` replaced the previous per-machine ring
@@ -782,7 +794,7 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All fifteen journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All sixteen journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
 the old one.
 
@@ -829,6 +841,16 @@ back. Two guests each put the store's last shirt in their cart.
 - The order is a `Consumer` account's, ships to BR, took the shirt, and queued `order.placed`.
 - The second checks out and is told the shirt is short. Nothing is written for them, and the
   shirt was sold once.
+
+T13's sixteenth borrows the same store as a checkout store again and puts it back, keys and rates
+included, because the fifteenth expects a store that takes no payment.
+- An admin types the Stripe keys and a Brazil-only delivery rate into the portal.
+- A guest shipping to Portugal is refused on the country field. Shipping to Brazil, they are sent
+  to `StripeStub`'s hosted page, with the key the portal saved and a total equal to the order's.
+- Back from paying, the order still reads `Awaiting payment`. A webhook signed for another store
+  is a 400. The signed one is a 200, twice, and the order is `Paid` with one event and one
+  `order.paid`.
+- The admin marks it fulfilled with a tracking number, and `order.shipped` is queued.
 
 T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
@@ -1196,7 +1218,9 @@ precisely to avoid a circuit on every page.
 `UseSecurityHeaders` (ServiceDefaults): nosniff, a strict-origin referrer policy, framing
 refused, and a Content-Security-Policy per host. The storefront's allows `'self'` only, plus
 `https:` images — enrichment links product images from Icecat, the one third party left, which
-A4 decides about. So:
+A4 decides about. Its `form-action` also names the payment provider's hosted page (T13,
+`Payments:Stripe:CheckoutOrigin`), because Chrome applies it to the redirect after the checkout's
+post. So:
 
 - **No inline script and no inline style attribute** in storefront markup. `<ImportMap />` was
   removed for that reason; a script is a file under `wwwroot`.
@@ -1567,6 +1591,36 @@ to itself, as `Register.razor` does, and `CheckoutService` holds every rule wort
   sides, so C# never hashes it.
 - **`order.placed` is queued by `CheckoutService`, not the procedure**, because its link is a
   credential and only `IEmailOutbox` encrypts a payload.
+
+### Payment (T13)
+
+**A store with Stripe keys sends the placed order to Stripe Checkout, and only a signed webhook
+says it was paid.** `PaymentService` holds the rules, and `StripeCheckout` is the provider, behind
+`IPaymentProvider`.
+
+- **No Stripe SDK.** Two calls and an HMAC over `HttpClient`, with `Stripe-Version` pinned and an
+  `Idempotency-Key`, because the resilience handler may retry a POST. The API base and the
+  checkout origin are `Payments:Stripe`, and the E2E fixture points both at `StripeStub`.
+- **The line items add up to the order's total exactly.** Prices and delivery are sent as they
+  are on an inclusive store. On an exclusive store they are sent net, with the tax as one line. A
+  total they would not reach is sent as one line.
+- **The return proves nothing.** The order page waits for the webhook and refreshes itself.
+  `POST /webhooks/stripe` checks `Stripe-Signature` against the secret of the store its host
+  names. `spOrder_ApplyPaymentEvent` then applies each event once, keyed on its id in
+  `dbo.PaymentEvent`.
+- **Only the order's current session can cancel it.** "Pay now" records a new session and expires
+  the old one, so that one's expiry changes nothing. An expired or failed current session
+  cancels the order and returns its stock through `spOrder_ReturnStock`.
+- **Money for an order not awaiting it is logged at Error for a person.** Nothing here can
+  reconcile a payment taken after a cancel.
+- **The keys are write-only.** They are Data Protection ciphertext under `PaymentSecrets.Purpose`.
+  `StockApi` encrypts them from `/admin/store`, and only `spSite_GetPaymentSecrets` reads them
+  back, for the storefront. They are never on `SiteModel`, which is cached.
+- **Delivery is the cheapest active `ShippingRate` covering the country** (`ShippingQuote.Choose`),
+  free over its threshold, and taxed with the goods through `fnOrder_LineTax`. It is on the order
+  (`ShippingName`, `ShippingPrice`, `ShippingVat`) rather than a line, and in its totals.
+- **A checkout store cannot open** without payment keys, an active delivery rate and a `returns`
+  page (`SiteContentKeys.RequiredToOpenForCheckout`).
 
 ### A reference is not an authorisation
 

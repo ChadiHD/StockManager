@@ -25,6 +25,12 @@ namespace SMDataManager.Library.Models
         /// <summary>Raised and not yet paid. Where an accepted quote lands.</summary>
         public const string AwaitingPayment = "Awaiting payment";
 
+        /// <summary>
+        /// Paid, as the payment provider's webhook said (T13), and not yet shipped. Never set by
+        /// the redirect that brings a customer back from paying.
+        /// </summary>
+        public const string Paid = "Paid";
+
         /// <summary>Being picked and packed.</summary>
         public const string Processing = "Processing";
 
@@ -35,7 +41,7 @@ namespace SMDataManager.Library.Models
         public const string Cancelled = "Cancelled";
 
         public static readonly IReadOnlyList<string> All =
-            new[] { AwaitingPayment, Processing, Fulfilled, Cancelled };
+            new[] { AwaitingPayment, Paid, Processing, Fulfilled, Cancelled };
 
         public static bool IsKnown(string status) =>
             All.Any(known => string.Equals(known, status, StringComparison.Ordinal));

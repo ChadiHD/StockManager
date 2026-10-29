@@ -164,7 +164,9 @@ namespace SMDataManager.Library.DataAccess
                     TaxTreatment = placement.Tax?.Treatment,
                     TaxLegend = placement.Tax?.Legend,
                     TaxRatePct = placement.Tax?.RatePct ?? 0m,
-                    placement.GuestToken
+                    placement.GuestToken,
+                    placement.ShippingName,
+                    placement.ShippingPrice
                 },
                 "SMDatabase").FirstOrDefault();
         }
@@ -183,12 +185,35 @@ namespace SMDataManager.Library.DataAccess
                 "SMDatabase").FirstOrDefault();
         }
 
-        public bool UpdateStatus(int purchaseId, string status, int siteId)
+        public PaymentSessionChange SetPaymentSession(int siteId, string reference, string sessionId)
+        {
+            // A row comes back only when the order still awaited payment and took the session.
+            var replaced = _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spOrder_SetPaymentSession",
+                new { SiteId = siteId, Reference = reference, SessionId = sessionId }, "SMDatabase");
+
+            return new PaymentSessionChange { Recorded = replaced.Count > 0, PreviousSessionId = replaced.FirstOrDefault() };
+        }
+
+        public string ApplyPaymentEvent(int siteId, string eventId, string eventType, string reference,
+            string sessionId, PaymentOutcome outcome)
+        {
+            return _sqlDataAccess.LoadData<string, dynamic>(
+                "dbo.spOrder_ApplyPaymentEvent",
+                new
+                {
+                    SiteId = siteId, EventId = eventId, EventType = eventType, Reference = reference,
+                    SessionId = sessionId, Outcome = outcome.ToString()
+                },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public bool UpdateStatus(int purchaseId, string status, int siteId, string trackingNumber = null)
         {
             try
             {
                 _sqlDataAccess.SaveData("dbo.spOrder_UpdateStatus",
-                    new { Id = purchaseId, Status = status, SiteId = siteId }, "SMDatabase");
+                    new { Id = purchaseId, Status = status, SiteId = siteId, TrackingNumber = trackingNumber }, "SMDatabase");
             }
             catch (SqlException ex) when (ex.Number == CancelledCartOrder)
             {

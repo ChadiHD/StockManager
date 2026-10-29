@@ -116,7 +116,7 @@ public interface IAdminDataService
     /// Moves an order to a status, or says why the store refused: a cancelled order from the cart
     /// has given its stock back and cannot be reopened (T12). Null when it moved.
     /// </summary>
-    Task<string?> SetOrderStatus(string id, string status);
+    Task<string?> SetOrderStatus(string id, string status, string? trackingNumber = null);
     /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
     /// <summary>
     /// Where an order goes (T12), as the lines of a label, or none for an order from a quote.
@@ -169,6 +169,15 @@ public interface IAdminDataService
 
     /// <summary>Saves the acting store's settings. Returns why they were refused, or null.</summary>
     Task<string?> SaveStoreSettings(StoreSettings settings);
+
+    /// <summary>Sets the acting store's Stripe keys (T13). Null when saved, otherwise why not.</summary>
+    Task<string?> SavePaymentKeys(string secretKey, string webhookSecret);
+
+    /// <summary>The acting store's delivery rates (T13), active or not. Fetched on opening the page.</summary>
+    Task<IReadOnlyList<ShippingRate>> GetShippingRates();
+
+    /// <summary>Adds a rate when its id is zero, or changes one. Null when saved, otherwise why not.</summary>
+    Task<string?> SaveShippingRate(ShippingRate rate);
 
     /// <summary>The acting store's content pages, fetched when the content screen opens (T9).</summary>
     Task<IReadOnlyList<ContentPageItem>> GetContentPages();

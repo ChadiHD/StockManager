@@ -69,6 +69,12 @@ namespace SMDataManager.Library.Email
         string TaxLegend,
         string GuestToken);
 
+    /// <summary>Written by <c>spOrder_ApplyPaymentEvent</c> when the provider says an order is paid (T13).</summary>
+    public sealed record OrderPaidPayload(string Reference, decimal Total);
+
+    /// <summary>Written by <c>spOrder_UpdateStatus</c> when a cart order is marked fulfilled (T13).</summary>
+    public sealed record OrderShippedPayload(string Reference, string TrackingNumber);
+
     /// <summary>A consumer account registered (T12). Null on the neutral answer to a duplicate.</summary>
     public sealed record RegistrationWelcomePayload(string ConfirmationLink);
 

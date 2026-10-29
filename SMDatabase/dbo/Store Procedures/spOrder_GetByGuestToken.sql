@@ -18,6 +18,8 @@ BEGIN
 	       [p].[Currency], [p].[Status], [p].[PurchaseDate], [p].[SubTotal], [p].[VAT], [p].[FinalPrice],
 	       CAST(NULL AS nvarchar(20)) AS [FromQuoteReference],
 	       [p].[PoNumber], [p].[TaxTreatment], [p].[TaxLegend],
+	       [p].[ShippingName], [p].[ShippingPrice], [p].[TrackingNumber],
+	       [a].[Email] AS [AccountEmail],
 	       (SELECT COUNT(*) FROM [dbo].[PurchaseDetail] d WHERE d.[PurchaseId] = p.[Id]) AS [Items]
 	FROM [dbo].[Purchase] p
 	INNER JOIN [dbo].[Account] a ON a.[Id] = p.[AccountId] AND a.[SiteId] = @SiteId

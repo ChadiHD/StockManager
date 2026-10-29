@@ -44,7 +44,19 @@ namespace SMDataManager.Library.DataAccess
         /// False when the store refused: a cancelled order from the cart cannot be reopened,
         /// because its stock has gone back (T12).
         /// </summary>
-        bool UpdateStatus(int purchaseId, string status, int siteId);
+        bool UpdateStatus(int purchaseId, string status, int siteId, string trackingNumber = null);
+
+        /// <summary>
+        /// Records the checkout session now paying for a cart order (T13), and names the one it
+        /// replaced, for the caller to expire. Not recorded when the order no longer awaits payment.
+        /// </summary>
+        PaymentSessionChange SetPaymentSession(int siteId, string reference, string sessionId);
+
+        /// <summary>
+        /// Applies a payment provider event once (T13): Duplicate, Paid, Cancelled or Unchanged.
+        /// </summary>
+        string ApplyPaymentEvent(int siteId, string eventId, string eventType, string reference,
+            string sessionId, PaymentOutcome outcome);
 
         /// <summary>
         /// Turns a cart into an order at <c>Awaiting payment</c>, taking its own stock (T12).

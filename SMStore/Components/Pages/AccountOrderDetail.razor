@@ -46,6 +46,8 @@ else
         <p class="document__notice" role="status">@L["Thank you. We have your order, and we have emailed you a copy."]</p>
     }
 
+    <PaymentNotice Order="_order" Paid="@PaidFlag" Payment="@PaymentFlag" />
+
     <OrderDocument Order="_order" PrintHref="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}/print")" />
 }
 
@@ -57,6 +59,13 @@ else
     public string? PlacedFlag { get; set; }
 
     private bool Placed => PlacedFlag == "1";
+
+    /// <summary>Set by the provider's return and by a failed "Pay now" (T13). Compared, never rendered.</summary>
+    [SupplyParameterFromQuery(Name = "paid")]
+    public string? PaidFlag { get; set; }
+
+    [SupplyParameterFromQuery(Name = "payment")]
+    public string? PaymentFlag { get; set; }
 
     private OrderView? _order;
 

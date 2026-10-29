@@ -115,7 +115,8 @@ namespace StockApi.Controllers
             return outcome.Order;
         }
 
-        public record OrderStatusModel(string Status);
+        /// <summary>A status, and for a cart order marked fulfilled its tracking number (T13).</summary>
+        public record OrderStatusModel(string Status, string? TrackingNumber = null);
 
         [HttpPut("{reference}/Status")]
         public IActionResult UpdateStatus(string reference, OrderStatusModel change)
@@ -138,7 +139,12 @@ namespace StockApi.Controllers
                 return NotFound();
             }
 
-            if (!_orderData.UpdateStatus(order.Id, change.Status, _site.SiteId))
+            if (change.TrackingNumber?.Trim().Length > 100)
+            {
+                return BadRequest(new { Message = "A tracking number is up to 100 characters." });
+            }
+
+            if (!_orderData.UpdateStatus(order.Id, change.Status, _site.SiteId, change.TrackingNumber))
             {
                 // A cancelled cart order has given its stock back (T12), and reopening it would take
                 // the stock again unchecked. An answer the admin can act on, not a failure.

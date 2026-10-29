@@ -25,6 +25,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Kestrel, for StripeStub: the payment journey (T13) points the storefront at a stand-in
+         for Stripe's API, because a test cannot hold a real store's keys. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
