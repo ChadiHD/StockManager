@@ -69,4 +69,53 @@ public class OrderDetailTests : TestContext
 
         _toast.Received(1).Show("A cancelled order placed from the cart cannot be reopened.");
     }
+
+    private void FiscalDocument(string status, string? number = null, string? url = null, string? error = null)
+    {
+        _data.GetDeliveryAddress(Reference).Returns(Task.FromResult(Array.Empty<string>()));
+        _data.GetOrder(Reference).Returns(new Order
+        {
+            Id = Reference, Account = "Ana Silva", Currency = "BRL", Status = "Paid", LineItems = [],
+            FiscalStatus = status, FiscalNumber = number, FiscalUrl = url, FiscalError = error
+        });
+    }
+
+    [Fact]
+    public void AnOrderThatOwesNoFiscalDocumentShowsNoPanel()
+    {
+        _data.GetDeliveryAddress(Reference).Returns(Task.FromResult(Array.Empty<string>()));
+
+        var cut = RenderComponent<OrderDetail>(p => p.Add(x => x.Id, Reference));
+
+        cut.FindAll(".order-fiscal").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnIssuedDocumentShowsItsNumberAndOnlyAnHttpsLink()
+    {
+        FiscalDocument("Issued", "35261012345", "javascript:alert(1)");
+
+        var cut = RenderComponent<OrderDetail>(p => p.Add(x => x.Id, Reference));
+
+        cut.Find(".order-fiscal-status").TextContent.Should().Be("Issued");
+        cut.Find(".order-fiscal-number").TextContent.Should().Be("35261012345");
+        cut.Find(".order-fiscal").InnerHtml.Should().NotContain("javascript:", "the address is the issuer's answer");
+        cut.FindAll(".order-fiscal-retry").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AFailedDocumentSaysWhyAndCanBeSentAgain()
+    {
+        FiscalDocument("DeadLettered", error: "Rejeição 539");
+        _data.RetryFiscalDocument(Reference).Returns(Task.FromResult<string?>(null));
+
+        var cut = RenderComponent<OrderDetail>(p => p.Add(x => x.Id, Reference));
+
+        cut.Find(".order-fiscal-status").TextContent.Should().Be("Failed");
+        cut.Find(".order-fiscal-error").TextContent.Should().Contain("Rejeição 539");
+        cut.Find(".order-fiscal-retry").Click();
+
+        _data.Received(1).RetryFiscalDocument(Reference);
+        _toast.Received(1).Show($"The fiscal document for {Reference} will be issued again");
+    }
 }

@@ -34,7 +34,8 @@ public class StoreSettingsTests : TestContext
         OrderModes = ["Rfq"],
         RegistrationFieldSets = ["eu-b2b"],
         TaxRuleSets = ["eu-b2b"],
-        PriceDisplays = ["Public", "Authenticated"]
+        PriceDisplays = ["Public", "Authenticated"],
+        FiscalIssuers = ["none", "logging"]
     };
 
     [Fact]
@@ -47,10 +48,14 @@ public class StoreSettingsTests : TestContext
 
         cut.Find("#store-prices").Change("Authenticated");
         cut.Find("#store-legal-name").Change("Acme Trading Limited");
+        // The log-only issuer says it issues nothing, so nobody takes it for invoicing (T14).
+        cut.Find("#store-fiscal-issuer").TextContent.Should().Contain("issues nothing");
+        cut.Find("#store-fiscal-issuer").Change("logging");
         cut.Find("form").Submit();
 
         _data.Received(1).SaveStoreSettings(Arg.Is<StoreSettings>(s =>
-            s.PriceDisplay == "Authenticated" && s.LegalName == "Acme Trading Limited" && s.SiteKey == "acme"));
+            s.PriceDisplay == "Authenticated" && s.LegalName == "Acme Trading Limited" && s.SiteKey == "acme"
+            && s.FiscalIssuer == "logging"));
     }
 
     [Fact]

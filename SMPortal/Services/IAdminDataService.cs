@@ -117,6 +117,12 @@ public interface IAdminDataService
     /// has given its stock back and cannot be reopened (T12). Null when it moved.
     /// </summary>
     Task<string?> SetOrderStatus(string id, string status, string? trackingNumber = null);
+
+    /// <summary>
+    /// Sends an order's dead-lettered fiscal document again (T14), or says why not. Null when it
+    /// was queued.
+    /// </summary>
+    Task<string?> RetryFiscalDocument(string id);
     /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
     /// <summary>
     /// Where an order goes (T12), as the lines of a label, or none for an order from a quote.

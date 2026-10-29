@@ -11,6 +11,7 @@ using SMDataManager.Library.Models;
 using SMDataManager.Library.Tax;
 using StockApi.Email;
 using StockApi.Feeds;
+using StockApi.Fiscal;
 using StockApi.Quotes;
 using StockApi.Scheduling;
 using StockApi.Security;
@@ -167,6 +168,13 @@ builder.Services.AddScoped<EmailDispatcher>();
 // Here and not in SMStore: one dispatcher is all the volume needs. On by default, unlike the
 // feed sync, for the reason EmailDispatchBackgroundService gives.
 builder.Services.AddHostedService<EmailDispatchBackgroundService>();
+
+// The fiscal document each sale owes (T14), issued here beside the mail for the same reasons.
+// A store on 'none' queues nothing, so this claims nothing until a store chooses an issuer.
+builder.Services.AddFiscalIssuers();
+builder.Services.AddTransient<IFiscalDocumentData, FiscalDocumentData>();
+builder.Services.AddScoped<FiscalDocumentDispatcher>();
+builder.Services.AddHostedService<FiscalDocumentBackgroundService>();
 
 // "Your quote expires soon", once a day, off unless Quotes:ExpiryNoticeEnabled says otherwise —
 // the one job here that writes to customers without anybody having done anything. Beside the

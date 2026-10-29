@@ -578,6 +578,28 @@ public class AdminDataService : IAdminDataService
         return null;
     }
 
+    public async Task<string?> RetryFiscalDocument(string id)
+    {
+        var response = await _client.PostAsync(
+            $"{_api}/api/Order/{Uri.EscapeDataString(id)}/FiscalDocument/Retry", null);
+
+        // A 409 is a document no longer dead-lettered: a colleague retried it first.
+        string? refusal = null;
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            refusal = (await response.Content.ReadFromJsonAsync<RefusalDto>())?.Message
+                      ?? "That order has no failed fiscal document to retry.";
+        }
+        else
+        {
+            response.EnsureSuccessStatusCode();
+        }
+
+        await RefreshAsync();
+
+        return refusal;
+    }
+
     public async Task<QuoteConversion> ConvertQuoteToOrder(string quoteId)
     {
         var response = await _client.PostAsJsonAsync($"{_api}/api/Order/FromQuote",
@@ -1536,6 +1558,10 @@ public class AdminDataService : IAdminDataService
         ShippingName = dto.ShippingName,
         Shipping = dto.ShippingPrice,
         TrackingNumber = dto.TrackingNumber,
+        FiscalStatus = dto.FiscalStatus,
+        FiscalNumber = dto.FiscalNumber,
+        FiscalUrl = dto.FiscalUrl,
+        FiscalError = dto.FiscalError,
         LineItems = lines.Select(line => new OrderLine
         {
             Sku = line.Sku ?? string.Empty,
@@ -1664,7 +1690,8 @@ public class AdminDataService : IAdminDataService
         string? Currency, string? Status, DateTime PurchaseDate, decimal SubTotal, decimal VAT,
         decimal FinalPrice, string? FromQuoteReference, int Items,
         string? TaxTreatment, string? TaxLegend, string? ShippingName = null, decimal ShippingPrice = 0,
-        string? TrackingNumber = null);
+        string? TrackingNumber = null, string? FiscalStatus = null, string? FiscalNumber = null,
+        string? FiscalUrl = null, string? FiscalError = null);
 
     private sealed record OrderLineDto(int Id, int PurchaseId, int ProductId, string? Sku, string? Name,
         int Quantity, decimal Price, decimal VAT);

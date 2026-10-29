@@ -20,7 +20,8 @@ namespace StockManager.E2ETests.Journeys;
 /// <item>the checkout's redirect to the hosted page, which the storefront's CSP must allow;</item>
 /// <item>a webhook refused unsigned and applied signed, once, however often it arrives;</item>
 /// <item>the order page waiting on the webhook rather than the return;</item>
-/// <item>the tracking number the portal sends, and the mail it queues.</item>
+/// <item>the tracking number the portal sends, and the mail it queues;</item>
+/// <item>the fiscal document the payment's transaction queues, issued once by the other host (T14).</item>
 /// </list>
 /// Stripe is <see cref="StripeStub"/>. Everything on the storefront's side is real.
 /// </remarks>
@@ -53,6 +54,10 @@ public sealed class PaymentJourneyTests
 
         try
         {
+            // Issued by the log-only issuer (T14), by SQL: the settings screen saves every column at
+            // once, and this journey has no business with the rest. Put back with the keys.
+            await SetFiscalIssuerAsync(site.Id, "logging");
+
             // --- The admin sets the store up ---------------------------------------------------
             await using var adminContext = await _fixture.NewContextAsync();
             var admin = await adminContext.NewPageAsync();
@@ -132,8 +137,13 @@ public sealed class PaymentJourneyTests
             await Expect(guest.Locator(".page-header .tag")).ToHaveTextAsync("Paid");
             await Expect(guest.Locator(".document__notice")).ToContainTextAsync("Your payment is confirmed");
 
+            // --- The sale is invoiced, once, by the other host's dispatcher (T14) --------------
+            (await WaitForFiscalDocumentAsync(session.Reference)).Should().Be(("Issued", $"LOG-{session.Reference}", 1),
+                "the webhook's transaction queued one document, and the dispatcher issued it once");
+
             // --- The admin ships it ------------------------------------------------------------
             await admin.GotoAsync(new Uri(_fixture.SmPortalBaseUrl, $"/admin/orders/{session.Reference}").ToString());
+            await Expect(admin.Locator(".order-fiscal-number")).ToContainTextAsync($"LOG-{session.Reference}", AdminPortal.AfterReload);
             await TypeAsync(admin, "#order-tracking", $"BR{unique}");
             await admin.Locator(".head-actions .btn-primary").ClickAsync();
             await Expect(admin.Locator(".detail-title .badge")).ToHaveTextAsync("Fulfilled", new() { Timeout = 20_000 });
@@ -141,6 +151,7 @@ public sealed class PaymentJourneyTests
             order = await ReadOrderAsync(session.Reference);
             order.TrackingNumber.Should().Be($"BR{unique}");
             order.ShippedMail.Should().Be(1);
+            (await WaitForFiscalDocumentAsync(session.Reference)).Count.Should().Be(1, "shipping a paid order owes nothing more");
         }
         finally
         {
@@ -212,8 +223,54 @@ public sealed class PaymentJourneyTests
             reader.GetInt32(5), reader.GetInt32(6), reader.GetInt32(7));
     }
 
+    private async Task SetFiscalIssuerAsync(int siteId, string issuer)
+    {
+        await using var connection = new SqlConnection(_fixture.SmDatabaseConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new SqlCommand("UPDATE dbo.Site SET [FiscalIssuer] = @Issuer WHERE [Id] = @SiteId;", connection);
+        command.Parameters.AddWithValue("@Issuer", issuer);
+        command.Parameters.AddWithValue("@SiteId", siteId);
+        await command.ExecuteNonQueryAsync();
+    }
+
     /// <summary>
-    /// Puts the store back as the other journeys expect it: no keys, and no delivery rate. By SQL,
+    /// The order's fiscal document once it is no longer waiting, as (status, number, rows), within
+    /// twenty seconds: the dispatcher in stock-api polls every two.
+    /// </summary>
+    private async Task<(string? Status, string? Number, int Count)> WaitForFiscalDocumentAsync(string reference)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+
+        while (true)
+        {
+            await using var connection = new SqlConnection(_fixture.SmDatabaseConnectionString);
+            await connection.OpenAsync();
+
+            await using var command = new SqlCommand(
+                """
+                SELECT MAX(f.[Status]), MAX(f.[Number]), COUNT(*)
+                FROM dbo.FiscalDocument f
+                INNER JOIN dbo.Purchase p ON p.[Id] = f.[PurchaseId]
+                WHERE p.[Reference] = @Reference;
+                """, connection);
+            command.Parameters.AddWithValue("@Reference", reference);
+
+            await using var reader = await command.ExecuteReaderAsync();
+            await reader.ReadAsync();
+            var row = (reader.IsDBNull(0) ? null : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2));
+
+            if (row.Item1 is not (null or "Pending" or "Issuing") || DateTime.UtcNow > deadline)
+            {
+                return row;
+            }
+
+            await Task.Delay(500);
+        }
+    }
+
+    /// <summary>
+    /// Puts the store back as the other journeys expect it: no keys, no delivery rate, and no fiscal issuer. By SQL,
     /// because the portal's screens rightly never offer to hand the keys back.
     /// </summary>
     private async Task RemovePaymentSetupAsync(int siteId)
@@ -223,7 +280,7 @@ public sealed class PaymentJourneyTests
 
         await using var command = new SqlCommand(
             """
-            UPDATE dbo.Site SET [PaymentSecretRef] = NULL, [PaymentWebhookSecretRef] = NULL WHERE [Id] = @SiteId;
+            UPDATE dbo.Site SET [PaymentSecretRef] = NULL, [PaymentWebhookSecretRef] = NULL, [FiscalIssuer] = N'none' WHERE [Id] = @SiteId;
             UPDATE dbo.ShippingRate SET [IsActive] = 0 WHERE [SiteId] = @SiteId;
             """, connection);
 

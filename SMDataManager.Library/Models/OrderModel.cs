@@ -37,5 +37,14 @@ namespace SMDataManager.Library.Models
 
         /// <summary>The account's address, which the hosted payment page starts with (T13). Customer reads only.</summary>
         public string AccountEmail { get; set; }
+
+        /// <summary>
+        /// The order's fiscal document (T14): a <see cref="FiscalDocumentStatus"/>, or null when it
+        /// owes none. With its number, link and last error. Admin reads only.
+        /// </summary>
+        public string FiscalStatus { get; set; }
+        public string FiscalNumber { get; set; }
+        public string FiscalUrl { get; set; }
+        public string FiscalError { get; set; }
     }
 }

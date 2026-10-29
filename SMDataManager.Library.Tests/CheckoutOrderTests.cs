@@ -275,6 +275,90 @@ public class CheckoutOrderTests
             .Should().Throw<SqlException>().Which.Number.Should().Be(50140, "a key with no webhook secret takes money and never hears of it");
     }
 
+    [SkippableFact]
+    public void APaidOrderOwesOneFiscalDocumentWhenItsStoreIssuesThem()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        var shirt = db.Product("SHIRT", price: 40m, stock: 5);
+
+        // Every store before T14: paid, and owing nothing. Signed in, because the scenario's guests
+        // share one token and a second guest order would collide on it.
+        var (_, contact) = db.Customer();
+        var untouched = db.Place(db.Basket(contact), guest: false, (shirt, 1, 40m), contact);
+        db.Session(untouched.Reference!, "cs_none");
+        db.Apply("evt_none", untouched.Reference!, "cs_none", "Paid").Should().Be("Paid");
+        db.FiscalDocuments(untouched.Reference!).Should().BeEmpty("a store on 'none' queues nothing");
+
+        db.Execute("UPDATE dbo.Site SET FiscalIssuer = N'logging' WHERE Id = @site;", ("@site", db.SiteId));
+        var placed = db.Place(db.Basket(), guest: true, (shirt, 1, 40m));
+        db.Session(placed.Reference!, "cs_1");
+
+        db.Apply("evt_1", placed.Reference!, "cs_1", "Paid").Should().Be("Paid");
+        db.Apply("evt_1", placed.Reference!, "cs_1", "Paid").Should().Be("Duplicate");
+        db.SetStatus(db.OrderId(placed.Reference!), "Fulfilled");
+
+        db.FiscalDocuments(placed.Reference!).Should().Equal(["Pending logging"],
+            "one per sale, however many times it is paid or shipped");
+    }
+
+    [SkippableFact]
+    public void AnOrderShippedWithoutBeingMarkedPaidStillOwesItsDocument()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        db.Execute("UPDATE dbo.Site SET FiscalIssuer = N'logging' WHERE Id = @site;", ("@site", db.SiteId));
+        var shirt = db.Product("SHIRT", price: 40m, stock: 5);
+        var placed = db.Place(db.Basket(), guest: true, (shirt, 1, 40m));
+
+        db.SetStatus(db.OrderId(placed.Reference!), "Processing");
+        db.FiscalDocuments(placed.Reference!).Should().BeEmpty();
+
+        db.SetStatus(db.OrderId(placed.Reference!), "Fulfilled");
+        db.FiscalDocuments(placed.Reference!).Should().Equal(["Pending logging"], "a sale shipped on terms is still a sale");
+    }
+
+    [SkippableFact]
+    public void AClaimedDocumentIsRecordedOnlyByItsClaimAndADeadLetterCanBeSentAgain()
+    {
+        Skip.IfNot(TestDatabase.IsConfigured, TestDatabase.SkipReason);
+
+        using var scope = Scenario.Open(out var db);
+        db.Execute("UPDATE dbo.Site SET FiscalIssuer = N'logging' WHERE Id = @site;", ("@site", db.SiteId));
+        var shirt = db.Product("SHIRT", price: 40m, stock: 5);
+        var placed = db.Place(db.Basket(), guest: true, (shirt, 1, 40m));
+        db.SetStatus(db.OrderId(placed.Reference!), "Paid");
+
+        var claim = db.ClaimFiscal(placed.Reference!);
+        db.Scalar<int>("EXEC dbo.spFiscalDocument_RecordIssued @Id = @id, @ClaimToken = @other, @Number = N'X';",
+                ("@id", claim.Id), ("@other", Guid.NewGuid()))
+            .Should().Be(0, "a claim that was overtaken cannot record over the newer one");
+        db.Scalar<int>("EXEC dbo.spFiscalDocument_RecordFailure @Id = @id, @ClaimToken = @token, @Error = N'Refused';",
+                ("@id", claim.Id), ("@token", claim.Token))
+            .Should().Be(1);
+        db.FiscalDocuments(placed.Reference!).Should().Equal(["DeadLettered logging"]);
+
+        db.Scalar<int>("EXEC dbo.spFiscalDocument_Retry @SiteId = @site, @Reference = @ref;",
+                ("@site", db.OtherSiteId), ("@ref", placed.Reference))
+            .Should().Be(0, "another store's admin cannot touch it");
+        db.Scalar<int>("EXEC dbo.spFiscalDocument_Retry @SiteId = @site, @Reference = @ref;",
+                ("@site", db.SiteId), ("@ref", placed.Reference))
+            .Should().Be(1);
+
+        claim = db.ClaimFiscal(placed.Reference!);
+        claim.Attempts.Should().Be(1, "a retry starts its attempts again");
+        db.Scalar<int>("EXEC dbo.spFiscalDocument_RecordIssued @Id = @id, @ClaimToken = @token, @Number = N'LOG-1', @Url = N' ';",
+                ("@id", claim.Id), ("@token", claim.Token))
+            .Should().Be(1);
+
+        db.FiscalDocuments(placed.Reference!).Should().Equal(["Issued logging"]);
+        db.Scalar<int>("EXEC dbo.spFiscalDocument_Retry @SiteId = @site, @Reference = @ref;",
+                ("@site", db.SiteId), ("@ref", placed.Reference))
+            .Should().Be(0, "an issued document is not sent again");
+    }
+
     private sealed record Placed(string? Reference, string? ShortSkus);
 
     private sealed class Scenario : IDisposable
@@ -408,6 +492,44 @@ public class CheckoutOrderTests
         public string Apply(string eventId, string reference, string sessionId, string outcome) => Scalar<string>(
             "EXEC dbo.spOrder_ApplyPaymentEvent @SiteId = @site, @EventId = @e, @EventType = N'test', @Reference = @ref, @SessionId = @s, @Outcome = @o;",
             ("@site", SiteId), ("@e", $"{eventId}-{_runId}"), ("@ref", reference), ("@s", sessionId), ("@o", outcome));
+
+        public int OrderId(string reference) =>
+            Scalar<int>("SELECT Id FROM dbo.Purchase WHERE Reference = @ref;", ("@ref", reference));
+
+        /// <summary>The order's fiscal documents (T14), as "Status Issuer".</summary>
+        public List<string> FiscalDocuments(string reference)
+        {
+            using var command = Command("""
+                SELECT f.Status + N' ' + f.Issuer FROM dbo.FiscalDocument f
+                INNER JOIN dbo.Purchase p ON p.Id = f.PurchaseId
+                WHERE p.Reference = @ref AND f.SiteId = @site;
+                """, ("@ref", reference), ("@site", SiteId));
+            using var reader = command.ExecuteReader();
+            var rows = new List<string>();
+            while (reader.Read()) rows.Add(reader.GetString(0));
+            return rows;
+        }
+
+        /// <summary>
+        /// Claims what is due and returns this order's row. The claim is global, so the batch is wide
+        /// enough to reach it past anything else a shared database has waiting; all of it rolls back.
+        /// </summary>
+        public (int Id, Guid Token, int Attempts) ClaimFiscal(string reference)
+        {
+            var token = Guid.NewGuid();
+            using var command = Command("EXEC dbo.spFiscalDocument_Claim @ClaimToken = @t, @BatchSize = 1000;", ("@t", token));
+            using var reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                if (reader.GetString(reader.GetOrdinal("Reference")) == reference)
+                {
+                    return (reader.GetInt32(reader.GetOrdinal("Id")), token, reader.GetInt32(reader.GetOrdinal("Attempts")));
+                }
+            }
+
+            throw new InvalidOperationException($"No fiscal document for {reference} was claimed.");
+        }
 
         /// <summary>The payloads this store queued under a template.</summary>
         public List<string> Mailed(string templateKey)

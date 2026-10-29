@@ -28,6 +28,9 @@ public sealed class StoreSettings
     public string? CompanyRegistrationNumber { get; set; }
     public string? RegisteredAddress { get; set; }
     public bool PricesIncludeTax { get; set; }
+
+    /// <summary>Which issuer invoices the store's sales (T14); "none" queues nothing.</summary>
+    public string FiscalIssuer { get; set; } = "none";
     public bool IsActive { get; set; }
 
     /// <summary>
@@ -52,6 +55,7 @@ public sealed class StoreSettingsView
     public List<string> RegistrationFieldSets { get; set; } = new();
     public List<string> TaxRuleSets { get; set; } = new();
     public List<string> PriceDisplays { get; set; } = new();
+    public List<string> FiscalIssuers { get; set; } = new();
 }
 
 /// <summary>One of a store's content pages, written or not (T9).</summary>

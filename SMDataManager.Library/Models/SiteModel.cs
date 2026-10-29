@@ -106,9 +106,15 @@ namespace SMDataManager.Library.Models
         /// <c>dbo.fnSite_ProductSellable</c>. Locked with the currency.
         /// </remarks>
         public bool PricesIncludeTax { get; set; }
+
+        /// <summary>
+        /// Which fiscal-document issuer invoices this store's sales (T14), a key from
+        /// <see cref="SiteSettingKeys.FiscalIssuers"/>. <see cref="SiteSettingKeys.NoFiscalIssuer"/>
+        /// queues nothing.
+        /// </summary>
+        public string FiscalIssuer { get; set; }
     }
 
-    /// <summary>A store's settings as the admin screen edits them.</summary>
     /// <summary>A store's payment keys, as Data Protection ciphertext (T13). Never sent to a browser.</summary>
     public class SitePaymentSecrets
     {
@@ -118,6 +124,7 @@ namespace SMDataManager.Library.Models
         public bool IsConfigured => !string.IsNullOrEmpty(SecretRef) && !string.IsNullOrEmpty(WebhookSecretRef);
     }
 
+    /// <summary>A store's settings as the admin screen edits them.</summary>
     public class SiteSettingsModel : SiteModel
     {
         /// <summary>

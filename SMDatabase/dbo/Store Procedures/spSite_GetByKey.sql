@@ -11,7 +11,7 @@ BEGIN
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
 	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail],
 	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber], [MailFromAddress],
-	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress], [PricesIncludeTax],
+	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress], [PricesIncludeTax], [FiscalIssuer],
 	       [IsActive], [CreatedDate]
 	FROM [dbo].[Site]
 	-- Inactive sites are excluded here as they are in spSite_GetByDomain. Without it the two

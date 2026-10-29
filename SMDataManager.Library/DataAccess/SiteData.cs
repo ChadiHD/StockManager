@@ -69,7 +69,8 @@ namespace SMDataManager.Library.DataAccess
                     site.LegalName,
                     site.CompanyRegistrationNumber,
                     site.RegisteredAddress,
-                    site.PricesIncludeTax
+                    site.PricesIncludeTax,
+                    site.FiscalIssuer
                 }, "SMDatabase");
 
                 return null;
