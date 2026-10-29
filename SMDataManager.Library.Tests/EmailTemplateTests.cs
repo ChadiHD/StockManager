@@ -139,14 +139,16 @@ public class EmailTemplateTests
     [Fact]
     public void ExactlyTheTemplatesCarryingATokenLinkAreStoredEncrypted()
     {
-        // The three whose payload holds a link Identity minted. A new one that carries a token
-        // and forgets the flag would put a way into an account in plain text in a table that
+        // The three whose payload holds a link Identity minted, the consumer welcome that carries the
+        // same link, and order.placed, whose guest link opens an order (T12). A new one that carries
+        // a token and forgets the flag would put a way into an account in plain text in a table that
         // is backed up and restored; this list is the place that has to change with it.
         EmailTemplates.All
             .Where(template => template.CarriesCredential)
             .Select(template => template.Key)
             .Should().BeEquivalentTo(
-                "registration.received", "registration.confirmation-reminder", "password.reset");
+                "registration.received", "registration.welcome", "registration.confirmation-reminder",
+                "password.reset", "order.placed");
     }
 
     [Fact]
@@ -170,6 +172,24 @@ public class EmailTemplateTests
         rendered.Body.Should().Contain("Payment is due by 1 Nov 2026.");
         // Linked, not attached: T6's renderer decision.
         rendered.Body.Should().Contain("https://shop.test.example/account/orders/SO-0012/print");
+    }
+
+    [Fact]
+    public void AGuestsOrderLinksToItsTokenAndASignedInOrderToTheAccount()
+    {
+        // A guest has no account area: the token is the only way back to the order (T12).
+        var guest = EmailRenderer.Render(EmailTemplates.OrderPlaced, Site,
+            EmailTemplates.OrderPlaced.Serialize(new OrderPlacedPayload(
+                "SO-0042", 80m, 18.40m, 98.40m, "Domestic standard", "VAT at 23%.", "tok_abc")));
+
+        guest.Subject.Should().Be("We have your order SO-0042 — Test Store");
+        guest.Body.Should().Contain("Total: €98.40").And.Contain("https://shop.test.example/orders/tok_abc");
+
+        var signedIn = EmailRenderer.Render(EmailTemplates.OrderPlaced, Site,
+            EmailTemplates.OrderPlaced.Serialize(new OrderPlacedPayload(
+                "SO-0042", 80m, 18.40m, 98.40m, "Domestic standard", "VAT at 23%.", null)));
+
+        signedIn.Body.Should().Contain("https://shop.test.example/account/orders/SO-0042").And.NotContain("/orders/tok");
     }
 
     [Fact]

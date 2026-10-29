@@ -5,7 +5,7 @@ Detail plan for the twelfth template phase, the third in the B2C track
 built the apparel catalogue. This phase lets a store take an order straight from its cart,
 from a shopper who may have no account at all.
 
-**Status: in progress** on `t12-direct-checkout`.
+**Status: built** on `t12-direct-checkout`.
 
 ## 1. What reading the code found
 
