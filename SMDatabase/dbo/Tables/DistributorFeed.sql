@@ -1,8 +1,8 @@
 -- Distributor stock feeds, managed from the admin portal.
 --
--- The password is never stored in this table. SecretRef holds either ciphertext produced by
--- the Data Protection store, or the name of a secret in Key Vault — SecretProvider says which,
--- so the store can be changed per environment without a data migration.
+-- The password is never stored in this table in the clear. SecretRef holds ciphertext produced
+-- by the Data Protection store, and SecretProvider names the store that wrote it, so a store
+-- added later can sit beside it without a data migration.
 CREATE TABLE [dbo].[DistributorFeed]
 (
 	[Id] INT NOT NULL PRIMARY KEY IDENTITY,

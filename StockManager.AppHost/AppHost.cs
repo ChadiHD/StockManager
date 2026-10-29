@@ -34,8 +34,8 @@ var documents = storage.AddBlobContainer("documents");
 var productImages = storage.AddBlobContainer("product-images");
 
 // Distributor feeds are no longer configured here. They are created in the admin portal and
-// stored in dbo.DistributorFeed, with credentials held by an IFeedSecretStore (Data Protection
-// locally, Key Vault in production) — see FeedSecrets in the API's appsettings.
+// stored in dbo.DistributorFeed, with credentials held by an IFeedSecretStore (Data Protection,
+// its ring wrapped by the vault key in a deployment) — see FeedSecrets in the API's appsettings.
 
 // Deploy the SMDatabase schema (tables + stored procedures) into the provisioned
 // database on every run. Without this, a fresh SQL volume leaves SMDatabase empty

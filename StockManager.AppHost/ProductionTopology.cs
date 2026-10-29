@@ -82,10 +82,8 @@ internal static class ProductionTopology
         var insights = builder.AddAzureApplicationInsights("insights");
 
         var jwt = vault.AddSecret("jwt-signing-key-secret", "jwt-signing-key", jwtSigningKey);
-        var bootstrapPassword = vault.AddSecret(
-            "admin-bootstrap-password-secret", "admin-bootstrap-password", builder.AddParameter("admin-bootstrap-password", secret: true));
-        var bootstrapEmail = builder.AddParameter("admin-bootstrap-email");
-        var dataProtectionKey = builder.AddParameter("dataprotection-key-uri");
+        // Unset on a first deploy: the vault holding the key is what that deploy creates.
+        var dataProtectionKey = Optional(builder, "dataprotection-key-uri");
         var acsEndpoint = builder.AddParameter("acs-endpoint");
 
         foreach (var app in new[] { api, store })
@@ -99,10 +97,19 @@ internal static class ProductionTopology
 
         api.WithRoleAssignments(vault, KeyVaultBuiltInRole.KeyVaultCryptoUser, KeyVaultBuiltInRole.KeyVaultSecretsUser)
             .WithEnvironment("Jwt__SigningKey", jwt.Resource)
-            .WithEnvironment("Admin__BootstrapEmail", bootstrapEmail)
-            .WithEnvironment("Admin__BootstrapPassword", bootstrapPassword.Resource)
             .WithEnvironment("Email__Transport", "Acs")
             .WithEnvironment("Email__AcsEndpoint", acsEndpoint);
+
+        // The first admin, only while the workflow names one. Once that admin has signed in, the
+        // runbook deletes both values, and the deployment then carries neither: a password secret
+        // with no value is not something Key Vault is asked to hold.
+        if (builder.Configuration["Parameters:admin-bootstrap-email"] is { Length: > 0 })
+        {
+            var bootstrapPassword = vault.AddSecret(
+                "admin-bootstrap-password-secret", "admin-bootstrap-password", builder.AddParameter("admin-bootstrap-password", secret: true));
+            api.WithEnvironment("Admin__BootstrapEmail", builder.AddParameter("admin-bootstrap-email"))
+                .WithEnvironment("Admin__BootstrapPassword", bootstrapPassword.Resource);
+        }
 
         // A deployment is where StockApi's off-by-default work is turned on: the nightly feed sync
         // and the quote-expiry reminders. Without this, nothing could set them short of editing
@@ -128,8 +135,14 @@ internal static class ProductionTopology
         IDistributedApplicationBuilder builder, string prefix, IEnumerable<string> hosts) =>
         hosts.Select((host, index) => (
                 builder.AddParameter($"{prefix}-domain-{index}", host, publishValueAsDefault: true),
-                builder.AddParameter($"{prefix}-certificate-{index}")))
+                // Empty until the runbook's certificate step: ConfigureCustomDomain binds nothing then.
+                Optional(builder, $"{prefix}-certificate-{index}")))
             .ToList();
+
+    // Aspire 13.5 refuses a parameter with no value and no default, where 13.4 took it as empty.
+    // These are the ones the runbook leaves unset on purpose, so an unset one is an empty string.
+    private static IResourceBuilder<ParameterResource> Optional(IDistributedApplicationBuilder builder, string name) =>
+        builder.AddParameter(name, builder.Configuration[$"Parameters:{name}"] ?? "");
 
     private static void Configure(
         ContainerApp app,

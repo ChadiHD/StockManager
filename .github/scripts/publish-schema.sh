@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Publishes SMDatabase to the staging Azure SQL server, signed in as the pipeline's own Entra
-# identity, with BlockOnPossibleDataLoss on. Writes the deploy report first, so a change that
+# Publishes SMDatabase to the deployment's Azure SQL server, signed in as the pipeline's own
+# Entra identity, with BlockOnPossibleDataLoss on. Writes the deploy report first, so a change that
 # would lose data is on record before the publish refuses it.
 #
 #   publish-schema.sh before|after
@@ -29,17 +29,47 @@ rule="deploy-${GITHUB_RUN_ID}-${phase}"
 server_name="${server%%.*}"
 az sql server firewall-rule create -g "$Azure__ResourceGroup" -s "$server_name" -n "$rule" \
   --start-ip-address "$runner_ip" --end-ip-address "$runner_ip" >/dev/null
-trap 'az sql server firewall-rule delete -g "$Azure__ResourceGroup" -s "$server_name" -n "$rule" >/dev/null' EXIT
+# Aspire makes its own managed identity (sql-admin-...) the server's only Entra admin, and uses
+# it to give each app its database user. The pipeline is nobody on the server, so it becomes the
+# admin for the length of this script, and Aspire's goes back on the way out. A run that dies
+# before then is put right by the next deploy, which sets Aspire's admin again.
+admin_login=$(az sql server ad-admin list -g "$Azure__ResourceGroup" -s "$server_name" --query "[0].login" -o tsv)
+admin_sid=$(az sql server ad-admin list -g "$Azure__ResourceGroup" -s "$server_name" --query "[0].sid" -o tsv)
+pipeline_app_id=$(az account show --query user.name -o tsv)
+
+cleanup() {
+  if [ -n "$admin_sid" ]; then
+    az sql server ad-admin create -g "$Azure__ResourceGroup" -s "$server_name" \
+      --display-name "$admin_login" --object-id "$admin_sid" >/dev/null
+  fi
+  az sql server firewall-rule delete -g "$Azure__ResourceGroup" -s "$server_name" -n "$rule" >/dev/null
+}
+trap cleanup EXIT
+
+az sql server ad-admin create -g "$Azure__ResourceGroup" -s "$server_name" \
+  --display-name "deploy-pipeline" --object-id "$pipeline_app_id" >/dev/null
 
 token=$(az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv)
 target="Server=tcp:${server},1433;Database=SMDatabase;Encrypt=True;TrustServerCertificate=False"
 
-sqlpackage /Action:DeployReport /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
-  "/TargetConnectionString:$target" "/AccessToken:$token" \
-  "/OutputPath:schema-$phase.xml" /p:BlockOnPossibleDataLoss=true
+# The DACPAC targets SQL Server 2022, which local runs and CI publish to, and sqlpackage refuses
+# it for Azure SQL without AllowIncompatiblePlatform. CI's "The schema builds for Azure SQL"
+# step is what makes that safe: anything Azure SQL lacks fails there, not here.
+
+# A new admin can take a little while to be accepted at sign-in.
+for attempt in 1 2 3 4; do
+  if sqlpackage /Action:DeployReport /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
+      "/TargetConnectionString:$target" "/AccessToken:$token" \
+      "/OutputPath:schema-$phase.xml" /p:BlockOnPossibleDataLoss=true /p:AllowIncompatiblePlatform=true; then
+    break
+  fi
+  if [ "$attempt" = 4 ]; then exit 1; fi
+  echo "Sign-in refused; trying again in 20 seconds."
+  sleep 20
+done
 
 sqlpackage /Action:Publish /SourceFile:SMDatabase/bin/Release/SMDatabase.dacpac \
-  "/TargetConnectionString:$target" "/AccessToken:$token" /p:BlockOnPossibleDataLoss=true
+  "/TargetConnectionString:$target" "/AccessToken:$token" /p:BlockOnPossibleDataLoss=true /p:AllowIncompatiblePlatform=true
 
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "published=true" >> "$GITHUB_OUTPUT"
