@@ -1,4 +1,10 @@
-.content-editor { align-items: start; }
+/* The list is short labels and the editor is a whole message, so the editor takes the width;
+   .detail-grid's own split is the other way round, for detail pages. */
+.content-editor { align-items: start; grid-template-columns: minmax(240px, 1fr) 2.4fr; }
+
+@media (max-width: 1000px) {
+    .content-editor { grid-template-columns: 1fr; }
+}
 
 .content-page-list { display: flex; flex-direction: column; }
 

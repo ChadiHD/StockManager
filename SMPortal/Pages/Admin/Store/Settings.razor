@@ -241,7 +241,7 @@ else
         }
         catch (Exception exception)
         {
-            _loadError = exception.Message;
+            _loadError = PlainErrors.Explain(exception, "This store's settings could not be loaded.");
         }
     }
 

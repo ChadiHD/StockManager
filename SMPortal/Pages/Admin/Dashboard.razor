@@ -7,7 +7,8 @@
 
 <div class="page-head">
     <div>
-        <span class="eyebrow">Good morning, Órla</span>
+        @* The staff profile's name, or no name at all: the portal never invents one. *@
+        <span class="eyebrow dash-welcome">@(string.IsNullOrWhiteSpace(Data.SignedInName) ? "Welcome back" : $"Welcome back, {Data.SignedInName}")</span>
         <h1>Trading overview</h1>
     </div>
     <div class="head-actions">

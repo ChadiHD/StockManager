@@ -41,6 +41,9 @@ public class AdminDataService : IAdminDataService
     // (T9). Read from GET api/User alongside the store list.
     private bool _managesAllStores;
 
+    // From the same read: the dbo.User row's name, which the token does not carry.
+    private string _signedInName = string.Empty;
+
     private readonly ILocalStorageService _localStorage;
     private readonly string _tokenKey;
 
@@ -90,6 +93,7 @@ public class AdminDataService : IAdminDataService
 
         var me = await _client.GetFromJsonAsync<MeDto>($"{_api}/api/User");
         _managesAllStores = me?.AllSites == true;
+        _signedInName = $"{me?.FirstName} {me?.LastName}".Trim();
 
         var stored = await _localStorage.GetItemAsync<string>(SiteKeyStorageKey);
 
@@ -120,6 +124,8 @@ public class AdminDataService : IAdminDataService
     public bool HasStoreAccess => _sites.Count > 0;
 
     public bool ManagesAllStores => _managesAllStores;
+
+    public string SignedInName => _signedInName;
 
     public string CurrentCurrency => CurrentSite?.CurrencyCode ?? string.Empty;
 
@@ -306,7 +312,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "The account could not be approved.");
+            return await PlainErrors.Refusal(response, "The account could not be approved.");
         }
 
         await RefreshAsync();
@@ -327,19 +333,12 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "The application could not be rejected.");
+            return await PlainErrors.Refusal(response, "The application could not be rejected.");
         }
 
         await RefreshAsync();
 
         return null;
-    }
-
-    private static async Task<string> Problem(HttpResponseMessage response, string fallback)
-    {
-        var body = await response.Content.ReadAsStringAsync();
-
-        return string.IsNullOrWhiteSpace(body) ? fallback : body.Trim('"');
     }
 
     /// <summary>
@@ -839,7 +838,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That change could not be saved.");
+            return await PlainErrors.Refusal(response, "That change could not be saved.");
         }
 
         await RefreshAsync();
@@ -875,7 +874,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That variant could not be added.");
+            return await PlainErrors.Refusal(response, "That variant could not be added.");
         }
 
         await RefreshAsync();
@@ -892,7 +891,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That variant could not be removed.");
+            return await PlainErrors.Refusal(response, "That variant could not be removed.");
         }
 
         await RefreshAsync();
@@ -921,7 +920,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That photograph could not be added.");
+            return await PlainErrors.Refusal(response, "That photograph could not be added.");
         }
 
         // The first photograph becomes the product's image, which the snapshot carries.
@@ -952,7 +951,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "Those products could not be changed.");
+            return await PlainErrors.Refusal(response, "Those products could not be changed.");
         }
 
         await RefreshAsync();
@@ -992,7 +991,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That category could not be mapped.");
+            return await PlainErrors.Refusal(response, "That category could not be mapped.");
         }
 
         // Mapping moves every product in the category on or off the store.
@@ -1013,7 +1012,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That category could not be saved.");
+            return await PlainErrors.Refusal(response, "That category could not be saved.");
         }
 
         // A category deactivated or renamed changes what the products screen files under.
@@ -1172,7 +1171,7 @@ public class AdminDataService : IAdminDataService
         {
             Distributor = name,
             Succeeded = response.IsSuccessStatusCode,
-            Error = response.IsSuccessStatusCode ? null : $"Request failed ({(int)response.StatusCode})."
+            Error = response.IsSuccessStatusCode ? null : await PlainErrors.Refusal(response, "The request did not complete.")
         };
     }
 
@@ -1236,7 +1235,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "That user could not be created.");
+            return await PlainErrors.Refusal(response, "That user could not be created.");
         }
 
         // By the id Register returned, never by looking the address up again.
@@ -1271,7 +1270,7 @@ public class AdminDataService : IAdminDataService
         var response = await _client.PutAsJsonAsync($"{_api}/api/Site/Payment",
             new { SecretKey = secretKey, WebhookSecret = webhookSecret });
 
-        return response.IsSuccessStatusCode ? null : await Problem(response, "The payment keys could not be saved.");
+        return response.IsSuccessStatusCode ? null : await PlainErrors.Refusal(response, "The payment keys could not be saved.");
     }
 
     public async Task<IReadOnlyList<ShippingRate>> GetShippingRates()
@@ -1289,7 +1288,7 @@ public class AdminDataService : IAdminDataService
 
         var response = await _client.PutAsJsonAsync($"{_api}/api/ShippingRate", rate);
 
-        return response.IsSuccessStatusCode ? null : await Problem(response, "That delivery rate could not be saved.");
+        return response.IsSuccessStatusCode ? null : await PlainErrors.Refusal(response, "That delivery rate could not be saved.");
     }
 
     public async Task<string?> SaveStoreSettings(StoreSettings settings)
@@ -1300,7 +1299,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, "The store's settings could not be saved.");
+            return await PlainErrors.Refusal(response, "The store's settings could not be saved.");
         }
 
         // The selector shows the store's name, which may just have changed.
@@ -1329,7 +1328,7 @@ public class AdminDataService : IAdminDataService
 
         return response.IsSuccessStatusCode
             ? (await response.Content.ReadFromJsonAsync<ContentPageItem>(), null)
-            : (null, await Problem(response, "That page could not be saved."));
+            : (null, await PlainErrors.Refusal(response, "That page could not be saved."));
     }
 
     public async Task<(SiteOption? Created, string? Refusal)> CreateStore(NewStore store)
@@ -1340,13 +1339,29 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return (null, await Problem(response, "The store could not be created."));
+            return (null, await PlainErrors.Refusal(response, "The store could not be created."));
         }
 
         var created = await response.Content.ReadFromJsonAsync<SiteOption>();
         await ReloadSitesAsync();
 
         return (created, null);
+    }
+
+    public async Task<string?> DeleteStore(string siteKey)
+    {
+        await EnsureAuthHeaderAsync();
+
+        var response = await _client.DeleteAsync($"{_api}/api/Site/{Uri.EscapeDataString(siteKey)}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return await PlainErrors.Refusal(response, "The store could not be removed.");
+        }
+
+        await ReloadSitesAsync();
+
+        return null;
     }
 
     public async Task<string?> SetStoreOpen(string siteKey, bool open)
@@ -1358,7 +1373,7 @@ public class AdminDataService : IAdminDataService
 
         if (!response.IsSuccessStatusCode)
         {
-            return await Problem(response, open ? "The store could not be opened." : "The store could not be closed.");
+            return await PlainErrors.Refusal(response, open ? "The store could not be opened." : "The store could not be closed.");
         }
 
         await ReloadSitesAsync();
@@ -1366,7 +1381,7 @@ public class AdminDataService : IAdminDataService
         return null;
     }
 
-    // The selector's list, after a store was added, opened or closed.
+    // The selector's list, after a store was added, opened, closed or removed.
     private async Task ReloadSitesAsync()
     {
         _sites.Clear();
@@ -1390,7 +1405,7 @@ public class AdminDataService : IAdminDataService
 
         return response.IsSuccessStatusCode
             ? (await response.Content.ReadFromJsonAsync<EmailWording>(), null)
-            : (null, await Problem(response, "That wording could not be saved."));
+            : (null, await PlainErrors.Refusal(response, "That wording could not be saved."));
     }
 
     public async Task<string?> ChangePassword(string currentPassword, string newPassword)
@@ -1403,7 +1418,7 @@ public class AdminDataService : IAdminDataService
 
         return response.IsSuccessStatusCode
             ? null
-            : await Problem(response, "Your password could not be changed.");
+            : await PlainErrors.Refusal(response, "Your password could not be changed.");
     }
 
     public async Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,
@@ -1431,7 +1446,7 @@ public class AdminDataService : IAdminDataService
         {
             var add = await _client.PostAsJsonAsync($"{_api}/api/User/Admin/AddRole",
                 new { UserId = userId, RoleName = role });
-            if (!add.IsSuccessStatusCode) return await Problem(add, $"The {role} role could not be added.");
+            if (!add.IsSuccessStatusCode) return await PlainErrors.Refusal(add, $"The {role} role could not be added.");
         }
 
         foreach (var role in current.Except(target, StringComparer.OrdinalIgnoreCase))
@@ -1441,7 +1456,7 @@ public class AdminDataService : IAdminDataService
                 Content = JsonContent.Create(new { UserId = userId, RoleName = role })
             };
             var remove = await _client.SendAsync(request);
-            if (!remove.IsSuccessStatusCode) return await Problem(remove, $"The {role} role could not be removed.");
+            if (!remove.IsSuccessStatusCode) return await PlainErrors.Refusal(remove, $"The {role} role could not be removed.");
         }
 
         await RefreshAsync();
@@ -1457,7 +1472,7 @@ public class AdminDataService : IAdminDataService
 
         return response.IsSuccessStatusCode
             ? null
-            : await Problem(response, "Their stores could not be changed.");
+            : await PlainErrors.Refusal(response, "Their stores could not be changed.");
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------
@@ -1725,7 +1740,7 @@ public class AdminDataService : IAdminDataService
 
     private sealed record RegisteredDto(string? UserId);
 
-    private sealed record MeDto(string? UserId, bool AllSites);
+    private sealed record MeDto(string? UserId, bool AllSites, string? FirstName, string? LastName);
 
     private sealed record StaffDto(string? UserId, string? FirstName, string? LastName,
         string? EmailAddress, DateTime CreatedDate);

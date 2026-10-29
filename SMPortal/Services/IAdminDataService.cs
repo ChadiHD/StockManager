@@ -35,6 +35,9 @@ public interface IAdminDataService
     /// </summary>
     bool ManagesAllStores { get; }
 
+    /// <summary>The signed-in admin's full name from their staff profile, or empty when it has none.</summary>
+    string SignedInName { get; }
+
     /// <summary>
     /// The acting store's currency (T9). Every price the portal shows for it is in this: its
     /// products, and the quotes, orders and accounts it now takes from the store. Until T9 the
@@ -205,6 +208,12 @@ public interface IAdminDataService
     /// or closes it. Returns why it was refused, or null.
     /// </summary>
     Task<string?> SetStoreOpen(string siteKey, bool open);
+
+    /// <summary>
+    /// Removes a closed store that never traded. Admins of every store only. Returns why it was
+    /// refused, or null.
+    /// </summary>
+    Task<string?> DeleteStore(string siteKey);
 
     /// <summary>Every message the acting store sends, with its wording (T9).</summary>
     Task<IReadOnlyList<EmailWording>> GetEmailWording();

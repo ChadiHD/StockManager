@@ -134,7 +134,6 @@
         @if (loadError is not null)
         {
           <div class="alert error" role="alert">
-            <strong>The StockManager API could not be reached.</strong>
             <span>@loadError</span>
           </div>
         }
@@ -205,7 +204,7 @@
         }
         catch (Exception exception)
         {
-            loadError = exception.Message;
+            loadError = PlainErrors.Explain(exception, "This store's data could not be loaded.");
         }
     }
 
@@ -235,7 +234,7 @@
         }
         catch (Exception exception)
         {
-            loadError = exception.Message;
+            loadError = PlainErrors.Explain(exception, "This store's data could not be loaded.");
         }
         finally
         {

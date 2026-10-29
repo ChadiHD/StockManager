@@ -65,6 +65,9 @@
 .btn-danger-outline { background:var(--surface); color:var(--danger-fg); border-color:#e6b0b0; font-weight:700; }
 .btn-danger-outline:hover { background:#fdeeee; }
 .btn-sm { min-height:0; padding:6px 12px; font-size:.79rem; font-weight:700; border-radius:8px; }
+/* A table row's buttons. Razor drops the whitespace between buttons emitted from @if blocks, so
+   without a gap they touch. */
+.row-actions { display:inline-flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .btn-block { width:100%; }
 .btn-link { border:0; background:transparent; color:var(--turq-700); font-weight:700; font-size:.82rem; cursor:pointer; padding:0; }
 .btn-link:hover { text-decoration:underline; }
