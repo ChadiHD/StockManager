@@ -149,6 +149,12 @@ public sealed class AspireAppFixture : IAsyncLifetime
                 context.EnvironmentVariables["Payments__Stripe__CheckoutOrigin"] = Stripe.Origin;
             }));
 
+            // The fiscal dispatcher (T14) polls every thirty seconds, which a journey would spend
+            // waiting. Two keeps it a poll, as the mail dispatcher's five does.
+            var api = appHostBuilder.Resources.First(resource => resource.Name == "stock-api");
+            api.Annotations.Add(new EnvironmentCallbackAnnotation((EnvironmentCallbackContext context) =>
+                context.EnvironmentVariables["Fiscal__DispatchIntervalSeconds"] = "2"));
+
             _app = await appHostBuilder.BuildAsync();
             RecordResourceLogs();
 

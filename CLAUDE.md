@@ -150,6 +150,17 @@ It brings:
 
 See *Payment* under SMStore architecture.
 
+**T14 — the fiscal-document seam is built**, per `docs/plans/2026-10-29-t14-fiscal-documents.md`,
+which ends the B2C track. It brings:
+
+- `Site.FiscalIssuer`, a keyed setting: `none` by default, or `logging`, which issues nothing;
+- `dbo.FiscalDocument`, an outbox of the invoice each sale owes, queued in the payment's transaction;
+- `IFiscalDocumentIssuer` and a dispatcher in `StockApi`, with retries, a dead letter, an operator
+  mail and a Retry button on the order.
+
+A real provider, such as an NF-e one for Brazil, is the next issuer, built when a tenant picks one.
+See *Fiscal documents* under SMStore architecture.
+
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
 
@@ -191,8 +202,8 @@ before anything else runs. Consequences that are easy to get wrong:
 - **Every query over a scoped entity filters on `SiteId`.** Omitting it is a cross-tenant data
   leak, not a display bug. Scoped entities: `Account`, `CustomerGroup`, `Quote`, `Purchase`
   (portal orders only), `DistributorFeed`, `SiteCategory`, `CategoryMapping`, `SiteContent`,
-  `SiteEmailTemplate`, `SiteProduct`, `ShippingRate`, `PaymentEvent`. `EmailOutbox` carries `SiteId` but its claim is global on purpose: one
-  dispatcher drains every store and renders each row with its own store's values.
+  `SiteEmailTemplate`, `SiteProduct`, `ShippingRate`, `PaymentEvent`. `EmailOutbox` and `FiscalDocument` carry `SiteId` but their claims are global on purpose: each
+  dispatcher drains every store and handles each row with its own store's values.
 - **A join to a scoped table needs the predicate even when the join path looks safe.** A
   `CategoryMapping` row scoped to site A can name a `SiteCategory` belonging to site B — the
   mapping's own `SiteId` says nothing about the category it points at. The catalog procedures
@@ -851,6 +862,9 @@ included, because the fifteenth expects a store that takes no payment.
   is a 400. The signed one is a 200, twice, and the order is `Paid` with one event and one
   `order.paid`.
 - The admin marks it fulfilled with a tracking number, and `order.shipped` is queued.
+- Since T14 the store is on the `logging` issuer for the journey's length. The payment queues one
+  fiscal document, `stock-api`'s dispatcher issues it as `LOG-{reference}`, and the order screen
+  shows that number. The fixture polls the dispatcher every two seconds rather than thirty.
 
 T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
@@ -1621,6 +1635,31 @@ says it was paid.** `PaymentService` holds the rules, and `StripeCheckout` is th
   (`ShippingName`, `ShippingPrice`, `ShippingVat`) rather than a line, and in its totals.
 - **A checkout store cannot open** without payment keys, an active delivery rate and a `returns`
   page (`SiteContentKeys.RequiredToOpenForCheckout`).
+
+### Fiscal documents (T14)
+
+**A sale that owes an invoice to a tax authority, such as Brazil's NF-e, gets one row in
+`dbo.FiscalDocument`, and `FiscalDocumentDispatcher` in `StockApi` issues it.** The store's
+`Site.FiscalIssuer` picks the `IFiscalDocumentIssuer`.
+
+- **`none` queues nothing**, and is every store before T14. `logging` issues nothing and logs the
+  sale, for development and for proving a set-up.
+- **Queued in the transaction that makes the sale owe one.** `spOrder_ApplyPaymentEvent` calls
+  `spFiscalDocument_Enqueue` on a payment, and `spOrder_UpdateStatus` calls it when an admin sets
+  `Paid`, or `Fulfilled` on an order nobody marked paid. `UQ_FiscalDocument_PurchaseId` and the
+  enqueue's lock make it one per order however often it is called.
+- **The row keeps the issuer the store had at the sale**, so switching a store to `none` cannot
+  drop a document it already owes.
+- **The mail outbox's claim, lease, claim token and `OutboxRetryPolicy`.** Delivery is at least
+  once, so a real issuer passes the order's reference as its idempotency key.
+  `FiscalDocumentRefusedException` dead-letters at once.
+- **A dead letter is not the end.** It mails `operator.fiscal-failed`, shows on the portal's order
+  screen with its error, and `spFiscalDocument_Retry` sends it again from there.
+- **A new issuer** is a line in `AddFiscalIssuers` plus a key in `SiteSettingKeys.FiscalIssuers`;
+  `FiscalDocumentDispatcherTests` fails if either is missing. Its credentials, when it has some,
+  are the store's, encrypted like the payment keys.
+- **The dispatcher is on by default** (`Fiscal:DispatchEnabled`, `Fiscal:DispatchIntervalSeconds`,
+  thirty), because a store on `none` gives it nothing to claim.
 
 ### A reference is not an authorisation
 
