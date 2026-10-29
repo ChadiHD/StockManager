@@ -9,7 +9,7 @@ BEGIN
 	       [a].[Currency], [a].[CustomerGroupId], [g].[Name] AS [GroupName],
 	       [a].[PaymentMethod], [a].[PaymentTerms], [a].[PaymentTermsDays], [a].[CreditLimit], [a].[Status], [a].[CreatedDate],
 	       [a].[VatNumber], [a].[RegistrationNumber],
-	       [a].[ApprovedUtc], [a].[ApprovedBy], [a].[RejectionReason]
+	       [a].[ApprovedUtc], [a].[ApprovedBy], [a].[RejectionReason], [a].[Kind]
 	FROM [dbo].[Account] a
 	LEFT JOIN [dbo].[CustomerGroup] g
 		ON g.[Id] = a.[CustomerGroupId]

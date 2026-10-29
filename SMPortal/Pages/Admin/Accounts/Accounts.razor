@@ -35,7 +35,7 @@
                 @foreach (var a in Paged)
                 {
                     <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/accounts/{a.Id}")'>
-                        <td class="lead"><span class="cell-primary">@a.Company</span><span class="cell-sub">@a.Id · @a.Country</span></td>
+                        <td class="lead"><span class="cell-primary">@a.Company</span><span class="cell-sub">@a.Id · @a.Country@(a.IsConsumer ? " · Consumer" : "")</span></td>
                         <td><span class="cell-strong">@a.Contact</span><span class="cell-sub">@a.Email</span></td>
                         <td>@a.Group</td>
                         <td>@a.Payment</td>

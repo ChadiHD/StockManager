@@ -1,0 +1,217 @@
+@* The cart becomes an order here (T12): where it goes and who it is for, then one press. A
+   guest needs no account; a signed-in customer's name and address are theirs to confirm. *@
+@page "/checkout"
+
+@using SMStore.Accounts
+@using SMStore.Ordering
+@using SMStore.Registration
+@inject ISiteContext SiteContext
+@inject BasketPresenter Presenter
+@inject CheckoutService Orders
+@inject ICustomerContext Customer
+@inject NavigationManager Navigation
+
+<PageTitle>@L["Checkout"] · @SiteContext.Site.Name</PageTitle>
+
+<Breadcrumb Items="Crumbs" />
+
+<div class="page-header">
+    <div>
+        <h1>@L["Checkout"]</h1>
+        <p class="page-lede">@L["Where should we send it?"]</p>
+    </div>
+</div>
+
+@if (_view.IsEmpty)
+{
+    <div class="stub">
+        <p>@L["Nothing in your {0} yet.", Mode.BasketNoun]</p>
+        <a href="/catalog" class="btn btn-secondary">@L["Browse the catalog"]</a>
+    </div>
+}
+else
+{
+    <div class="document">
+        <form method="post" class="checkout" @formname="checkout" @onsubmit="Place">
+            <AntiforgeryToken />
+
+            @if (_notice is not null)
+            {
+                <p class="document__notice" role="alert">@_notice</p>
+            }
+
+            <section class="checkout__section">
+                <h4>@L["You"]</h4>
+                <div class="checkout__grid">
+                    @if (Customer.Contact is null)
+                    {
+                        @Text(nameof(CheckoutForm.Email), L["Email"], "email", required: true, type: "email")
+                    }
+                    @Text(nameof(CheckoutForm.FirstName), L["First name"], "given-name", required: true)
+                    @Text(nameof(CheckoutForm.LastName), L["Last name"], "family-name", required: true)
+                    @Text(nameof(CheckoutForm.Phone), L["Phone"], "tel", required: false, type: "tel")
+                </div>
+                @if (Customer.Contact is null)
+                {
+                    <p class="text-muted checkout__hint">
+                        @L["No account needed. We email you a link to follow your order."]
+                        <a href="@($"{CustomerAuthentication.LoginPath}?returnUrl={Uri.EscapeDataString(CheckoutService.Path)}")">@L["Sign in"]</a>
+                    </p>
+                }
+            </section>
+
+            <section class="checkout__section">
+                <h4>@L["Delivery address"]</h4>
+                <div class="checkout__grid">
+                    @Text(nameof(CheckoutForm.Line1), L["Address"], "address-line1", required: true)
+                    @Text(nameof(CheckoutForm.Line2), L["Address line 2"], "address-line2", required: false)
+                    @Text(nameof(CheckoutForm.City), L["City"], "address-level2", required: true)
+                    @Text(nameof(CheckoutForm.Region), L["Region"], "address-level1", required: false)
+                    @Text(nameof(CheckoutForm.PostCode), L["Postcode"], "postal-code", required: false)
+                    <FormField Label="@L["Country"]" FieldId="checkout-country" Required="true"
+                               Error="@ErrorFor(nameof(CheckoutForm.Country))">
+                        <select class="input" id="checkout-country" name="@nameof(CheckoutForm.Country)"
+                                autocomplete="country" required>
+                            @foreach (var country in RegistrationCountries.All)
+                            {
+                                <option value="@country.Key" selected="@(country.Key == SelectedCountry)">@country.Value</option>
+                            }
+                        </select>
+                    </FormField>
+                </div>
+            </section>
+
+            <button type="submit" class="btn btn-primary checkout__place">@L["Place order"]</button>
+        </form>
+
+        <aside class="document__summary card blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i>
+            <i class="corner bl"></i><i class="corner br"></i>
+            <h5>@L["Your order"]</h5>
+            <ul class="checkout__lines">
+                @foreach (var line in _view.Lines)
+                {
+                    <li class="@(line.Available ? null : "checkout__line--unavailable")">
+                        <span>@line.Quantity × @line.Name</span>
+                        <span class="mono">@(line.Available ? line.LineTotal : L["No longer available"].Value)</span>
+                    </li>
+                }
+            </ul>
+            @if (_view.HasUnavailableLines)
+            {
+                @* Said before the press, not after: these are not ordered. *@
+                <p class="text-muted">@L["Lines that are no longer available are left out of the order."]</p>
+            }
+            <dl class="checkout__totals">
+                <dt>@L["Total"]</dt>
+                <dd>@_view.Total</dd>
+            </dl>
+            <p class="text-muted">
+                @(SiteContext.Site.PricesIncludeTax
+                    ? L["Prices include tax. Delivery is arranged once you have paid."]
+                    : L["Tax is added for the country we deliver to. Delivery is arranged once you have paid."])
+            </p>
+            <a href="@Mode.BasketRoute" class="btn btn-secondary btn-block">@L["Change your {0}", Mode.BasketNoun]</a>
+        </aside>
+    </div>
+}
+
+@code {
+    [CascadingParameter] public HttpContext? Http { get; set; }
+
+    private BasketView _view = new([], 0, 0, null, false);
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private string? _notice;
+
+    private IOrderingMode Mode => Presenter.Mode;
+
+    private NavItem[] Crumbs =>
+    [
+        new(L["Home"], "/"),
+        new(Mode.BasketLabel, Mode.BasketRoute),
+        new(L["Checkout"], CheckoutService.Path),
+    ];
+
+    protected override void OnInitialized()
+    {
+        // A quote store has no checkout; its basket submits a request instead.
+        if (Mode.TakesQuotes)
+        {
+            Navigation.NavigateTo(Mode.BasketRoute);
+            return;
+        }
+
+        _view = Presenter.Read();
+    }
+
+    /// <summary>
+    /// Read from the posted form, not model-bound, as Register.razor reads it. A signed-in
+    /// customer's form starts with their own name.
+    /// </summary>
+    private string? Value(string field) => Http?.Request.HasFormContentType == true
+        ? Http.Request.Form[field].ToString()
+        : field switch
+        {
+            nameof(CheckoutForm.FirstName) => Customer.Contact?.FirstName,
+            nameof(CheckoutForm.LastName) => Customer.Contact?.LastName,
+            nameof(CheckoutForm.Phone) => Customer.Contact?.Phone,
+            _ => null
+        };
+
+    private string? SelectedCountry => Value(nameof(CheckoutForm.Country)) is { Length: 2 } posted
+        ? posted.ToUpperInvariant()
+        : SiteContext.Site.Country?.ToUpperInvariant();
+
+    private string? ErrorFor(string field) => _errors.TryGetValue(field, out var error) ? error : null;
+
+    private RenderFragment Text(string field, string label, string autocomplete, bool required, string type = "text")
+    {
+        var id = $"checkout-{field}".ToLowerInvariant();
+
+        return @<FormField Label="@label" FieldId="@id" Required="required" Error="@ErrorFor(field)">
+            <input class="input" type="@type" id="@id" name="@field" value="@Value(field)"
+                   autocomplete="@autocomplete" required="@required" />
+        </FormField>;
+    }
+
+    private void Place()
+    {
+        var outcome = Orders.Place(new CheckoutForm(
+            Value(nameof(CheckoutForm.Email)),
+            Value(nameof(CheckoutForm.FirstName)),
+            Value(nameof(CheckoutForm.LastName)),
+            Value(nameof(CheckoutForm.Phone)),
+            Value(nameof(CheckoutForm.Line1)),
+            Value(nameof(CheckoutForm.Line2)),
+            Value(nameof(CheckoutForm.City)),
+            Value(nameof(CheckoutForm.Region)),
+            Value(nameof(CheckoutForm.PostCode)),
+            Value(nameof(CheckoutForm.Country))));
+
+        if (outcome.Succeeded)
+        {
+            // A guest's way back is the token; a signed-in customer has the account area.
+            Navigation.NavigateTo(outcome.GuestToken is { } token
+                ? $"{CheckoutService.GuestOrderPath}/{token}?placed=1"
+                : $"{QuoteDecisionEndpoints.OrdersPath}/{Uri.EscapeDataString(outcome.Reference!)}?placed=1");
+            return;
+        }
+
+        if (outcome.IsEmpty)
+        {
+            Navigation.NavigateTo(Mode.BasketRoute + "?basket=empty");
+            return;
+        }
+
+        _errors = outcome.Errors;
+        _notice = outcome.ShortSkus.Count > 0
+            ? L["We do not have enough of {0} for that order. Nothing has been ordered; change the quantity in your {1} and try again.",
+                string.Join(", ", outcome.ShortSkus), Mode.BasketNoun]
+            : outcome.Errors.Count > 0
+                ? null
+                : L["We could not place your order. Nothing was taken - please try again."];
+
+        // The cart may have changed under a short order; show what it holds now.
+        _view = Presenter.Read();
+    }
+}

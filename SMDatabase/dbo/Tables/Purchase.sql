@@ -65,6 +65,16 @@ CREATE TABLE [dbo].[Purchase]
     */
     [CreditLimitExceeded] BIT NOT NULL DEFAULT 0,
 
+    /*
+    The SHA-256 of the token that opens a guest's order page, /orders/{token} (T12). NULL for
+    every other order: a signed-in customer reads theirs through the account area.
+
+    The hash and never the token. The token is the only key to a page carrying a name and a
+    delivery address, so a copy of this database must not be one either -- the reason an
+    outbox payload carrying a link is encrypted.
+    */
+    [GuestTokenHash] BINARY(32) NULL,
+
     CONSTRAINT [FK_Purchase_ToUser] FOREIGN KEY (StaffId) REFERENCES [User](UserId),
     -- Composite, like Quote's. A POS sale leaves AccountId, QuoteId and SiteId all NULL, and
     -- a composite foreign key is not checked when any column is NULL, so the desktop path is
@@ -116,3 +126,10 @@ GO
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Purchase_QuoteId]
 	ON [dbo].[Purchase] ([QuoteId])
 	WHERE [QuoteId] IS NOT NULL;
+GO
+
+-- One order per guest token, and the lookup /orders/{token} makes. Filtered, because every
+-- other order leaves it NULL.
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Purchase_GuestTokenHash]
+	ON [dbo].[Purchase] ([GuestTokenHash])
+	WHERE [GuestTokenHash] IS NOT NULL;

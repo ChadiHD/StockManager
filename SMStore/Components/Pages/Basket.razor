@@ -126,7 +126,15 @@
         </dl>
         <p class="text-muted basket__note">@SummaryNote</p>
 
-        @if (!_view.IsEmpty)
+        @if (!_view.IsEmpty && !Mode.TakesQuotes)
+        {
+            @* A link, not a post: the checkout page asks for the address before anything is
+               placed, and the cart stays as it is until then. *@
+            <a href="@CheckoutService.Path" class="btn btn-primary btn-block basket__checkout">
+                @Mode.SubmitBasketLabel
+            </a>
+        }
+        else if (!_view.IsEmpty)
         {
             @* The note and the submit are one form, so a customer who typed a note and
                pressed submit sends both. A separate "save note" step would be a second

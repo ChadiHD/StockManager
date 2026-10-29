@@ -1,0 +1,57 @@
+.checkout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+}
+
+.checkout__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.checkout__section h4 {
+    margin: 0;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-divider);
+}
+
+/* auto-fit, as the registration form's grid: a signed-in customer's first row has one field
+   fewer, and a fixed column count would leave a hole. */
+.checkout__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px 22px;
+}
+
+.checkout__hint { margin: 0; font-size: 13px; }
+
+.checkout__place { align-self: flex-start; }
+
+.checkout__lines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+}
+
+.checkout__lines li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: 14px;
+}
+
+.checkout__line--unavailable { opacity: 0.6; }
+
+.checkout__totals {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    margin: 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-divider);
+    font-weight: 600;
+}
+
+.checkout__totals dd { margin: 0; font-feature-settings: 'tnum' 1; }

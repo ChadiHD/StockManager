@@ -18,9 +18,7 @@ public sealed class RfqOrderingMode : IOrderingMode
     public string BasketNoun => L["quote"];
     public string SubmitBasketLabel => L["Submit quote request"];
 
-    // An RFQ is a conversation opener, so anyone may send one; qualification happens when the
-    // account application is reviewed.
-    public bool RequiresApprovedAccount => false;
+    public bool TakesQuotes => true;
 
     public bool ShowsPayableTotal => false;
 }

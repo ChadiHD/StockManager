@@ -83,6 +83,17 @@ public static class CustomerRateLimiting
     /// </remarks>
     private const int QuoteSubmissionsPerHour = 30;
 
+    /// <summary>
+    /// Placing an order from the cart (T12), which needs no session at all.
+    /// </summary>
+    /// <remarks>
+    /// A guest's checkout writes an account, a contact, an order and its address, and takes
+    /// stock, for whoever posts the form. A script could hold a store's whole stock in unpaid
+    /// orders. The post is the only one counted: a form that comes back with an error is a post
+    /// too, so the cap is generous. Thirty an hour, like a quote request.
+    /// </remarks>
+    private const int CheckoutsPerHour = 30;
+
     public static IServiceCollection AddCustomerRateLimiting(this IServiceCollection services) =>
         services.AddRateLimiter(options =>
         {
@@ -155,6 +166,17 @@ public static class CustomerRateLimiting
                         _ => new FixedWindowRateLimiterOptions
                         {
                             PermitLimit = QuoteSubmissionsPerHour,
+                            Window = TimeSpan.FromHours(1)
+                        });
+                }
+
+                if (path.StartsWithSegments(CheckoutService.Path))
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        $"checkout:{Caller(context)}",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = CheckoutsPerHour,
                             Window = TimeSpan.FromHours(1)
                         });
                 }

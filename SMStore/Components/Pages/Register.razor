@@ -31,6 +31,19 @@
 
     <a href="@CustomerAuthentication.LoginPath" class="btn btn-secondary">@L["Back to sign in"]</a>
 }
+else if ((_reference is not null || _submitted) && _fieldSet.IsConsumer)
+{
+    @* Nothing to review (T12), so nothing to wait for but the link. Worded for the neutral
+       answer to an address already registered too, which is sent no link. *@
+    <div class="page-header">
+        <div>
+            <h1>@L["Check your email"]</h1>
+            <p class="page-lede">@L["If that address is new to us, a link to confirm it is on its way. Open it, then sign in."]</p>
+        </div>
+    </div>
+
+    <a href="@CustomerAuthentication.LoginPath" class="btn btn-secondary">@L["Sign in"]</a>
+}
 else if (_reference is not null || _submitted)
 {
     @* One acknowledgement for a new application and for one from an address already
@@ -75,7 +88,7 @@ else
 {
     <div class="page-header">
         <div>
-            <h1>@L["Customer application"]</h1>
+            <h1>@(_fieldSet.IsConsumer ? L["Create an account"] : L["Customer application"])</h1>
             <p class="page-lede">@_fieldSet.Summary</p>
         </div>
     </div>
@@ -99,29 +112,34 @@ else
           @formname="register" @onsubmit="SubmitAsync">
         <AntiforgeryToken />
 
-        <section class="register__section">
-            <div class="register__legend"><span class="register__num">01</span><h4>@L["Company"]</h4></div>
-            <div class="register__grid">
-                @Text(RegistrationField.Company, "organization")
-                @Text(RegistrationField.VatNumber, null)
-                @Text(RegistrationField.RegistrationNumber, null)
-            </div>
-        </section>
+        @* A consumer's field set hides the company and the address (T12), and a heading over
+           nothing would ask for something the form then does not. *@
+        @if (!_fieldSet.IsConsumer)
+        {
+            <section class="register__section">
+                <div class="register__legend"><span class="register__num">01</span><h4>@L["Company"]</h4></div>
+                <div class="register__grid">
+                    @Text(RegistrationField.Company, "organization")
+                    @Text(RegistrationField.VatNumber, null)
+                    @Text(RegistrationField.RegistrationNumber, null)
+                </div>
+            </section>
+
+            <section class="register__section">
+                <div class="register__legend"><span class="register__num">02</span><h4>@L["Billing address"]</h4></div>
+                <div class="register__grid">
+                    @Text(RegistrationField.AddressLine1, "address-line1")
+                    @Text(RegistrationField.AddressLine2, "address-line2")
+                    @Text(RegistrationField.City, "address-level2")
+                    @Text(RegistrationField.Region, "address-level1")
+                    @Text(RegistrationField.PostCode, "postal-code")
+                    @Country()
+                </div>
+            </section>
+        }
 
         <section class="register__section">
-            <div class="register__legend"><span class="register__num">02</span><h4>@L["Billing address"]</h4></div>
-            <div class="register__grid">
-                @Text(RegistrationField.AddressLine1, "address-line1")
-                @Text(RegistrationField.AddressLine2, "address-line2")
-                @Text(RegistrationField.City, "address-level2")
-                @Text(RegistrationField.Region, "address-level1")
-                @Text(RegistrationField.PostCode, "postal-code")
-                @Country()
-            </div>
-        </section>
-
-        <section class="register__section">
-            <div class="register__legend"><span class="register__num">03</span><h4>@L["Your details"]</h4></div>
+            <div class="register__legend"><span class="register__num">@(_fieldSet.IsConsumer ? "01" : "03")</span><h4>@L["Your details"]</h4></div>
             <div class="register__grid">
                 @Text(RegistrationField.FirstName, "given-name")
                 @Text(RegistrationField.LastName, "family-name")
@@ -169,7 +187,7 @@ else
         <button type="submit" class="btn btn-primary blueprint">
             <i class="corner tl"></i><i class="corner tr"></i>
             <i class="corner bl"></i><i class="corner br"></i>
-            @L["Submit application"]
+            @(_fieldSet.IsConsumer ? L["Create account"] : L["Submit application"])
         </button>
     </form>
 }
@@ -376,12 +394,15 @@ else
     {
         try
         {
-            Outbox.Enqueue(
-                SiteContext.Site.Id,
-                submission.Email!.Trim(),
-                $"{submission.FirstName} {submission.LastName}".Trim(),
-                EmailTemplates.RegistrationReceived,
-                new RegistrationReceivedPayload(_reference, _confirmationLink));
+            var to = submission.Email!.Trim();
+            var name = $"{submission.FirstName} {submission.LastName}".Trim();
+
+            // A consumer has applied for nothing (T12), so the welcome says so.
+            _ = _fieldSet.IsConsumer
+                ? Outbox.Enqueue(SiteContext.Site.Id, to, name, EmailTemplates.RegistrationWelcome,
+                    new RegistrationWelcomePayload(_confirmationLink))
+                : Outbox.Enqueue(SiteContext.Site.Id, to, name, EmailTemplates.RegistrationReceived,
+                    new RegistrationReceivedPayload(_reference, _confirmationLink));
         }
         catch (Exception exception)
         {

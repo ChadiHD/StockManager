@@ -148,6 +148,29 @@ public static class SqlTestData
     }
 
     /// <summary>
+    /// Sets how a store takes orders (T12), and returns the mode it replaced so a journey can put
+    /// it back. Other journeys own both loopback stores, so the checkout journey borrows one.
+    /// </summary>
+    public static async Task<string> SetOrderModeAsync(
+        string connectionString, int siteId, string orderMode, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            """
+            DECLARE @previous nvarchar(20) = (SELECT [OrderMode] FROM dbo.Site WHERE [Id] = @SiteId);
+            UPDATE dbo.Site SET [OrderMode] = @OrderMode WHERE [Id] = @SiteId;
+            SELECT @previous;
+            """, connection);
+
+        command.Parameters.AddWithValue("@SiteId", siteId);
+        command.Parameters.AddWithValue("@OrderMode", orderMode);
+
+        return (string)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    /// <summary>
     /// One product, visible on the storefront the moment <paramref name="category"/> names a
     /// mapped feed value.
     /// </summary>

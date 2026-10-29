@@ -53,6 +53,25 @@ namespace SMDataManager.Library.Email
         string TaxLegend,
         DateTime? DueDate);
 
+    /// <summary>
+    /// Queued by the storefront after <c>spOrder_PlaceFromBasket</c> (T12), from what it stored.
+    /// </summary>
+    /// <param name="GuestToken">
+    /// A guest's way back to the order, or null for a signed-in customer, who has the account
+    /// area. A credential, which is why the template's payload is encrypted.
+    /// </param>
+    public sealed record OrderPlacedPayload(
+        string Reference,
+        decimal SubTotal,
+        decimal Tax,
+        decimal Total,
+        string TaxTreatment,
+        string TaxLegend,
+        string GuestToken);
+
+    /// <summary>A consumer account registered (T12). Null on the neutral answer to a duplicate.</summary>
+    public sealed record RegistrationWelcomePayload(string ConfirmationLink);
+
     public sealed record FeedFailedPayload(string FeedName, string Message);
 
     public sealed record FeedsStalePayload(IReadOnlyList<string> FeedNames);

@@ -16,9 +16,9 @@ namespace SMDataManager.Library.Models
     /// </remarks>
     public static class SiteSettingKeys
     {
-        public static readonly IReadOnlyList<string> OrderModes = new[] { "Rfq" };
+        public static readonly IReadOnlyList<string> OrderModes = new[] { "Rfq", "DirectCheckout" };
 
-        public static readonly IReadOnlyList<string> RegistrationFieldSets = new[] { "eu-b2b", "uk-b2b" };
+        public static readonly IReadOnlyList<string> RegistrationFieldSets = new[] { "eu-b2b", "uk-b2b", "b2c" };
 
         public static readonly IReadOnlyList<string> TaxRuleSets = new[] { "eu-b2b", "uk-b2b", "flat" };
 

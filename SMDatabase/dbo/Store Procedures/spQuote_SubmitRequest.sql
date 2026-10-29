@@ -48,13 +48,14 @@ BEGIN
 	-- line even if the basket somehow held it. The caller resolved these through
 	-- fnCatalog_VisibleProducts already; this is the predicate that does not depend on it
 	-- having done so. Through fnSite_ProductPlacement, so a product the store hid after the
-	-- customer added it is refused here as it is everywhere else.
+	-- customer added it is refused here as it is everywhere else. A variant is placed by its
+	-- style, as fnCatalog_VisibleProducts places it: a size has no SiteProduct row of its own.
 	IF EXISTS (
 		SELECT 1 FROM @Lines l
 		WHERE NOT EXISTS (
 			SELECT 1
 			FROM dbo.Product p
-			CROSS APPLY dbo.fnSite_ProductPlacement(@SiteId, p.[Id], p.[Category], p.[FeedId], p.[Source], p.[CurrencyCode], p.[PricesIncludeTax]) pl
+			CROSS APPLY dbo.fnSite_ProductPlacement(@SiteId, ISNULL(p.[ParentProductId], p.[Id]), p.[Category], p.[FeedId], p.[Source], p.[CurrencyCode], p.[PricesIncludeTax]) pl
 			WHERE p.[Id] = l.[ProductId]
 			  AND pl.[OnStore] = 1))
 	BEGIN

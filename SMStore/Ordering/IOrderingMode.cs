@@ -6,8 +6,8 @@ namespace SMStore.Ordering;
 /// because retrofitting it once the quote flow is woven through the storefront is structural
 /// surgery, not a refactor.
 ///
-/// Only <see cref="RfqOrderingMode"/> exists today. A DirectCheckout implementation lands with
-/// card payment; nothing outside this folder should branch on <c>Site.OrderMode</c>.
+/// <see cref="RfqOrderingMode"/> quotes, and <see cref="DirectCheckoutOrderingMode"/> (T12) takes
+/// an order from the cart. Nothing outside this folder should branch on <c>Site.OrderMode</c>.
 /// </summary>
 public interface IOrderingMode
 {
@@ -38,10 +38,11 @@ public interface IOrderingMode
     string SubmitBasketLabel { get; }
 
     /// <summary>
-    /// Whether a customer must belong to an approved account before submitting. RFQ stores
-    /// accept requests from anyone and qualify them afterwards; a checkout store cannot.
+    /// Whether the basket becomes a quote request (T12). True for RFQ: the basket submits one,
+    /// and the account area lists quotes. False for a checkout store: the basket leads to
+    /// <c>/checkout</c>, and there are no quotes to list.
     /// </summary>
-    bool RequiresApprovedAccount { get; }
+    bool TakesQuotes { get; }
 
     /// <summary>
     /// Whether the basket can show a payable total. Under RFQ it cannot — the price is not

@@ -23,7 +23,12 @@ else
         </div>
         <div class="head-actions">
             <button class="btn btn-secondary" @onclick="() => _showSlip = true">Packing slip</button>
-            <button class="btn btn-primary" @onclick="MarkFulfilled">Mark fulfilled</button>
+            @if (_o.Status != "Cancelled")
+            {
+                @* Cancelling an order from the cart gives its stock back (T12). *@
+                <button class="btn btn-secondary order-cancel" @onclick="() => SetStatus(OrderStatusCancelled)">Cancel order</button>
+            }
+            <button class="btn btn-primary" @onclick="() => SetStatus(OrderStatusFulfilled)">Mark fulfilled</button>
         </div>
     </div>
 
@@ -86,7 +91,16 @@ else
                 <div class="kv mt"><span class="k">Placed</span><span class="v">@_o.Placed</span></div>
                 <div class="divider"></div>
                 <span class="card-kicker">Ship to</span>
-                <p class="ship">@_o.Account<br />Unit 4, Eastgate Business Park<br />Little Island, Co. Cork<br />Ireland</p>
+                @* The address the checkout snapshotted (T12). An order from a quote has none on
+                   it, and the page says so rather than inventing one. *@
+                @if (_delivery.Length == 0)
+                {
+                    <p class="ship">No delivery address on this order.</p>
+                }
+                else
+                {
+                    <p class="ship">@foreach (var line in _delivery) { @line<br /> }</p>
+                }
             </div>
         </div>
     </div>
@@ -104,7 +118,7 @@ else
                     }
                 </tbody>
             </table>
-            <p class="hint">Ship to @_o.Account · Unit 4, Eastgate Business Park, Little Island, Co. Cork, Ireland</p>
+            <p class="hint">Ship to @(_delivery.Length == 0 ? _o.Account : string.Join(", ", _delivery))</p>
         </div>
         <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @onclick="() => _showSlip = false">Close</button>
@@ -123,12 +137,15 @@ else
 
     private record Step(string Label, bool Done, bool Active, string Mark);
 
-    protected override void OnParametersSet()
+    private string[] _delivery = [];
+
+    protected override async Task OnParametersSetAsync()
     {
         _o = Data.GetOrder(Id);
         Layout?.SetPage("Order", "Order detail and fulfilment");
         if (_o is null) return;
         Recalc();
+        _delivery = await Data.GetDeliveryAddress(Id) ?? [];
     }
 
     private void Recalc()
@@ -163,11 +180,23 @@ else
             r.Done ? "\u2713" : (i + 1).ToString())).ToList();
     }
 
-    private async Task MarkFulfilled()
+    private const string OrderStatusCancelled = "Cancelled";
+    private const string OrderStatusFulfilled = "Fulfilled";
+
+    private async Task SetStatus(string status)
     {
         if (_o is null) return;
-        await Data.MarkOrderFulfilled(_o.Id);
+
+        var id = _o.Id;
+        var refused = await Data.SetOrderStatus(id, status);
         Recalc();
-        Toast.Show($"Order {_o.Id} marked fulfilled");
+
+        if (refused is not null)
+        {
+            Toast.Show(refused);
+            return;
+        }
+
+        Toast.Show(status == OrderStatusCancelled ? $"Order {id} cancelled" : $"Order {id} marked fulfilled");
     }
 }

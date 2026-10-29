@@ -240,6 +240,10 @@ public class BasketPageTests : Bunit.TestContext
         // price is not firm until sales returns the quote.
         rfq.Should().Contain("Indicative value");
         cart.Should().Contain("Total").And.NotContain("Indicative value");
+
+        // And what the basket leads to (T12): a request posted from the page, or the checkout.
+        rfq.Should().Contain(BasketEndpoints.SubmitPath).And.NotContain(CheckoutService.Path);
+        cart.Should().Contain($"href=\"{CheckoutService.Path}\"").And.NotContain(BasketEndpoints.SubmitPath);
     }
 
     /// <summary>The same page in a second store, configured for direct checkout.</summary>
@@ -268,7 +272,7 @@ public class BasketPageTests : Bunit.TestContext
         });
         siteContext.IsResolved.Returns(true);
 
-        var ordering = new OrderingModeProvider(siteContext, [new FakeCheckoutMode()]);
+        var ordering = new OrderingModeProvider(siteContext, [new DirectCheckoutOrderingMode()]);
         var catalogPresenter = new CatalogPresenter(
             _catalog, new PriceResolver(), siteContext, _customer);
 

@@ -14,6 +14,8 @@ public abstract class RegistrationFieldSet : IRegistrationFieldSet
     public abstract string Summary { get; }
     public abstract IReadOnlyList<RegistrationDocumentRequirement> Documents { get; }
 
+    public virtual bool IsConsumer => false;
+
     protected abstract IReadOnlyDictionary<RegistrationField, RegistrationRequirement> Requirements { get; }
 
     public RegistrationRequirement RequirementFor(RegistrationField field) =>

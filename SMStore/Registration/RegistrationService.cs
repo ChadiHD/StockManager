@@ -180,12 +180,13 @@ public sealed class RegistrationService : IRegistrationService
                 City = Trimmed(submission.City),
                 Region = Trimmed(submission.Region),
                 PostCode = Trimmed(submission.PostCode),
-                Country = Trimmed(submission.Country)?.ToUpperInvariant()
+                Country = Trimmed(submission.Country)?.ToUpperInvariant(),
+                Kind = fieldSet.IsConsumer ? AccountKind.Consumer : AccountKind.Business
             });
 
             _logger.LogInformation(
-                "Registered {Reference} at {SiteKey}, pending approval.",
-                result?.Reference, site.SiteKey);
+                "Registered {Reference} at {SiteKey}, {Status}.",
+                result?.Reference, site.SiteKey, fieldSet.IsConsumer ? "approved as a consumer" : "pending approval");
 
             /*
             The confirmation token is minted after the account is written, not before.

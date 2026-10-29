@@ -40,7 +40,25 @@ namespace SMDataManager.Library.DataAccess
         QuoteAcceptanceResult ConvertQuoteToOrder(
             int quoteId, QuoteAcceptance acceptance, int siteId, TaxAssessment assessment = null,
             bool enforceCreditLimit = false);
-        void UpdateStatus(int purchaseId, string status, int siteId);
+        /// <summary>
+        /// False when the store refused: a cancelled order from the cart cannot be reopened,
+        /// because its stock has gone back (T12).
+        /// </summary>
+        bool UpdateStatus(int purchaseId, string status, int siteId);
+
+        /// <summary>
+        /// Turns a cart into an order at <c>Awaiting payment</c>, taking its own stock (T12).
+        /// </summary>
+        /// <remarks>
+        /// A short order writes nothing and names the SKUs, rather than throwing.
+        /// </remarks>
+        OrderPlacementResult PlaceFromBasket(OrderPlacement placement);
+
+        /// <summary>A guest's order, by the token in its link. The token is the authorisation.</summary>
+        OrderModel GetOrderByGuestToken(string token, int siteId);
+
+        /// <summary>Where an order goes, or null for an order with no address.</summary>
+        OrderAddressModel GetDeliveryAddress(int purchaseId, int siteId);
         List<SalesReportModel> GetSalesReport(int siteId);
         List<ActivityModel> GetRecentActivity(int take, int siteId);
     }

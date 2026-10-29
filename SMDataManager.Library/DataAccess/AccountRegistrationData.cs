@@ -34,7 +34,8 @@ namespace SMDataManager.Library.DataAccess
                     registration.City,
                     registration.Region,
                     registration.PostCode,
-                    registration.Country
+                    registration.Country,
+                    registration.Kind
                 }, "SMDatabase").FirstOrDefault();
         }
     }

@@ -25,23 +25,6 @@ namespace SMStore.Tests;
 /// </summary>
 public class TenantVariationTests
 {
-    /// <summary>
-    /// A second ordering mode standing in for the "DirectCheckout" mode the plan describes but
-    /// has not built yet — enough to prove the header follows whichever mode is registered,
-    /// without this test file inventing platform behaviour of its own.
-    /// </summary>
-    private sealed class FakeCheckoutOrderingMode : IOrderingMode
-    {
-        public string Key => "DirectCheckout";
-        public string AddToBasketLabel => "Add to cart";
-        public string BasketRoute => "/cart";
-        public string BasketLabel => "Cart";
-        public string BasketNoun => "cart";
-        public string SubmitBasketLabel => "Checkout";
-        public bool RequiresApprovedAccount => true;
-        public bool ShowsPayableTotal => true;
-    }
-
     private static SiteModel SiteWith(string name, string orderMode) =>
         new() { Id = 1, SiteKey = "test", Name = name, OrderMode = orderMode };
 
@@ -77,7 +60,7 @@ public class TenantVariationTests
 
         using var checkoutStore = new Bunit.TestContext();
         var checkoutHeader = SiteHeaderHarness.Render(
-            checkoutStore, SiteWith("Checkout Store", "DirectCheckout"), new FakeCheckoutOrderingMode());
+            checkoutStore, SiteWith("Checkout Store", "DirectCheckout"), new DirectCheckoutOrderingMode());
 
         var rfqBasket = rfqHeader.Find("a.site-header__basket");
         rfqBasket.GetAttribute("href").Should().Be("/quote");
@@ -147,7 +130,7 @@ public class TenantVariationTests
 
             using var store = new Bunit.TestContext();
             store.Services.AddSingleton(SiteContextReturning(site));
-            store.Services.AddSingleton(new OrderingModeProvider(SiteContextReturning(site), [new FakeCheckoutOrderingMode()]));
+            store.Services.AddSingleton(new OrderingModeProvider(SiteContextReturning(site), [new DirectCheckoutOrderingMode()]));
 
             return store.RenderComponent<ProductCard>(p => p.Add(x => x.Product, card))
                 .Find(".product-card__note").TextContent;

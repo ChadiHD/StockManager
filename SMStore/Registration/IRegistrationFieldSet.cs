@@ -50,6 +50,12 @@ public interface IRegistrationFieldSet
     IReadOnlyList<RegistrationDocumentRequirement> Documents { get; }
 
     /// <summary>
+    /// Whether an account from this form is a person buying for themselves (T12). Such an
+    /// account is approved at once: it is prepaid, so there is nothing to review.
+    /// </summary>
+    bool IsConsumer { get; }
+
+    /// <summary>
     /// Everything wrong with an application, or an empty list.
     /// </summary>
     /// <remarks>

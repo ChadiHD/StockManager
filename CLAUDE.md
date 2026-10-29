@@ -128,6 +128,18 @@ It brings:
 
 See *Variants and photographs* under SMStore architecture.
 
+**T12 — direct checkout is built**, per `docs/plans/2026-10-29-t12-direct-checkout.md`. It
+brings:
+
+- the `DirectCheckout` ordering mode, whose cart leads to `/checkout`;
+- guests, each with a consumer account of their own;
+- an order placed from the cart, its own stock taken and its address snapshotted;
+- a guest's order page that only its token opens;
+- the `b2c` registration field set.
+
+Payment is T13's: until then an order waits at `Awaiting payment`. See *Checkout* under SMStore
+architecture.
+
 A corollary worth taking literally: **if a tenant task requires editing shared code, that is a
 template gap.** Fix the template and let the tenant consume it, rather than special-casing.
 
@@ -342,7 +354,9 @@ account blocks that person from registering again and nothing else would surface
     confirmation link is, and for the same reason.
   - The success page and the "your password was changed" mail both state that other sessions
     ended. That is true only while the stamp check above exists; remove it and both lie.
-- **Registration, sign-in and both halves of password reset are rate limited; nothing else is.**
+- **Registration, sign-in, both halves of password reset, a quote request and a checkout are
+  rate limited; nothing else is.** A checkout (T12) is thirty an hour, because a guest's writes
+  an account and an order and takes stock for whoever posts it.
   `CustomerRateLimiting` partitions a global limiter by caller and path, returning no limiter
   for everything else — a cap that reached the catalog would be a denial-of-service switch
   aimed at the shop window. Registration is ten an hour because it writes across two databases
@@ -379,13 +393,16 @@ account blocks that person from registering again and nothing else would surface
   fixed model when the fields vary per store — and because that is what keeps the password
   out of the round trip. Everything echoed back after a validation error is echoed because
   the page chose to; the two password inputs never are.
-- **There are two field sets since T9.**
+- **There are three field sets since T12.**
   - **`eu-b2b`** requires an EU VAT number, and refuses GB, which left the EU VAT area.
   - **`uk-b2b`** has the VAT number and Companies House number optional, since sole traders and
     businesses below the threshold have neither, and shape-checks them when given. It requires a
     postcode.
-  - **Both ask for the `ChamberOfCommerce` document kind**: `CK_AccountDocument_Kind`'s name for
+  - **The two trade sets ask for the `ChamberOfCommerce` document kind**: `CK_AccountDocument_Kind`'s name for
     proof the business exists, labelled to suit each country.
+  - **`b2c`** (T12) asks for a name, an email address and a password, and nothing else. Its
+    account is a `Consumer`, created `Approved` by `spAccount_Register`: it is prepaid with no
+    credit, so there is nothing to review. Confirming the address is still required.
   - **A new field set** is a line in `AddRegistrationFieldSets` plus a key in
     `SiteSettingKeys.RegistrationFieldSets`. `SiteSettingKeysTests` fails if either is missing.
 
@@ -765,7 +782,7 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All fourteen journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI. **All fifteen journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
 the old one.
 
@@ -803,6 +820,15 @@ photograph whose filename claims JPEG while its bytes are PNG.
 
 Its first run found every journey timing out: the image store's keyed blob client had taken
 the documents client's health check down, which no unit test could see.
+
+T12's fifteenth borrows the first loopback store as a checkout store for its length, and puts it
+back. Two guests each put the store's last shirt in their cart.
+- The first checks out with a Brazilian address and lands on `/orders/{token}`, at
+  `Awaiting payment`. A browser with no cookies opens that page too, and a changed token opens
+  nothing.
+- The order is a `Consumer` account's, ships to BR, took the shirt, and queued `order.placed`.
+- The second checks out and is told the shirt is short. Nothing is written for them, and the
+  shirt was sold once.
 
 T8's runs across both stores the
 suite resolves (`localhost` and `127.0.0.1`): an admin hides a product on one and shows an
@@ -1040,8 +1066,10 @@ then are `AccountId`, `QuoteId`, `Currency` and `Status` populated. Every `spOrd
 on `Reference IS NOT NULL` to keep the two apart — preserve that predicate in anything new, or admin
 writes will reach POS history.
 
-Portal orders never touch `dbo.Inventory`; only `spInventory_Insert` writes it. Order-level changes
-therefore have no stock side effects, but they do move `spReport_GetSales` and `spActivity_GetRecent`.
+Portal orders never touch `dbo.Inventory`; only `spInventory_Insert` writes it. An order from a
+quote has no stock side effects. **An order from the cart (T12, `QuoteId IS NULL`) took its own
+stock**, so cancelling it in `spOrder_UpdateStatus` puts that stock back, and reopening it is
+refused. Every order moves `spReport_GetSales` and `spActivity_GetRecent`.
 
 **The predicate runs both ways.** `spPurchase_PurchaseReport` — the desktop POS's own report —
 filters `Reference IS NULL`. Without that it returns portal orders too, attributed to
@@ -1472,10 +1500,10 @@ button an open redirect. An add returns to the listing it came from rather than 
   from. `BasketLineView` has no `Cost` and no `ProductId`: the first is a buy price and this
   is the boundary that keeps it off a public page, the second is what lets the forms post a
   SKU. An unavailable line is rendered and excluded from the value.
-- **`FakeCheckoutMode` is what makes `IOrderingMode` a claim rather than a hope.**
-  `RfqOrderingMode` is the only mode the platform ships, so every other storefront test
-  renders the same words and a page that hard-coded "quote" would pass all of them.
-  `BasketPageTests` renders the basket twice under two modes and asserts the RFQ markup says
+- **Rendering under both modes is what makes `IOrderingMode` a claim rather than a hope.**
+  Most storefront tests render RFQ, so a page that hard-coded "quote" would pass all of them.
+  `BasketPageTests` renders the basket twice, under `RfqOrderingMode` and
+  `DirectCheckoutOrderingMode`, and asserts the RFQ markup says
   "quote" and "Indicative value" while the checkout markup says "cart" and "Total". Add to
   that test when a page gains customer-facing wording.
 
@@ -1503,19 +1531,42 @@ holds it open across the network for as many turns as the customer has products.
   `fnCatalog_VisibleProducts` and `spBasket_AddLine` refused anything else. One atomic write
   is checked on its own terms. The basket `DELETE` is scoped to the site *and* the contact
   for the same reason: `@BasketId` arrives from the caller.
-- **Submitting needs a session, and `IOrderingMode.RequiresApprovedAccount` is currently
-  unreachable.** It reads false for RFQ, meaning a store may take a request from an
-  unapproved account. Nothing can reach an unapproved session: `CustomerAuthEndpoints` and
-  `CustomerSessionValidator` both admit Approved accounts only. The property stays because a
-  store that wants a pending applicant to ask for a price will change the sign-in gate, not
-  the submit. An anonymous submit redirects to sign-in and the basket follows, through
+- **Submitting needs a session.** Nothing can reach an unapproved one: `CustomerAuthEndpoints`
+  and `CustomerSessionValidator` both admit Approved accounts only. A store that wants a pending
+  applicant to ask for a price will change the sign-in gate, not the submit. (T12 replaced
+  `IOrderingMode.RequiresApprovedAccount`, which nothing read, with `TakesQuotes`.) An
+  anonymous submit redirects to sign-in and the basket follows, through
   `spBasket_Claim`.
 - **The acknowledgement page shows the reference and nothing else.** References come from a
   sequence and are guessable, so a page that rendered lines or prices from a `?ref=` would be
   readable by anyone who changed a digit. The account-scoped view is the account area's.
-- **Submitting is rate limited even though it is authenticated** — the only path here that
-  is. One submit writes a quote and a line per product, burns a `QT-` number, and lands in a
-  queue a human works through.
+- **Submitting is rate limited even though it is authenticated** — the only authenticated path
+  here that is. One submit writes a quote and a line per product, burns a `QT-` number, and
+  lands in a queue a human works through.
+
+### Checkout (T12)
+
+**Under `DirectCheckout` the cart is the order.** `IOrderingMode.TakesQuotes` reads false, so the
+basket links to `/checkout` and the account area has no quote panel. `Checkout.razor` posts back
+to itself, as `Register.razor` does, and `CheckoutService` holds every rule worth getting right.
+
+- **`spOrder_PlaceFromBasket` does it all in one transaction**, on `spQuote_SubmitRequest`'s rules.
+  It writes the guest's account if there is one, then the order at `Awaiting payment` with its
+  lines and its `PurchaseAddress`, takes the stock, and deletes the cart. Prices come from
+  `CatalogPresenter`, never the form.
+- **Every order still has an account and a contact.** A guest gets a `Consumer` account of their
+  own, approved and prepaid, whose contact has no login. **It is never one found by email**:
+  that would tell whoever typed an address whether its owner shops here.
+- **Own stock is checked under `UPDLOCK` before anything is written.** A short order writes
+  nothing and returns the SKUs, rather than throwing, so the page can name them. A feed's
+  quantity is the distributor's and is not taken.
+- **Tax is assessed on the delivery country**, keeping a signed-in business's VAT number. The line
+  tax is `fnOrder_LineTax`, which `spOrder_ConvertFromQuote` shares.
+- **A guest's order is at `/orders/{token}`**, a `BasketToken`-shaped credential, and only its
+  SHA-256 is stored (`Purchase.GuestTokenHash`). It is hashed in T-SQL, as `nvarchar` on both
+  sides, so C# never hashes it.
+- **`order.placed` is queued by `CheckoutService`, not the procedure**, because its link is a
+  credential and only `IEmailOutbox` encrypts a payload.
 
 ### A reference is not an authorisation
 

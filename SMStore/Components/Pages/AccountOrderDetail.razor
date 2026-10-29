@@ -41,71 +41,22 @@ else
         <span class="tag tag-neutral">@_order.Status</span>
     </div>
 
-    <div class="document">
-        <section class="document__lines">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th scope="col">@L["Product"]</th>
-                        <th scope="col" class="document-list__num">@L["Quantity"]</th>
-                        <th scope="col" class="document-list__num">@L["Unit"]</th>
-                        <th scope="col" class="document-list__num">@L["Line"]</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var line in _order.Lines)
-                    {
-                        <tr>
-                            <td>
-                                <strong>@line.Name</strong>
-                                <span class="text-muted mono document__sku">@line.Sku</span>
-                            </td>
-                            <td class="document-list__num">@line.Quantity</td>
-                            <td class="document-list__num">@line.UnitPrice</td>
-                            <td class="document-list__num">@line.LineTotal</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
+    @if (Placed)
+    {
+        <p class="document__notice" role="status">@L["Thank you. We have your order, and we have emailed you a copy."]</p>
+    }
 
-        <aside class="document__summary card blueprint">
-            <i class="corner tl"></i><i class="corner tr"></i>
-            <i class="corner bl"></i><i class="corner br"></i>
-            <h5>@L["Summary"]</h5>
-            <dl class="basket__totals">
-                <dt>@L["Lines"]</dt>
-                <dd>@_order.Lines.Count</dd>
-                @if (_order.PoNumber is not null)
-                {
-                    <dt>@L["Your reference"]</dt>
-                    <dd class="mono">@_order.PoNumber</dd>
-                }
-                <dt>@L["Net"]</dt>
-                <dd>@_order.SubTotal</dd>
-                @* Labelled by treatment, so a zero on a reverse-charged order reads as a
-                   reason rather than as a number nobody filled in. *@
-                <dt>@(string.IsNullOrWhiteSpace(_order.TaxTreatment) ? L["Tax"] : _order.TaxTreatment)</dt>
-                <dd>@_order.Tax</dd>
-                <dt>@L["Total"]</dt>
-                <dd>@_order.Total</dd>
-            </dl>
-            <p class="text-muted basket__note">
-                @if (!string.IsNullOrWhiteSpace(_order.TaxLegend))
-                {
-                    @_order.TaxLegend<text> </text>
-                }
-                @L["Freight is confirmed on the invoice."]
-            </p>
-
-            <a href="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}/print")"
-               class="btn btn-secondary btn-block">@L["Print or save as PDF"]</a>
-        </aside>
-    </div>
+    <OrderDocument Order="_order" PrintHref="@($"{QuoteDecisionEndpoints.OrdersPath}/{Reference}/print")" />
 }
 
 @code {
     [Parameter] public string Reference { get; set; } = string.Empty;
+
+    /// <summary>Set by the checkout's redirect (T12). Only ever compared, never rendered.</summary>
+    [SupplyParameterFromQuery(Name = "placed")]
+    public string? PlacedFlag { get; set; }
+
+    private bool Placed => PlacedFlag == "1";
 
     private OrderView? _order;
 

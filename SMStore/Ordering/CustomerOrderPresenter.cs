@@ -2,6 +2,7 @@ using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using SMStore.Accounts;
 using SMStore.Catalog;
+using SMStore.Registration;
 using SMStore.Sites;
 using static SMStore.Localization.StoreText;
 
@@ -160,14 +161,34 @@ public sealed class CustomerOrderPresenter
             return null;
         }
 
-        var siteId = _siteContext.Site.Id;
-        var order = _orders.GetOrderForAccount(reference, accountId, siteId);
+        var order = _orders.GetOrderForAccount(reference, accountId, _siteContext.Site.Id);
 
-        if (order is null)
+        return order is null ? null : View(order, accountId);
+    }
+
+    /// <summary>
+    /// A guest's order, by the token in its link (T12), or null.
+    /// </summary>
+    /// <remarks>
+    /// The token is the whole authorisation: a guest has no session. One answer for a token that
+    /// is malformed, unknown or another store's, as everywhere else. The lines are read through
+    /// the account the order belongs to, the same predicate the account area carries.
+    /// </remarks>
+    public OrderView? GuestOrder(string? token)
+    {
+        if (!BasketToken.IsWellFormed(token))
         {
             return null;
         }
 
+        var order = _orders.GetOrderByGuestToken(token!, _siteContext.Site.Id);
+
+        return order?.AccountId is { } accountId ? View(order, accountId) : null;
+    }
+
+    private OrderView View(OrderModel order, int accountId)
+    {
+        var siteId = _siteContext.Site.Id;
         var lines = _orders.GetOrderLinesForAccount(order.Id, accountId, siteId)
             .Select(line => new DocumentLineView(
                 line.Sku, line.Name, line.Quantity,
@@ -185,8 +206,22 @@ public sealed class CustomerOrderPresenter
             order.TaxLegend,
             order.PoNumber,
             order.FromQuoteReference,
-            lines);
+            lines,
+            _orders.GetDeliveryAddress(order.Id, siteId) is { } address ? Delivery(address) : null);
     }
+
+    /// <summary>An address as the lines of a label, the country by name.</summary>
+    private static IReadOnlyList<string> Delivery(OrderAddressModel address) =>
+        new[]
+        {
+            address.Name,
+            address.Line1,
+            address.Line2,
+            string.Join(" ", new[] { address.City, address.Region, address.PostCode }.Where(part => !string.IsNullOrWhiteSpace(part))),
+            RegistrationCountries.Name(address.Country)
+        }
+        .Where(line => !string.IsNullOrWhiteSpace(line))
+        .ToList()!;
 
     /// <summary>
     /// Whether the customer may accept or reject this quote.
@@ -295,4 +330,7 @@ public sealed record OrderView(
     string? TaxLegend,
     string? PoNumber,
     string? FromQuoteReference,
-    IReadOnlyList<DocumentLineView> Lines);
+    IReadOnlyList<DocumentLineView> Lines,
+
+    /// <summary>Where it goes, as lines of a label, or null for an order from a quote (T12).</summary>
+    IReadOnlyList<string>? Delivery = null);
