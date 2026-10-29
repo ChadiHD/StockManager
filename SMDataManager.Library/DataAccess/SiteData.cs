@@ -145,5 +145,25 @@ namespace SMDataManager.Library.DataAccess
                 return ex.Message;
             }
         }
+
+        public string DeleteSite(int siteId)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spSite_Delete", new { SiteId = siteId }, "SMDatabase");
+
+                return null;
+            }
+            catch (SqlException ex) when (ex.Number is >= 50090 and <= 50099)
+            {
+                return ex.Message;
+            }
+            // Something that names the store was written after the procedure's checks, and its
+            // foreign key refused the delete. The store has started trading, so it stays.
+            catch (SqlException ex) when (ex.Number == 547)
+            {
+                return "This store cannot be removed, because it has just started trading. It can stay closed.";
+            }
+        }
     }
 }

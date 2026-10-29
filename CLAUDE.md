@@ -291,7 +291,12 @@ and there may be none.
     an active category, and a body for each of `SiteContentKeys.RequiredToOpen`. That list is
     passed in, so it is one list.
   - A store already open is not re-checked. Closing a store is immediate.
-  - **Creating, opening and closing take `AllStores`.**
+  - **A store is removed only if it never traded** (`spSite_Delete`): closed, not the last one,
+    and with no accounts, quotes, orders, feeds, payments, fiscal documents or mail. Its own
+    set-up goes with it. Any other is refused with what it holds, and stays closed instead: those
+    rows are a business's records and every one names the store. The portal never offers it for
+    the store being acted for.
+  - **Creating, opening, closing and removing take `AllStores`.**
 - **When the storefront notices.** A store just opened resolves within its 30-second miss
   cache. A store just closed keeps serving for up to `Sites:CacheDuration`.
 
@@ -1932,6 +1937,14 @@ documents and an approval timeline — plausible-looking panels of nothing, rend
 button that opens a company's credit account. Panels now render what the API returned or an
 explicit empty state. A stub belongs behind a "lands with T5" note, never disguised as a
 record.
+
+**An error an admin reads goes through `PlainErrors`.** The API's own refusals are sentences
+written for them, sent as plain text with a 4xx, and are kept word for word. Anything else — an
+exception's message, a status code, a validation dump, a 500's stack trace — is logged to the
+browser console and replaced with what failed and what to do next.
+
+**A dialog closes from its X only.** Most hold a half-filled form, and a click beside one threw
+the typing away.
 
 ### Blazor traps that have already cost time here
 

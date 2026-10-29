@@ -40,18 +40,26 @@ else
                             <td>@site.CurrencyCode</td>
                             <td><span class="badge @(site.IsActive ? "badge--ok" : "badge--neutral")">@(site.IsActive ? "Open" : "Not open")</span></td>
                             <td class="trail">
-                                @if (site.SiteKey != Data.CurrentSiteKey)
-                                {
-                                    <button class="btn btn-secondary btn-sm act-for" @onclick="() => ActFor(site)">Act for it</button>
-                                }
-                                @if (site.IsActive)
-                                {
-                                    <button class="btn btn-secondary btn-sm close-store" @onclick="() => _closing = site">Close</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-primary btn-sm open-store" disabled="@(_busy == site.SiteKey)" @onclick="() => Open(site)">Open</button>
-                                }
+                                <span class="row-actions">
+                                    @if (site.SiteKey != Data.CurrentSiteKey)
+                                    {
+                                        <button class="btn btn-secondary btn-sm act-for" @onclick="() => ActFor(site)">Act for it</button>
+                                    }
+                                    @if (site.IsActive)
+                                    {
+                                        <button class="btn btn-secondary btn-sm close-store" @onclick="() => _closing = site">Close</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-primary btn-sm open-store" disabled="@(_busy == site.SiteKey)" @onclick="() => Open(site)">Open</button>
+                                        @* Not the store being acted for: every call names it, and the next one
+                                           after it was gone would be refused. *@
+                                        @if (site.SiteKey != Data.CurrentSiteKey)
+                                        {
+                                            <button class="btn btn-danger-outline btn-sm remove-store" disabled="@(_busy == site.SiteKey)" @onclick="() => _removing = site">Remove</button>
+                                        }
+                                    }
+                                </span>
                             </td>
                         </tr>
                         @if (_refusals.TryGetValue(site.SiteKey, out var refusal))
@@ -126,11 +134,32 @@ else
     }
 </Modal>
 
+<Modal Visible="_removing is not null" Title="Remove this store?" OnClose="() => _removing = null">
+    @if (_removing is not null)
+    {
+        <div class="modal-body">
+            <p>
+                @_removing.Name is deleted for good, with its categories, content pages, email wording,
+                delivery rates, customer groups and staff access. This cannot be undone.
+            </p>
+            <p>
+                Only a store that has never traded can be removed. One with customer accounts, quotes,
+                orders or distributor feeds is refused, and can stay closed instead.
+            </p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="() => _removing = null">Keep it</button>
+            <button type="button" class="btn btn-danger-outline confirm-remove" @onclick="Remove">Remove the store</button>
+        </div>
+    }
+</Modal>
+
 @code {
     [CascadingParameter] public AdminLayout? Layout { get; set; }
 
     private NewStore? _creating;
     private SiteOption? _closing;
+    private SiteOption? _removing;
     private string? _createError;
     private string? _busy;
     private bool _saving;
@@ -200,6 +229,30 @@ else
 
         var refusal = await Data.SetStoreOpen(site.SiteKey, open: false);
         Toast.Show(refusal ?? $"{site.Name} is closed");
+    }
+
+    private async Task Remove()
+    {
+        if (_removing is null) return;
+
+        var site = _removing;
+        _removing = null;
+
+        _busy = site.SiteKey;
+        var refusal = await Data.DeleteStore(site.SiteKey);
+        _busy = null;
+
+        // Under the row, like a refused opening: the reason names what the store holds, and a
+        // toast is gone before that is read.
+        if (refusal is null)
+        {
+            _refusals.Remove(site.SiteKey);
+            Toast.Show($"{site.Name} removed");
+        }
+        else
+        {
+            _refusals[site.SiteKey] = refusal;
+        }
     }
 
     private async Task ActFor(SiteOption site)

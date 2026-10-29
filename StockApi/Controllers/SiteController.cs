@@ -117,6 +117,25 @@ namespace StockApi.Controllers
         [HttpPost("{siteKey}/Close")]
         public IActionResult Close(string siteKey, [FromServices] IMemoryCache cache) => SetActive(siteKey, false, cache);
 
+        /// <summary>
+        /// Removes a closed store that never traded. One that has is refused, saying why, and stays
+        /// closed with its records; see <c>spSite_Delete</c>.
+        /// </summary>
+        [Authorize(Policy = AllStores.Policy)]
+        [HttpDelete("{siteKey}")]
+        public IActionResult Delete(string siteKey, [FromServices] IMemoryCache cache)
+        {
+            var site = _siteData.GetSites().FirstOrDefault(candidate => candidate.SiteKey == siteKey);
+            if (site is null) return NotFound();
+
+            var refusal = _siteData.DeleteSite(site.Id);
+            if (refusal is not null) return Conflict(refusal);
+
+            AdminSiteResolutionMiddleware.Forget(cache, siteKey);
+
+            return NoContent();
+        }
+
         private IActionResult SetActive(string siteKey, bool open, IMemoryCache cache)
         {
             var site = _siteData.GetSites().FirstOrDefault(candidate => candidate.SiteKey == siteKey);

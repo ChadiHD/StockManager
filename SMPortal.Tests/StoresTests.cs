@@ -89,6 +89,47 @@ public class StoresTests : TestContext
     }
 
     [Fact]
+    public void OnlyAClosedStoreThatIsNotBeingActedForCanBeRemoved()
+    {
+        var cut = RenderComponent<Stores>();
+
+        cut.FindAll(".store-row[data-key=ie-store] button.remove-store").Should().BeEmpty("it is open");
+        cut.FindAll(".store-row[data-key=uk-store] button.remove-store").Should().ContainSingle();
+
+        _data.CurrentSiteKey.Returns("uk-store");
+        cut.Render();
+
+        cut.FindAll(".store-row[data-key=uk-store] button.remove-store").Should().BeEmpty(
+            "every call names the store being acted for, and the next one after it was gone would be refused");
+    }
+
+    [Fact]
+    public void RemovingAStoreAsksFirst()
+    {
+        var cut = RenderComponent<Stores>();
+
+        cut.Find(".store-row[data-key=uk-store] button.remove-store").Click();
+        _data.DidNotReceiveWithAnyArgs().DeleteStore(default!);
+        cut.Find(".modal").TextContent.Should().Contain("cannot be undone");
+
+        cut.Find("button.confirm-remove").Click();
+        _data.Received(1).DeleteStore("uk-store");
+    }
+
+    [Fact]
+    public void ARefusedRemovalSaysWhyUnderTheRow()
+    {
+        _data.DeleteStore("uk-store").Returns("This store cannot be removed, because it has customer accounts.");
+        var cut = RenderComponent<Stores>();
+
+        cut.Find(".store-row[data-key=uk-store] button.remove-store").Click();
+        cut.Find("button.confirm-remove").Click();
+
+        cut.Find(".store-refusal").TextContent.Should().Contain("it has customer accounts");
+        cut.FindAll(".modal").Should().BeEmpty();
+    }
+
+    [Fact]
     public void AnAdminGivenSomeStoresIsOfferedNothing()
     {
         _data.ManagesAllStores.Returns(false);
