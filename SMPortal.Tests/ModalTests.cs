@@ -35,33 +35,21 @@ public class ModalTests : TestContext
     }
 
     [Fact]
-    public async Task ClickingTheBackdropInvokesOnClose()
+    public async Task ClickingOutsideOrInsideTheDialogDoesNotClose()
     {
-        var closed = false;
-        var cut = RenderComponent<Modal>(p => p
-            .Add(x => x.Visible, true)
-            .Add(x => x.OnClose, () => closed = true));
-
-        await cut.Find(".modal-backdrop").ClickAsync(new MouseEventArgs());
-
-        closed.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task ClickingInsideTheModalCannotReachTheBackdropsCloseHandler()
-    {
-        // @onclick:stopPropagation on .modal stops the click from bubbling to the backdrop's
-        // OnClose at all — bUnit models that by refusing to dispatch the event any further
-        // rather than quietly delivering it nowhere, which is itself proof nothing downstream
-        // (here, OnClose) can fire from a click on the form.
+        // A dialog usually holds a half-filled form, and a stray click beside it threw the
+        // typing away. bUnit refuses to dispatch a click to an element with no handler, which
+        // is the assertion: neither the backdrop nor the body has anything that could fire.
         var closed = false;
         var cut = RenderComponent<Modal>(p => p
             .Add(x => x.Visible, true)
             .Add(x => x.OnClose, () => closed = true)
             .AddChildContent("<p class=\"probe\">Body</p>"));
 
+        var clickTheBackdrop = () => cut.Find(".modal-backdrop").ClickAsync(new MouseEventArgs());
         var clickInsideTheModal = () => cut.Find(".probe").ClickAsync(new MouseEventArgs());
 
+        await clickTheBackdrop.Should().ThrowAsync<MissingEventHandlerException>();
         await clickInsideTheModal.Should().ThrowAsync<MissingEventHandlerException>();
         closed.Should().BeFalse();
     }

@@ -1,6 +1,10 @@
 // Small JS interop helper for CSV export. Reference from wwwroot/index.html:
 //   <script src="js/admin.js"></script>
 window.smportal = window.smportal || {};
+window.smportal.scrollIntoView = function (element) {
+    element?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 window.smportal.downloadCsv = function (name, text) {
     const blob = new Blob([text], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

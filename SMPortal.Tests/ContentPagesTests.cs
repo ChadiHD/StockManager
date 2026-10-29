@@ -56,6 +56,35 @@ public class ContentPagesTests : TestContext
     }
 
     [Fact]
+    public void ThePagesAreTabsAndTheLedeIsCalledDescription()
+    {
+        var cut = RenderComponent<Content>();
+
+        cut.FindAll("[role=tab]").Select(tab => tab.GetAttribute("data-key")).Should().Equal("home", "terms");
+        cut.Find(".content-page[data-key=home]").GetAttribute("aria-selected").Should().Be("true");
+        cut.Find("label[for=content-lede]").TextContent.Should().Be("Description");
+    }
+
+    [Fact]
+    public void SwitchingPagesAfterTypingShowsTheOtherPagesWords()
+    {
+        // The browser half of this bug is not visible to bUnit: a textarea the admin has typed in
+        // stops following the text Blazor writes, which the @key on the editor works around by
+        // replacing the boxes. What this holds is the component half — the typed text is not
+        // carried into the next page's state.
+        var cut = RenderComponent<Content>();
+        cut.Find("#content-body").Change("<p>Typed on home</p>");
+        cut.Find("#content-lede").Change("Typed on home");
+
+        cut.Find(".content-page[data-key=terms]").Click();
+
+        cut.Find("#content-body").TextContent.Should().BeEmpty();
+        cut.Find("#content-lede").TextContent.Should().BeEmpty();
+        cut.Find("#content-title").GetAttribute("value").Should().Be("Terms of sale");
+        cut.Find(".content-page[data-key=terms]").GetAttribute("aria-selected").Should().Be("true");
+    }
+
+    [Fact]
     public void ARefusalIsShownAndNothingIsReplaced()
     {
         _data.SaveContentPage(default!, default!, default, default).ReturnsForAnyArgs(

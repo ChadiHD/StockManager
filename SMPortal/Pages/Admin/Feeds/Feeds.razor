@@ -1,6 +1,7 @@
 @page "/admin/feeds"
 @inject IAdminDataService Data
 @inject IToastService Toast
+@inject IJSRuntime JS
 
 <PageTitle>Distributor feeds · StockManager</PageTitle>
 
@@ -128,17 +129,30 @@
                                 }
                             </td>
                             <td class="trail num">
-                                <button class="btn btn-sm btn-secondary" @onclick="() => OpenEdit(feed)" disabled="@_busy">Edit</button>
-                                <button class="btn btn-sm btn-secondary" @onclick="() => OpenHistory(feed)" disabled="@_busy">History</button>
-                                @* Disabled while a sync of this feed holds the claim, so the
-                                   button does not offer an action the API would refuse with a
-                                   409. The claim is the authority either way — this only stops
-                                   the pointless round trip. *@
-                                <button class="btn btn-sm btn-secondary" @onclick="() => Sync(feed)"
-                                        disabled="@(_busy || feed.SyncStartedUtc is not null)">
-                                    @(feed.SyncStartedUtc is null ? "Sync" : "Syncing…")
-                                </button>
-                                <button class="btn btn-sm btn-danger-outline" @onclick="() => Delete(feed)" disabled="@_busy">Delete</button>
+                                <span class="row-actions">
+                                    <button class="btn btn-sm btn-secondary btn-icon feed-edit" @onclick="() => OpenEdit(feed)" disabled="@_busy"
+                                            title="Edit feed" aria-label="Edit @feed.Name">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary btn-icon feed-history" @onclick="() => OpenHistory(feed)" disabled="@_busy"
+                                            title="Sync history" aria-label="Sync history of @feed.Name">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+                                    </button>
+                                    @* Disabled while a sync of this feed holds the claim, so the
+                                       button does not offer an action the API would refuse with a
+                                       409. The claim is the authority either way — this only stops
+                                       the pointless round trip. *@
+                                    <button class="btn btn-sm btn-secondary btn-icon feed-sync" @onclick="() => Sync(feed)"
+                                            disabled="@(_busy || feed.SyncStartedUtc is not null)"
+                                            title="@(feed.SyncStartedUtc is null ? "Sync now" : "Syncing…")"
+                                            aria-label="@(feed.SyncStartedUtc is null ? $"Sync {feed.Name} now" : $"{feed.Name} is syncing")">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/></svg>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger-outline btn-icon feed-delete" @onclick="() => Delete(feed)" disabled="@_busy"
+                                            title="Delete feed" aria-label="Delete @feed.Name">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                                    </button>
+                                </span>
                             </td>
                         </tr>
                     }
@@ -250,7 +264,7 @@
 
             @if (_testResult is not null)
             {
-                <div class="alert @(_testResult.Succeeded ? "success" : "error")" role="status">
+                <div class="alert feed-test-result @(_testResult.Succeeded ? "success" : "error")" role="status" @ref="_testResultLine">
                     <strong>@(_testResult.Succeeded ? "Connection succeeded" : "Connection failed")</strong>
                     <span>
                         @(_testResult.Succeeded
@@ -435,6 +449,8 @@
             : "Mapped.";
 
     private FeedSyncOutcome? _testResult;
+    private FeedSyncOutcome? _scrolledTo;
+    private ElementReference _testResultLine;
 
     // ---- The banner ------------------------------------------------------------------------
 
@@ -572,6 +588,16 @@
         _testResult = null;
     }
 
+    // A result renders under the whole field mapping, below the dialog's fold, so a test looked
+    // as though it had done nothing. Each new one is brought into view once.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_testResult is null || ReferenceEquals(_testResult, _scrolledTo)) return;
+
+        _scrolledTo = _testResult;
+        await JS.InvokeVoidAsync("smportal.scrollIntoView", _testResultLine);
+    }
+
     private async Task Test()
     {
         _busy = true;
@@ -612,7 +638,7 @@
         }
         catch (Exception exception)
         {
-            _testResult = new FeedSyncOutcome { Succeeded = false, Error = exception.Message };
+            _testResult = new FeedSyncOutcome { Succeeded = false, Error = PlainErrors.Explain(exception, "The feed could not be saved.") };
         }
         finally
         {
@@ -655,7 +681,7 @@
         }
         catch (Exception exception)
         {
-            Toast.Show($"Sync failed: {exception.Message}");
+            Toast.Show(PlainErrors.Explain(exception, "The feeds could not be synced."));
         }
         finally
         {

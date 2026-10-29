@@ -380,7 +380,7 @@
         }
         catch (Exception exception)
         {
-            Toast.Show($"Image lookup failed: {exception.Message}");
+            Toast.Show(PlainErrors.Explain(exception, "The image lookup could not be run."));
         }
         finally
         {

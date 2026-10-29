@@ -57,3 +57,7 @@
     white-space: nowrap;
     color: #5b6472;
 }
+
+/* Row actions are icons, so four fit a narrow column; each says what it does on hover. */
+.btn-icon { width: 32px; height: 32px; padding: 0; }
+.btn-icon svg { width: 15px; height: 15px; }

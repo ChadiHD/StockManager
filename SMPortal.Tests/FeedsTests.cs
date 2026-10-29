@@ -134,7 +134,8 @@ public class FeedsTests : TestContext
     {
         var cut = Render([Feed(1, "Main", syncStarted: DateTime.UtcNow.AddMinutes(-2))]);
 
-        var button = cut.FindAll("button").Single(b => b.TextContent.Contains("Syncing"));
+        var button = cut.Find("button.feed-sync");
+        button.GetAttribute("title").Should().Be("Syncing…");
 
         // The claim in the database is the authority; this only stops a round trip the API
         // would answer with a 409.
@@ -152,7 +153,7 @@ public class FeedsTests : TestContext
             .Single(tr => tr.TextContent.Contains("Secondary"));
 
         await cut.InvokeAsync(() =>
-            row.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "History").Click());
+            row.QuerySelector("button.feed-history")!.Click());
 
         await _data.Received(1).GetFeedHistory(2);
 
@@ -171,7 +172,7 @@ public class FeedsTests : TestContext
         var row = cut.Find("table.tbl tbody tr");
 
         await cut.InvokeAsync(() =>
-            row.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "History").Click());
+            row.QuerySelector("button.feed-history")!.Click());
 
         // "Never attempted" and "attempted, nothing recorded" look identical in a blank grid,
         // and only one of them can happen.
@@ -191,12 +192,47 @@ public class FeedsTests : TestContext
         var row = cut.Find("table.tbl tbody tr");
 
         await cut.InvokeAsync(() =>
-            row.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "History").Click());
+            row.QuerySelector("button.feed-history")!.Click());
 
         // A feed that only ever succeeds when somebody presses the button is a scheduler
         // problem rather than a feed problem, and this column is the only thing that says so.
         var modal = cut.Find(".modal");
         modal.TextContent.Should().Contain("Operator");
         modal.TextContent.Should().Contain("Schedule");
+    }
+
+    [Fact]
+    public void EveryRowActionIsAnIconThatSaysWhatItDoes()
+    {
+        var cut = Render([Feed(1, "Main")]);
+
+        var buttons = cut.Find("table.tbl tbody tr").QuerySelectorAll("button");
+
+        buttons.Select(button => button.GetAttribute("title")).Should().Equal(
+            "Edit feed", "Sync history", "Sync now", "Delete feed");
+        buttons.Select(button => button.GetAttribute("aria-label")).Should().Equal(
+            "Edit Main", "Sync history of Main", "Sync Main now", "Delete Main");
+        buttons.Should().OnlyContain(button => button.TextContent.Trim() == string.Empty);
+    }
+
+    [Fact]
+    public async Task ATestResultIsScrolledIntoViewOnce()
+    {
+        var cut = Render([Feed(1, "Main")]);
+        _data.TestFeed(default!).ReturnsForAnyArgs(new FeedSyncOutcome { Succeeded = true, RecordCount = 3 });
+
+        // Completed, not just set up: the component awaits the call, and a pending one would
+        // hang the click and every test scheduled after it.
+        var scroll = JSInterop.SetupVoid("smportal.scrollIntoView", _ => true);
+        scroll.SetVoidResult();
+
+        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent == "Add feed").Click());
+        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent == "Test connection").Click());
+
+        cut.Find(".feed-test-result").TextContent.Should().Contain("Connection succeeded");
+        scroll.Invocations.Should().ContainSingle();
+
+        cut.Render();
+        scroll.Invocations.Should().ContainSingle("the same result is not scrolled to again on every render");
     }
 }

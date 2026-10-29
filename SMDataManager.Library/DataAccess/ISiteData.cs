@@ -25,6 +25,12 @@ namespace SMDataManager.Library.DataAccess
         string SetActive(int siteId, bool isActive);
 
         /// <summary>
+        /// Removes a closed store that never traded, with its own set-up. Refused, saying why, for
+        /// any other; see <c>spSite_Delete</c>.
+        /// </summary>
+        string DeleteSite(int siteId);
+
+        /// <summary>
         /// Stores a store's payment keys as ciphertext (T13), both or neither. Null when stored,
         /// otherwise why not.
         /// </summary>

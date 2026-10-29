@@ -39,7 +39,9 @@ else
 
         @if (_selected is not null)
         {
-            <div class="panel panel-pad">
+            @* Keyed for the reason Content.razor keys its editor: a textarea the admin typed in
+               stops following the text Blazor writes, so the next message showed this one's. *@
+            <div class="panel panel-pad" @key="_editorStamp">
                 <span class="card-kicker">@Label(_selected.Key)</span>
                 <div class="form-grid">
                     <div class="field span2">
@@ -91,6 +93,7 @@ else
     private string? _status;
     private string? _loadError;
     private bool _saving;
+    private int _editorStamp;
 
     protected override void OnParametersSet() => Layout?.SetPage("Email wording", "What this store's messages say");
 
@@ -103,12 +106,13 @@ else
         }
         catch (Exception exception)
         {
-            _loadError = exception.Message;
+            _loadError = PlainErrors.Explain(exception, "The store's messages could not be loaded.");
         }
     }
 
     private void Select(EmailWording message)
     {
+        _editorStamp++;
         _selected = message;
         _subject = message.Subject;
         _body = message.Body;
