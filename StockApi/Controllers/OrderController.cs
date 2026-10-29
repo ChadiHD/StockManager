@@ -154,6 +154,18 @@ namespace StockApi.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// Sends a dead-lettered fiscal document again (T14), once whatever the issuer refused has
+        /// been fixed. A 409 when it was not dead-lettered: somebody already did, or it was issued.
+        /// </summary>
+        [HttpPost("{reference}/FiscalDocument/Retry")]
+        public IActionResult RetryFiscalDocument(string reference, [FromServices] IFiscalDocumentData documents)
+        {
+            return documents.Retry(_site.SiteId, reference)
+                ? NoContent()
+                : Conflict(new { Message = "That order has no failed fiscal document to retry." });
+        }
+
         [HttpGet("Report")]
         public List<SalesReportModel> GetReport()
         {

@@ -123,6 +123,15 @@ public class Order
     public decimal Shipping { get; set; }
     public string? TrackingNumber { get; set; }
 
+    /// <summary>
+    /// Its fiscal document (T14): Pending, Issuing, Issued or DeadLettered, or null when the order
+    /// owes none. With the issuer's number and link, or why it failed.
+    /// </summary>
+    public string? FiscalStatus { get; set; }
+    public string? FiscalNumber { get; set; }
+    public string? FiscalUrl { get; set; }
+    public string? FiscalError { get; set; }
+
     public List<OrderLine> LineItems { get; set; } = new();
 }
 

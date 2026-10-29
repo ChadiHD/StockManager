@@ -606,6 +606,38 @@ namespace SMDataManager.Library.Email
             carriesCredential: false,
             "Messages");
 
+        /// <summary>A fiscal document the dispatcher has given up on (T14), one message per order.</summary>
+        /// <remarks>
+        /// Unlike a dead-lettered mail, this is not the end of it: the sale still owes the
+        /// document, so the message says where to send it again once the cause is fixed.
+        /// </remarks>
+        public static readonly EmailTemplate<FiscalFailedPayload> FiscalFailed = new(
+            "operator.fiscal-failed",
+            EmailAudience.Operator,
+            "Fiscal document not issued for order {Reference} — {SiteName}",
+            """
+            The fiscal document for order {Reference} could not be issued through {Issuer}, and
+            nothing more will be attempted for it after {Attempts} attempt(s):
+
+            {LastError}
+
+            The sale still owes this document. Once the cause is fixed, open the order in the
+            admin portal and press Retry.
+
+            — {SiteName}
+            """,
+            (_, payload) => new Dictionary<string, string>
+            {
+                ["Reference"] = payload.Reference ?? string.Empty,
+                ["Issuer"] = payload.Issuer ?? string.Empty,
+                ["Attempts"] = payload.Attempts.ToString(),
+                ["LastError"] = string.IsNullOrWhiteSpace(payload.LastError)
+                    ? "No detail was recorded."
+                    : payload.LastError,
+            },
+            carriesCredential: false,
+            "Reference");
+
         public static IReadOnlyList<EmailTemplate> All { get; } =
         [
             RegistrationReceived,
@@ -625,6 +657,7 @@ namespace SMDataManager.Library.Email
             FeedFailed,
             FeedsStale,
             MailUndeliverable,
+            FiscalFailed,
         ];
 
         private static readonly Dictionary<string, EmailTemplate> ByKey =

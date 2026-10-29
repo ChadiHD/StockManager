@@ -127,6 +127,14 @@ CREATE TABLE [dbo].[Site]
 	[PaymentSecretRef] NVARCHAR(MAX) NULL,
 	[PaymentWebhookSecretRef] NVARCHAR(MAX) NULL,
 
+	/*
+	Which IFiscalDocumentIssuer, in StockApi, issues the invoice a tax authority must see for each
+	sale (T14): Brazil's NF-e, and anything like it. A key from SiteSettingKeys.FiscalIssuers.
+	'none', the default and every store before T14, queues nothing; see dbo.FiscalDocument. Last,
+	like every column since T6.
+	*/
+	[FiscalIssuer] NVARCHAR(40) NOT NULL CONSTRAINT [DF_Site_FiscalIssuer] DEFAULT N'none',
+
 	CONSTRAINT [UQ_Site_SiteKey] UNIQUE ([SiteKey]),
 	-- Nothing validated this before T9: CatalogPresenter compares against 'Authenticated', so a
 	-- typo behaved as 'Public' and showed a trade store's prices to everyone. Written as the OR

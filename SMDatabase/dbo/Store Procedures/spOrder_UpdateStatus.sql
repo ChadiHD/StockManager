@@ -9,6 +9,9 @@ that it is still there. An order from a quote never took stock, and moves as it 
 
 Marking a cart order Fulfilled records its tracking number and queues order.shipped, in this
 transaction, to the person who placed it. An order from a quote sends nothing new.
+
+Marking any order Paid or Fulfilled queues the fiscal document it owes, when its store issues
+them (T14).
 */
 CREATE PROCEDURE [dbo].[spOrder_UpdateStatus]
 	@Id int,
@@ -50,6 +53,13 @@ BEGIN
 		               WHERE [QuoteId] IS NULL AND ISNULL([From], N'') <> N'Cancelled')
 		BEGIN
 			EXEC dbo.spOrder_ReturnStock @PurchaseId = @Id;
+		END
+
+		-- Paid by hand, or shipped on terms without ever reading Paid: either way a sale that owes
+		-- its fiscal document (T14). The enqueue makes one per order, so both calling it is safe.
+		IF (@Status = N'Paid' OR @Status = N'Fulfilled') AND EXISTS (SELECT 1 FROM @Changed)
+		BEGIN
+			EXEC dbo.spFiscalDocument_Enqueue @PurchaseId = @Id;
 		END
 
 		IF @Status = N'Fulfilled'

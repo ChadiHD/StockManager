@@ -13,7 +13,7 @@ BEGIN
 	       [OrderMode], [RegistrationFieldSet], [PriceDisplay], [MinMarginPct],
 	       [FeedStaleAfterHours], [HideStaleProducts], [OperatorEmail],
 	       [TaxRuleSet], [StandardTaxRatePct], [TaxRegistrationNumber], [MailFromAddress],
-	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress], [PricesIncludeTax],
+	       [LegalName], [CompanyRegistrationNumber], [RegisteredAddress], [PricesIncludeTax], [FiscalIssuer],
 	       [IsActive], [CreatedDate],
 	       dbo.fnSite_CurrencyLocked([Id]) AS [CurrencyLocked],
 	       -- Whether the store's payment keys are set (T13). Never the keys: they are write-only.

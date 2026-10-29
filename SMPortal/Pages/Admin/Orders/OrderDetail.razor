@@ -93,6 +93,30 @@ else
                     </div>
                 }
             </div>
+            @if (_o.FiscalStatus is not null)
+            {
+                @* The invoice a tax authority must see (T14), from the store's issuer. A failed one
+                   is still owed, so it can be sent again once the cause is fixed. *@
+                <div class="panel panel-pad order-fiscal">
+                    <span class="card-kicker">Fiscal document</span>
+                    <div class="kv"><span class="k">Status</span><span class="v order-fiscal-status">@FiscalLabel(_o.FiscalStatus)</span></div>
+                    @if (_o.FiscalNumber is not null)
+                    {
+                        <div class="kv mt"><span class="k">Number</span><span class="v mono order-fiscal-number">@_o.FiscalNumber</span></div>
+                    }
+                    @* Only an https link: the address is the issuer's answer, and a javascript: one
+                       would run in the portal's origin. *@
+                    @if (_o.FiscalUrl?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        <div class="kv mt"><span class="k">Document</span><a class="v" href="@_o.FiscalUrl" target="_blank" rel="noopener noreferrer">Open</a></div>
+                    }
+                    @if (_o.FiscalStatus == "DeadLettered")
+                    {
+                        <p class="field-note field-note--warn order-fiscal-error">@_o.FiscalError</p>
+                        <button class="btn btn-secondary order-fiscal-retry" @onclick="RetryFiscal">Retry</button>
+                    }
+                </div>
+            }
             <div class="panel panel-pad">
                 <span class="card-kicker">Order details</span>
                 <div class="kv"><span class="k">Account</span><a class="v" href="admin/accounts">@_o.Account</a></div>
@@ -213,5 +237,23 @@ else
         }
 
         Toast.Show(status == OrderStatusCancelled ? $"Order {id} cancelled" : $"Order {id} marked fulfilled");
+    }
+
+    private static string FiscalLabel(string status) => status switch
+    {
+        "Issued" => "Issued",
+        "DeadLettered" => "Failed",
+        _ => "Waiting to be issued",
+    };
+
+    private async Task RetryFiscal()
+    {
+        if (_o is null) return;
+
+        var id = _o.Id;
+        var refused = await Data.RetryFiscalDocument(id);
+        Recalc();
+
+        Toast.Show(refused ?? $"The fiscal document for {id} will be issued again");
     }
 }

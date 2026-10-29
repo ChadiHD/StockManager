@@ -92,7 +92,8 @@ namespace StockApi.Controllers
                 TaxRuleSet = store.TaxRuleSet!,
                 // What spSite_Insert takes from the table's defaults, for the rules to check.
                 OrderMode = SiteSettingKeys.OrderModes[0],
-                PriceDisplay = SiteSettingKeys.PriceDisplays[0]
+                PriceDisplay = SiteSettingKeys.PriceDisplays[0],
+                FiscalIssuer = SiteSettingKeys.NoFiscalIssuer
             };
 
             var refusal = SiteSettingsRules.WhyRefused(site);
@@ -141,7 +142,8 @@ namespace StockApi.Controllers
             IReadOnlyList<string> OrderModes,
             IReadOnlyList<string> RegistrationFieldSets,
             IReadOnlyList<string> TaxRuleSets,
-            IReadOnlyList<string> PriceDisplays);
+            IReadOnlyList<string> PriceDisplays,
+            IReadOnlyList<string> FiscalIssuers);
 
         [HttpGet("Settings")]
         public ActionResult<SettingsView> GetSettings([FromServices] IAdminSiteContext site)
@@ -152,7 +154,7 @@ namespace StockApi.Controllers
                 ? NotFound()
                 : new SettingsView(settings, ManagesEveryStore(),
                     SiteSettingKeys.OrderModes, SiteSettingKeys.RegistrationFieldSets,
-                    SiteSettingKeys.TaxRuleSets, SiteSettingKeys.PriceDisplays);
+                    SiteSettingKeys.TaxRuleSets, SiteSettingKeys.PriceDisplays, SiteSettingKeys.FiscalIssuers);
         }
 
         [HttpPut("Settings")]

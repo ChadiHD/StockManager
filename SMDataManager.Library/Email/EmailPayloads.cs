@@ -87,4 +87,7 @@ namespace SMDataManager.Library.Email
         int OutboxId, string TemplateKey, string Recipient, int Attempts, string LastError);
 
     public sealed record MailUndeliverablePayload(IReadOnlyList<UndeliverableMessage> Messages);
+
+    /// <summary>A fiscal document given up on (T14).</summary>
+    public sealed record FiscalFailedPayload(string Reference, string Issuer, int Attempts, string LastError);
 }

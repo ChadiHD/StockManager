@@ -43,6 +43,9 @@ public static partial class SiteSettingsRules
         site.TaxRuleSet = Canonical(SiteSettingKeys.TaxRuleSets, site.TaxRuleSet)!;
         if (site.TaxRuleSet is null) return "Those tax rules do not exist.";
 
+        site.FiscalIssuer = Canonical(SiteSettingKeys.FiscalIssuers, site.FiscalIssuer)!;
+        if (site.FiscalIssuer is null) return "That fiscal document issuer does not exist.";
+
         site.PriceDisplay = Canonical(SiteSettingKeys.PriceDisplays, site.PriceDisplay)!;
         if (site.PriceDisplay is null) return "Prices are shown to everyone or to signed-in customers only.";
 

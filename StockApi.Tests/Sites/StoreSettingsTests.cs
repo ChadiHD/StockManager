@@ -30,6 +30,7 @@ public class StoreSettingsTests
         RegistrationFieldSet = "EU-B2B",
         TaxRuleSet = "eu-b2b",
         PriceDisplay = "authenticated",
+        FiscalIssuer = "LOGGING",
         OperatorEmail = "ops@example.com",
         MailFromAddress = "no-reply@example.com"
     };
@@ -45,6 +46,7 @@ public class StoreSettingsTests
         // have shown a trade store's prices to everybody.
         site.PriceDisplay.Should().Be("Authenticated");
         site.OrderMode.Should().Be("Rfq");
+        site.FiscalIssuer.Should().Be("logging");
         site.RegistrationFieldSet.Should().Be("eu-b2b");
         site.Domain.Should().Be("shop.example.com");
         site.Country.Should().Be("IE");
@@ -98,6 +100,7 @@ public class StoreSettingsTests
     [InlineData(nameof(SiteModel.Locale), "xx-NOWHERE")]
     [InlineData(nameof(SiteModel.OperatorEmail), "not an address")]
     [InlineData(nameof(SiteModel.MailFromAddress), "@example.com")]
+    [InlineData(nameof(SiteModel.FiscalIssuer), "nfe-somewhere")]
     public void ValuesThatAreNotWhatTheyClaimAreRefused(string property, string value)
     {
         var site = Valid();

@@ -129,6 +129,13 @@ else
                             : "For a shop selling to consumers: the price typed is the price shown and paid, and the order takes the tax out of it. Such a store sells its own stock only, has no minimum margin, and is fixed once it holds any prices.")
                     </span>
                 </div>
+                <div class="field span2">
+                    <label for="store-fiscal-issuer">Fiscal documents</label>
+                    <InputSelect id="store-fiscal-issuer" class="input" @bind-Value="s.FiscalIssuer">
+                        @foreach (var option in _view.FiscalIssuers) { <option value="@option">@Label(option)</option> }
+                    </InputSelect>
+                    <span class="field-note">Who issues the invoice a tax authority must see for each sale, such as Brazil's NF-e. Applies to orders paid from now on.</span>
+                </div>
             </div>
         </div>
 
@@ -289,6 +296,8 @@ else
         ("flat", false) => "One rate on every sale, wherever the buyer is",
         ("DirectCheckout", _) => "Checkout: customers pay online, guests welcome",
         ("b2c", true) => "Consumer: a name and an email address, no paperwork",
+        ("none", _) => "None: this store's sales need no electronic invoice",
+        ("logging", _) => "Log only: records each sale and issues nothing, for testing",
         _ => key
     };
 }

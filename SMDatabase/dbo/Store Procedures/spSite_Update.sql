@@ -6,7 +6,7 @@ Everything but SiteKey and IsActive. The key names the store's theme folder and 
 admin's stored selection, so it is fixed once created; activation has its own procedure, with a
 checklist, because it is the one change that puts a store in front of customers.
 
-Which OrderMode, RegistrationFieldSet and TaxRuleSet keys exist is decided in code, so the
+Which OrderMode, RegistrationFieldSet, TaxRuleSet and FiscalIssuer keys exist is decided in code, so the
 caller checks those against SiteSettingKeys; PriceDisplay has CK_Site_PriceDisplay. What only
 the data can answer is refused here:
 
@@ -38,7 +38,8 @@ CREATE PROCEDURE [dbo].[spSite_Update]
 	@LegalName nvarchar(200) = NULL,
 	@CompanyRegistrationNumber nvarchar(50) = NULL,
 	@RegisteredAddress nvarchar(400) = NULL,
-	@PricesIncludeTax bit
+	@PricesIncludeTax bit,
+	@FiscalIssuer nvarchar(40)
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -96,6 +97,7 @@ BEGIN
 	    [LegalName] = NULLIF(LTRIM(RTRIM(@LegalName)), N''),
 	    [CompanyRegistrationNumber] = NULLIF(LTRIM(RTRIM(@CompanyRegistrationNumber)), N''),
 	    [RegisteredAddress] = NULLIF(LTRIM(RTRIM(@RegisteredAddress)), N''),
-	    [PricesIncludeTax] = @PricesIncludeTax
+	    [PricesIncludeTax] = @PricesIncludeTax,
+	    [FiscalIssuer] = @FiscalIssuer
 	WHERE [Id] = @SiteId;
 END
