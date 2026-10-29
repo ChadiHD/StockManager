@@ -16,14 +16,11 @@ namespace SMStore.Ordering;
 /// <see cref="CatalogPresenter"/> means the quote records what the customer was looking at,
 /// through the same path that rendered it.
 ///
-/// A signed-in contact is required, and that is worth stating because
-/// <c>IOrderingMode.RequiresApprovedAccount</c> reads false for RFQ. The two are not in
-/// conflict: <c>Quote.AccountId</c> is NOT NULL, so a request needs an account whatever the
-/// mode says, and the property is about whether that account must already be *approved*. As it
-/// happens nothing can reach an unapproved session either — <c>CustomerAuthEndpoints</c> and
-/// <c>CustomerSessionValidator</c> both admit Approved accounts only — so the property is
-/// currently unreachable rather than honoured. It stays because a store that wants a pending
-/// applicant to be able to ask for a price will change the sign-in gate, not this.
+/// A signed-in contact is required: <c>Quote.AccountId</c> is NOT NULL, and a session is the
+/// only thing that names an account. Nothing can reach an unapproved session —
+/// <c>CustomerAuthEndpoints</c> and <c>CustomerSessionValidator</c> both admit Approved accounts
+/// only — so a store that wants a pending applicant to ask for a price changes the sign-in gate,
+/// not this.
 /// </remarks>
 public sealed class QuoteSubmissionService
 {

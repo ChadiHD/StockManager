@@ -121,7 +121,7 @@ namespace SMDataManager.Library.DataAccess
 
         // Column order must match dbo.QuoteRequestLine - table-valued parameters bind by
         // ordinal, not by name.
-        private static DataTable BuildRequestTable(IEnumerable<QuoteRequestLine> lines)
+        internal static DataTable BuildRequestTable(IEnumerable<QuoteRequestLine> lines)
         {
             var table = new DataTable();
             table.Columns.Add("ProductId", typeof(int));

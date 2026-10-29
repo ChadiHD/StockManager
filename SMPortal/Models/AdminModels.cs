@@ -21,6 +21,9 @@ public class Account
     public string Status { get; set; } = "Pending";
     public string Since { get; set; } = "";
 
+    /// <summary>A person buying for themselves (T12): a guest, or a b2c registration. Company is their name.</summary>
+    public bool IsConsumer { get; set; }
+
     /// <summary>Company identifiers collected at registration; either may be absent.</summary>
     public string Vat { get; set; } = "";
 

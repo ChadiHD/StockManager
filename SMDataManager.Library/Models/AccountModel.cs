@@ -18,6 +18,9 @@ namespace SMDataManager.Library.Models
         public int PaymentTermsDays { get; set; }
         public decimal CreditLimit { get; set; }
         public string Status { get; set; }
+
+        /// <summary>Business or Consumer (T12). A consumer's Company is their own name.</summary>
+        public string Kind { get; set; }
         public DateTime CreatedDate { get; set; }
 
         /// <summary>

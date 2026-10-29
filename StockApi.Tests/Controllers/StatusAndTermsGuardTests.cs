@@ -34,6 +34,7 @@ public class OrderStatusGuardTests
         {
             Id = 9, Reference = "SO-0012", AccountId = 5, Status = OrderStatus.AwaitingPayment
         });
+        _orders.UpdateStatus(9, Arg.Any<string>(), 42).Returns(true);
 
         _controller = new OrderController(_orders, _site);
     }
@@ -62,6 +63,16 @@ public class OrderStatusGuardTests
 
         // And the order is not even looked up, so nothing reaches the procedure that throws.
         _orders.DidNotReceive().UpdateStatus(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int>());
+    }
+
+    [Fact]
+    public void ReopeningACancelledCartOrderIsAConflict()
+    {
+        // The procedure refused: the order's stock has gone back (T12).
+        _orders.UpdateStatus(9, OrderStatus.Processing, 42).Returns(false);
+
+        _controller.UpdateStatus("SO-0012", new OrderController.OrderStatusModel(OrderStatus.Processing))
+            .Should().BeOfType<ConflictObjectResult>();
     }
 }
 

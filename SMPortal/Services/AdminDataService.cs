@@ -537,13 +537,45 @@ public class AdminDataService : IAdminDataService
 
     // ---- Quote / order mutations ---------------------------------------------------------
 
-    public async Task MarkOrderFulfilled(string id)
+    public async Task<string[]> GetDeliveryAddress(string orderId)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        // A 404 is an order with no address, which is every order from a quote.
+        var response = await _client.GetAsync($"{_api}/api/Order/{Uri.EscapeDataString(orderId)}/Delivery");
+        if (!response.IsSuccessStatusCode) return [];
+
+        var address = await response.Content.ReadFromJsonAsync<DeliveryDto>();
+        if (address is null) return [];
+
+        return new[]
+            {
+                address.Name, address.Line1, address.Line2,
+                string.Join(" ", new[] { address.City, address.Region, address.PostCode }.Where(part => !string.IsNullOrWhiteSpace(part))),
+                address.Country, address.Phone
+            }
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line!)
+            .ToArray();
+    }
+
+    public async Task<string?> SetOrderStatus(string id, string status)
     {
         var response = await _client.PutAsJsonAsync(
-            $"{_api}/api/Order/{Uri.EscapeDataString(id)}/Status", new { Status = "Fulfilled" });
-        response.EnsureSuccessStatusCode();
+            $"{_api}/api/Order/{Uri.EscapeDataString(id)}/Status", new { Status = status });
 
+        // A 409 is the store refusing to reopen a cancelled cart order, and its message says why.
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            return (await response.Content.ReadFromJsonAsync<RefusalDto>())?.Message
+                   ?? "That order cannot be moved to that status.";
+        }
+
+        response.EnsureSuccessStatusCode();
         await RefreshAsync();
+
+        return null;
     }
 
     public async Task<QuoteConversion> ConvertQuoteToOrder(string quoteId)
@@ -1422,7 +1454,8 @@ public class AdminDataService : IAdminDataService
         Registration = dto.RegistrationNumber ?? string.Empty,
         DecidedBy = dto.ApprovedBy ?? string.Empty,
         DecidedOn = dto.ApprovedUtc is { } decided ? Date(decided) : string.Empty,
-        RejectionReason = dto.RejectionReason ?? string.Empty
+        RejectionReason = dto.RejectionReason ?? string.Empty,
+        IsConsumer = dto.Kind == "Consumer"
     };
 
     private static Group MapGroup(GroupDto dto) => new()
@@ -1569,7 +1602,7 @@ public class AdminDataService : IAdminDataService
         string? Email, string? Country, string? Currency, int? CustomerGroupId, string? GroupName,
         string? PaymentMethod, string? PaymentTerms, decimal CreditLimit, string? Status, DateTime CreatedDate,
         string? VatNumber, string? RegistrationNumber,
-        DateTime? ApprovedUtc, string? ApprovedBy, string? RejectionReason);
+        DateTime? ApprovedUtc, string? ApprovedBy, string? RejectionReason, string? Kind = null);
 
     private sealed record AccountDocumentDto(int Id, int AccountId, string? Kind, string? OriginalName,
         string? ContentType, long SizeBytes, DateTime UploadedUtc, string? Status);
@@ -1577,6 +1610,11 @@ public class AdminDataService : IAdminDataService
     private sealed record ContactDto(int Id, int AccountId, string? FirstName, string? LastName,
         string? Email, string? Phone, string? RoleInAccount, bool IsPrimary, string? Status,
         DateTime CreatedDate);
+
+    private sealed record RefusalDto(string? Message);
+
+    private sealed record DeliveryDto(string? Name, string? Line1, string? Line2, string? City,
+        string? Region, string? PostCode, string? Country, string? Phone);
 
     private sealed record AddressDto(int Id, int AccountId, string? Kind, string? Line1, string? Line2,
         string? City, string? Region, string? PostCode, string? Country, bool IsDefault);

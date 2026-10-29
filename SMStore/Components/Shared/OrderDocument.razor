@@ -1,0 +1,88 @@
+@* One order's lines and summary. Shared by the account area's order page and a guest's
+   (T12), so the two cannot show one order two ways. *@
+@using SMStore.Ordering
+
+<div class="document">
+    <section class="document__lines">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">@L["Product"]</th>
+                    <th scope="col" class="document-list__num">@L["Quantity"]</th>
+                    <th scope="col" class="document-list__num">@L["Unit"]</th>
+                    <th scope="col" class="document-list__num">@L["Line"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in Order.Lines)
+                {
+                    <tr>
+                        <td>
+                            <strong>@line.Name</strong>
+                            <span class="text-muted mono document__sku">@line.Sku</span>
+                        </td>
+                        <td class="document-list__num">@line.Quantity</td>
+                        <td class="document-list__num">@line.UnitPrice</td>
+                        <td class="document-list__num">@line.LineTotal</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <aside class="document__summary card blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i>
+        <i class="corner bl"></i><i class="corner br"></i>
+        <h5>@L["Summary"]</h5>
+        <dl class="basket__totals">
+            <dt>@L["Lines"]</dt>
+            <dd>@Order.Lines.Count</dd>
+            @if (Order.PoNumber is not null)
+            {
+                <dt>@L["Your reference"]</dt>
+                <dd class="mono">@Order.PoNumber</dd>
+            }
+            <dt>@L["Net"]</dt>
+            <dd>@Order.SubTotal</dd>
+            @* Labelled by treatment, so a zero on a reverse-charged order reads as a
+               reason rather than as a number nobody filled in. *@
+            <dt>@(string.IsNullOrWhiteSpace(Order.TaxTreatment) ? L["Tax"] : Order.TaxTreatment)</dt>
+            <dd>@Order.Tax</dd>
+            <dt>@L["Total"]</dt>
+            <dd>@Order.Total</dd>
+        </dl>
+        <p class="text-muted basket__note">
+            @if (!string.IsNullOrWhiteSpace(Order.TaxLegend))
+            {
+                @Order.TaxLegend<text> </text>
+            }
+            @if (Order.Delivery is null)
+            {
+                @L["Freight is confirmed on the invoice."]
+            }
+        </p>
+
+        @if (Order.Delivery is { } delivery)
+        {
+            <h5>@L["Delivering to"]</h5>
+            <address class="document__address">
+                @foreach (var addressLine in delivery)
+                {
+                    @addressLine<br />
+                }
+            </address>
+        }
+
+        @if (PrintHref is not null)
+        {
+            <a href="@PrintHref" class="btn btn-secondary btn-block">@L["Print or save as PDF"]</a>
+        }
+    </aside>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public OrderView Order { get; set; } = default!;
+
+    /// <summary>The printable sheet, or null where there is none: a guest has no account area.</summary>
+    [Parameter] public string? PrintHref { get; set; }
+}

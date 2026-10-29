@@ -1,3 +1,4 @@
+using Dapper;
 using Microsoft.Data.SqlClient;
 using SMDataManager.Library.Internal.DataAccess;
 using SMDataManager.Library.Models;
@@ -14,6 +15,9 @@ namespace SMDataManager.Library.DataAccess
 
         /// <summary>The number spOrder_ConvertFromQuote THROWs when the order is over the limit.</summary>
         private const int CreditLimitExceeded = 50040;
+
+        /// <summary>The number spOrder_UpdateStatus THROWs when asked to reopen a cancelled cart order.</summary>
+        private const int CancelledCartOrder = 50136;
 
         private readonly ISqlDataAccess _sqlDataAccess;
 
@@ -134,10 +138,65 @@ namespace SMDataManager.Library.DataAccess
             return QuoteAcceptanceResult.Converted(GetOrderByQuote(quoteId, siteId));
         }
 
-        public void UpdateStatus(int purchaseId, string status, int siteId)
+        public OrderPlacementResult PlaceFromBasket(OrderPlacement placement)
         {
-            _sqlDataAccess.SaveData("dbo.spOrder_UpdateStatus",
-                new { Id = purchaseId, Status = status, SiteId = siteId }, "SMDatabase");
+            var delivery = placement.Delivery;
+
+            return _sqlDataAccess.LoadData<OrderPlacementResult, dynamic>(
+                "dbo.spOrder_PlaceFromBasket",
+                new
+                {
+                    placement.SiteId,
+                    placement.BasketId,
+                    Lines = QuoteData.BuildRequestTable(placement.Lines)
+                        .AsTableValuedParameter("dbo.QuoteRequestLine"),
+                    placement.ContactId,
+                    placement.Email,
+                    placement.FirstName,
+                    placement.LastName,
+                    placement.Phone,
+                    delivery.Line1,
+                    delivery.Line2,
+                    delivery.City,
+                    delivery.Region,
+                    delivery.PostCode,
+                    delivery.Country,
+                    TaxTreatment = placement.Tax?.Treatment,
+                    TaxLegend = placement.Tax?.Legend,
+                    TaxRatePct = placement.Tax?.RatePct ?? 0m,
+                    placement.GuestToken
+                },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public OrderModel GetOrderByGuestToken(string token, int siteId)
+        {
+            return _sqlDataAccess.LoadData<OrderModel, dynamic>(
+                "dbo.spOrder_GetByGuestToken", new { Token = token, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public OrderAddressModel GetDeliveryAddress(int purchaseId, int siteId)
+        {
+            return _sqlDataAccess.LoadData<OrderAddressModel, dynamic>(
+                "dbo.spPurchaseAddress_GetByOrder", new { PurchaseId = purchaseId, SiteId = siteId },
+                "SMDatabase").FirstOrDefault();
+        }
+
+        public bool UpdateStatus(int purchaseId, string status, int siteId)
+        {
+            try
+            {
+                _sqlDataAccess.SaveData("dbo.spOrder_UpdateStatus",
+                    new { Id = purchaseId, Status = status, SiteId = siteId }, "SMDatabase");
+            }
+            catch (SqlException ex) when (ex.Number == CancelledCartOrder)
+            {
+                // Refused, not failed: reopening would take the stock a second time unchecked.
+                return false;
+            }
+
+            return true;
         }
 
         public List<SalesReportModel> GetSalesReport(int siteId)

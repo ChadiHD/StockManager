@@ -22,6 +22,8 @@ internal sealed class FakeRegistrationFieldSet(
 
     public IReadOnlyList<RegistrationDocumentRequirement> Documents { get; } = documents ?? [];
 
+    public bool IsConsumer => false;
+
     public RegistrationRequirement RequirementFor(RegistrationField field) =>
         requirements.TryGetValue(field, out var requirement) ? requirement : RegistrationRequirement.Hidden;
 

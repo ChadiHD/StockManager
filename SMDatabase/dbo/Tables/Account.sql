@@ -65,7 +65,14 @@ CREATE TABLE [dbo].[Account]
     rebuild Account to move the column the pre-deployment script had just added.
     */
     [PaymentTermsDays] INT NOT NULL CONSTRAINT [DF_Account_PaymentTermsDays] DEFAULT 0,
+
+    -- A company, or a person buying for themselves (T12): a guest at checkout, or a b2c
+    -- registration. A consumer's Company holds their name, so this is what says the row is not
+    -- a firm. Last, for the reason PaymentTermsDays is.
+    [Kind] NVARCHAR(10) NOT NULL CONSTRAINT [DF_Account_Kind] DEFAULT N'Business',
     CONSTRAINT [UQ_Account_Reference] UNIQUE ([Reference]),
+    -- As SQL Server stores it, not as IN (...); see CK_Address_Kind.
+    CONSTRAINT [CK_Account_Kind] CHECK ([Kind]=N'Consumer' OR [Kind]=N'Business'),
     -- Prepaid and a term in days are the same fact stated twice, so they are constrained to
     -- agree. Without this an account can read "Prepaid" on every screen while the credit
     -- check gives it thirty days, or carry "Net 30" and be billed immediately.

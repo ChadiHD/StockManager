@@ -112,8 +112,18 @@ public interface IAdminDataService
     Task<bool> SetDocumentStatus(int documentId, string status);
     Task UpdateTerms(string id, string group, string payment, string terms, decimal credit);
 
-    Task MarkOrderFulfilled(string id);
+    /// <summary>
+    /// Moves an order to a status, or says why the store refused: a cancelled order from the cart
+    /// has given its stock back and cannot be reopened (T12). Null when it moved.
+    /// </summary>
+    Task<string?> SetOrderStatus(string id, string status);
     /// <summary>Converts a quote, or reports that somebody else already decided it.</summary>
+    /// <summary>
+    /// Where an order goes (T12), as the lines of a label, or none for an order from a quote.
+    /// Fetched on opening the order, like an account's contacts.
+    /// </summary>
+    Task<string[]> GetDeliveryAddress(string orderId);
+
     Task<QuoteConversion> ConvertQuoteToOrder(string quoteId);
     // No currency: a quote or an order is in its store's (T9).
     Task<Quote?> AddQuote(string accountName);

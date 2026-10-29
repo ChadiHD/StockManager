@@ -9,6 +9,7 @@ public static class OrderingServiceCollectionExtensions
     public static IServiceCollection AddOrderingModes(this IServiceCollection services)
     {
         services.AddSingleton<IOrderingMode, RfqOrderingMode>();
+        services.AddSingleton<IOrderingMode, DirectCheckoutOrderingMode>();
         services.AddScoped<OrderingModeProvider>();
 
         return services;

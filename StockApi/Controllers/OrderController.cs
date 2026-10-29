@@ -38,6 +38,19 @@ namespace StockApi.Controllers
             return order is null ? NotFound() : order;
         }
 
+        /// <summary>
+        /// Where an order goes (T12): the address its checkout gave. An order from a quote has none,
+        /// and that is a 404 like an order that is not here.
+        /// </summary>
+        [HttpGet("{reference}/Delivery")]
+        public ActionResult<OrderAddressModel> GetDelivery(string reference)
+        {
+            var order = _orderData.GetOrderByReference(reference, _site.SiteId);
+            var address = order is null ? null : _orderData.GetDeliveryAddress(order.Id, _site.SiteId);
+
+            return address is null ? NotFound() : address;
+        }
+
         [HttpGet("{reference}/Lines")]
         public ActionResult<List<OrderLineModel>> GetLines(string reference)
         {
@@ -125,7 +138,12 @@ namespace StockApi.Controllers
                 return NotFound();
             }
 
-            _orderData.UpdateStatus(order.Id, change.Status, _site.SiteId);
+            if (!_orderData.UpdateStatus(order.Id, change.Status, _site.SiteId))
+            {
+                // A cancelled cart order has given its stock back (T12), and reopening it would take
+                // the stock again unchecked. An answer the admin can act on, not a failure.
+                return Conflict(new { Message = "A cancelled order placed from the cart cannot be reopened. Its stock has been returned." });
+            }
 
             return NoContent();
         }

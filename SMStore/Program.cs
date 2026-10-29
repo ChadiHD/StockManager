@@ -121,6 +121,7 @@ builder.Services.AddTransient<IOrderData, OrderData>();
 builder.Services.AddScoped<BasketService>();
 builder.Services.AddScoped<BasketPresenter>();
 builder.Services.AddScoped<QuoteSubmissionService>();
+builder.Services.AddScoped<CheckoutService>();
 builder.Services.AddScoped<CustomerOrderPresenter>();
 builder.Services.AddScoped<QuoteDecisionService>();
 

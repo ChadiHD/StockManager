@@ -42,7 +42,10 @@ CREATE PROCEDURE [dbo].[spAccount_Register]
 	@City nvarchar(100),
 	@Region nvarchar(100),
 	@PostCode nvarchar(20),
-	@Country nvarchar(2)
+	@Country nvarchar(2),
+
+	-- 'Business' or 'Consumer', from the store's registration field set (T12).
+	@Kind nvarchar(10) = N'Business'
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -80,18 +83,30 @@ BEGIN
 		DECLARE @Reference nvarchar(20) =
 			CONCAT('AC-', FORMAT(NEXT VALUE FOR dbo.AccountReferenceSequence, '0000'));
 
-		-- Pending, always. Nothing a customer types decides whether they may trade; that is
-		-- what the approval queue is for, and an application that could arrive Approved would
-		-- be a registration form that grants credit.
+		/*
+		A trade application is Pending, always. Nothing a customer types decides whether they may
+		trade; that is what the approval queue is for, and an application that could arrive
+		Approved would be a registration form that grants credit.
+
+		A consumer account (T12) is Approved at once. It is prepaid with no credit, so there is
+		nothing to grant and nothing for anybody to review. Which one is the store's field set's
+		decision, not the applicant's, and a consumer's Company is their own name.
+		*/
+		DECLARE @Name nvarchar(100) = LTRIM(RTRIM(CONCAT(@FirstName, N' ', @LastName)));
+		DECLARE @Consumer bit = CASE WHEN @Kind = N'Consumer' THEN 1 ELSE 0 END;
+
 		INSERT INTO dbo.Account([Reference], [Company], [ContactName], [Email], [Country],
 		                        [Currency], [VatNumber], [RegistrationNumber],
-		                        [PaymentMethod], [PaymentTerms], [CreditLimit], [Status], [SiteId])
-		SELECT @Reference, @Company, LTRIM(RTRIM(CONCAT(@FirstName, N' ', @LastName))), @Email,
+		                        [PaymentMethod], [PaymentTerms], [CreditLimit], [Status],
+		                        [ApprovedUtc], [SiteId], [Kind])
+		SELECT @Reference, CASE WHEN @Consumer = 1 THEN @Name ELSE @Company END, @Name, @Email,
 		       @Country,
 		       -- The store's currency, not the applicant's country's. A store trades in one
 		       -- currency and an Irish customer of a sterling store still pays in sterling.
 		       [s].[CurrencyCode], @VatNumber, @RegistrationNumber,
-		       N'Card', N'Prepaid', 0, N'Pending', @SiteId
+		       N'Card', N'Prepaid', 0, CASE WHEN @Consumer = 1 THEN N'Approved' ELSE N'Pending' END,
+		       CASE WHEN @Consumer = 1 THEN SYSUTCDATETIME() END, @SiteId,
+		       CASE WHEN @Consumer = 1 THEN N'Consumer' ELSE N'Business' END
 		FROM dbo.Site s
 		WHERE [s].[Id] = @SiteId;
 

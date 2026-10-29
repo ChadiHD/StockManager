@@ -35,6 +35,12 @@ namespace SMDataManager.Library.Models
         public string Region { get; set; }
         public string PostCode { get; set; }
         public string Country { get; set; }
+
+        /// <summary>
+        /// <c>Business</c> or <c>Consumer</c>, from the store's field set (T12). A consumer account
+        /// is approved at once: it extends no credit, so there is nothing to review.
+        /// </summary>
+        public string Kind { get; set; } = AccountKind.Business;
     }
 
     /// <summary>What a successful registration produced.</summary>

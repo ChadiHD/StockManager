@@ -68,7 +68,7 @@ public class StoreSettingsTests
     }
 
     [Theory]
-    [InlineData(nameof(SiteModel.OrderMode), "DirectCheckout")]
+    [InlineData(nameof(SiteModel.OrderMode), "Subscription")]
     [InlineData(nameof(SiteModel.RegistrationFieldSet), "us-b2b")]
     [InlineData(nameof(SiteModel.TaxRuleSet), "vat-free")]
     [InlineData(nameof(SiteModel.PriceDisplay), "Members")]
@@ -78,6 +78,18 @@ public class StoreSettingsTests
         typeof(SiteModel).GetProperty(property)!.SetValue(site, value);
 
         SiteSettingsRules.WhyRefused(site).Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData(nameof(SiteModel.OrderMode), "DirectCheckout")]
+    [InlineData(nameof(SiteModel.RegistrationFieldSet), "b2c")]
+    public void TheConsumerKeysAreOfferedNowTheyAreBuilt(string property, string value)
+    {
+        // Both refused until T12, which built them.
+        var site = Valid();
+        typeof(SiteModel).GetProperty(property)!.SetValue(site, value);
+
+        SiteSettingsRules.WhyRefused(site).Should().BeNull();
     }
 
     [Theory]

@@ -140,38 +140,25 @@ BEGIN
 		IsTaxable below is an INNER JOIN for the same reason it is safe to be one: delisting
 		is a flag, not a delete, so the row is still there.
 
-		The rate reaches a line only if its product is taxable.
+		The rate reaches a line only if its product is taxable, through dbo.fnOrder_LineTax,
+		which spOrder_PlaceFromBasket calls too.
 
 		That join is the reason the per-line half is here rather than in the caller: the
 		flag is a column on dbo.Product, and assessing it in C# would mean reading the
 		catalog back for every line of every order to ask a question the database can
 		answer in the same statement that copies the line.
 
-		ROUND, half away from zero, matching TaxAssessment.On and PriceResolver and the
-		expression in fnCatalog_VisibleProducts. A line taxed by one rounding rule and
-		priced by another is two numbers on one document that do not add up.
-
-		On a store whose prices include tax (T10) the tax is taken out of the line rather
-		than put on top of it: qty x price x rate / (100 + rate). The line keeps the price
-		the customer was shown, so the order's total is exactly the sum of those prices.
-		Taxing the net figure and adding it back drifts from that sum by a cent within ten
-		units. The store's basis, not the caller's: the quote names the store, and the store
-		cannot change its basis once it has a quote (fnSite_CurrencyLocked).
+		The store's basis, not the caller's: the quote names the store, and the store cannot
+		change its basis once it has a quote (fnSite_CurrencyLocked).
 		*/
 		DECLARE @Inclusive bit = (SELECT [PricesIncludeTax] FROM dbo.Site WHERE [Id] = @SiteId);
 
 		INSERT INTO dbo.PurchaseDetail([PurchaseId], [ProductId], [Quantity], [PurchasePrice],
 		                               [VAT], [TaxRatePct])
-		SELECT @Id, [l].[ProductId], [l].[Quantity], [l].[NetPrice],
-		       CASE WHEN [p].[IsTaxable] = 0 THEN 0
-		            WHEN @Inclusive = 1
-		            THEN ROUND(CAST([l].[Quantity] * [l].[NetPrice] AS decimal(19, 4))
-		                       * CAST(@TaxRatePct AS decimal(9, 4)) / (100 + CAST(@TaxRatePct AS decimal(9, 4))), 2)
-		            ELSE ROUND(CAST([l].[Quantity] * [l].[NetPrice] AS decimal(19, 4))
-		                       * CAST(@TaxRatePct AS decimal(9, 4)) / 100, 2) END,
-		       CASE WHEN [p].[IsTaxable] = 1 THEN @TaxRatePct ELSE 0 END
+		SELECT @Id, [l].[ProductId], [l].[Quantity], [l].[NetPrice], [t].[Vat], [t].[RatePct]
 		FROM dbo.QuoteLine l
 		INNER JOIN dbo.Product p ON p.[Id] = [l].[ProductId]
+		CROSS APPLY dbo.fnOrder_LineTax([l].[Quantity], [l].[NetPrice], @TaxRatePct, [p].[IsTaxable], @Inclusive) t
 		WHERE [l].[QuoteId] = @QuoteId;
 
 		DECLARE @Vat money = (

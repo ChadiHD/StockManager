@@ -74,6 +74,39 @@ namespace SMDataManager.Library.Email
             // shown says so.
             "ConfirmationParagraph");
 
+        /// <summary>
+        /// A consumer account registered (T12): no application, no review, only the link.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="RegistrationReceived"/>'s rule about a duplicate holds here too, so the
+        /// wording has to work with no link.
+        /// </remarks>
+        public static readonly EmailTemplate<RegistrationWelcomePayload> RegistrationWelcome = new(
+            "registration.welcome",
+            EmailAudience.Customer,
+            "Welcome to {SiteName}",
+            """
+            Thanks for creating an account with {SiteName}.
+
+            {ConfirmationParagraph}
+
+            If you did not create it, you can ignore this message.
+
+            — {SiteName}
+            """,
+            (_, payload) => new Dictionary<string, string>
+            {
+                ["ConfirmationParagraph"] = string.IsNullOrWhiteSpace(payload.ConfirmationLink)
+                    ? string.Empty
+                    : $"""
+                       Confirm this is your address by opening this link, and then sign in:
+
+                       {payload.ConfirmationLink}
+                       """,
+            },
+            carriesCredential: true,
+            "ConfirmationParagraph");
+
         public static readonly EmailTemplate<AccountApprovedPayload> AccountApproved = new(
             "account.approved",
             EmailAudience.Customer,
@@ -357,6 +390,50 @@ namespace SMDataManager.Library.Email
             carriesCredential: false,
             "DocumentLink", "TaxLegend");
 
+        /// <summary>
+        /// An order placed from the cart (T12), to whoever placed it: a guest or a signed-in
+        /// customer.
+        /// </summary>
+        /// <remarks>
+        /// **A guest's link is the only key to their order**, so it is a credential and the payload
+        /// is encrypted. A signed-in customer's goes to the account area, which checks the
+        /// session. One template either way: encrypting a payload that holds no secret costs
+        /// nothing, and two templates for one message would be two wordings for a store to keep.
+        /// </remarks>
+        public static readonly EmailTemplate<OrderPlacedPayload> OrderPlaced = new(
+            "order.placed",
+            EmailAudience.Customer,
+            "We have your order {Reference} — {SiteName}",
+            """
+            Thank you. We have your order {Reference}.
+
+            Net: {SubTotal}
+            {TaxLabel}: {Tax}
+            Total: {Total}
+
+            {TaxLegend}
+
+            It is awaiting payment. You can follow it here:
+
+            {OrderLink}
+
+            — {SiteName}
+            """,
+            (site, payload) => new Dictionary<string, string>
+            {
+                ["Reference"] = payload.Reference ?? string.Empty,
+                ["SubTotal"] = SiteMoney.Format(site, payload.SubTotal),
+                ["TaxLabel"] = string.IsNullOrWhiteSpace(payload.TaxTreatment) ? "Tax" : payload.TaxTreatment,
+                ["Tax"] = SiteMoney.Format(site, payload.Tax),
+                ["Total"] = SiteMoney.Format(site, payload.Total),
+                ["TaxLegend"] = payload.TaxLegend ?? string.Empty,
+                ["OrderLink"] = string.IsNullOrWhiteSpace(payload.GuestToken)
+                    ? AccountLink(site, "orders", payload.Reference)
+                    : $"https://{site.Domain}/orders/{payload.GuestToken}",
+            },
+            carriesCredential: true,
+            "OrderLink", "TaxLegend");
+
         /// <summary>A scheduled sync that failed, and had not failed the time before.</summary>
         /// <remarks>
         /// Sent on the transition into failure, not on every failing run — see
@@ -485,6 +562,7 @@ namespace SMDataManager.Library.Email
         public static IReadOnlyList<EmailTemplate> All { get; } =
         [
             RegistrationReceived,
+            RegistrationWelcome,
             ConfirmationReminder,
             AccountApproved,
             AccountRejected,
@@ -494,6 +572,7 @@ namespace SMDataManager.Library.Email
             QuotePriced,
             QuoteExpiring,
             OrderConfirmed,
+            OrderPlaced,
             FeedFailed,
             FeedsStale,
             MailUndeliverable,
