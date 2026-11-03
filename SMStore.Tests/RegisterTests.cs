@@ -194,6 +194,36 @@ public class RegisterTests
     }
 
     [Fact]
+    public void ANewApplicationAndAKnownAddressReadTheSameOnThePage()
+    {
+        // Only a new application has a reference, so showing one said which kind this was —
+        // to whoever typed the address, with no account needed to ask.
+        string Acknowledgement(string? reference)
+        {
+            var fieldSet = new FakeRegistrationFieldSet("fake", new Dictionary<RegistrationField, RegistrationRequirement>
+            {
+                [RegistrationField.FirstName] = RegistrationRequirement.Required
+            });
+            var registrations = Substitute.For<IRegistrationService>();
+            registrations.RegisterAsync(Arg.Any<RegistrationSubmission>(), Arg.Any<CancellationToken>())
+                .Returns(new RegistrationOutcome(true, [], reference, reference is null ? null : 7, null, null));
+
+            using var context = new Bunit.TestContext();
+            var cut = RegisterPageHarness.Render(
+                context, SiteWith(fieldSet.Key), fieldSet, registrations: registrations,
+                httpContext: FormPost(new Dictionary<string, StringValues> { ["FirstName"] = "Ada", ["Email"] = "ada@example.com" }));
+
+            cut.Find("form.register").Submit();
+
+            return cut.Find(".page-header").TextContent;
+        }
+
+        var known = Acknowledgement(null);
+
+        Acknowledgement("AC-0042").Should().Be(known).And.NotContain("AC-0042");
+    }
+
+    [Fact]
     public void ASignedInCustomerIsSentToTheirAccountInsteadOfTheForm()
     {
         var fieldSet = new FakeRegistrationFieldSet("fake", new Dictionary<RegistrationField, RegistrationRequirement>());

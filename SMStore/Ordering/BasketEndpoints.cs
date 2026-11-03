@@ -130,12 +130,9 @@ public static class BasketEndpoints
     /// </remarks>
     private static string Back(string? returnUrl, OrderingModeProvider ordering, string? notice)
     {
-        var target = !string.IsNullOrWhiteSpace(returnUrl)
-            && returnUrl.StartsWith('/')
-            && !returnUrl.StartsWith("//", StringComparison.Ordinal)
-            && !returnUrl.StartsWith("/\\", StringComparison.Ordinal)
-                ? returnUrl
-                : ordering.Current.BasketRoute;
+        var target = CustomerAuthEndpoints.IsLocalPath(returnUrl)
+            ? returnUrl!
+            : ordering.Current.BasketRoute;
 
         if (notice is null)
         {

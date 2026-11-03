@@ -98,7 +98,16 @@ namespace StockApi.Controllers
             var existing = _feedData.GetFeedById(id, _site.SiteId);
             if (existing is null) return NotFound();
 
+            var stored = FeedEndpoint.Of(existing);
             var model = Apply(existing, input);
+
+            // Saved, the next sync would send the stored password wherever this edit points.
+            if (string.IsNullOrWhiteSpace(input.Password)
+                && !FeedEndpoint.Of(model).MayReceiveStoredPasswordFrom(stored))
+            {
+                return BadRequest(FeedEndpoint.ReenterPassword);
+            }
+
             model.Id = id;
             _feedData.UpdateFeed(model, _site.SiteId);
 
@@ -135,10 +144,23 @@ namespace StockApi.Controllers
         [HttpPost("Test")]
         public async Task<ActionResult<DistributorFeedResult>> Test(FeedInput input, [FromQuery] int? id = null)
         {
-            var model = id.HasValue ? _feedData.GetFeedById(id.Value, _site.SiteId) : null;
-            model = Apply(model ?? new DistributorFeedModel(), input);
+            var existing = id.HasValue ? _feedData.GetFeedById(id.Value, _site.SiteId) : null;
+            var stored = existing is null ? null : FeedEndpoint.Of(existing);
+            var model = Apply(existing ?? new DistributorFeedModel(), input);
 
             if (id.HasValue && model.Id == 0) model.Id = id.Value;
+
+            if (stored is not null
+                && string.IsNullOrWhiteSpace(input.Password)
+                && !FeedEndpoint.Of(model).MayReceiveStoredPasswordFrom(stored))
+            {
+                return BadRequest(new DistributorFeedResult
+                {
+                    Distributor = model.Name,
+                    Succeeded = false,
+                    Error = FeedEndpoint.ReenterPassword
+                });
+            }
 
             return await _sync.TestAsync(model, input.Password);
         }

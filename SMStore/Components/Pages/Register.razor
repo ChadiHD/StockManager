@@ -49,14 +49,14 @@ else if (_reference is not null || _submitted)
     @* One acknowledgement for a new application and for one from an address already
        registered here. RegistrationService answers both the same way on purpose — telling an
        unauthenticated caller which companies buy here is a question worth answering only to
-       the person who can already sign in. *@
+       the person who can already sign in. So no reference either: only a new application has
+       one, and showing it said which kind this was. The acknowledgement mail carries it, to
+       the inbox that owns the address. *@
     <div class="page-header">
         <div>
             <h1>@L["Application received"]</h1>
             <p class="page-lede">
-                @(_reference is null
-                    ? L["Thanks. We have your details and will email you at the address you gave once someone has looked at them."]
-                    : L["Thanks. We have your details under reference {0} and will email you at the address you gave once someone has looked at them.", _reference])
+                @L["Thanks. We have your details and will email you at the address you gave once someone has looked at them."]
             </p>
         </div>
     </div>

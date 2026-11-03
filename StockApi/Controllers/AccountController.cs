@@ -54,17 +54,39 @@ namespace StockApi.Controllers
                 return BadRequest("Company is required.");
             }
 
+            // A new account waits for Approve like an application does. Taking the status from
+            // the body let a create skip the approval step and the record it leaves.
+            account.Status = "Pending";
+
             return _accountData.CreateAccount(account, _site.SiteId);
         }
 
         public record StatusChangeModel(string Status);
 
+        private static readonly string[] SuspendableStatuses = ["Approved", "Suspended"];
+
+        // Suspending and reinstating only. Approval and rejection have their own endpoints
+        // because they record who decided and tell the applicant; this one does neither, so
+        // it must not reach Pending or Rejected in either direction. spAccount_UpdateStatus
+        // carries the same predicate for a status that changes after the read below.
         [HttpPut("{id:int}/Status")]
         public IActionResult UpdateStatus(int id, StatusChangeModel change)
         {
-            if (_accountData.GetAccountById(id, _site.SiteId) is null)
+            if (!SuspendableStatuses.Contains(change.Status))
+            {
+                return BadRequest("Only Approved and Suspended are set here; use Approve or Reject for an application.");
+            }
+
+            var account = _accountData.GetAccountById(id, _site.SiteId);
+
+            if (account is null)
             {
                 return NotFound();
+            }
+
+            if (!SuspendableStatuses.Contains(account.Status))
+            {
+                return Conflict($"A {account.Status} account is decided with Approve or Reject, not suspended.");
             }
 
             _accountData.UpdateStatus(id, change.Status, _site.SiteId);

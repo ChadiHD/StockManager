@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using SMStore.Ordering;
 using SMStore.Registration;
+using StockManager.RateLimiting;
 using static SMStore.Localization.StoreText;
 
 namespace SMStore.Accounts;
@@ -55,9 +56,9 @@ public static class CustomerRateLimiting
     /// </summary>
     /// <remarks>
     /// Uncapped it is a mail cannon pointed at one customer's inbox, from this store's own
-    /// sending domain — the reputational cost lands here, not on whoever fired it. It is also
-    /// the only endpoint on the storefront that will send mail to an address chosen by a
-    /// stranger, since registration at least demands a form's worth of company details first.
+    /// sending domain — the reputational cost lands here, not on whoever fired it. The
+    /// confirmation resend has the same shape and shares this allowance; registration at least
+    /// demands a form's worth of company details first.
     /// </remarks>
     private const int PasswordResetRequestsPerHour = 10;
 
@@ -137,10 +138,13 @@ public static class CustomerRateLimiting
                         });
                 }
 
-                if (path.StartsWithSegments(CustomerAuthentication.RequestPasswordResetPath))
+                // One allowance across both: each mails an address the caller chose from this
+                // store's sending domain, and the confirmation resend had no limit at all.
+                if (path.StartsWithSegments(CustomerAuthentication.RequestPasswordResetPath)
+                    || path.StartsWithSegments(CustomerAuthentication.ResendConfirmationPath))
                 {
                     return RateLimitPartition.GetFixedWindowLimiter(
-                        $"reset-request:{Caller(context)}",
+                        $"mail-request:{Caller(context)}",
                         _ => new FixedWindowRateLimiterOptions
                         {
                             PermitLimit = PasswordResetRequestsPerHour,
@@ -208,15 +212,14 @@ public static class CustomerRateLimiting
         });
 
     /// <summary>
-    /// What counts as one caller.
+    /// What counts as one caller: an IPv4 address or an IPv6 /64, see <see cref="RateLimitCaller"/>.
     /// </summary>
     /// <remarks>
     /// The connection's remote address, which is the proxy's address once there is a proxy in
     /// front of this unless forwarded headers are on. **A deployment must turn them on**
     /// (ProductionTopology sets ASPNETCORE_FORWARDEDHEADERS_ENABLED), or every customer shares
     /// one partition and the cap becomes a denial-of-service against the whole store rather than
-    /// a defence for it. Unknown addresses share a partition rather than escaping the limit.
+    /// a defence for it.
     /// </remarks>
-    private static string Caller(HttpContext context) =>
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    private static string Caller(HttpContext context) => RateLimitCaller.Of(context);
 }

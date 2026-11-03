@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
 using StockManager.Identity;
@@ -19,16 +20,22 @@ namespace StockApi.Controllers
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IUserData _userData;
         private readonly ILogger<UserController> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly SignInManager<IdentityUser> _signInManager;
 
         public UserController(ApplicationDbContext context,
             UserManager<IdentityUser> userManager,
             IUserData userData,
-            ILogger<UserController> logger)
+            ILogger<UserController> logger,
+            IConfiguration configuration,
+            SignInManager<IdentityUser> signInManager)
         {
             _context = context;
             _userManager = userManager;
             _userData = userData;
             _logger = logger;
+            _configuration = configuration;
+            _signInManager = signInManager;
         }
 
         [HttpGet]
@@ -136,9 +143,14 @@ namespace StockApi.Controllers
         // Any member of staff, for their own login only — the user comes from the token, never
         // from the request. An admin sets a new colleague's first password, so until this is
         // used two people know it.
+        //
+        // It checks a password, so it is limited and counts failures toward lockout like /token
+        // does. Without both, a stolen token was an unthrottled way to guess the current password
+        // and then change it, keeping the login after the token expired.
         [Authorize(Roles = "Admin,Manager,Staff")]
         [HttpPut]
         [Route("Me/Password")]
+        [EnableRateLimiting(StaffSignIn.RateLimitPolicy)]
         public async Task<IActionResult> ChangeOwnPassword(PasswordChangeModel change)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -147,6 +159,16 @@ namespace StockApi.Controllers
             if (user is null)
             {
                 return Unauthorized();
+            }
+
+            var current = await _signInManager.CheckPasswordSignInAsync(
+                user, change.CurrentPassword ?? string.Empty, lockoutOnFailure: true);
+
+            if (!current.Succeeded)
+            {
+                return BadRequest(current.IsLockedOut
+                    ? "Too many wrong passwords. Try again later."
+                    : "Your current password is not right.");
             }
 
             var result = await _userManager.ChangePasswordAsync(
@@ -159,7 +181,10 @@ namespace StockApi.Controllers
 
             _logger.LogInformation("User {User} changed their password.", user.Id);
 
-            return NoContent();
+            // The change rotated the security stamp, which ended every session this login had
+            // open, the caller's included. Answering with a token for the new password keeps the
+            // caller signed in; StaffToken refuses the rest.
+            return Ok(await StaffToken.IssueAsync(_userManager, _configuration, user));
         }
 
         private static string Describe(IdentityResult result) =>
@@ -278,22 +303,43 @@ namespace StockApi.Controllers
         [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
         [HttpPost]
         [Route("Admin/AddRole")]
-        public async Task AddRole(UserRolePairModel pairing)
+        public async Task<IActionResult> AddRole(UserRolePairModel pairing)
         {
             string? loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var user = await _userManager.FindByIdAsync(pairing.UserId);
+            var user = string.IsNullOrEmpty(pairing.UserId) ? null : await _userManager.FindByIdAsync(pairing.UserId);
+
+            if (user is null)
+            {
+                _logger.LogWarning("Admin {Admin} attempted to add a non-existent user {User} to role {Role}",
+                    loggedInUserId, pairing.UserId, pairing.RoleName);
+                return NotFound();
+            }
+
+            // Staff roles, to staff logins. The id arrives in the request, and a customer login
+            // holding Admin is harmless only while /token refuses its name — one check standing
+            // between a customer and the whole portal.
+            if (!StaffSignIn.IsStaffName(user.UserName))
+            {
+                return BadRequest("Only a staff login can hold a staff role.");
+            }
+
+            if (!AdminBootstrap.StaffRoles.Contains(pairing.RoleName, StringComparer.OrdinalIgnoreCase))
+            {
+                return BadRequest($"'{pairing.RoleName}' is not a staff role.");
+            }
+
+            var added = await _userManager.AddToRoleAsync(user, pairing.RoleName!);
+
+            if (!added.Succeeded)
+            {
+                return BadRequest(Describe(added));
+            }
 
             _logger.LogInformation("Admin {Admin} added user {User} to role {Role}",
-                loggedInUserId, user?.Id, pairing.RoleName);
-            if (user is null)
-			{
-				_logger.LogWarning("Admin {Admin} attempted to add a non-existent user {User} to role {Role}",
-					loggedInUserId, pairing.UserId, pairing.RoleName);
-				throw new ArgumentException($"User with ID {pairing.UserId} does not exist.");
-			}
+                loggedInUserId, user.Id, pairing.RoleName);
 
-			await _userManager.AddToRoleAsync(user, pairing.RoleName);
+            return NoContent();
         }
 
         [Authorize(Roles = "Admin", Policy = AllStores.Policy)]
@@ -303,13 +349,13 @@ namespace StockApi.Controllers
         {
             string? loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var user = await _userManager.FindByIdAsync(pairing.UserId);
+            var user = string.IsNullOrEmpty(pairing.UserId) ? null : await _userManager.FindByIdAsync(pairing.UserId);
 
-            if (user is null)
+            if (user is null || string.IsNullOrEmpty(pairing.RoleName))
             {
                 _logger.LogWarning("Admin {Admin} attempted to remove a non-existent user {User} from role {Role}",
                     loggedInUserId, pairing.UserId, pairing.RoleName);
-                throw new ArgumentException($"User with ID {pairing.UserId} does not exist.");
+                return NotFound();
             }
 
             if (string.Equals(pairing.RoleName, AdminBootstrap.AdminRole, StringComparison.OrdinalIgnoreCase)
@@ -318,10 +364,19 @@ namespace StockApi.Controllers
                 return Conflict(LastAdminOfEveryStore);
             }
 
+            var removed = await _userManager.RemoveFromRoleAsync(user, pairing.RoleName);
+
+            if (!removed.Succeeded)
+            {
+                return BadRequest(Describe(removed));
+            }
+
+            // The role is still a claim in every token this login already holds. Identity does
+            // not rotate the stamp on a role change, and rotating it is what takes them back.
+            await _userManager.UpdateSecurityStampAsync(user);
+
             _logger.LogInformation("Admin {Admin} removed user {User} from role {Role}",
                 loggedInUserId, user.Id, pairing.RoleName);
-
-            await _userManager.RemoveFromRoleAsync(user, pairing.RoleName);
 
             return NoContent();
         }

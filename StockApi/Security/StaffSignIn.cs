@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
 using StockManager.Identity;
+using StockManager.RateLimiting;
 
 namespace StockApi.Security;
 
@@ -40,7 +41,7 @@ public static class StaffSignIn
             // Per IP, which behind the ingress is the caller's only because ProductionTopology
             // turns forwarded headers on.
             options.AddPolicy(RateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                RateLimitCaller.Of(context),
                 _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = SignInsPerFiveMinutes,

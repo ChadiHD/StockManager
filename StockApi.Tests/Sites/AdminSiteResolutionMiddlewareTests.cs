@@ -33,7 +33,8 @@ public class AdminSiteResolutionMiddlewareTests
         _users.CanActForSite(UserId, Arg.Any<int>()).Returns(true);
     }
 
-    private static DefaultHttpContext HttpContext(string? siteKeyHeader = null, string? userId = UserId)
+    private static DefaultHttpContext HttpContext(
+        string? siteKeyHeader = null, string? userId = UserId, bool routed = true)
     {
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -42,6 +43,12 @@ public class AdminSiteResolutionMiddlewareTests
         {
             context.User = new ClaimsPrincipal(new ClaimsIdentity(
                 new[] { new Claim(ClaimTypes.NameIdentifier, userId) }, "test"));
+        }
+
+        // Routing has run by the time this middleware does; a request it matched has an endpoint.
+        if (routed)
+        {
+            context.SetEndpoint(new Endpoint(_ => Task.CompletedTask, EndpointMetadataCollection.Empty, "test"));
         }
 
         if (siteKeyHeader is not null)
@@ -282,5 +289,44 @@ public class AdminSiteResolutionMiddlewareTests
 
         seenKey.Should().BeNull();
         _users.DidNotReceiveWithAnyArgs().CanActForSite(default!, default);
+    }
+
+    [Fact]
+    public async Task AnUnmatchedPathCostsNoLookup()
+    {
+        // An anonymous caller reaches here only on a path with no endpoint, where authorization
+        // had nothing to demand. Each header value used to cost a query and a cache entry.
+        var context = HttpContext(siteKeyHeader: Guid.NewGuid().ToString(), userId: null, routed: false);
+
+        await Middleware(_ => Task.CompletedTask).InvokeAsync(context, new AdminSiteContext(), _sites, _users);
+
+        _sites.DidNotReceive().GetSites();
+    }
+
+    [Fact]
+    public async Task AKeyLongerThanTheColumnIsNotLookedUp()
+    {
+        var context = HttpContext(siteKeyHeader: new string('x', 51));
+
+        await Middleware(_ => Task.CompletedTask).InvokeAsync(context, new AdminSiteContext(), _sites, _users);
+
+        _sites.DidNotReceive().GetSites();
+    }
+
+    [Fact]
+    public async Task AHeaderSayingAllDoesNotShareTheSiteListsCacheEntry()
+    {
+        // The no-header list was cached under "adminsite:all", the same key a header of "all"
+        // produced, so either could be served the other's answer.
+        var only = new SiteModel { Id = 1, SiteKey = "only-store", IsActive = true };
+        _sites.GetSites().Returns(new List<SiteModel> { only });
+        await Middleware(_ => Task.CompletedTask).InvokeAsync(HttpContext(), new AdminSiteContext(), _sites, _users);
+
+        var siteContext = new AdminSiteContext();
+        await Middleware(_ => Task.CompletedTask).InvokeAsync(HttpContext(siteKeyHeader: "all"), siteContext, _sites, _users);
+
+        // One query per cache entry: the header's lookup did not find the list's.
+        _sites.Received(2).GetSites();
+        siteContext.Invoking(context => context.Site).Should().Throw<SiteNotResolvedException>();
     }
 }

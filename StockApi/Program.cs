@@ -18,7 +18,6 @@ using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
 using StockManager.ProductImages;
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
 
@@ -209,9 +208,7 @@ builder.Services.AddTransient<IQuoteData, QuoteData>();
 builder.Services.AddTransient<IOrderData, OrderData>();
 builder.Services.AddTransient<IShippingRateData, ShippingRateData>();
 
-var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
-    ?? throw new InvalidOperationException("Missing configuration value: Jwt:SigningKey");
-var jwtSigningKeyBytes = Encoding.UTF8.GetBytes(jwtSigningKey);
+var jwtSigningKeyBytes = StaffToken.SigningKey(builder.Configuration);
 
 // Bearer tokens only. There was a policy scheme here routing cookie-carrying requests to the
 // Identity cookie, for the Razor UI that is gone; with it, a cookie from that UI's Login
@@ -223,11 +220,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(jwtSigningKeyBytes),
-        ValidateIssuer = false,
-        ValidateAudience = false,
+        ValidIssuer = StaffToken.Issuer,
+        ValidAudience = StaffToken.Audience,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(5)
     };
+
+    // A token outlives a role removal or a password change unless something re-checks the
+    // login behind it; see StaffToken.
+    jwtBearerOptions.Events = new JwtBearerEvents { OnTokenValidated = StaffToken.ValidateAsync };
 });
 
 // Actions that are not about one store refuse an admin who was given only some (T9).
