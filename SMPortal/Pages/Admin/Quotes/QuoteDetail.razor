@@ -170,7 +170,7 @@ else
     </div>
 }
 
-<Modal Visible="_showAddLine" Title="Add line item" OnClose="() => _showAddLine = false">
+<Modal Visible="_showAddLine" Title="Add line item">
     <EditForm Model="_lineDraft" OnValidSubmit="AddLine">
         <div class="modal-body">
             @if (!SelectableProducts.Any())

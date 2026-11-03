@@ -1989,8 +1989,17 @@ written for them, sent as plain text with a 4xx, and are kept word for word. Any
 exception's message, a status code, a validation dump, a 500's stack trace — is logged to the
 browser console and replaced with what failed and what to do next.
 
-**A dialog closes from its X only.** Most hold a half-filled form, and a click beside one threw
-the typing away.
+**A dialog closes from a button in its foot only.** Most hold a half-filled form, and a click
+beside one threw the typing away. There is no X: beside a Close button it was two controls for
+one thing. `ModalTests` reads every page's dialogs and fails on one whose foot has no button,
+because that dialog could not be closed at all.
+
+**A delisted product reads "Delisted", not "Out of stock".** The feed import zeroes its stock
+and keeps the row, so without `Product.Delisted` a third of a synced catalogue looked sold out,
+and filled the low-stock filter and the dashboard's rail.
+
+**The products list keeps its search, filter and page in `ProductListState`**, a scoped service,
+so opening a product and coming back finds the list as it was left.
 
 ### Blazor traps that have already cost time here
 

@@ -51,7 +51,7 @@
            PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showNew" Title="Add account" OnClose="() => _showNew = false">
+<Modal Visible="_showNew" Title="Add account">
     <EditForm Model="_draft" OnValidSubmit="CreateAccount">
         <div class="modal-body">
             <div class="form-grid">

@@ -51,7 +51,7 @@
            PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showNew" Title="New quote" OnClose="() => _showNew = false">
+<Modal Visible="_showNew" Title="New quote">
     <EditForm Model="_draft" OnValidSubmit="CreateQuote">
         <div class="modal-body">
             <div class="form-grid">

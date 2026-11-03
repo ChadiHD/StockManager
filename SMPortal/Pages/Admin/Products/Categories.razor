@@ -98,7 +98,7 @@ else
     </div>
 }
 
-<Modal Visible="_editing is not null" Title="@(_editing?.Id == 0 ? "Add category" : "Edit category")" OnClose="() => _editing = null">
+<Modal Visible="_editing is not null" Title="@(_editing?.Id == 0 ? "Add category" : "Edit category")">
     @if (_editing is not null)
     {
         <div class="modal-body">

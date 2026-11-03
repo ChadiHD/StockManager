@@ -14,12 +14,6 @@
   padding:18px 26px; border-bottom:1px solid var(--line-2);
 }
 .modal-head strong { font-size:1.05rem; font-weight:800; letter-spacing:-.01em; }
-.modal-x {
-  display:grid; place-items:center; width:32px; height:32px; border:0; border-radius:8px;
-  background:#f2f5f9; color:var(--muted); cursor:pointer;
-}
-.modal-x:hover { background:var(--line); color:var(--ink); }
-.modal-x svg { width:16px; height:16px; }
 
 ::deep form { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
 

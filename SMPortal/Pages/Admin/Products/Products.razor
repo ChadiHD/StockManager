@@ -3,6 +3,7 @@
 @inject NavigationManager Nav
 @inject IToastService Toast
 @inject IJSRuntime JS
+@inject ProductListState State
 
 <PageTitle>Products &amp; stock · StockManager</PageTitle>
 
@@ -37,10 +38,10 @@
         <div class="pill-row">
             @foreach (var f in _filters)
             {
-                <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => SetFilter(f)">@f</button>
+                <button class="pill @(State.Filter == f ? "pill--active" : null)" @onclick="() => SetFilter(f)">@f</button>
             }
         </div>
-        <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, SKU, MPN, EAN or manufacturer" />
+        <SearchBox Value="@State.Search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, SKU, MPN, EAN or manufacturer" />
         <div class="toolbar-count"><strong>@Results.Count</strong> products</div>
     </div>
     @if (_selected.Count > 0)
@@ -67,7 +68,19 @@
                             <input type="checkbox" aria-label="Select @p.Sku" checked="@_selected.Contains(p.Sku)"
                                    @onchange="_ => Toggle(p.Sku)" />
                         </td>
-                        <td class="thumb-cell"><span class="tile @AdminUi.CatClass(p.Cat)">@AdminUi.Initials(p.Name)</span></td>
+                        <td class="thumb-cell">
+                            @if (string.IsNullOrWhiteSpace(p.Image))
+                            {
+                                <span class="thumb thumb--none" role="img" aria-label="No image" title="No image">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 2 20 20"/><path d="M7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16"/><path d="M9.5 4h5L17 7h3a2 2 0 0 1 2 2v7.5"/><path d="M14.12 15.12a3 3 0 1 1-4.24-4.24"/></svg>
+                                </span>
+                            }
+                            else
+                            {
+                                @* The name is in the next cell, so the picture says nothing a reader needs twice. *@
+                                <img class="thumb" src="@p.Image" alt="" loading="lazy" />
+                            }
+                        </td>
                         @* Desc is the brand and model, Name the spec string. Both are needed:
                            two rows can share "LENOVO ThinkPad L14 G2" and differ only in spec. *@
                         <td>
@@ -95,7 +108,7 @@
                         <td class="num cell-sub">@AdminUi.Money(p.Cost, Data.CurrentCurrency)</td>
                         <td class="num"><strong>@AdminUi.Money(p.Price, Data.CurrentCurrency)</strong></td>
                         <td class="trail">
-                            <span class="badge @AdminUi.StockClass(p.Avail)">@p.Avail · @p.StockKind</span>
+                            <span class="badge @AdminUi.StatusClass(p.StockKind)" title="@(p.Delisted ? "The distributor no longer supplies it" : null)">@p.StockLabel</span>
                             <span class="sync @(p.Stale ? "sync--stale" : "sync--muted")">@SyncLabel(p)</span>
                         </td>
                     </tr>
@@ -104,11 +117,11 @@
         </table>
     </div>
     </BusyOverlay>
-    <Pager TotalCount="Results.Count" Page="_page" PageChanged="p => _page = p"
-           PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
+    <Pager TotalCount="Results.Count" Page="State.Page" PageChanged="p => State.Page = p"
+           PageSize="State.PageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showNew" Title="Add product" OnClose="() => _showNew = false">
+<Modal Visible="_showNew" Title="Add product">
     <EditForm Model="_draft" OnValidSubmit="CreateProduct">
         <div class="modal-body">
             <div class="form-grid">
@@ -206,7 +219,6 @@
     [CascadingParameter] public AdminLayout? Layout { get; set; }
 
     private readonly string[] _filters = { "All", "On this store", "Not on this store", "Own warehouse", "Distributor", "Low stock" };
-    private string _filter = "All";
 
     private IEnumerable<string> FeedCategories => Data.Products
         .Select(p => p.Cat)
@@ -312,22 +324,18 @@
     private int _distCount, _staleCount;
     private string _lastSync = "6 min ago";
 
-    private int _page = 1;
-    private int _pageSize = 25;
-
     // Styles and plain products: a variant is listed on its style's page (T11), and a shirt in
     // six sizes is one row here as it is one card in the shop.
-    private List<Product> Filtered => Data.Products.Where(p => p.ParentId is null).Where(p => _filter switch
+    private List<Product> Filtered => Data.Products.Where(p => p.ParentId is null).Where(p => State.Filter switch
     {
         "On this store" => p.OnStore,
         "Not on this store" => !p.OnStore,
         "Own warehouse" => p.Source == "Own",
         "Distributor" => p.Source == "Distributor",
-        "Low stock" => p.Avail <= 6,
+        "Low stock" => !p.Delisted && p.Avail <= 6,
         _ => true
     }).ToList();
 
-    private string _search = "";
     private readonly SearchCache<Product> _cache = new();
 
     // Desc leads because it holds the brand and model ("LENOVO ThinkPad E14 G2") while Name
@@ -335,12 +343,12 @@
     private List<Product> Results => _cache.Get(
         // _version because the snapshot is refilled in place: a bulk change leaves the count
         // where it was, and without it the list kept showing what it showed before.
-        $"{_filter}|{_search}|{Data.Products.Count}|{_version}",
-        () => FuzzySearch.Rank(Filtered, _search,
+        $"{State.Filter}|{State.Search}|{Data.Products.Count}|{_version}",
+        () => FuzzySearch.Rank(Filtered, State.Search,
             p => new[] { p.Desc, p.Name, p.Cat, p.Dist, p.Manufacturer },
             p => new[] { p.Sku, p.DistSku, p.Mpn, p.Ean }));
 
-    private IEnumerable<Product> Paged => Results.Skip((_page - 1) * _pageSize).Take(_pageSize);
+    private IEnumerable<Product> Paged => Results.Skip((State.Page - 1) * State.PageSize).Take(State.PageSize);
 
     private bool _searching;
 
@@ -348,7 +356,7 @@
     // paint the busy overlay before the work starts, rather than the page appearing frozen.
     private async Task OnSearch(string term)
     {
-        // Raise the overlay while _search still holds the PREVIOUS term: the memoised cache
+        // Raise the overlay while the search still holds the PREVIOUS term: the memoised cache
         // returns the old results, so this render is cheap and the browser can paint it.
         // Applying the new term first made this very render run the scoring synchronously,
         // which is why the spinner never appeared.
@@ -358,8 +366,8 @@
         // Long enough for a paint frame (~16ms); Task.Delay(1) was not.
         await Task.Delay(80);
 
-        _search = term;
-        _page = 1;
+        State.Search = term;
+        State.Page = 1;
 
         // Now do the work, with the overlay already on screen.
         _ = Results.Count;
@@ -391,14 +399,14 @@
     // Changing the filter or page size can leave the current page past the end of the list.
     private void SetFilter(string filter)
     {
-        _filter = filter;
-        _page = 1;
+        State.Filter = filter;
+        State.Page = 1;
     }
 
     private void OnPageSizeChanged(int size)
     {
-        _pageSize = size;
-        _page = 1;
+        State.PageSize = size;
+        State.Page = 1;
     }
 
     protected override void OnParametersSet()

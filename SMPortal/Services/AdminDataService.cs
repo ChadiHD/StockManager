@@ -1622,6 +1622,7 @@ public class AdminDataService : IAdminDataService
             // A distributor line that has not synced within a day is flagged stale.
             Stale = isDistributor &&
                     (!dto.LastSynced.HasValue || dto.LastSynced.Value < DateTime.UtcNow.AddDays(-1)),
+            Delisted = dto.Delisted,
             Image = dto.ProductImage ?? string.Empty,
             Desc = dto.Description ?? string.Empty,
             Manufacturer = dto.Manufacturer ?? string.Empty,
@@ -1728,7 +1729,7 @@ public class AdminDataService : IAdminDataService
 
     private sealed record ProductDto(int Id, string? ProductName, string? Description, decimal RetailPrice,
         int QuantityInStock, bool IsTaxable, string? ProductImage, string? Sku, string? Category,
-        decimal? Cost, string? Source, string? Distributor, string? DistributorSku, DateTime? LastSynced,
+        decimal? Cost, string? Source, string? Distributor, string? DistributorSku, DateTime? LastSynced, bool Delisted,
         string? Manufacturer, string? ManufacturerPartNumber, string? Ean,
         bool OnStore, string? Placement, string? StoreCategory, string? Visibility,
         int? OverrideCategoryId, bool Featured, string? Badge, int? ParentProductId);

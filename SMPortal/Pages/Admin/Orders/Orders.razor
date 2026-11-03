@@ -51,7 +51,7 @@
            PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showNew" Title="New order" OnClose="() => _showNew = false">
+<Modal Visible="_showNew" Title="New order">
     <EditForm Model="_draft" OnValidSubmit="CreateOrder">
         <div class="modal-body">
             <div class="form-grid">

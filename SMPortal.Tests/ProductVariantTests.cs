@@ -1,5 +1,6 @@
 using Bunit;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using SMPortal.Models;
@@ -18,7 +19,8 @@ public class ProductVariantTests : TestContext
 
     private static readonly Product Shirt = new()
     {
-        Id = 10, Sku = "SHIRT", Name = "Linen shirt", Source = "Own", OnStore = true, Placement = "Mapped"
+        Id = 10, Sku = "SHIRT", Name = "Linen shirt", Source = "Own", OnStore = true, Placement = "Mapped",
+        Image = "/img/0123456789abcdef0123456789abcdef.jpg"
     };
 
     private static readonly Product Medium = new()
@@ -29,6 +31,7 @@ public class ProductVariantTests : TestContext
     public ProductVariantTests()
     {
         Services.AddSingleton(Substitute.For<IToastService>());
+        Services.AddSingleton(new ProductListState());
 
         Product[] products = [Shirt, Medium];
         _data.Products.Returns(products);
@@ -58,6 +61,7 @@ public class ProductVariantTests : TestContext
         cut.Find(".variant-table").TextContent.Should().Contain("M / Navy").And.Contain("SHIRT-M");
         // From this origin's /img/, as the storefront serves it: an <img> carries no token.
         cut.Find(".image-strip img").GetAttribute("src").Should().Be("/img/0123456789abcdef0123456789abcdef.jpg");
+        cut.Find(".image-strip__item .image-main").TextContent.Should().Be("Main");
     }
 
     [Fact]
@@ -95,6 +99,26 @@ public class ProductVariantTests : TestContext
         cut.Find(".variant-save").Click();
 
         cut.Find(".variant-error").TextContent.Should().Contain("exactly those options");
+    }
+
+    [Fact]
+    public void SeveralPhotographsGoUpFromTheTileAndARefusalNamesItsFile()
+    {
+        _data.UploadImage("SHIRT", Arg.Any<Stream>(), "front.png").Returns((string?)null);
+        _data.UploadImage("SHIRT", Arg.Any<Stream>(), "notes.pdf").Returns("A photograph must be a JPEG, PNG or WebP image.");
+        var cut = RenderComponent<ProductDetail>(p => p.Add(x => x.Sku, "SHIRT"));
+
+        // The tile is the upload: the file input fills it, so a click or a drop on it reaches the input.
+        cut.Find(".image-add input[type=file]").HasAttribute("multiple").Should().BeTrue();
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "front.png"),
+            InputFileContent.CreateFromBinary([4, 5], "notes.pdf"));
+
+        cut.WaitForAssertion(() => cut.Find(".image-error").TextContent
+            .Should().Be("notes.pdf: A photograph must be a JPEG, PNG or WebP image."));
+        _data.Received(1).UploadImage("SHIRT", Arg.Any<Stream>(), "front.png");
+        // Once on opening and once after the upload that went through.
+        _data.Received(2).GetImages("SHIRT");
     }
 
     [Fact]

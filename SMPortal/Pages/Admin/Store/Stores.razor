@@ -77,7 +77,7 @@ else
     </p>
 }
 
-<Modal Visible="_creating is not null" Title="Add store" OnClose="() => _creating = null">
+<Modal Visible="_creating is not null" Title="Add store">
     @if (_creating is not null)
     {
         <div class="modal-body">
@@ -121,7 +121,7 @@ else
     }
 </Modal>
 
-<Modal Visible="_closing is not null" Title="Close this store?" OnClose="() => _closing = null">
+<Modal Visible="_closing is not null" Title="Close this store?">
     @if (_closing is not null)
     {
         <div class="modal-body">
@@ -134,7 +134,7 @@ else
     }
 </Modal>
 
-<Modal Visible="_removing is not null" Title="Remove this store?" OnClose="() => _removing = null">
+<Modal Visible="_removing is not null" Title="Remove this store?">
     @if (_removing is not null)
     {
         <div class="modal-body">
