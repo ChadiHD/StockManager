@@ -165,7 +165,7 @@
     }
 </div>
 
-<Modal Visible="_showEdit" Title="@(_draft.Id == 0 ? "Add distributor feed" : "Edit distributor feed")" OnClose="Close">
+<Modal Visible="_showEdit" Title="@(_draft.Id == 0 ? "Add distributor feed" : "Edit distributor feed")">
     <EditForm Model="_draft" OnValidSubmit="Save">
         <div class="modal-body">
             <div class="form-grid">
@@ -268,7 +268,7 @@
                     <strong>@(_testResult.Succeeded ? "Connection succeeded" : "Connection failed")</strong>
                     <span>
                         @(_testResult.Succeeded
-                            ? $"Read {_testResult.RecordCount} records from the newest file. Nothing was imported."
+                            ? $"Read {_testResult.RecordCount} {AdminUi.Noun(_testResult.RecordCount, "record", "records")} from the newest file. Nothing was imported."
                             : _testResult.Error)
                     </span>
                 </div>
@@ -311,7 +311,7 @@
     </EditForm>
 </Modal>
 
-<Modal Visible="_showHistory" Title="@($"Sync history — {_historyFeed?.Name}")" OnClose="CloseHistory">
+<Modal Visible="_showHistory" Title="@($"Sync history — {_historyFeed?.Name}")">
     <div class="modal-body">
         @if (_historyLoading)
         {

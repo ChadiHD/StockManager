@@ -25,7 +25,7 @@
             }
         </div>
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search reference or account" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> orders</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "order", "orders")</div>
     </div>
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
@@ -51,7 +51,7 @@
            PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showNew" Title="New order" OnClose="() => _showNew = false">
+<Modal Visible="_showNew" Title="New order">
     <EditForm Model="_draft" OnValidSubmit="CreateOrder">
         <div class="modal-body">
             <div class="form-grid">

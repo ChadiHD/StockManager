@@ -39,7 +39,7 @@
     <div class="toolbar">
         <h2 class="tbl-title">Settled sales</h2>
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search account or reference" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> rows</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "row", "rows")</div>
     </div>
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">

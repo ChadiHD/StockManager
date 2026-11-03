@@ -11,25 +11,38 @@
    DIFFERENT values; leaving these at :root would override them globally and restyle the
    public storefront/workspace pages. */
 .shell {
-  --navy-950:#12102a; --navy-900:#1c1836; --navy-800:#29244d; --navy-700:#2a2350;
-  --turq:#1bfbf9; --turq-600:#0b8b93; --turq-700:#00f0ff; --turq-800:#0a7d84;
-  --turq-tint:#d6faf9; --turq-tint-2:#eafcfb; --turq-line:#bfeeee;
-  --ink:#1a2032; --ink-2:#2a3345; --slate:#41516c; --muted:#5b6577;
-  --muted-2:#6b7688; --muted-3:#8a94a6; --faint:#9aa4b6;
-  --line:#e7eaf0; --line-2:#eef1f5; --line-3:#f0f2f6;
-  --field-line:#e2e6ee; --btn-line:#d7dce6;
-  --bg:#f5f7fa; --surface:#fff; --surface-2:#f8fafc; --surface-3:#fafbfd;
-  --ok-bg:#d6faf9; --ok-fg:#0a7d84;
-  --info-bg:#dde9fd; --info-fg:#1e56c9;
-  --warn-bg:#fdefd2; --warn-fg:#a76a12;
-  --danger-bg:#fde3e3; --danger-fg:#c22b2b;
-  --neutral-bg:#eef1f5; --neutral-fg:#5b6577;
-  --purple-bg:#ede9fe; --purple-fg:#6d28d9;
-  --radius:14px; --radius-sm:10px;
-  --shadow-sm:0 1px 2px rgba(16,24,40,.06);
-  --shadow-md:0 8px 22px rgba(16,24,40,.09);
-  --shadow-lg:0 30px 70px rgba(16,24,40,.32);
-  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  /* --turq is neon and only for dark surfaces (sidebar marker, toast tick). Turquoise that
+     carries text on a light surface is 600/700/800: --turq-700 was #00f0ff, 1.4:1 on white. */
+  --navy-950:#12102a; --navy-900:#1c1836; --navy-800:#29244d; --navy-700:#342d66;
+  --turq:#1bfbf9; --turq-600:#0a7a82; --turq-700:#07656c; --turq-800:#0a5259;
+  --turq-tint:#d8f8f6; --turq-tint-2:#eefcfb; --turq-line:#b4e9e7;
+  --ink:#141a2e; --ink-2:#232c45; --slate:#38445d; --muted:#55627a; --faint:#66728a;
+  /* The old muted-2/-3 and faint were 2.5-3.1:1 and carried SKUs, notes and table headers.
+     They are one grey now; the names stay so a scoped sheet still using them keeps working. */
+  --muted-2:var(--muted); --muted-3:var(--muted);
+  --line:#e2e6ee; --line-2:#ebeef4; --line-3:#f0f2f7;
+  /* A control's edge is 3:1 (WCAG 1.4.11); a button has its label, so its edge may be lighter. */
+  --field-line:#8892a7; --field-line-hover:#5f6b82; --btn-line:#c9d0dc;
+  --bg:#f4f6fa; --surface:#fff; --surface-2:#f8f9fc; --surface-3:#fafbfd;
+  --hover:#f3f8f9; --selected:#e8f9f8;
+  /* Every pair is 5.7:1 or better; ok is green so it cannot be mistaken for the turquoise accent. */
+  --ok-bg:#dcf4e6; --ok-fg:#0b6b3a;
+  --info-bg:#e1eafe; --info-fg:#1c4bb5;
+  --warn-bg:#fdf0d1; --warn-fg:#854d00;
+  --danger-bg:#fde7e7; --danger-fg:#b3201f;
+  --neutral-bg:#eaedf3; --neutral-fg:#4b566c;
+  --purple-bg:#eee9fd; --purple-fg:#5a22b8;
+  --focus:var(--turq-600);
+  --ring:0 0 0 3px rgba(10,122,130,.24);
+  --radius:12px; --radius-sm:8px; --radius-xs:6px;
+  --shadow-sm:0 1px 2px rgba(20,22,48,.06), 0 0 0 1px rgba(20,22,48,.01);
+  --shadow-md:0 6px 18px rgba(20,22,48,.09);
+  --shadow-lg:0 24px 64px rgba(16,14,40,.30);
+  /* Nothing under 12px. */
+  --fs-xs:.75rem; --fs-sm:.8125rem; --fs-base:.875rem; --fs-md:1rem;
+  --fs-lg:1.25rem; --fs-xl:1.625rem; --fs-kpi:1.875rem;
+  --mono:ui-monospace,"Cascadia Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --topbar-h:64px;
 }
 
 /* Element-level rules are confined to the admin subtree. Unscoped `body`, `a`, `button`
@@ -40,114 +53,160 @@
   box-sizing:border-box;
   background:var(--bg); color:var(--ink);
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:var(--fs-base); line-height:1.5;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
-.shell a { color:var(--turq-700); text-decoration:none; }
+.shell a { color:var(--turq-700); text-decoration:none; text-underline-offset:2px; }
 .shell a:hover { text-decoration:underline; }
+/* A link inside a sentence must not rest on colour alone. */
+.shell p a, .shell .field-note a { text-decoration:underline; }
 .shell button { font-family:inherit; }
-.shell ::selection { background:rgba(27,251,249,.3); }
+.shell ::selection { background:rgba(27,251,249,.32); }
 .shell h1, .shell h2 { margin:0; }
+/* app.css's own ring is 42% teal, about 1.9:1 on white. Text fields show a border and halo instead. */
+.shell :focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.shell .input:focus-visible, .shell .field input:focus-visible,
+.shell .field select:focus-visible, .shell .field textarea:focus-visible { outline:none; }
+/* FocusOnNavigate puts focus on the page's h1 so a screen reader announces the new page. It is not a
+   control, and Chrome counts that focus as visible, so the ring boxed every heading after a navigation. */
+.shell h1:focus-visible { outline:none; }
+
+/* ---- Guard against app.css bleeding into the admin area ---------------------
+   app.css is the public/workspace sheet and loads first. It defines several of
+   the same class names used here (.panel, .toolbar, .form-grid, .sidebar,
+   .workspace, small/.muted). Same-specificity properties are already won by
+   this sheet (it loads second), but properties app.css sets that the admin
+   design does NOT set would otherwise leak through. The `.shell` prefix raises
+   specificity to (0,2,0) so these beat app.css's plain (0,1,0) rules.
+   Scoped component styles (SMPortal.styles.css) load last and still win, so
+   this only fills gaps — it never overrides the components' own layout.       */
+.shell .panel { margin:0; padding:0; }          /* app.css: margin-bottom 22px + clamp padding (admin uses .panel-pad) */
+.shell .panel-pad { padding:20px 22px; }        /* restore after the reset above */
+.shell .toolbar { margin-bottom:0; }            /* app.css: margin-bottom 22px */
+.shell .form-grid { margin-bottom:0; }          /* app.css: margin-bottom 18px */
+/* .sidebar / .workspace are intentionally NOT reset: the admin shell now reuses the
+   operations-portal chrome from app.css, so those rules are the ones we want. */
+.shell small, .shell .muted { color:inherit; }  /* app.css: small/.muted forced to --slate-500 */
+.shell .cell-sub, .shell .detail-sub, .shell .toolbar-count { color:var(--muted); }
 
 /* ---- Buttons --------------------------------------------------------------- */
 .btn {
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
-  min-height:42px; padding:9px 16px; border:1px solid transparent;
-  border-radius:var(--radius-sm); cursor:pointer; font-weight:750; font-size:.85rem;
-  transition:background .15s, border-color .15s, box-shadow .15s;
+  min-height:40px; padding:0 16px; border:1px solid transparent;
+  border-radius:var(--radius-sm); cursor:pointer; font-weight:600; font-size:var(--fs-base); line-height:1.2;
+  transition:background .15s, border-color .15s, box-shadow .15s, color .15s;
 }
-.btn svg { width:16px; height:16px; }
-.btn-primary { background:var(--navy-900); color:#fff; }
+.btn svg { width:16px; height:16px; flex:0 0 auto; }
+.btn-primary { background:var(--navy-900); color:#fff; box-shadow:0 1px 2px rgba(18,16,42,.28); }
 .btn-primary:hover { background:var(--navy-700); }
-.btn-secondary { background:var(--surface); color:var(--ink-2); border-color:var(--btn-line); font-weight:700; }
-.btn-secondary:hover { background:#f4f7fa; }
+.btn-primary:active { background:var(--navy-950); }
+.btn-secondary { background:var(--surface); color:var(--ink-2); border-color:var(--btn-line); }
+.btn-secondary:hover { background:var(--surface-2); border-color:#a9b3c4; }
+.btn-secondary:active { background:var(--line-2); }
 .btn-accent { background:var(--turq-600); color:#fff; }
-.btn-accent:hover { background:#0a767d; }
-.btn-danger-outline { background:var(--surface); color:var(--danger-fg); border-color:#e6b0b0; font-weight:700; }
-.btn-danger-outline:hover { background:#fdeeee; }
-.btn-sm { min-height:0; padding:6px 12px; font-size:.79rem; font-weight:700; border-radius:8px; }
+.btn-accent:hover { background:var(--turq-700); }
+.btn-danger-outline { background:var(--surface); color:var(--danger-fg); border-color:#d99a9a; }
+.btn-danger-outline:hover { background:var(--danger-bg); }
+.btn-ghost { background:transparent; color:var(--slate); }
+.btn-ghost:hover { background:var(--neutral-bg); color:var(--ink); }
+.btn-sm { min-height:32px; padding:0 12px; font-size:var(--fs-sm); }
+/* Buttons had no disabled look at all, only the browser's default. */
+.btn:disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+.btn-primary:disabled:hover { background:var(--navy-900); }
+.btn-secondary:disabled:hover { background:var(--surface); border-color:var(--btn-line); }
 /* A table row's buttons. Razor drops the whitespace between buttons emitted from @if blocks, so
    without a gap they touch. */
 .row-actions { display:inline-flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .btn-block { width:100%; }
-.btn-link { border:0; background:transparent; color:var(--turq-700); font-weight:700; font-size:.82rem; cursor:pointer; padding:0; }
+.btn-link {
+  display:inline-flex; align-items:center; min-height:32px; padding:0 4px; border:0; border-radius:var(--radius-xs);
+  background:transparent; color:var(--turq-700); font-weight:600; font-size:var(--fs-sm); cursor:pointer;
+}
 .btn-link:hover { text-decoration:underline; }
 .back-btn {
-  display:inline-flex; align-items:center; gap:7px; margin-bottom:14px;
-  padding:6px 10px 6px 6px; border:0; border-radius:8px; background:transparent;
-  color:var(--muted); font-size:.82rem; font-weight:650; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; min-height:32px; margin-bottom:12px;
+  padding:0 10px 0 6px; border:0; border-radius:var(--radius-sm); background:transparent;
+  color:var(--muted); font-size:var(--fs-sm); font-weight:600; cursor:pointer;
 }
 .back-btn:hover { background:var(--neutral-bg); color:var(--ink); }
 .back-btn svg { width:16px; height:16px; }
 
 /* ---- Filter pills ---------------------------------------------------------- */
 .pill {
-  padding:7px 14px; border-radius:999px; border:1px solid var(--btn-line);
-  background:var(--surface); color:var(--slate); font-size:.78rem; font-weight:700; cursor:pointer;
+  display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border-radius:999px;
+  border:1px solid var(--btn-line); background:var(--surface); color:var(--slate);
+  font-size:var(--fs-sm); font-weight:600; white-space:nowrap; cursor:pointer;
+  transition:background .15s, border-color .15s;
 }
-.pill:hover { background:#f4f7fa; }
+.pill:hover { background:var(--surface-2); border-color:#a9b3c4; }
 .pill.pill--active { border-color:var(--navy-900); background:var(--navy-900); color:#fff; }
 .pill-row { display:flex; flex-wrap:wrap; gap:8px; }
 
 /* ---- Badges (status colours picked by AdminUi.StatusClass) ----------------- */
+/* The dot is what says the state when the colour cannot (WCAG 1.4.1). A badge that is only a count
+   has no state to show and takes badge--count. */
 .badge {
-  display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px;
-  font-size:.72rem; font-weight:800; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:6px; padding:2px 10px 2px 8px; border-radius:999px;
+  font-size:var(--fs-xs); font-weight:700; line-height:1.5; white-space:nowrap;
 }
+.badge::before { content:""; flex:0 0 auto; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.badge--count::before { display:none; }
 .badge--ok { background:var(--ok-bg); color:var(--ok-fg); }
 .badge--info { background:var(--info-bg); color:var(--info-fg); }
 .badge--warn { background:var(--warn-bg); color:var(--warn-fg); }
 .badge--danger { background:var(--danger-bg); color:var(--danger-fg); }
 .badge--neutral { background:var(--neutral-bg); color:var(--neutral-fg); }
+.badge--purple { background:var(--purple-bg); color:var(--purple-fg); }
 
 /* ---- Source tags + sync state --------------------------------------------- */
-.src { display:inline-flex; align-items:center; padding:3px 9px; border-radius:6px; font-size:.72rem; font-weight:800; }
-.src--own { background:#eafaf6; color:#127a63; }
-.src--dist { background:#eef2ff; color:#4457c4; }
-.sync { font-size:.71rem; }
-.sync--stale { color:var(--warn-fg); }
-.sync--muted { color:var(--faint); }
+.src { display:inline-flex; align-items:center; padding:1px 8px; border-radius:var(--radius-xs); font-size:var(--fs-xs); font-weight:700; line-height:1.6; }
+.src--own { background:#dcf6f4; color:#0a5f66; }
+.src--dist { background:#e6eaff; color:#3946b0; }
+.sync { font-size:var(--fs-xs); }
+.sync--stale { color:var(--warn-fg); font-weight:600; }
+.sync--muted { color:var(--muted); }
 
 /* ---- Category monogram tiles ---------------------------------------------- */
 .tile {
-  display:grid; place-items:center; border-radius:9px; font-weight:800;
-  width:38px; height:38px; font-size:.72rem; flex:0 0 auto; overflow:hidden;
+  display:grid; place-items:center; border-radius:10px; font-weight:700;
+  width:40px; height:40px; font-size:var(--fs-xs); flex:0 0 auto; overflow:hidden;
 }
 .tile--lg { width:104px; height:104px; font-size:1.9rem; border-radius:14px; }
-.tile--servers { background:#e7edff; color:#3a52c6; }
-.tile--networking { background:#e2f6ef; color:#0f8a67; }
-.tile--laptops { background:#efeafe; color:#6d28d9; }
-.tile--components { background:#e6f3fb; color:#1f6fb0; }
-.tile--security { background:#fdece9; color:#c2472b; }
-.tile--power { background:#fef1d6; color:#a76a12; }
-.tile--peripherals { background:#eef1f5; color:#51607a; }
+.tile--servers { background:#e7edff; color:#2f45b3; }
+.tile--networking { background:#dff4ec; color:#0b6e50; }
+.tile--laptops { background:#efeafe; color:#5a22b8; }
+.tile--components { background:#e1f0fa; color:#17598f; }
+.tile--security { background:#fde8e4; color:#a8341b; }
+.tile--power { background:#fdefd0; color:#7f4d00; }
+.tile--peripherals { background:#eaedf3; color:#44526b; }
 
 /* ---- Panels / cards ------------------------------------------------------- */
 .panel {
   border:1px solid var(--line); border-radius:var(--radius);
   background:var(--surface); box-shadow:var(--shadow-sm);
 }
-.panel-pad { padding:20px; }
+.panel-pad { padding:20px 22px; }
 .panel-clip { overflow:hidden; }
 .eyebrow {
-  display:block; font-size:.7rem; font-weight:800; letter-spacing:.13em;
-  text-transform:uppercase; color:var(--turq-600); margin-bottom:6px;
+  display:block; margin-bottom:4px; color:var(--turq-600); font-size:var(--fs-xs); font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase;
 }
+/* A panel's title. Uppercase is kept for the page eyebrow, nav headings and table headers only,
+   so it still means "label". */
 .card-kicker {
-  display:block; font-size:.66rem; font-weight:800; letter-spacing:.12em;
-  text-transform:uppercase; color:var(--turq-600); margin-bottom:14px;
+  display:block; margin-bottom:16px; color:var(--ink); font-size:var(--fs-md); font-weight:700;
+  letter-spacing:-.005em; text-transform:none;
 }
 
 /* ---- Field helper text ----------------------------------------------------
    Per-field guidance, so a limit is stated next to the input it governs rather than as one
    sentence under the whole form. */
-.field-note {
-  display:block; margin-top:5px; color:var(--muted-3); font-size:.74rem; line-height:1.35;
-}
-.field-note--warn { color:var(--danger-fg); font-weight:700; }
+.field-note { display:block; margin-top:6px; color:var(--muted); font-size:var(--fs-xs); line-height:1.4; }
+.field-note--warn { color:var(--danger-fg); font-weight:600; }
 
 /* Marks a field as skippable in the label itself, rather than in prose below the form. */
 .label-optional {
-  margin-left:5px; color:var(--muted-3); font-size:.7rem; font-weight:600; text-transform:none;
+  margin-left:6px; color:var(--muted); font-size:var(--fs-xs); font-weight:400; text-transform:none;
   letter-spacing:0;
 }
 
@@ -160,89 +219,117 @@
   border:1px solid var(--line-2); border-radius:var(--radius-sm); background:var(--surface-2);
 }
 .pick-name {
-  grid-column:1; color:var(--ink); font-size:.88rem; font-weight:700;
+  grid-column:1; color:var(--ink); font-size:var(--fs-base); font-weight:600;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.pick-facts { grid-column:1; display:flex; flex-wrap:wrap; gap:4px 12px; color:var(--muted-3); font-size:.76rem; }
+.pick-facts { grid-column:1; display:flex; flex-wrap:wrap; gap:4px 12px; color:var(--muted); font-size:var(--fs-xs); }
 .pick-facts .pick-low { color:var(--danger-fg); font-weight:700; }
 .pick-total {
-  grid-area:1 / 2 / 3 / 3; color:var(--ink); font-size:1.15rem; font-weight:800;
+  grid-area:1 / 2 / 3 / 3; color:var(--ink); font-size:var(--fs-md); font-weight:700;
   font-variant-numeric:tabular-nums;
 }
 
 /* ---- Page header ---------------------------------------------------------- */
 .page-head {
   display:flex; align-items:flex-end; justify-content:space-between;
-  gap:20px; flex-wrap:wrap; margin-bottom:20px;
+  gap:16px 24px; flex-wrap:wrap; margin-bottom:24px;
 }
-.page-head h1 { font-size:1.55rem; font-weight:800; letter-spacing:-.02em; }
+.page-head h1 { font-size:var(--fs-xl); font-weight:700; line-height:1.2; letter-spacing:-.02em; }
 .head-actions { display:flex; gap:10px; flex-wrap:wrap; }
 .detail-title { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.detail-sub { margin:8px 0 0; color:var(--muted-3); font-size:.85rem; }
+.detail-sub { margin:6px 0 0; color:var(--muted); font-size:var(--fs-base); }
 
 /* ---- Toolbar (pills + count) ---------------------------------------------- */
 .toolbar {
-  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px 16px;
   /* When the row wraps, the default align-content:stretch shares the container's cross space
      between the lines, which spaced them apart instead of stacking them tightly. */
   flex-wrap:wrap; align-content:center;
-  padding:16px 18px; border-bottom:1px solid var(--line-2);
+  padding:14px 18px; border-bottom:1px solid var(--line-2);
 }
-.toolbar-count { color:var(--muted-3); font-size:.82rem; }
-.toolbar-count strong { color:var(--ink); font-size:1.05rem; }
+.toolbar-count { font-size:var(--fs-sm); white-space:nowrap; }
+.toolbar-count strong { color:var(--ink); font-size:var(--fs-md); font-weight:700; font-variant-numeric:tabular-nums; }
 
 /* ---- Tables --------------------------------------------------------------- */
 .tbl-wrap { overflow-x:auto; }
-.tbl { width:100%; border-collapse:collapse; }
-.tbl thead th {
-  padding:11px 14px; color:var(--muted-3); background:var(--surface-2);
-  border-bottom:1px solid var(--line); font-size:.64rem; font-weight:800;
-  letter-spacing:.07em; text-align:left; text-transform:uppercase;
+/* Separate, not collapsed: a sticky header keeps its bottom border only in the separate model. */
+.tbl, .table { width:100%; border-collapse:separate; border-spacing:0; }
+.tbl thead th, .table thead th {
+  padding:10px 14px; color:var(--muted); background:var(--surface-2);
+  border-bottom:1px solid var(--line); font-size:var(--fs-xs); font-weight:700;
+  letter-spacing:.05em; text-align:left; text-transform:uppercase; white-space:nowrap;
 }
-.tbl tbody td {
-  padding:14px; border-bottom:1px solid var(--line-2);
-  color:var(--slate); font-size:.86rem; vertical-align:middle;
+.tbl tbody td, .table tbody td {
+  padding:10px 14px; border-bottom:1px solid var(--line-2);
+  color:var(--slate); font-size:var(--fs-base); line-height:1.35; vertical-align:middle;
 }
-.tbl .num { text-align:right; }
+.tbl .num { text-align:right; font-variant-numeric:tabular-nums; }
 .tbl .ctr { text-align:center; }
-.tbl .lead { padding-left:18px; }
-.tbl .trail { padding-right:18px; }
-.tbl tbody tr.clickable { cursor:pointer; }
-.tbl tbody tr.clickable:hover { background:#f7fbfb; }
-.cell-primary { display:block; color:var(--ink); font-weight:750; font-size:.88rem; }
-.cell-strong { display:block; color:var(--ink); font-weight:650; }
-.cell-sub { color:var(--faint); font-size:.72rem; }
+.tbl .lead { padding-left:20px; }
+.tbl .trail { padding-right:20px; }
+.shell .tbl tbody tr:hover { background:transparent; }   /* app.css highlights every row; only a clickable one is a target */
+.shell .tbl tbody tr.clickable { cursor:pointer; }
+.shell .tbl tbody tr.clickable:hover { background:var(--hover); }
+.cell-primary { display:block; color:var(--ink); font-weight:600; font-size:var(--fs-base); }
+.cell-strong { display:block; color:var(--ink); font-weight:600; }
+.cell-sub { color:var(--muted); font-size:var(--fs-xs); line-height:1.4; }
 .mono { font-family:var(--mono); }
-.strike { text-decoration:line-through; color:var(--faint); }
+.strike { text-decoration:line-through; color:var(--muted); }
+/* Visually hidden, still read aloud. QuoteDetail has its own copy; the variant table's
+   "Remove" header had none, so the word showed. */
+.vh { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
 /* ---- Form fields ---------------------------------------------------------- */
-.field label, .field-label {
-  display:block; color:var(--muted); font-size:.74rem; font-weight:700; margin-bottom:5px;
-}
+.field label, .field-label { display:block; margin-bottom:6px; color:var(--ink-2); font-size:var(--fs-sm); font-weight:600; }
 .input, .field input, .field select, .field textarea {
-  width:100%; min-height:40px; padding:8px 11px; color:var(--ink);
-  border:1px solid var(--field-line); border-radius:9px; background:var(--surface); font-size:.85rem;
+  width:100%; min-height:40px; padding:8px 12px; color:var(--ink);
+  border:1px solid var(--field-line); border-radius:var(--radius-sm); background:var(--surface);
+  font-size:var(--fs-base); line-height:1.4; transition:border-color .15s, box-shadow .15s;
 }
-.input:focus, .field input:focus, .field select:focus {
-  border-color:#1bc7ce; outline:none; box-shadow:0 0 0 3px rgba(27,199,206,.14);
+.input:hover, .field input:hover, .field select:hover, .field textarea:hover { border-color:var(--field-line-hover); }
+.input:focus, .field input:focus, .field select:focus, .field textarea:focus {
+  border-color:var(--turq-600); outline:none; box-shadow:var(--ring);
 }
+.input::placeholder, .field input::placeholder, .field textarea::placeholder { color:var(--faint); }
+.input:disabled, .field input:disabled { background:var(--surface-2); color:var(--muted); cursor:not-allowed; }
 /* Checkboxes must not pick up the full-width, 40px-tall text-input sizing — that rule exists
    both here and in app.css, so this is scoped to .shell to outrank them. */
 .shell .field input[type=checkbox] {
-  width:18px; height:18px; min-height:0; padding:0; margin:6px 0 0;
-  accent-color:var(--turq-600); cursor:pointer;
+  width:18px; height:18px; min-height:0; padding:0; margin:0;
+  accent-color:var(--turq-600); cursor:pointer; flex:0 0 auto;
 }
-.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; align-items:start; }
 .form-grid .span2 { grid-column:1 / -1; }
+/* A checkbox beside its text. Defined here because the products dialog and the product page
+   both use it and only the page had it. */
+.check { display:flex; align-items:center; gap:10px; min-height:32px; color:var(--ink-2); font-size:var(--fs-base); font-weight:500; cursor:pointer; }
+.shell .field label.check { display:flex; margin-bottom:0; font-size:var(--fs-base); font-weight:500; }
 
 /* ---- Detail two-column layout --------------------------------------------- */
 .detail-grid { display:grid; grid-template-columns:1.62fr 1fr; gap:20px; align-items:start; }
 .stack { display:flex; flex-direction:column; gap:20px; }
-.kv { display:flex; justify-content:space-between; gap:12px; font-size:.85rem; }
-.kv .k { color:var(--muted-3); }
+.kv { display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:28px; font-size:var(--fs-base); }
+.kv .k { color:var(--muted); }
 .kv .v { color:var(--slate); text-align:right; }
-.kv .v-strong { color:var(--ink); font-weight:700; text-align:right; }
-.divider { height:1px; background:var(--line-2); margin:16px 0; }
+.kv .v-strong { color:var(--ink); font-weight:600; text-align:right; font-variant-numeric:tabular-nums; }
+.divider { height:1px; background:var(--line-2); margin:14px 0; }
+
+/* Checkbox beside its label rather than under it — the shared .field stacks children, which
+   left a full-width control for a 16px box. */
+.switch-row {
+  display:flex; align-items:center; gap:10px; min-height:32px;
+  color:var(--ink); font-size:var(--fs-base); font-weight:600; text-transform:none; letter-spacing:0;
+}
+.switch-row input[type=checkbox] { width:18px; height:18px; margin:0; flex:0 0 auto; accent-color:var(--turq-600); }
+
+/* Sticky header: only where nothing between the table and the page clips. overflow:clip makes
+   no scroll container, so the header sticks to the viewport under the top bar. A table in a
+   dialog is not in a .panel-clip, so it keeps its own scroll. */
+@media (min-width:1181px){
+  .panel-clip { overflow:clip; }
+  .panel-clip .tbl-wrap { overflow:visible; }
+  .panel-clip .tbl thead th { position:sticky; top:var(--topbar-h); z-index:2; }
+}
 
 @media (max-width:1000px){
   .detail-grid { grid-template-columns:1fr; }
@@ -252,11 +339,11 @@
 /* Matches the 820px breakpoint where app.css turns the sidebar into a slide-over, so the
    content column gains the full width at the same moment. */
 @media (max-width:820px){
-  /* Three 42px buttons wrapped into a ragged stack, the last one stranded on its own row.
-     Letting them share the row keeps the cluster even at any width. */
+  /* Three 40px buttons wrapped into a ragged stack, the last one stranded on its own row.
+     Two share a row and an odd last one takes the next, so the cluster is even at any width. */
   .page-head { align-items:stretch; }
-  .head-actions { width:100%; }
-  .head-actions .btn { flex:1 1 150px; }
+  .head-actions { width:100%; display:grid; grid-template-columns:1fr 1fr; }
+  .head-actions .btn:last-child:nth-child(odd) { grid-column:1 / -1; }
 
   /* Stacked, the base rule's `justify-content:space-between` + `flex-wrap:wrap` had free space
      to distribute and pushed the rows apart — hence the big empty bands around the search box.
@@ -268,46 +355,28 @@
   }
   .toolbar-count { text-align:right; }
 
-  /* Pills sat at ~30px tall — comfortable for a cursor, under the 44px touch guideline. */
-  .pill { min-height:38px; padding:8px 15px; }
-  .btn-sm { min-height:36px; }
+  /* One scrolling line, not three wrapped ones; the partly visible last pill says it scrolls. */
+  .pill-row { flex-wrap:nowrap; overflow-x:auto; margin:0 -18px; padding:2px 18px; scrollbar-width:none; }
+  .pill-row::-webkit-scrollbar { display:none; }
 }
 
-@media (max-width:560px){
-  .page-head h1 { font-size:1.3rem; }
+@media (max-width:600px){
+  .page-head h1 { font-size:1.375rem; }
 
-  /* Below this the labels ("Fetch images", "Add product") no longer fit side by side. */
-  .head-actions .btn { flex:1 1 100%; }
-
-  .pill-row { gap:6px; }
-  .pill { flex:1 1 auto; min-height:40px; text-align:center; }
+  /* app.css turns EVERY table into stacked blocks here and expects a data-label on each cell, which
+     only the products list has (.tbl--stack). Any other table keeps being a table and scrolls
+     sideways, as it does at every other width, instead of losing its column headings. */
+  .shell .tbl:not(.tbl--stack) { display:table; min-width:700px; }
+  .shell .tbl:not(.tbl--stack) thead { display:table-header-group; position:static; width:auto; height:auto; overflow:visible; clip:auto; }
+  .shell .tbl:not(.tbl--stack) tbody { display:table-row-group; }
+  .shell .tbl:not(.tbl--stack) tr { display:table-row; padding:0; border:0; border-radius:0; background:transparent; }
+  .shell .tbl:not(.tbl--stack) th, .shell .tbl:not(.tbl--stack) td { display:table-cell; grid-template-columns:none; text-align:left; }
+  .shell .tbl:not(.tbl--stack) th.num, .shell .tbl:not(.tbl--stack) td.num { text-align:right; }
+  .shell .tbl:not(.tbl--stack) td.ctr { text-align:center; }
+  .shell .tbl:not(.tbl--stack) td::before { content:none; }
+  .shell .tbl-wrap { overflow-x:auto; }
 }
 
-/* ---- Guard against app.css bleeding into the admin area ---------------------
-   app.css is the public/workspace sheet and loads first. It defines several of
-   the same class names used here (.panel, .toolbar, .form-grid, .sidebar,
-   .workspace, small/.muted). Same-specificity properties are already won by
-   this sheet (it loads second), but properties app.css sets that the admin
-   design does NOT set would otherwise leak through. The `.shell` prefix raises
-   specificity to (0,2,0) so these beat app.css's plain (0,1,0) rules.
-   Scoped component styles (SMPortal.styles.css) load last and still win, so
-   this only fills gaps — it never overrides the components' own layout.       */
-.shell .panel { margin:0; padding:0; }          /* app.css: margin-bottom 22px + clamp padding (admin uses .panel-pad) */
-.shell .panel-pad { padding:20px; }             /* restore after the reset above */
-.shell .toolbar { margin-bottom:0; }            /* app.css: margin-bottom 22px */
-.shell .form-grid { margin-bottom:0; }          /* app.css: margin-bottom 18px */
-/* .sidebar / .workspace are intentionally NOT reset: the admin shell now reuses the
-   operations-portal chrome from app.css, so those rules are the ones we want. */
-.shell small, .shell .muted { color:inherit; }  /* app.css: small/.muted forced to --slate-500 */
-.shell .cell-sub { color:var(--faint); }        /* re-assert admin's own muted cell colour */
-.shell .detail-sub { color:var(--muted-3); }
-.shell .toolbar-count { color:var(--muted-3); }
-.shell .brand-text small { color:#7d8bb0; }
-
-/* Checkbox beside its label rather than under it — the shared .field stacks children, which
-   left a full-width control for a 16px box. */
-.switch-row {
-  display:flex; align-items:center; gap:9px;
-  color:var(--ink); font-size:.85rem; font-weight:700; text-transform:none; letter-spacing:0;
+@media (prefers-reduced-motion:reduce){
+  .shell *, .shell *::before, .shell *::after { transition-duration:.01ms !important; animation-duration:.01ms !important; }
 }
-.switch-row input[type=checkbox] { width:16px; height:16px; margin:0; flex:0 0 auto; accent-color:var(--navy-900); }

@@ -70,7 +70,7 @@ else
                 <div class="kv mt"><span class="k">Payment terms</span><span class="v-strong">@_g.Terms</span></div>
             </div>
             <div class="panel panel-pad">
-                <div class="members-head"><span class="card-kicker nomargin">Accounts in group</span><span class="badge badge--neutral">@_members.Count</span></div>
+                <div class="members-head"><span class="card-kicker nomargin">Accounts in group</span><span class="badge badge--neutral badge--count">@_members.Count</span></div>
                 @if (_members.Count > 0)
                 {
                     @foreach (var m in _members)

@@ -1,25 +1,114 @@
 .feed-strip {
-  display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px;
-  padding:14px 18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); box-shadow:var(--shadow-sm);
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px;
+  padding:12px 16px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm);
 }
-.feed-ico { display:grid; place-items:center; flex:0 0 auto; width:38px; height:38px; border-radius:10px; background:#eef2ff; color:#4457c4; }
-.feed-ico svg { width:20px; height:20px; }
-.feed-body { flex:1; min-width:180px; }
-.feed-body strong { display:block; font-size:.88rem; }
-.feed-body span { color:var(--muted-3); font-size:.8rem; }
-.feed-warn { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; background:var(--warn-bg); color:var(--warn-fg); font-size:.76rem; font-weight:800; }
-.feed-warn svg { width:13px; height:13px; }
+.feed-ico { display:grid; place-items:center; flex:0 0 auto; width:36px; height:36px; border-radius:var(--radius-sm); background:#e6eaff; color:#3946b0; }
+.feed-ico svg { width:18px; height:18px; }
+.feed-body { flex:1; min-width:180px; line-height:1.35; }
+.feed-body strong { display:block; font-size:var(--fs-base); font-weight:600; }
+.feed-body span { color:var(--muted); font-size:var(--fs-sm); }
+.feed-warn { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 12px; border-radius:999px; background:var(--warn-bg); color:var(--warn-fg); font-size:var(--fs-sm); font-weight:700; }
+.feed-warn svg { width:14px; height:14px; }
 
 .thumb-col { width:56px; }
-.thumb-cell { padding-left:18px; padding-top:10px; padding-bottom:10px; }
-.src-sub { display:block; margin-top:3px; }
-.sync { display:block; margin-top:3px; }
-
-.select-col { width:40px; padding-left:18px; }
-.bulk-bar {
-  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-  padding:10px 18px; border-bottom:1px solid var(--line); background:var(--surface-2); font-size:.86rem;
+.thumb {
+  display:grid; place-items:center; width:40px; height:40px; border-radius:var(--radius-sm);
+  border:1px solid var(--line); background:#fff; object-fit:contain;
 }
-.placement { display:block; font-weight:700; }
-.placement--on { color:var(--ink, inherit); }
-.placement--off { color:var(--muted-3); }
+.thumb--none { background:var(--surface-2); color:var(--faint); border:1px dashed #c9d0dc; }
+.thumb--none svg { width:18px; height:18px; }
+
+.select-col { width:44px; }
+/* A 32px target around the 18px box; the label makes a click anywhere in it toggle the box. */
+.check-hit { display:grid; place-items:center; width:32px; height:32px; margin:0 -4px; border-radius:var(--radius-sm); cursor:pointer; }
+.check-hit:hover { background:var(--neutral-bg); }
+.check-hit input[type=checkbox] { width:18px; height:18px; margin:0; accent-color:var(--turq-600); cursor:pointer; }
+
+/* The SKU leads the second line so the identifier lines up down the column. The spec follows on
+   one line, with its full text in the title, so a long one cannot make a row taller than the rest. */
+.cell-product { min-width:200px; max-width:420px; }
+/* width:0 with min-width:100% fills the cell without counting towards its width: a table sizes a column
+   from its content, and the spec's full length, ellipsis or not, pushed Availability off the right edge. */
+.cell-meta { display:flex; align-items:baseline; gap:8px; width:0; min-width:100%; margin-top:1px; }
+.cell-meta .cell-sku { flex:0 0 auto; color:var(--ink-2); font-weight:600; }
+.cell-meta .cell-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.variant-count { flex:0 0 auto; padding:0 7px; border-radius:var(--radius-xs); background:var(--neutral-bg); color:var(--neutral-fg); font-weight:600; }
+
+/* A store's category is a short label, and a width on its column is only a hint to an auto-sized
+   table: real names such as "Servers & Storage" wrapped and made every row a line taller. */
+.placement { display:block; color:var(--ink); font-weight:600; white-space:nowrap; }
+.placement--off { color:var(--muted); font-weight:500; }
+.src-sub { display:block; max-width:170px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.price-cell strong { color:var(--ink); font-weight:700; }
+.avail-cell .sync { display:block; margin-top:3px; }
+
+/* A delisted product is history, not stock: quieter, but still readable and clickable. */
+.row--delisted .thumb { filter:grayscale(1); opacity:.6; }
+.row--delisted .cell-strong, .row--delisted .price-cell strong { color:var(--muted); }
+
+/* A selected row reads as selected without a second control. :has() is a refinement; where it is
+   unsupported the checkbox alone shows the state. */
+.tbl tbody tr:has(.select-col input:checked) { background:var(--selected); }
+.tbl tbody tr:has(.select-col input:checked) td:first-child { box-shadow:inset 3px 0 0 var(--turq-600); }
+
+.bulk-bar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:10px 18px; border-bottom:1px solid var(--turq-line); background:var(--turq-tint-2); font-size:var(--fs-base);
+}
+.bulk-bar > span:first-child { display:inline-flex; align-items:center; gap:8px; margin-right:6px; color:var(--ink); font-weight:600; }
+.bulk-bar > span:first-child strong {
+  display:inline-grid; place-items:center; min-width:24px; height:24px; padding:0 7px; border-radius:999px;
+  background:var(--turq-600); color:#fff; font-size:var(--fs-xs); font-weight:700;
+}
+.bulk-bar .btn { min-height:32px; padding:0 12px; font-size:var(--fs-sm); white-space:nowrap; }
+/* Clear selection sits apart from the two actions it is not one of. */
+.bulk-bar .btn:last-child { margin-left:auto; }
+
+/* The columns the product cell does not need, so it gets the rest. Tied to column order, here only. */
+@media (min-width:821px) {
+  .tbl--stack thead th:nth-child(4) { width:132px; }
+  .tbl--stack thead th:nth-child(5) { width:176px; }
+  .tbl--stack thead th:nth-child(6), .tbl--stack thead th:nth-child(7) { width:88px; }
+  .tbl--stack thead th:nth-child(8) { width:152px; }
+}
+
+@media (max-width:720px) {
+  .feed-strip { padding:12px 14px; }
+
+  /* app.css stacks every table here and expects a data-label on each cell; none of the others
+     has one. This one becomes a card per product, and each cell names itself. */
+  .tbl--stack, .tbl--stack tbody, .tbl--stack tr, .tbl--stack td { display:block; }
+  .tbl--stack thead { display:block; position:static; width:auto; height:auto; overflow:visible; clip:auto; }
+  .tbl--stack thead tr { display:block; padding:0; border:0; background:transparent; }
+  .tbl--stack thead th { display:none; }
+  /* The one header cell that is kept is the select-all box, with its words. */
+  .tbl--stack thead th.select-col {
+    display:flex; align-items:center; gap:10px; width:auto; padding:6px 14px; position:static;
+    border-bottom:1px solid var(--line); text-transform:none; letter-spacing:0; font-size:var(--fs-sm); font-weight:600;
+  }
+  .tbl--stack thead th.select-col::after { content:"Select this page"; color:var(--muted); }
+  .tbl--stack tbody tr {
+    display:flex; flex-wrap:wrap; gap:8px 12px; padding:14px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent;
+  }
+  .tbl--stack tbody tr:last-child { border-bottom:0; }
+  .tbl--stack tbody td { display:block; padding:0; border:0; min-width:0; text-align:left; }
+  .tbl--stack tbody td::before {
+    content:attr(data-label); display:block; margin-bottom:2px; color:var(--muted);
+    font-size:var(--fs-xs); font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  }
+  .tbl--stack tbody td.select-col::before, .tbl--stack tbody td.thumb-cell::before, .tbl--stack tbody td.cell-product::before { content:none; }
+  /* Row one is checkbox, picture and name; the product cell takes what the other two leave. */
+  .tbl--stack td.select-col { flex:0 0 32px; order:1; width:auto; padding:0; }
+  .tbl--stack td.thumb-cell { flex:0 0 44px; order:2; padding:0; }
+  .tbl--stack td.cell-product { flex:1 1 calc(100% - 100px); order:3; min-width:0; max-width:none; }
+  .tbl--stack td.placement-cell { flex:1 1 calc(50% - 6px); order:4; }
+  .tbl--stack td.src-cell { flex:1 1 calc(50% - 6px); order:5; }
+  .tbl--stack td.cost-cell { flex:1 1 calc(50% - 6px); order:6; }
+  .tbl--stack td.price-cell { flex:1 1 calc(50% - 6px); order:7; }
+  .tbl--stack td.avail-cell { flex:1 1 100%; order:8; padding-right:0; }
+  .tbl--stack td.avail-cell .badge { margin-right:8px; }
+  .tbl--stack td.avail-cell .sync { display:inline; }
+  .tbl--stack td.num { text-align:left; }
+  .bulk-bar { padding:10px 14px; }
+  .bulk-bar .btn:last-child { margin-left:0; }
+}

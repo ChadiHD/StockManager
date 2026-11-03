@@ -161,6 +161,12 @@ public class Product
     public int Avail { get; set; }
     public string Synced { get; set; } = "\u2014";
     public bool Stale { get; set; }
+
+    // The distributor dropped it. The import zeroes a delisted line's stock and keeps the row for
+    // the quotes that name it, so without this the list read "0 · Out of stock" on every product a
+    // feed had stopped supplying — a third of the catalogue — and the dashboard's low-stock rail
+    // was nothing but those.
+    public bool Delisted { get; set; }
     public string Image { get; set; } = "";
 
     // The feed splits a part across two columns: Name carries the spec string
@@ -205,7 +211,8 @@ public class Product
     /// <see cref="Price"/> is not on one whose prices include tax (T10).
     /// </summary>
     public int MarginPctAt(decimal netPrice) => netPrice > 0 ? (int)Math.Round((1 - Cost / netPrice) * 100) : 0;
-    public string StockKind => Avail <= 0 ? "Out of stock" : (Avail <= 6 ? "Low" : "In stock");
+    public string StockKind => Delisted ? "Delisted" : Avail <= 0 ? "Out of stock" : (Avail <= 6 ? "Low" : "In stock");
+    public string StockLabel => Delisted ? StockKind : $"{Avail} · {StockKind}";
 }
 
 public class Group

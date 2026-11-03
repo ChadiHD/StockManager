@@ -180,7 +180,7 @@ else
         </div>
     </div>
 
-    <Modal Visible="_showApprove" Title="Approve account" OnClose="() => _showApprove = false">
+    <Modal Visible="_showApprove" Title="Approve account">
         <div class="modal-body">
             <div class="form-grid">
                 <div class="field span2">
@@ -202,7 +202,7 @@ else
         </div>
     </Modal>
 
-    <Modal Visible="_showReject" Title="Reject application" OnClose="() => _showReject = false">
+    <Modal Visible="_showReject" Title="Reject application">
         <div class="modal-body">
             <div class="form-grid">
                 <div class="field span2">
@@ -226,7 +226,7 @@ else
         </div>
     </Modal>
 
-    <Modal Visible="_showTerms" Title="Edit trading terms" OnClose="() => _showTerms = false">
+    <Modal Visible="_showTerms" Title="Edit trading terms">
         <EditForm Model="_termsDraft" OnValidSubmit="SaveTerms">
             <div class="modal-body">
                 <div class="form-grid">

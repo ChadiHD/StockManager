@@ -124,7 +124,8 @@
     private IEnumerable<Account> Pending => Data.Accounts.Where(a => a.Status == "Pending");
     private int PendingCount => Pending.Count();
     private int OpenQuotes => Data.Quotes.Count(q => q.Status is "Requested" or "Priced");
-    private List<Product> LowStock => Data.Products.Where(p => p.Avail <= 6).ToList();
+    // Not a delisted line: there is nothing left to reorder, and a feed's dropped products filled the rail.
+    private List<Product> LowStock => Data.Products.Where(p => !p.Delisted && p.Avail <= 6).ToList();
     // The store's own currency (T9); it summed only EUR orders, whatever the store.
     private string OrdersGross => AdminUi.Money(
         Data.Orders.Where(o => o.Currency == Data.CurrentCurrency).Sum(o => o.Value), Data.CurrentCurrency);

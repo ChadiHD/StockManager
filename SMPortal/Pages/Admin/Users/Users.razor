@@ -30,7 +30,7 @@ else
     <div class="toolbar">
         <h2 class="tbl-title">Team accounts</h2>
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, email or role" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> members</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "member", "members")</div>
     </div>
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
@@ -63,7 +63,7 @@ else
            PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showInvite" Title="Add user" OnClose="() => _showInvite = false">
+<Modal Visible="_showInvite" Title="Add user">
     <EditForm Model="_invite" OnValidSubmit="SendInvite">
         <div class="modal-body">
             <div class="form-grid">
@@ -104,7 +104,7 @@ else
     </EditForm>
 </Modal>
 
-<Modal Visible="_showManage" Title="Manage access" OnClose="() => _showManage = false">
+<Modal Visible="_showManage" Title="Manage access">
     <div class="modal-body">
         @if (_sel is not null)
         {

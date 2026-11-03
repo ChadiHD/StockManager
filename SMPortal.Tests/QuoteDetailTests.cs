@@ -64,6 +64,19 @@ public class QuoteDetailTests : TestContext
     }
 
     [Fact]
+    public void OneLineIsOneProductAndNoPreparerIsInvented()
+    {
+        var quote = NewQuote();
+        quote.LineItems.RemoveAt(1);
+
+        var cut = Render(MockDataFor(quote));
+
+        cut.Markup.Should().Contain("1 product<").And.NotContain("1 products");
+        // A quote records no preparer, and the panel printed "Órla Doyle" on every one of them.
+        cut.Markup.Should().NotContain("Prepared by").And.NotContain("Órla");
+    }
+
+    [Fact]
     public void SaveDraftIsDisabledUntilALineActuallyChanges()
     {
         var cut = Render(MockDataFor(NewQuote()));

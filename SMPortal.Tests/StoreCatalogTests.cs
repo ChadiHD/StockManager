@@ -23,6 +23,7 @@ public class StoreCatalogTests : TestContext
     public StoreCatalogTests()
     {
         Services.AddSingleton(Substitute.For<IToastService>());
+        Services.AddSingleton(new ProductListState());
     }
 
     private static Product Listed(string sku = "SKU-1") => new()

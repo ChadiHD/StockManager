@@ -26,6 +26,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, AuthStateProvider>();
 // swap for an HTTP-backed IAdminDataService when the real endpoints exist.
 builder.Services.AddScoped<IAdminDataService, AdminDataService>();
 builder.Services.AddScoped<IToastService, ToastService>();
+builder.Services.AddScoped<ProductListState>();
 
 builder.Services.AddSingleton<IAPIHelper, APIHelper>();
 builder.Services.AddSingleton<ILoggedInUserModel, LoggedInUserModel>();

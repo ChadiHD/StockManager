@@ -30,7 +30,7 @@ else
     <div class="panel panel-clip store-categories">
         <div class="toolbar">
             <h2 class="tbl-title">This store's categories</h2>
-            <div class="toolbar-count"><strong>@_view.Categories.Count</strong> categories</div>
+            <div class="toolbar-count"><strong>@_view.Categories.Count</strong> @AdminUi.Noun(_view.Categories.Count, "category", "categories")</div>
         </div>
         @if (_view.Categories.Count == 0)
         {
@@ -67,7 +67,7 @@ else
                     <button class="pill @(_filter == f ? "pill--active" : null)" @onclick="() => _filter = f">@f</button>
                 }
             </div>
-            <div class="toolbar-count"><strong>@Rows.Count()</strong> feed categories</div>
+            <div class="toolbar-count"><strong>@Rows.Count()</strong> @AdminUi.Noun(Rows.Count(), "feed category", "feed categories")</div>
         </div>
         <div class="tbl-wrap">
             <table class="tbl">
@@ -98,7 +98,7 @@ else
     </div>
 }
 
-<Modal Visible="_editing is not null" Title="@(_editing?.Id == 0 ? "Add category" : "Edit category")" OnClose="() => _editing = null">
+<Modal Visible="_editing is not null" Title="@(_editing?.Id == 0 ? "Add category" : "Edit category")">
     @if (_editing is not null)
     {
         <div class="modal-body">

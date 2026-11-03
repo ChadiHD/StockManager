@@ -37,7 +37,7 @@ else
             <div class="panel panel-clip">
                 <div class="lines-head">
                     <span class="card-kicker">Line items</span>
-                    <h2>@_q.LineItems.Count products</h2>
+                    <h2>@_q.LineItems.Count @AdminUi.Noun(_q.LineItems.Count, "product", "products")</h2>
                     @if (!CanEditLines)
                     {
                         <p class="lines-locked">Accepted and converted to an order — its lines can no longer be re-priced or removed.</p>
@@ -154,8 +154,8 @@ else
                 <div class="kv"><span class="k">Account</span><a class="v" href="admin/accounts">@_q.Account</a></div>
                 <div class="kv mt"><span class="k">Customer group</span><span class="v-strong">@_group</span></div>
                 <div class="kv mt"><span class="k">Payment</span><span class="v">@_payment · @_terms</span></div>
+                @* No "Prepared by": a quote records no preparer, and the row printed a name nobody entered. *@
                 <div class="kv mt"><span class="k">Currency</span><span class="v">@_q.Currency</span></div>
-                <div class="kv mt"><span class="k">Prepared by</span><span class="v">Órla Doyle</span></div>
                 <div class="divider"></div>
                 <span class="card-kicker">Status</span>
                 @foreach (var s in _steps)
@@ -170,7 +170,7 @@ else
     </div>
 }
 
-<Modal Visible="_showAddLine" Title="Add line item" OnClose="() => _showAddLine = false">
+<Modal Visible="_showAddLine" Title="Add line item">
     <EditForm Model="_lineDraft" OnValidSubmit="AddLine">
         <div class="modal-body">
             @if (!SelectableProducts.Any())

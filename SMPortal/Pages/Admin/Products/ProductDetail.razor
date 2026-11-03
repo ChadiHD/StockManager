@@ -18,7 +18,7 @@ else
     <div class="page-head">
         <div>
             <span class="eyebrow mono">@_p.Sku</span>
-            <div class="detail-title"><h1>@_p.Name</h1><span class="badge @AdminUi.StockClass(_p.Avail)">@_p.Avail · @_p.StockKind</span></div>
+            <div class="detail-title"><h1>@_p.Name</h1><span class="badge @AdminUi.StatusClass(_p.StockKind)">@_p.StockLabel</span></div>
             <p class="detail-sub">@_p.Cat · @SyncLabel</p>
         </div>
     </div>
@@ -67,8 +67,8 @@ else
             {
             <EditForm Model="_edit" OnValidSubmit="Save" class="panel panel-pad">
                 <span class="card-kicker">Edit product</span>
-                <div class="form-grid">
-                    <div class="field span2"><label>Product name</label><InputText class="input" @bind-Value="_edit.Name" /></div>
+                <div class="form-grid form-grid--3">
+                    <div class="field span3"><label>Product name</label><InputText class="input" @bind-Value="_edit.Name" /></div>
                     @* The feed's category, shown and not edited. It is the string a store's
                        mapping matches; which of a store's categories the product appears under
                        is set per store, in the panel beside this one. *@
@@ -80,14 +80,14 @@ else
                     <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_edit.Dist" /></div>
                     <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_edit.DistSku" /></div>
                     <div class="field span2"><label>Image URL (optional)</label><InputText class="input" @bind-Value="_edit.Image" /></div>
-                    <div class="field span2"><label>Description</label><InputTextArea class="input product-description" rows="4" @bind-Value="_edit.Desc" /></div>
+                    <div class="field span3"><label>Description</label><InputTextArea class="input product-description" rows="4" @bind-Value="_edit.Desc" /></div>
                     @if (!_p.IsDistributor)
                     {
                         @* A feed writes its own brand over a feed product's on every sync, so the
                            field is offered on own stock only, where it sticks (T11). *@
                         <div class="field"><label>Brand</label><InputText class="input" @bind-Value="_edit.Manufacturer" /></div>
                     }
-                    <div class="field">
+                    <div class="field span2">
                         <label class="check"><InputCheckbox @bind-Value="_edit.IsTaxable" /> Charge tax on this product</label>
                         <span class="field-note">Untick for goods the store's rules exempt, such as children's clothing in some countries.</span>
                     </div>
@@ -97,29 +97,39 @@ else
 
             <div class="panel panel-pad product-images">
                 <span class="card-kicker">Photographs</span>
-                @if (_images.Count == 0)
-                {
-                    <p class="field-note">None uploaded. The first one becomes the product's image everywhere it is shown.</p>
-                }
-                else
-                {
-                    <div class="image-strip">
-                        @foreach (var name in _images)
-                        {
-                            <figure class="image-strip__item">
-                                <img src="@($"/img/{name}")" alt="@_p.Name" />
-                                <button class="btn btn-ghost btn-sm image-remove" @onclick="() => RemoveImage(name)">Remove</button>
-                            </figure>
-                        }
-                    </div>
-                }
-                <div class="field mt">
-                    <label for="image-upload">Add a photograph <span class="label-optional">JPEG, PNG or WebP, up to 5 MB</span></label>
-                    <InputFile id="image-upload" accept=".jpg,.jpeg,.png,.webp" OnChange="UploadImage" disabled="@_uploading" />
+                @* Fixed-size tiles: a photograph is shown at its own size otherwise, and a large one
+                   ran off the screen. The last tile is the upload, so a file dropped on it or a click
+                   on it adds photographs where they will appear. *@
+                <div class="image-strip">
+                    @foreach (var name in _images)
+                    {
+                        var src = $"/img/{name}";
+                        <figure class="image-strip__item">
+                            <img src="@src" alt="@_p.Name" />
+                            @if (src == _p.Image)
+                            {
+                                <span class="image-main">Main</span>
+                            }
+                            <button class="image-remove" type="button" title="Remove photograph" aria-label="Remove photograph"
+                                    @onclick="() => RemoveImage(name)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                            </button>
+                        </figure>
+                    }
+                    <label class="image-add @(_uploading ? "image-add--busy" : null)" for="image-upload">
+                        <InputFile id="image-upload" class="image-add__input" accept=".jpg,.jpeg,.png,.webp" multiple
+                                   OnChange="UploadImages" disabled="@_uploading" />
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        <span>@(_uploading ? "Uploading…" : "Add photographs")</span>
+                    </label>
                 </div>
-                @if (_imageError is not null)
+                <p class="field-note mt">
+                    JPEG, PNG or WebP, up to 5 MB each and @MaxUploads at a time. Drop them on the tile or click it.
+                    @(_images.Count == 0 ? "The first one becomes the product's image everywhere it is shown." : null)
+                </p>
+                @foreach (var error in _imageErrors)
                 {
-                    <p class="field-note field-note--warn image-error">@_imageError</p>
+                    <p class="field-note field-note--warn image-error">@error</p>
                 }
             </div>
 
@@ -148,7 +158,7 @@ else
                             </tbody>
                         </table>
                     }
-                    <div class="form-grid mt variant-add">
+                    <div class="form-grid form-grid--4 mt variant-add">
                         <div class="field"><label for="variant-sku">SKU</label><input id="variant-sku" class="input" @bind="_variantSku" /></div>
                         <div class="field"><label for="variant-stock">Stock</label><input id="variant-stock" class="input" type="number" min="0" @bind="_variantStock" /></div>
                         <div class="field"><label for="variant-name-1">Option</label><input id="variant-name-1" class="input" placeholder="Size" @bind="_option1Name" /></div>
@@ -210,7 +220,7 @@ else
                 <div class="kv mt"><span class="k">Sell price</span><span class="v-strong">@AdminUi.Money(_p.Price, Data.CurrentCurrency)</span></div>
                 <div class="kv mt"><span class="k">Gross margin</span><span class="v accent">@_p.MarginPctAt(Data.NetOfTax(_p.Price, _p.IsTaxable))%</span></div>
                 <div class="divider"></div>
-                <div class="kv"><span class="k">Availability</span><span class="badge @AdminUi.StockClass(_p.Avail)">@_p.Avail · @_p.StockKind</span></div>
+                <div class="kv"><span class="k">Availability</span><span class="badge @AdminUi.StatusClass(_p.StockKind)">@_p.StockLabel</span></div>
             </div>
             <div class="panel panel-pad">
                 <span class="card-kicker">Stock source</span>
@@ -241,8 +251,11 @@ else
     private IReadOnlyList<StoreCategoryOption> _categories = [];
 
     private IReadOnlyList<string> _images = [];
-    private string? _imageError;
+    private readonly List<string> _imageErrors = [];
     private bool _uploading;
+
+    // InputFile refuses to hand over more than it was asked for, so the count is checked first.
+    private const int MaxUploads = 10;
 
     private IReadOnlyList<VariantItem> _variants = [];
     private string _variantSku = "", _option1Name = "", _option1Value = "", _option2Name = "", _option2Value = "";
@@ -332,29 +345,43 @@ else
         Toast.Show("Variant removed");
     }
 
-    private async Task UploadImage(InputFileChangeEventArgs e)
+    private async Task UploadImages(InputFileChangeEventArgs e)
     {
-        _imageError = null;
+        _imageErrors.Clear();
 
-        // The API's own limit, checked first so a large file is refused before it is sent.
-        const long maxBytes = 5 * 1024 * 1024;
-        if (e.File.Size > maxBytes)
+        if (e.FileCount > MaxUploads)
         {
-            _imageError = "A photograph can be at most 5 MB.";
+            _imageErrors.Add($"Choose at most {MaxUploads} photographs at a time.");
             return;
         }
 
+        // The API's own limit, checked first so a large file is refused before it is sent.
+        const long maxBytes = 5 * 1024 * 1024;
+        var added = 0;
         _uploading = true;
 
         try
         {
-            await using var content = e.File.OpenReadStream(maxBytes);
-            _imageError = await Data.UploadImage(Sku, content, e.File.Name);
-            if (_imageError is not null) return;
+            // One at a time, and each refusal named: a file the API refuses does not stop the rest.
+            foreach (var file in e.GetMultipleFiles(MaxUploads))
+            {
+                if (file.Size > maxBytes)
+                {
+                    _imageErrors.Add($"{file.Name}: a photograph can be at most 5 MB.");
+                    continue;
+                }
+
+                await using var content = file.OpenReadStream(maxBytes);
+                var refusal = await Data.UploadImage(Sku, content, file.Name);
+                if (refusal is null) added++;
+                else _imageErrors.Add($"{file.Name}: {refusal}");
+            }
+
+            if (added == 0) return;
 
             _images = await Data.GetImages(Sku);
             _p = Data.GetProduct(Sku);
-            Toast.Show("Photograph added");
+            Toast.Show(added == 1 ? "Photograph added" : $"{added} photographs added");
         }
         finally
         {

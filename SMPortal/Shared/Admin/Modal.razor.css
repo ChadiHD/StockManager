@@ -1,30 +1,30 @@
 .modal-backdrop {
-  position:fixed; inset:0; z-index:50; display:flex; align-items:flex-start; justify-content:center;
-  padding:4vh 20px 40px; background:rgba(15,18,30,.5); overflow:auto;
+  position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+  padding:24px; background:rgba(18,16,42,.56); backdrop-filter:blur(2px); overflow:auto;
 }
+/* Sized by its content up to a ceiling, not a fixed 60vh: a short dialog left a third of its height empty,
+   and a fixed 60vw gave a form 864px lines. The body scrolls when the ceiling is reached. */
 .modal {
-  width:min(100%, max(560px, 60vw)); max-width:1200px;
-  height:min(100%, max(620px, 60vh));
+  width:min(100%, 720px); max-height:min(100%, 940px);
   display:flex; flex-direction:column;
-  background:#fff; border:1px solid var(--line);
+  background:var(--surface); border:1px solid var(--line);
   border-radius:16px; box-shadow:var(--shadow-lg); overflow:hidden;
 }
 .modal-head {
-  display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:12px;
-  padding:18px 26px; border-bottom:1px solid var(--line-2);
+  display:flex; flex:0 0 auto; align-items:center; gap:12px;
+  padding:18px 24px; border-bottom:1px solid var(--line-2);
 }
-.modal-head strong { font-size:1.05rem; font-weight:800; letter-spacing:-.01em; }
-.modal-x {
-  display:grid; place-items:center; width:32px; height:32px; border:0; border-radius:8px;
-  background:#f2f5f9; color:var(--muted); cursor:pointer;
-}
-.modal-x:hover { background:var(--line); color:var(--ink); }
-.modal-x svg { width:16px; height:16px; }
+.modal-head strong { font-size:var(--fs-md); font-weight:700; letter-spacing:-.005em; }
 
 ::deep form { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
 
-::deep .modal-body { flex:1 1 auto; min-height:0; padding:22px 26px; overflow:auto; }
+::deep .modal-body { flex:1 1 auto; min-height:0; padding:20px 24px; overflow:auto; }
 ::deep .modal-foot {
-  display:flex; flex:0 0 auto; justify-content:flex-end; gap:10px; padding:16px 26px;
-  border-top:1px solid var(--line-2); background:var(--surface-3);
+  display:flex; flex:0 0 auto; justify-content:flex-end; gap:10px; padding:14px 24px;
+  border-top:1px solid var(--line-2); background:var(--surface-2);
+}
+
+@media (max-width:560px) {
+  .modal-backdrop { padding:12px; align-items:flex-end; }
+  ::deep .modal-foot .btn { flex:1 1 0; }
 }

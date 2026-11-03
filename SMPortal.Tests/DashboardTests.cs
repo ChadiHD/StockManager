@@ -45,4 +45,19 @@ public class DashboardTests : TestContext
         cut.Find(".dash-welcome").TextContent.Should().Be("Welcome back");
         cut.Markup.Should().NotContain("Órla");
     }
+
+    [Fact]
+    public void TheLowStockRailLeavesOutWhatTheDistributorNoLongerSupplies()
+    {
+        // Every product a feed had dropped sat at zero, and the rail was nothing but those.
+        _data.Products.Returns(new[]
+        {
+            new Product { Sku = "DROPPED", Name = "Dropped part", Source = "Distributor", Delisted = true },
+            new Product { Sku = "LOW", Name = "Nearly gone", Avail = 2 }
+        });
+
+        var cut = RenderComponent<Dashboard>();
+
+        cut.FindAll(".low-row").Should().ContainSingle().Which.TextContent.Should().Contain("LOW");
+    }
 }

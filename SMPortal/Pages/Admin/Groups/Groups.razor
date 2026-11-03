@@ -22,7 +22,7 @@
 <div class="panel panel-clip">
     <div class="toolbar">
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search group, terms or note" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> groups</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "group", "groups")</div>
     </div>
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
@@ -48,7 +48,7 @@
            PageSize="_pageSize" PageSizeChanged="OnPageSizeChanged" />
 </div>
 
-<Modal Visible="_showNew" Title="New customer group" OnClose="() => _showNew = false">
+<Modal Visible="_showNew" Title="New customer group">
     <EditForm Model="_draft" OnValidSubmit="CreateGroup">
         <div class="modal-body">
             <div class="form-grid">
