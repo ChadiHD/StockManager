@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SMDataManager.Library.DataAccess;
@@ -211,13 +212,18 @@ public static class CustomerAuthEndpoints
     /// phishing page wants. Only a local path is honoured; anything else falls back to the
     /// home page.
     /// </remarks>
-    private static string SafeReturnUrl(string? returnUrl) =>
-        !string.IsNullOrWhiteSpace(returnUrl)
-        && returnUrl.StartsWith('/')
-        // "//evil.example" and "/\evil.example" are both protocol-relative once a browser
-        // sees them, and both start with a slash.
-        && !returnUrl.StartsWith("//", StringComparison.Ordinal)
-        && !returnUrl.StartsWith("/\\", StringComparison.Ordinal)
-            ? returnUrl
-            : "/";
+    private static string SafeReturnUrl(string? returnUrl) => IsLocalPath(returnUrl) ? returnUrl! : "/";
+
+    /// <summary>
+    /// A path on this host, by the framework's own test rather than a hand-written one.
+    /// </summary>
+    /// <remarks>
+    /// "//evil.example" and "/\evil.example" are protocol-relative once a browser sees them,
+    /// and the hand-written check caught both — but not "/\t/evil.example": browsers strip
+    /// tabs and newlines from a URL, which turns it into the first. <c>IsLocalUrl</c> refuses
+    /// control characters too. It also accepts "~/", which a browser does not resolve, hence
+    /// the leading slash.
+    /// </remarks>
+    public static bool IsLocalPath(string? url) =>
+        !string.IsNullOrEmpty(url) && url.StartsWith('/') && RedirectHttpResult.IsLocalUrl(url);
 }

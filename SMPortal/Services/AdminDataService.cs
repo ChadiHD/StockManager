@@ -1416,9 +1416,22 @@ public class AdminDataService : IAdminDataService
             $"{_api}/api/User/Me/Password",
             new { CurrentPassword = currentPassword, NewPassword = newPassword });
 
-        return response.IsSuccessStatusCode
-            ? null
-            : await PlainErrors.Refusal(response, "Your password could not be changed.");
+        if (!response.IsSuccessStatusCode)
+        {
+            return await PlainErrors.Refusal(response, "Your password could not be changed.");
+        }
+
+        // Changing the password ended every session this login had, this one included; the API
+        // answers with a token for the new one, and the next call 401s without it.
+        var issued = await response.Content.ReadFromJsonAsync<AuthenticatedUserModel>();
+
+        if (!string.IsNullOrWhiteSpace(issued?.Access_Token))
+        {
+            await _localStorage.SetItemAsync(_tokenKey, issued.Access_Token);
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", issued.Access_Token);
+        }
+
+        return null;
     }
 
     public async Task<string?> UpdateUserAccess(string userId, IEnumerable<string> roles,

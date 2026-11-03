@@ -334,7 +334,9 @@ account blocks that person from registering again and nothing else would surface
   `Contact` → `Account` → `Site` — `spContact_GetByIdentityUser` takes a `@SiteId` and returns
   nothing for a user belonging to another store.
 - **An unconfirmed address cannot sign in.** `RegistrationService` mints an Identity
-  email-confirmation token and mails the link; `/confirm-email` calls `ConfirmEmailAsync`, and
+  email-confirmation token and mails the link; `/confirm-email` calls `ConfirmEmailAsync` when
+  its button is pressed — **on the post, never on the GET**, because mail gateways open links to
+  scan them and would confirm an address an applicant typed in for somebody else — and
   `CustomerAuthEndpoints` refuses a user whose `EmailConfirmed` is false. Creating a login
   proves nothing about who owns the address — an applicant can type somebody else's — and the
   approval mail and password reset both go there. The tokens are Identity's, which is
@@ -380,19 +382,23 @@ account blocks that person from registering again and nothing else would surface
     confirmation link is, and for the same reason.
   - The success page and the "your password was changed" mail both state that other sessions
     ended. That is true only while the stamp check above exists; remove it and both lie.
-- **Registration, sign-in, both halves of password reset, a quote request and a checkout are
-  rate limited; nothing else is.** A checkout (T12) is thirty an hour, because a guest's writes
-  an account and an order and takes stock for whoever posts it.
+- **Registration, sign-in, both halves of password reset, the confirmation resend, a quote
+  request and a checkout are rate limited; nothing else is.** A checkout (T12) is thirty an
+  hour, because a guest's writes an account and an order and takes stock for whoever posts it.
   `CustomerRateLimiting` partitions a global limiter by caller and path, returning no limiter
   for everything else — a cap that reached the catalog would be a denial-of-service switch
   aimed at the shop window. Registration is ten an hour because it writes across two databases
-  and accepts files; asking for a reset link is ten an hour because it fires mail from this
-  store's sending domain at an address a stranger chose; sign-in and posting a new password are
+  and accepts files; asking for a reset link or a fresh confirmation link is ten an hour,
+  shared between the two, because each fires mail from this store's sending domain at an
+  address a stranger chose; sign-in and posting a new password are
   twenty per five minutes each because the storefront authenticates with
   `UserManager.CheckPasswordAsync`, which — unlike `SignInManager` — does not consult
   `IdentityOptions.Lockout`, so nothing else here slows a password guess down.
   - Partitioned by IP only, deliberately: adding the site to the key would hand an attacker
-    one allowance per store.
+    one allowance per store. An IP is an IPv4 address or an IPv6 /64 (`RateLimitCaller`, both
+    hosts): one subscriber is routinely given a whole /64, and per full IPv6 address the limit
+    was 2^64 limits. IPv4-mapped addresses are unmapped first, or every IPv4 client would share
+    one /64.
   - **They depend on forwarded headers in production**, which `ProductionTopology` turns on
     (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`) for both hosts; Aspire's output did not. Without it
     every customer shares the ingress's partition and the cap protects nobody while throttling
@@ -409,6 +415,10 @@ account blocks that person from registering again and nothing else would surface
   Saying otherwise turns the form into an oracle for who buys here. That leaves a genuine
   duplicate applicant with no feedback until the "someone tried to register" email exists, so
   the acknowledgement page must carry a "contact us if you hear nothing" line until then.
+  Two places the answer used to differ: the page showed the reference only a new application
+  has (it is in the mail now, and only there), and the password rules ran inside `CreateAsync`,
+  which a duplicate never reaches — so a password of "a" drew Identity's errors for a new
+  address and "Application received" for a known one. They run before the duplicate check.
   The same rule governs the paperwork: a duplicate applicant gets no `AccountId` back from
   `RegistrationService`, so their upload is not attached to the existing account — doing so
   would confirm to whoever sent it that the account is there.
@@ -598,7 +608,10 @@ else. `EmailDispatcher`, in `StockApi`, claims due rows, renders them and hands 
 `/Reject`. **Not `spAccount_UpdateStatus`**, which still exists for suspending and
 reinstating but cannot be the approval path: approval is the one transition that has to leave
 evidence, and "someone changed a status" is not an answer to a customer asking why they were
-given these terms.
+given these terms. Until the security pass that was a convention, not a guard: `PUT
+api/Account/{id}/Status` would approve a Pending account and `POST api/Account` took its status
+from the body. Now the procedure and the controller both allow Approved ↔ Suspended only, and a
+created account is always Pending.
 
 - The approver comes from the authenticated principal. A decider in the request body would be
   an audit trail written by the auditee.
@@ -1210,7 +1223,27 @@ check stops the host starting.
 - **`/token` is staff only** (`StaffSignIn`): a site-qualified name is refused before any
   password is checked, users are found by name (emails are not unique across stores, and
   `FindByEmailAsync` threw on a shared one), failures count toward lockout, and it is rate
-  limited per IP.
+  limited per IP. It reads the form only, never the query string, and an unknown name costs a
+  password hash like a known one, so neither a URL log nor the response time says which staff
+  names exist. Tokens carry and require `StaffToken.Issuer` / `Audience`, and a signing key
+  under 32 bytes stops the host at startup.
+  - **Per-account lockout is a denial-of-service lever, knowingly.** Five wrong passwords every
+    fifteen minutes keep a named admin out of `/token`, and the per-IP limit does not stop it.
+    The fix is a second factor for Admin, not a weaker lockout; it is not built.
+- **`PUT api/User/Me/Password` checks a password, so it does what `/token` does**: the same
+  rate limit, and the current password checked through `CheckPasswordSignInAsync` with
+  lockout before `ChangePasswordAsync` runs.
+- **Role changes take staff roles to staff logins only** and report Identity's result. Taking
+  Admin from the last admin of every store is refused, as under *An admin acts for one store*.
+- **A token carries the login's security stamp, and every request compares it**
+  (`StaffToken`, wired as `OnTokenValidated`). Without that, removing an admin's role or
+  changing their password left the tokens already issued working for up to a day — long
+  enough to register a new login and make it an Admin. Whatever should end a session rotates
+  the stamp: `ChangePasswordAsync` does so itself, so `PUT api/User/Me/Password` answers with
+  a fresh token the portal stores, and `RemoveRole` rotates it explicitly because Identity's
+  role changes do not. One primary-key read on `ApiAuthDb` per request, the storefront's trade.
+  Lockout is deliberately not checked: five wrong passwords from anyone would end an admin's
+  session.
 - **Every action names its roles.** `AuthorizationSurfaceTests` fails for any API action that
   is open or merely `[Authorize]`, outside a two-entry allow-list (`/token`, `GET api/User`). A
   roleless token must open nothing, and this is what says so.
@@ -1784,6 +1817,13 @@ images afterwards, a batch at a time.
   `FillLegacyFeedFields.sql` wrote those names, once, into the feeds created before T9.
 - **That step must stay in pre-deployment, guarded on `Product.FeedId` being absent.** In
   `Seed.sql` it would overwrite a later feed's deliberately blank field on every publish.
+
+**A stored feed password is only sent to the endpoint it was saved for** (`FeedEndpoint`).
+Test and Update read an empty password as "use the stored one", and both used to take the host,
+port, username and host key from the same request — so an admin token could point a feed at
+its own server, clear the host key, and receive the distributor's password in plain text. Now a
+different host, port or username, or a changed or cleared host key, needs the password typed
+again; pinning a key where there was none does not.
 
 **A feed is claimed before it is fetched, and a claim refused is not a failure.**
 `spDistributorFeed_ClaimForSync` sets `DistributorFeed.SyncStartedUtc` in one atomic `UPDATE`

@@ -1,5 +1,6 @@
--- Backs Approve / Reject on /admin/accounts, and the Suspend toggle (the caller passes the
--- status it wants; toggling between Approved and Suspended is decided in the data layer).
+-- Backs the Suspend toggle on /admin/accounts: Approved <-> Suspended and nothing else.
+-- Approval and rejection are spAccount_Approve and spAccount_Reject, which record who decided
+-- and queue the applicant's mail; reaching Approved from Pending here would do neither.
 CREATE PROCEDURE [dbo].[spAccount_UpdateStatus]
 	@Id int,
 	@Status nvarchar(20),
@@ -13,5 +14,7 @@ BEGIN
 	UPDATE dbo.Account
 	SET [Status] = @Status
 	WHERE [Id] = @Id
-	  AND [SiteId] = @SiteId;
+	  AND [SiteId] = @SiteId
+	  AND @Status IN ('Approved', 'Suspended')
+	  AND [Status] IN ('Approved', 'Suspended');
 END

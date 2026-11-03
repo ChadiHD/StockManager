@@ -21,6 +21,26 @@
             </p>
             <a href="@CustomerAuthentication.LoginPath" class="btn btn-primary btn-block">@L["Go to sign in"]</a>
         }
+        else if (HasLink && !_refused)
+        {
+            <h1 class="signin__title">@L["Confirm your email address"]</h1>
+            <p class="text-muted signin__lede">
+                @L["Press the button to confirm this is the address you applied with."]
+            </p>
+
+            @* Confirmed on the post, never on arrival. Mail gateways open the links in a
+               message to scan them — Safe Links, Mimecast, Proofpoint — and confirming on the
+               GET let a scanner at somebody else's company confirm an address an applicant had
+               typed in for them, which is the one thing this gate exists to stop. A scanner
+               follows links; it does not press buttons. *@
+            <form method="post" class="signin__form" @formname="confirm-email" @onsubmit="ConfirmAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="@MailedTokenLink.UserIdParameter" value="@UserId" />
+                <input type="hidden" name="@MailedTokenLink.TokenParameter" value="@Token" />
+
+                <button type="submit" class="btn btn-primary btn-block">@L["Confirm my address"]</button>
+            </form>
+        }
         else
         {
             @* One message for every failure: a bad token, an expired one, a link already used,
@@ -31,7 +51,7 @@
                Arriving with no token at all is a different thing: that is someone who came from
                the sign-in page wanting a new link, not someone whose link failed. Telling them
                their link did not work would be nonsense. *@
-            @if (_attempted)
+            @if (_refused)
             {
                 <h1 class="signin__title">@L["That link did not work"]</h1>
                 <p class="text-muted signin__lede">
@@ -63,6 +83,8 @@
 </div>
 
 @code {
+    [CascadingParameter] public HttpContext? Http { get; set; }
+
     /*
     Both bound as text, never as a typed parameter.
 
@@ -79,25 +101,38 @@
 
     private bool _confirmed;
 
+    /// <summary>Whether a posted confirmation was refused.</summary>
+    private bool _refused;
+
     /// <summary>Whether a link was being followed, rather than someone asking for one.</summary>
-    private bool _attempted;
+    private bool HasLink => !string.IsNullOrWhiteSpace(UserId) || !string.IsNullOrWhiteSpace(Token);
 
-    protected override async Task OnInitializedAsync()
+    private async Task ConfirmAsync()
     {
-        _attempted = !string.IsNullOrWhiteSpace(UserId) || !string.IsNullOrWhiteSpace(Token);
+        // From the body, as the reset page does, so the post does not depend on the query
+        // string surviving it. Both are validated again below either way.
+        var form = Http?.Request.Form;
 
-        var token = MailedTokenLink.TryDecode(Token);
+        _confirmed = await TryConfirmAsync(
+            form?[MailedTokenLink.UserIdParameter].ToString(),
+            form?[MailedTokenLink.TokenParameter].ToString());
+        _refused = !_confirmed;
+    }
 
-        if (string.IsNullOrWhiteSpace(UserId) || token is null)
+    private async Task<bool> TryConfirmAsync(string? userId, string? encodedToken)
+    {
+        var token = MailedTokenLink.TryDecode(encodedToken);
+
+        if (string.IsNullOrWhiteSpace(userId) || token is null)
         {
-            return;
+            return false;
         }
 
-        var user = await Users.FindByIdAsync(UserId);
+        var user = await Users.FindByIdAsync(userId);
 
         if (user is null)
         {
-            return;
+            return false;
         }
 
         /*
@@ -112,7 +147,7 @@
                 "Refused an email confirmation for a login belonging to another store at {SiteKey}.",
                 SiteContext.Site.SiteKey);
 
-            return;
+            return false;
         }
 
         // Identity validates the token against the user's security stamp, and confirming
@@ -121,8 +156,6 @@
         // rolling them by hand is how you get neither.
         var result = await Users.ConfirmEmailAsync(user, token);
 
-        _confirmed = result.Succeeded;
-
         if (!result.Succeeded)
         {
             Logger.LogInformation(
@@ -130,5 +163,7 @@
                 SiteContext.Site.SiteKey,
                 string.Join(", ", result.Errors.Select(error => error.Code)));
         }
+
+        return result.Succeeded;
     }
 }

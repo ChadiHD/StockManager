@@ -150,7 +150,10 @@ public sealed class RegistrationApprovalJourneyTests
         var confirmationUrl = await IdentityTestSupport.ConfirmationUrlAsync(
             _fixture.ApiAuthConnectionString, _fixture.SmStoreBaseUrl, site.SiteKey, email);
 
+        // Opening the link confirms nothing — a mail scanner opens links too — so the applicant
+        // presses the button it shows.
         await customerPage.GotoAsync(confirmationUrl);
+        await customerPage.GetByRole(AriaRole.Button, new() { Name = "Confirm my address" }).ClickAsync();
         await Expect(customerPage.Locator("h1")).ToHaveTextAsync("Address confirmed");
 
         // --- The applicant signs in and sees the group's terms ------------------------

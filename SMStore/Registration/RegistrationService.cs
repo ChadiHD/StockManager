@@ -101,6 +101,28 @@ public sealed class RegistrationService : IRegistrationService
         var userName = SiteQualifiedUserName.For(site.SiteKey, email);
 
         /*
+        The password rules are checked before the address is, so a weak password gets the same
+        answer whether or not the address is registered. Left to CreateAsync, which a duplicate
+        never reaches, they made this form the oracle described below after all: submit "a" as
+        the password and Identity's complaints came back for a new address, "Application
+        received" for a known one, and nothing was created either way.
+        */
+        var passwordErrors = new List<IdentityError>();
+
+        foreach (var validator in _users.PasswordValidators)
+        {
+            var result = await validator.ValidateAsync(
+                _users, new IdentityUser { UserName = userName, Email = email }, submission.Password!);
+            passwordErrors.AddRange(result.Errors);
+        }
+
+        if (passwordErrors.Count > 0)
+        {
+            errors.AddRange(passwordErrors.Select(error => new RegistrationError(null, error.Description)));
+            return new RegistrationOutcome(false, errors);
+        }
+
+        /*
         An address already registered at this store gets the same answer as a new one.
 
         Saying "that email is already registered" turns this form into an oracle for whether

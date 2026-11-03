@@ -39,6 +39,15 @@ namespace StockApi.Sites
         public async Task InvokeAsync(
             HttpContext context, AdminSiteContext siteContext, ISiteData sites, IUserData users)
         {
+            // No endpoint means authorization had nothing to demand, so an anonymous caller got
+            // this far — and every distinct header value it sent cost a query and a cache entry.
+            // Nothing will read the store for a 404.
+            if (context.GetEndpoint() is null)
+            {
+                await _next(context);
+                return;
+            }
+
             var site = Resolve(context, sites);
 
             if (site is not null && MayActFor(context, site, users))
@@ -72,18 +81,26 @@ namespace StockApi.Sites
                 // the header there would be ceremony. The moment a second store exists the
                 // guess stops being safe, and callers get the 400 instead — the same rule
                 // dbo.fnSite_Resolve applies to writes.
-                var active = Lookup("all", () => sites.GetSites().Where(s => s.IsActive).ToList());
+                var active = Lookup(ListEntry, () => sites.GetSites().Where(s => s.IsActive).ToList());
 
                 return active.Count == 1 ? active[0] : null;
+            }
+
+            // The column's width. Anything longer names no store, and is not worth a query or a
+            // cache entry.
+            if (key.Length > 50)
+            {
+                return null;
             }
 
             // Cached because every admin request pays for this, and a site row changes about
             // as often as a deployment. Inactive stores included (T9): a store is created
             // inactive and configured before it opens, and MayActFor decides who may see one.
-            return Lookup(key, () => sites.GetSites().Where(s => s.SiteKey == key).ToList())
+            // Its own prefix, so a store keyed "all" — or a header saying so — cannot read or
+            // overwrite the list above.
+            return Lookup(KeyEntry(key), () => sites.GetSites().Where(s => s.SiteKey == key).ToList())
                 .FirstOrDefault();
         }
-
         /*
         Whether this caller may act for the store, from dbo.UserSite (T9). A store they may not
         act for is left unresolved, exactly like a key that names nothing, so the API's answer
@@ -126,12 +143,16 @@ namespace StockApi.Sites
         /// </summary>
         public static void Forget(IMemoryCache cache, string siteKey)
         {
-            cache.Remove($"adminsite:{siteKey}");
-            cache.Remove("adminsite:all");
+            cache.Remove(KeyEntry(siteKey));
+            cache.Remove(ListEntry);
         }
 
-        private List<SiteModel> Lookup(string key, Func<List<SiteModel>> load) =>
-            _cache.GetOrCreate($"adminsite:{key}", entry =>
+        private const string ListEntry = "adminsite-list";
+
+        private static string KeyEntry(string siteKey) => $"adminsite-key:{siteKey}";
+
+        private List<SiteModel> Lookup(string cacheKey, Func<List<SiteModel>> load) =>
+            _cache.GetOrCreate(cacheKey, entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = CacheLifetime;
                 return load();
