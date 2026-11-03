@@ -823,7 +823,14 @@ time — three SMPortal tests failed that way and nothing failed to compile. `us
 AngleSharp.Dom` works transitively; the package reference adds only the version conflict.
 
 `StockManager.E2ETests/README.md` carries the rest: the Playwright install step and
-`E2E_REQUIRE_APPHOST=1` for CI. **All sixteen journeys pass.** T7's tenth has an admin add a
+`E2E_REQUIRE_APPHOST=1` for CI.
+
+**The suite runs whatever is in each project's own `bin/Debug`, not what the test command just
+built.** The app host starts its projects with `dotnet run --no-build`, which reads the default
+output path, so `dotnet test ... --artifacts-path <dir>` (or `-p:BaseOutputPath=`) builds the
+new code elsewhere and then drives an older build. Nothing fails or warns: a journey whose
+selectors predate the change passes against the old portal. Build the solution with no output
+redirection before an E2E run whose result is meant to cover a change. **All sixteen journeys pass.** T7's tenth has an admin add a
 colleague, who signs in with the first password and changes it, after which `/token` refuses
 the old one.
 

@@ -57,18 +57,21 @@
     }
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">
-        <table class="tbl">
-            <thead><tr><th class="select-col"><input type="checkbox" aria-label="Select this page" checked="@PageSelected" @onchange="TogglePage" /></th><th class="thumb-col"></th><th>Product</th><th>On this store</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
+        @* tbl--stack: under 720px each row becomes a card, and each cell names itself from its data-label. *@
+        <table class="tbl tbl--stack">
+            <thead><tr><th class="select-col"><label class="check-hit"><input type="checkbox" aria-label="Select this page" checked="@PageSelected" @onchange="TogglePage" /></label></th><th class="thumb-col"></th><th>Product</th><th>On this store</th><th>Source</th><th class="num">Feed cost</th><th class="num">Sell price</th><th class="trail">Availability</th></tr></thead>
             <tbody>
                 @{ var variantCounts = VariantCounts(); }
                 @foreach (var p in Paged)
                 {
-                    <tr class="clickable" @onclick='() => Nav.NavigateTo($"admin/products/{p.Sku}")'>
-                        <td class="select-col" @onclick:stopPropagation="true">
-                            <input type="checkbox" aria-label="Select @p.Sku" checked="@_selected.Contains(p.Sku)"
-                                   @onchange="_ => Toggle(p.Sku)" />
+                    <tr class="clickable @(p.Delisted ? "row--delisted" : null)" @onclick='() => Nav.NavigateTo($"admin/products/{p.Sku}")'>
+                        <td class="select-col" data-label="Select" @onclick:stopPropagation="true">
+                            <label class="check-hit">
+                                <input type="checkbox" aria-label="Select @p.Sku" checked="@_selected.Contains(p.Sku)"
+                                       @onchange="_ => Toggle(p.Sku)" />
+                            </label>
                         </td>
-                        <td class="thumb-cell">
+                        <td class="thumb-cell" data-label="Image">
                             @if (string.IsNullOrWhiteSpace(p.Image))
                             {
                                 <span class="thumb thumb--none" role="img" aria-label="No image" title="No image">
@@ -83,31 +86,33 @@
                         </td>
                         @* Desc is the brand and model, Name the spec string. Both are needed:
                            two rows can share "LENOVO ThinkPad L14 G2" and differ only in spec. *@
-                        <td>
+                        <td class="cell-product" data-label="Product">
                             <span class="cell-strong">@(string.IsNullOrWhiteSpace(p.Desc) ? p.Name : p.Desc)</span>
-                            @if (!string.IsNullOrWhiteSpace(p.Desc))
-                            {
-                                <span class="cell-sub">@p.Name</span>
-                            }
-                            <span class="cell-sub mono">@p.Sku</span>
-                            @if (variantCounts.TryGetValue(p.Id, out var variants))
-                            {
-                                <span class="cell-sub variant-count">@variants @(variants == 1 ? "variant" : "variants")</span>
-                            }
+                            <span class="cell-meta">
+                                <span class="cell-sub cell-sku mono">@p.Sku</span>
+                                @if (variantCounts.TryGetValue(p.Id, out var variants))
+                                {
+                                    <span class="cell-sub variant-count">@variants @(variants == 1 ? "variant" : "variants")</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(p.Desc))
+                                {
+                                    <span class="cell-sub cell-name" title="@p.Name">@p.Name</span>
+                                }
+                            </span>
                         </td>
-                        <td class="placement-cell">
+                        <td class="placement-cell" data-label="On this store">
                             <span class="placement @(p.OnStore ? "placement--on" : "placement--off")">
                                 @(p.OnStore ? p.StoreCategory : AdminUi.PlacementLabel(p.Placement))
                             </span>
                             <span class="cell-sub">@(p.OnStore ? AdminUi.PlacementLabel(p.Placement) : $"Feed: {p.Cat}")</span>
                         </td>
-                        <td>
+                        <td class="src-cell" data-label="Source">
                             <span class="src @AdminUi.SourceClass(p.Source)">@p.Source</span>
-                            <span class="cell-sub src-sub">@(p.IsDistributor ? $"{p.Dist} · {p.DistSku}" : "In-house stock")</span>
+                            <span class="cell-sub src-sub" title="@(p.IsDistributor ? $"{p.Dist} · {p.DistSku}" : null)">@(p.IsDistributor ? $"{p.Dist} · {p.DistSku}" : "In-house stock")</span>
                         </td>
-                        <td class="num cell-sub">@AdminUi.Money(p.Cost, Data.CurrentCurrency)</td>
-                        <td class="num"><strong>@AdminUi.Money(p.Price, Data.CurrentCurrency)</strong></td>
-                        <td class="trail">
+                        <td class="num cost-cell" data-label="Feed cost">@AdminUi.Money(p.Cost, Data.CurrentCurrency)</td>
+                        <td class="num price-cell" data-label="Sell price"><strong>@AdminUi.Money(p.Price, Data.CurrentCurrency)</strong></td>
+                        <td class="trail avail-cell" data-label="Availability">
                             <span class="badge @AdminUi.StatusClass(p.StockKind)" title="@(p.Delisted ? "The distributor no longer supplies it" : null)">@p.StockLabel</span>
                             <span class="sync @(p.Stale ? "sync--stale" : "sync--muted")">@SyncLabel(p)</span>
                         </td>

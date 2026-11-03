@@ -1,54 +1,82 @@
-.overview { display:flex; gap:20px; align-items:center; }
-.prod-img { width:104px; height:104px; flex:0 0 auto; object-fit:cover; border-radius:14px; border:1px solid var(--line); }
+.overview { display:flex; gap:18px; align-items:center; padding:16px 20px; }
+.prod-img { width:76px; height:76px; flex:0 0 auto; object-fit:cover; border-radius:var(--radius); border:1px solid var(--line); background:var(--surface-2); }
 .overview-body { min-width:0; }
-.overview-body h2 { margin:0 0 4px; font-size:1.12rem; font-weight:750; }
-.overview-body p { margin:0; color:var(--muted-3); font-size:.83rem; }
+.overview-body h2 { margin:0 0 4px; font-size:var(--fs-lg); font-weight:700; letter-spacing:-.01em; }
+.overview-body p { margin:0; color:var(--muted); font-size:var(--fs-base); }
 .overview-body .src { margin-bottom:8px; }
 
-.kv.mt { margin-top:11px; }
-.kv .accent { color:var(--turq-700); font-weight:800; }
+.kv.mt { margin-top:8px; }
+.kv .accent { color:var(--turq-700); font-weight:700; }
 .mt { margin-top:16px; }
-.eyebrow.mono { text-transform:none; letter-spacing:.02em; }
+.eyebrow.mono { text-transform:none; letter-spacing:.02em; font-weight:600; }
 
 /* The feed's category, shown in the form's place so the layout holds, but not editable: it is
    the string store mappings match, and the form used to rewrite it. */
-.input--readonly { display:flex; align-items:center; background:var(--surface-2); color:var(--muted-3); cursor:default; }
+.input--readonly { display:flex; align-items:center; background:var(--surface-2); color:var(--muted); border-color:var(--btn-line); cursor:default; }
 
-.placement-status { margin:0 0 14px; font-weight:700; font-size:.9rem; }
-.placement-status--on { color:var(--turq-800); }
-.placement-status--off { color:var(--muted-3); }
-.check { display:flex; align-items:center; gap:8px; font-size:.88rem; }
+.placement-status { margin:0 0 14px; font-weight:600; font-size:var(--fs-base); }
+.placement-status--on { color:var(--turq-700); }
+.placement-status--off { color:var(--muted); }
 .placement-error { margin:12px 0 0; }
 
-/* T11: a product's photographs and its sizes and colours. */
-.image-strip { display:grid; grid-template-columns:repeat(auto-fill, 112px); gap:12px; }
-.image-strip__item, .image-add { position:relative; width:112px; height:112px; margin:0; border-radius:10px; }
-.image-strip__item img {
-  display:block; width:112px; height:112px; object-fit:cover;
-  border-radius:10px; border:1px solid var(--line); background:var(--surface-2);
+/* Seven of the edit form's fields are short, which left one alone in a half row in two columns.
+   Three columns on a wide screen; back to two where the panel gets narrow, one where it stacks.
+   The name and the description take the whole row, the image URL and the tax box two thirds. */
+.form-grid--3 { grid-template-columns:repeat(3, minmax(0,1fr)); }
+.form-grid--3 .span2 { grid-column:span 2; }
+.form-grid--3 .span3 { grid-column:1 / -1; }
+.form-grid--4 { grid-template-columns:repeat(4, minmax(0,1fr)); }
+@media (max-width:1280px) {
+  .form-grid--3, .form-grid--4 { grid-template-columns:1fr 1fr; }
+  .form-grid--3 .span2 { grid-column:1 / -1; }
 }
+@media (max-width:1000px) {
+  .form-grid--3, .form-grid--4 { grid-template-columns:1fr; }
+}
+
+/* T11: a product's photographs and its sizes and colours.
+   Tiles share the row evenly and stay square; a photograph is shown at its own size otherwise,
+   and a large one ran off the screen. The last tile is the upload, so a file dropped on it or a
+   click on it adds photographs where they will appear. */
+.image-strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(128px, 1fr)); gap:12px; }
+.image-strip__item, .image-add { position:relative; margin:0; aspect-ratio:1; border-radius:var(--radius); }
+.image-strip__item { overflow:hidden; }
+.image-strip__item img {
+  display:block; width:100%; height:100%; object-fit:cover;
+  border-radius:var(--radius); border:1px solid var(--line); background:var(--surface-2);
+}
+.image-strip__item:has(.image-main) { box-shadow:0 0 0 2px var(--turq-600); }
 .image-main {
-  position:absolute; left:6px; bottom:6px; padding:2px 7px; border-radius:999px;
-  background:rgba(15,18,30,.72); color:#fff; font-size:.68rem; font-weight:800;
+  position:absolute; left:8px; bottom:8px; padding:2px 9px; border-radius:999px;
+  background:rgba(18,16,42,.82); color:#fff; font-size:var(--fs-xs); font-weight:700;
 }
 .image-remove {
-  position:absolute; top:6px; right:6px; display:grid; place-items:center; width:26px; height:26px;
-  padding:0; border:0; border-radius:999px; background:rgba(15,18,30,.72); color:#fff; cursor:pointer;
+  position:absolute; top:6px; right:6px; display:grid; place-items:center; width:32px; height:32px;
+  padding:0; border:0; border-radius:999px; background:rgba(18,16,42,.74); color:#fff; cursor:pointer;
+  transition:background .15s;
 }
 .image-remove:hover { background:var(--danger-fg); }
-.image-remove svg { width:13px; height:13px; }
+.image-remove svg { width:14px; height:14px; }
 
 .image-add {
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
-  border:2px dashed var(--line); background:var(--surface-2); color:var(--muted-3);
-  font-size:.76rem; font-weight:700; text-align:center; cursor:pointer;
+  border:2px dashed #a9b3c4; background:var(--surface-2); color:var(--slate);
+  font-size:var(--fs-sm); font-weight:600; text-align:center; cursor:pointer;
+  transition:border-color .15s, background .15s, color .15s;
 }
-.image-add:hover, .image-add:focus-within { border-color:var(--turq-700); color:var(--turq-800); }
-.image-add svg { width:22px; height:22px; }
+.image-add:hover, .image-add:focus-within { border-color:var(--turq-600); background:var(--turq-tint-2); color:var(--turq-800); }
+.image-add svg { width:24px; height:24px; }
 .image-add--busy { cursor:progress; opacity:.7; }
 /* Over the whole tile and invisible, so a click anywhere on it, or a file dropped on it, reaches
    the browser's own file input. */
 ::deep .image-add__input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:inherit; }
 .image-error, .variant-error { margin:12px 0 0; }
 .variant-table { width:100%; }
-.product-description { resize:vertical; }
+/* .num is only right-aligned inside .tbl, and this one is a .table. The last column holds Remove, which
+   goes flush with the panel's edge. */
+.variant-table th.num, .variant-table td.num { text-align:right; }
+.variant-table th:last-child, .variant-table td:last-child { padding-right:0; text-align:right; }
+.variant-remove { color:var(--danger-fg); }
+.variant-remove:hover { background:var(--danger-bg); color:var(--danger-fg); }
+/* InputTextArea renders the <textarea>, so without ::deep this matched nothing and the box could not be resized. */
+::deep .product-description { resize:vertical; min-height:96px; }

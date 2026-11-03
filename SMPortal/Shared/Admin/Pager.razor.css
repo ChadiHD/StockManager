@@ -1,33 +1,37 @@
 .pager {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 12px 20px;
     padding: 12px 18px;
     border-top: 1px solid var(--line-2);
+    background: var(--surface);
 }
 
 .pager-size {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--muted-2);
-    font-size: .78rem;
-    font-weight: 700;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    font-weight: 600;
 }
 
 /* Narrow, auto-width control — the shared .input rule stretches to 100% by default. */
 .pager-size select {
     width: auto;
     min-height: 32px;
-    padding: 4px 8px;
-    font-size: .8rem;
+    padding: 0 28px 0 10px;
+    font-size: var(--fs-sm);
 }
 
+/* The range takes the free space, which keeps the rows selector beside it and the page buttons at
+   the far edge; space-between had put the range in the middle. */
 .pager-range {
-    color: var(--muted-3);
-    font-size: .78rem;
+    margin-right: auto;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    font-variant-numeric: tabular-nums;
 }
 
 .pager-pages {
@@ -41,16 +45,18 @@
     height: 32px;
     padding: 0 8px;
     border: 1px solid var(--btn-line);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--slate);
-    font-size: .8rem;
-    font-weight: 700;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
 
 .pager-btn:hover:not(:disabled) {
-    background: #f4f7fa;
+    background: var(--surface-2);
+    border-color: #a9b3c4;
 }
 
 .pager-btn:disabled {
@@ -64,7 +70,17 @@
     color: #fff;
 }
 
+.pager-btn--active:hover:not(:disabled) {
+    background: var(--navy-900);
+    border-color: var(--navy-900);
+}
+
 .pager-gap {
     padding: 0 2px;
-    color: var(--faint);
+    color: var(--muted);
+}
+
+@media (max-width: 560px) {
+    .pager { justify-content: space-between; }
+    .pager-range { order: 3; width: 100%; margin-right: 0; text-align: center; }
 }

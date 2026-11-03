@@ -67,8 +67,8 @@ else
             {
             <EditForm Model="_edit" OnValidSubmit="Save" class="panel panel-pad">
                 <span class="card-kicker">Edit product</span>
-                <div class="form-grid">
-                    <div class="field span2"><label>Product name</label><InputText class="input" @bind-Value="_edit.Name" /></div>
+                <div class="form-grid form-grid--3">
+                    <div class="field span3"><label>Product name</label><InputText class="input" @bind-Value="_edit.Name" /></div>
                     @* The feed's category, shown and not edited. It is the string a store's
                        mapping matches; which of a store's categories the product appears under
                        is set per store, in the panel beside this one. *@
@@ -80,14 +80,14 @@ else
                     <div class="field"><label>Distributor</label><InputText class="input" @bind-Value="_edit.Dist" /></div>
                     <div class="field"><label>Distributor SKU</label><InputText class="input" @bind-Value="_edit.DistSku" /></div>
                     <div class="field span2"><label>Image URL (optional)</label><InputText class="input" @bind-Value="_edit.Image" /></div>
-                    <div class="field span2"><label>Description</label><InputTextArea class="input product-description" rows="4" @bind-Value="_edit.Desc" /></div>
+                    <div class="field span3"><label>Description</label><InputTextArea class="input product-description" rows="4" @bind-Value="_edit.Desc" /></div>
                     @if (!_p.IsDistributor)
                     {
                         @* A feed writes its own brand over a feed product's on every sync, so the
                            field is offered on own stock only, where it sticks (T11). *@
                         <div class="field"><label>Brand</label><InputText class="input" @bind-Value="_edit.Manufacturer" /></div>
                     }
-                    <div class="field">
+                    <div class="field span2">
                         <label class="check"><InputCheckbox @bind-Value="_edit.IsTaxable" /> Charge tax on this product</label>
                         <span class="field-note">Untick for goods the store's rules exempt, such as children's clothing in some countries.</span>
                     </div>
@@ -158,7 +158,7 @@ else
                             </tbody>
                         </table>
                     }
-                    <div class="form-grid mt variant-add">
+                    <div class="form-grid form-grid--4 mt variant-add">
                         <div class="field"><label for="variant-sku">SKU</label><input id="variant-sku" class="input" @bind="_variantSku" /></div>
                         <div class="field"><label for="variant-stock">Stock</label><input id="variant-stock" class="input" type="number" min="0" @bind="_variantStock" /></div>
                         <div class="field"><label for="variant-name-1">Option</label><input id="variant-name-1" class="input" placeholder="Size" @bind="_option1Name" /></div>
