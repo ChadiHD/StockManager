@@ -69,6 +69,16 @@ jobs:
       - name: Deploy
         run: aspire deploy --project StockManager.AppHost/StockManager.AppHost.csproj --non-interactive
 
+      # Again, because the deploy outlives the first sign-in. azure/login hands az a GitHub token
+      # that is good for five minutes, and az presents it whenever it needs a token it has not
+      # got. On a first deploy "Schema (before)" publishes nothing, so the database token in
+      # "Schema (after)" is the first one asked for, fifteen minutes in: AADSTS700024.
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: Schema (after)
         run: ./.github/scripts/publish-schema.sh after
 
