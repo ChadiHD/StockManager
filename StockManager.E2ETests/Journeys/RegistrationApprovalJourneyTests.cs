@@ -98,9 +98,13 @@ public sealed class RegistrationApprovalJourneyTests
         await Expect(customerPage.GetByRole(AriaRole.Heading, new() { Name = "Application received" }))
             .ToBeVisibleAsync();
 
+        // A known address gets this same page, so it cannot carry the reference only a new
+        // application has. The acknowledgement mail does.
         var acknowledgement = await customerPage.Locator("p.page-lede").InnerTextAsync();
-        var reference = ReferencePattern.Match(acknowledgement).Value;
-        reference.Should().NotBeEmpty("the acknowledgement page states the application's own AC-nnnn reference");
+        ReferencePattern.IsMatch(acknowledgement).Should().BeFalse();
+
+        var reference = await SqlTestData.GetAccountReferenceAsync(
+            _fixture.SmDatabaseConnectionString, site.Id, email);
 
         // --- An admin decides it -----------------------------------------------------
         await using var adminContext = await _fixture.NewContextAsync();
@@ -122,7 +126,7 @@ public sealed class RegistrationApprovalJourneyTests
 
         // Accounts.razor and AccountDetail.razor both key on the human AC-nnnn reference
         // rather than a database id (CLAUDE.md: "The UI models key on human references"), so
-        // the reference the acknowledgement page gave the applicant is a real deep link.
+        // the reference the acknowledgement mail gives the applicant is a real deep link.
         await adminPage.GotoAsync(new Uri(_fixture.SmPortalBaseUrl, $"/admin/accounts/{reference}").ToString());
 
         // The reviewer reads the certificate. The storefront wrote it and the API serves it, so

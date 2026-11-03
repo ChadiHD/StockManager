@@ -422,6 +422,31 @@ public static class SqlTestData
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The AC-nnnn reference of the account registered with this address at this store.
+    /// </summary>
+    /// <remarks>
+    /// Stands in for the acknowledgement mail, the only place the applicant is told it: the page
+    /// does not show it, because only a new application has one and showing it said which kind
+    /// of application this was.
+    /// </remarks>
+    public static async Task<string> GetAccountReferenceAsync(
+        string connectionString, int siteId, string email, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(
+            "SELECT [Reference] FROM dbo.Account WHERE [SiteId] = @SiteId AND [Email] = @Email;",
+            connection);
+
+        command.Parameters.AddWithValue("@SiteId", siteId);
+        command.Parameters.AddWithValue("@Email", email);
+
+        return (string?)await command.ExecuteScalarAsync(cancellationToken)
+            ?? throw new InvalidOperationException($"No account was registered as {email} at site {siteId}.");
+    }
+
     public static async Task CreateApprovedAccountAndContactAsync(
         string connectionString, int siteId, string identityUserId, string email,
         CancellationToken cancellationToken = default)
