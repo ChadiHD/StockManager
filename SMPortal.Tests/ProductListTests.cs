@@ -25,11 +25,13 @@ public class ProductListTests : TestContext
         Sku = sku, Name = $"{desc} spec", Desc = desc, Avail = avail, OnStore = true, Placement = "Mapped"
     };
 
-    private void Data(params Product[] products)
+    private IAdminDataService Data(params Product[] products)
     {
         var data = Substitute.For<IAdminDataService>();
         data.Products.Returns(products);
+        data.Feeds.Returns(Array.Empty<DistributorFeedView>());
         Services.AddSingleton(data);
+        return data;
     }
 
     private static IElement Row(IRenderedFragment cut, string sku) =>
@@ -51,6 +53,39 @@ public class ProductListTests : TestContext
 
         back.Find("input[type=search]").GetAttribute("value").Should().Be("EliteBook");
         back.FindAll("tbody tr").Should().ContainSingle().Which.TextContent.Should().Contain("SKU-2");
+    }
+
+    [Fact]
+    public void TheFeedStripCountsFeedsNotProducts()
+    {
+        // It read "2647 feeds out of date" beside "1 sources": a count of stale products, under a
+        // made-up "last synced 6 min ago".
+        var stale = Item("SKU-1", "Old stock");
+        stale.Source = "Distributor";
+        stale.Stale = true;
+        var data = Data(stale, Item("SKU-2", "Also old"));
+        var synced = DateTime.UtcNow.AddHours(-2);
+        data.Feeds.Returns(new[]
+        {
+            new DistributorFeedView { Name = "Fresh", LastSyncedUtc = synced },
+            new DistributorFeedView { Name = "Never" }
+        });
+
+        var cut = RenderComponent<Products>();
+
+        cut.Find(".feed-body span").TextContent.Should().Be($"2 sources · last synced {synced:dd MMM yyyy HH:mm}");
+        cut.Find(".feed-warn").TextContent.Trim().Should().Be("1 feed out of date");
+    }
+
+    [Fact]
+    public void AStoreWithNoFeedsSaysSoAndWarnsOfNothing()
+    {
+        Data(Item("SKU-1", "Own stock"));
+
+        var cut = RenderComponent<Products>();
+
+        cut.Find(".feed-body span").TextContent.Should().Be("None set up for this store");
+        cut.FindAll(".feed-warn").Should().BeEmpty();
     }
 
     [Fact]

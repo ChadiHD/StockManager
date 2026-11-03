@@ -30,7 +30,7 @@ else
     <div class="toolbar">
         <h2 class="tbl-title">Team accounts</h2>
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, email or role" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> members</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "member", "members")</div>
     </div>
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">

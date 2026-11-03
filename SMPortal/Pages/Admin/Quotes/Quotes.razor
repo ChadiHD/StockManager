@@ -25,7 +25,7 @@
             }
         </div>
         <SearchBox Value="@_search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search reference or account" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> quotes</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "quote", "quotes")</div>
     </div>
     <BusyOverlay Busy="_searching">
     <div class="tbl-wrap">

@@ -1619,9 +1619,7 @@ public class AdminDataService : IAdminDataService
             Price = dto.RetailPrice,
             Avail = dto.QuantityInStock,
             Synced = dto.LastSynced.HasValue ? Date(dto.LastSynced) : "—",
-            // A distributor line that has not synced within a day is flagged stale.
-            Stale = isDistributor &&
-                    (!dto.LastSynced.HasValue || dto.LastSynced.Value < DateTime.UtcNow.AddDays(-1)),
+            Stale = isDistributor && AdminUi.OutOfDate(dto.LastSynced),
             Delisted = dto.Delisted,
             Image = dto.ProductImage ?? string.Empty,
             Desc = dto.Description ?? string.Empty,

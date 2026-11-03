@@ -36,6 +36,16 @@ public static class AdminUi
     public static string SourceClass(string source) =>
         source == "Distributor" ? "src--dist" : "src--own";
 
+    /// <summary>The noun for a count: "1 account", "2 accounts".</summary>
+    public static string Noun(int count, string one, string many) => count == 1 ? one : many;
+
+    /// <summary>
+    /// A distributor feed, or a line it supplies, that has not synced within a day. One rule for the
+    /// product rows and the feed strip above them, which used to count stale products as feeds.
+    /// </summary>
+    public static bool OutOfDate(DateTime? lastSyncedUtc) =>
+        lastSyncedUtc is null || lastSyncedUtc.Value < DateTime.UtcNow.AddDays(-1);
+
     /// <summary>What dbo.fnSite_ProductPlacement's reason means, in the admin's words.</summary>
     public static string PlacementLabel(string reason) => reason switch
     {

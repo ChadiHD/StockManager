@@ -24,11 +24,11 @@
 
 <div class="feed-strip">
     <span class="feed-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span>
-    <div class="feed-body"><strong>Distributor feeds</strong><span>@_distCount sources · last synced @_lastSync</span></div>
-    @if (_staleCount > 0)
+    <div class="feed-body"><strong>Distributor feeds</strong><span>@FeedSummary</span></div>
+    @if (OutOfDateFeeds > 0)
     {
         <span class="feed-warn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>@_staleCount feeds out of date
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>@OutOfDateFeeds @AdminUi.Noun(OutOfDateFeeds, "feed", "feeds") out of date
         </span>
     }
 </div>
@@ -42,7 +42,7 @@
             }
         </div>
         <SearchBox Value="@State.Search" ValueChanged="OnSearch" Busy="_searching" Placeholder="Search name, SKU, MPN, EAN or manufacturer" />
-        <div class="toolbar-count"><strong>@Results.Count</strong> products</div>
+        <div class="toolbar-count"><strong>@Results.Count</strong> @AdminUi.Noun(Results.Count, "product", "products")</div>
     </div>
     @if (_selected.Count > 0)
     {
@@ -326,8 +326,23 @@
     private void SetPrice(ChangeEventArgs args) =>
         _draft.Price = decimal.TryParse(args.Value?.ToString(), out var value) ? Math.Max(0m, value) : 0m;
 
-    private int _distCount, _staleCount;
-    private string _lastSync = "6 min ago";
+    // From the store's own feeds. The strip counted distributor names on products as sources and
+    // stale products as "feeds out of date" (2647 of them, beside one source), and said "last synced
+    // 6 min ago" whatever had happened.
+    private int OutOfDateFeeds => Data.Feeds.Count(feed => AdminUi.OutOfDate(feed.LastSyncedUtc));
+
+    private string FeedSummary
+    {
+        get
+        {
+            var feeds = Data.Feeds.Count;
+            if (feeds == 0) return "None set up for this store";
+
+            var last = Data.Feeds.Max(feed => feed.LastSyncedUtc);
+            return $"{feeds} {AdminUi.Noun(feeds, "source", "sources")} · " +
+                   (last is null ? "never synced" : $"last synced {last.Value:dd MMM yyyy HH:mm}");
+        }
+    }
 
     // Styles and plain products: a variant is listed on its style's page (T11), and a shirt in
     // six sizes is one row here as it is one card in the shop.
@@ -417,8 +432,6 @@
     protected override void OnParametersSet()
     {
         Layout?.SetPage("Products & stock", "Own warehouse and distributor-fed inventory");
-        _distCount = Data.Products.Where(p => p.IsDistributor).Select(p => p.Dist).Distinct().Count();
-        _staleCount = Data.Products.Count(p => p.Stale);
     }
 
     private static string SyncLabel(Product p) =>
@@ -435,8 +448,6 @@
     private async Task SyncFeeds()
     {
         await Data.SyncFeeds();
-        _staleCount = Data.Products.Count(p => p.Stale);
-        _lastSync = "just now";
         Toast.Show("Distributor feeds synced");
     }
 }
