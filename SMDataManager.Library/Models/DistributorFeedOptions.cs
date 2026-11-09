@@ -15,7 +15,7 @@ namespace SMDataManager.Library.Models
         public string Username { get; set; }
         public string Password { get; set; }
 
-        /// <summary>Remote directory to search for XML feeds; searched recursively.</summary>
+        /// <summary>Remote directory to search for XML or CSV feeds; searched recursively.</summary>
         public string RemoteDirectory { get; set; } = ".";
 
         /// <summary>
@@ -24,15 +24,16 @@ namespace SMDataManager.Library.Models
         /// </summary>
         public string HostKeySha256 { get; set; }
 
-        /// <summary>Field names in the feed XML mapped onto product columns.</summary>
+        /// <summary>XML element names or CSV headers mapped onto product columns.</summary>
         public FeedFieldMap Fields { get; set; } = new();
 
         public bool Enabled { get; set; } = true;
     }
 
-    // The feed flattens each XML record into name/value pairs; these settings say which of
-    // those keys carry the values we store, so a new distributor is a config change rather
-    // than a code change. Defaults match the FlexIT feed layout.
+    // The feed flattens each XML record, or each CSV row under its header, into name/value
+    // pairs; these settings say which of those keys carry the values we store, so a new
+    // distributor is a config change rather than a code change. Defaults match the FlexIT feed
+    // layout.
     public class FeedFieldMap
     {
         /// <summary>Distributor's own part number — the key a feed re-import matches on.</summary>

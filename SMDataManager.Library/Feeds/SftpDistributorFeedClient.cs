@@ -1,5 +1,6 @@
 using Renci.SshNet;
 using SMDataManager.Library.Models;
+using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,9 +11,14 @@ using System.Xml.Linq;
 
 namespace SMDataManager.Library.Feeds
 {
-    // Port of the StockViewer console prototype: connect over SFTP, take the newest XML file in
-    // the directory tree, flatten each record and map it onto product fields. The prototype
-    // wrote CSV; here the records go straight into dbo.Product via spProduct_UpsertFromFeed.
+    // Port of the StockViewer console prototype: connect over SFTP, take the newest XML or CSV
+    // file in the directory tree, flatten each record and map it onto product fields. The
+    // prototype wrote CSV; here the records go straight into dbo.Product via
+    // spProduct_UpsertFromFeed.
+    //
+    // The format is the file's extension rather than a setting on the feed: the transport is the
+    // same and only the parse differs, so a column would be one more thing that could disagree
+    // with the file actually sitting on the server.
     public class SftpDistributorFeedClient : IDistributorFeedClient
     {
         public IReadOnlyList<DistributorFeedRecord> Fetch(DistributorFeedSettings settings)
@@ -29,28 +35,69 @@ namespace SMDataManager.Library.Feeds
             ConfigureHostKeyValidation(client, settings.HostKeySha256);
             client.Connect();
 
-            RemoteXmlFile sourceFile;
-            using var xmlStream = new MemoryStream();
+            RemoteFeedFile sourceFile;
+            using var content = new MemoryStream();
             try
             {
-                sourceFile = FindNewestXmlFile(client, settings.RemoteDirectory)
+                sourceFile = FindNewestFeedFile(client, settings.RemoteDirectory)
                     ?? throw new InvalidOperationException(
-                        $"No XML files were found in '{settings.RemoteDirectory}' or its subdirectories.");
+                        $"No XML or CSV files were found in '{settings.RemoteDirectory}' or its subdirectories.");
 
-                client.DownloadFile(sourceFile.FullName, xmlStream);
+                client.DownloadFile(sourceFile.FullName, content);
             }
             finally
             {
                 if (client.IsConnected) client.Disconnect();
             }
 
-            xmlStream.Position = 0;
-            var document = XDocument.Load(xmlStream, LoadOptions.None);
+            content.Position = 0;
+            return Parse(sourceFile.Name, content, settings.Fields);
+        }
 
-            return FindRecordElements(document)
-                .Select(element => MapRecord(FlattenRecord(element), settings.Fields))
+        // Public so the parsing can be tested without an SFTP server.
+        public static IReadOnlyList<DistributorFeedRecord> Parse(string fileName, Stream content, FeedFieldMap fields)
+        {
+            var rows = IsCsv(fileName)
+                ? ReadCsvRows(content)
+                : FindRecordElements(XDocument.Load(content, LoadOptions.None)).Select(FlattenRecord);
+
+            return rows
+                .Select(values => MapRecord(values, fields))
                 .Where(record => !string.IsNullOrWhiteSpace(record.DistributorSku))
                 .ToList();
+        }
+
+        private static bool IsCsv(string fileName) =>
+            fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsFeedFile(string fileName) =>
+            IsCsv(fileName) || fileName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase);
+
+        // A CSV's header row names its columns, so a mapping names a header as the file spells it
+        // ("Supplier Product no"). TextFieldParser rather than Split(','): descriptions are quoted
+        // and carry commas. It also reads past a UTF-8 BOM, which would otherwise become part of
+        // the first header and leave that column unmatched.
+        private static IEnumerable<Dictionary<string, string>> ReadCsvRows(Stream content)
+        {
+            using var parser = new TextFieldParser(content) { HasFieldsEnclosedInQuotes = true };
+            parser.SetDelimiters(",");
+
+            var headers = parser.ReadFields()
+                ?? throw new InvalidOperationException("The CSV file is empty.");
+
+            while (!parser.EndOfData)
+            {
+                var fields = parser.ReadFields();
+                if (fields is null) continue;
+
+                var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                for (var index = 0; index < headers.Length && index < fields.Length; index++)
+                {
+                    AddUniqueValue(values, headers[index], fields[index]);
+                }
+
+                yield return values;
+            }
         }
 
         private static DistributorFeedRecord MapRecord(Dictionary<string, string> values, FeedFieldMap fields)
@@ -107,11 +154,11 @@ namespace SMDataManager.Library.Feeds
         private static int ParseInt(string value) =>
             int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0;
 
-        private static RemoteXmlFile FindNewestXmlFile(SftpClient client, string rootDirectory)
+        private static RemoteFeedFile FindNewestFeedFile(SftpClient client, string rootDirectory)
         {
             var directories = new Stack<string>();
             var visitedDirectories = new HashSet<string>(StringComparer.Ordinal);
-            var xmlFiles = new List<RemoteXmlFile>();
+            var feedFiles = new List<RemoteFeedFile>();
             directories.Push(string.IsNullOrWhiteSpace(rootDirectory) ? "." : rootDirectory);
 
             while (directories.Count > 0)
@@ -121,9 +168,9 @@ namespace SMDataManager.Library.Feeds
 
                 foreach (var entry in client.ListDirectory(directory))
                 {
-                    if (entry.IsRegularFile && entry.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                    if (entry.IsRegularFile && IsFeedFile(entry.Name))
                     {
-                        xmlFiles.Add(new RemoteXmlFile(entry.Name, entry.FullName, entry.LastWriteTimeUtc));
+                        feedFiles.Add(new RemoteFeedFile(entry.Name, entry.FullName, entry.LastWriteTimeUtc));
                     }
                     else if (entry.IsDirectory && entry.Name != "." && entry.Name != "..")
                     {
@@ -132,7 +179,7 @@ namespace SMDataManager.Library.Feeds
                 }
             }
 
-            return xmlFiles
+            return feedFiles
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault();
@@ -237,9 +284,9 @@ namespace SMDataManager.Library.Feeds
             values[candidate] = value;
         }
 
-        private sealed class RemoteXmlFile
+        private sealed class RemoteFeedFile
         {
-            public RemoteXmlFile(string name, string fullName, DateTime lastWriteTimeUtc)
+            public RemoteFeedFile(string name, string fullName, DateTime lastWriteTimeUtc)
             {
                 Name = name;
                 FullName = fullName;
