@@ -578,8 +578,12 @@ Built in this order. Each item lists what proves it.
     FlexIT's names for its blanks. A blank set afterwards survived a republish, and a new feed's
     blanks were left alone.
   - `FeedFieldMappingTests` holds the mapping.
-- **Not built: a second file format.** The UK distributor's specification is not in hand
-  (§7 question 5).
+- **Built since: CSV over SFTP** (Intec, 2026-11-06). Not the `Format` column and second client
+  above: the transport is the same, so `SftpDistributorFeedClient` picks the parser from the
+  newest file's extension (`.xml` or `.csv`), and a CSV's headers are the field names in the
+  form. `CsvFeedParsingTests` holds Intec's layout: a UTF-8 BOM, quoted descriptions with
+  commas, and prices with a leading space. A JSON or HTTP feed still needs the column and the
+  second client.
 
 **4c. The `uk-b2b` tax rule set.**
 
