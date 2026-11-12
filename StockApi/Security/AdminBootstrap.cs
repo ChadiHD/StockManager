@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Identity;
 using SMDataManager.Library.DataAccess;
 using SMDataManager.Library.Models;
@@ -14,6 +15,8 @@ namespace StockApi.Security;
 /// <c>Admin:BootstrapPassword</c> (secret parameters in the app host) close that, and only that:
 /// once any user holds Admin this does nothing, so a value left configured cannot mint a second
 /// admin or reset the first one's password. It says so in the log until the values are removed.
+/// The one thing it still does then is finish the configured admin's SMDatabase profile, if a
+/// start before that schema existed left it without one (<see cref="Step.Finish"/>).
 /// </remarks>
 public static class AdminBootstrap
 {
@@ -33,15 +36,26 @@ public static class AdminBootstrap
         Create,
         /// <summary>The login exists already: it gains Admin, and its password is left alone.</summary>
         Promote,
-        Refuse
+        Refuse,
+        /// <summary>
+        /// The configured login is an admin with no SMDatabase profile: an earlier start made it
+        /// before that schema existed. It gains the profile and every store, as it would have then.
+        /// </summary>
+        Finish
     }
 
-    public static (Step Step, string? Reason) Decide(bool anyAdmin, string? email, string? password, bool loginExists)
+    public static (Step Step, string? Reason) Decide(
+        bool anyAdmin, string? email, string? password, bool loginExists, bool unfinished = false)
     {
         var configured = !string.IsNullOrWhiteSpace(email);
 
         if (anyAdmin)
         {
+            if (unfinished)
+            {
+                return (Step.Finish, null);
+            }
+
             return (configured ? Step.IgnoreConfigured : Step.Nothing, null);
         }
 
@@ -70,6 +84,7 @@ public static class AdminBootstrap
         using var scope = services.CreateScope();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var profiles = scope.ServiceProvider.GetRequiredService<IUserData>();
 
         foreach (var role in StaffRoles)
         {
@@ -82,9 +97,11 @@ public static class AdminBootstrap
         var email = config["Admin:BootstrapEmail"]?.Trim();
         var password = config["Admin:BootstrapPassword"];
         var anyAdmin = (await users.GetUsersInRoleAsync(AdminRole)).Count > 0;
-        var login = !anyAdmin && StaffSignIn.IsStaffName(email) ? await users.FindByNameAsync(email!) : null;
+        var login = StaffSignIn.IsStaffName(email) ? await users.FindByNameAsync(email!) : null;
+        var unfinished = anyAdmin && login is not null
+            && await users.IsInRoleAsync(login, AdminRole) && LacksProfile(profiles, login.Id, email!, logger);
 
-        var (step, reason) = Decide(anyAdmin, email, password, login is not null);
+        var (step, reason) = Decide(anyAdmin, email, password, login is not null, unfinished);
 
         switch (step)
         {
@@ -113,32 +130,78 @@ public static class AdminBootstrap
 
             case Step.Promote:
                 break;
+
+            case Step.Finish:
+                if (WriteProfile(profiles, login!, email!, logger))
+                {
+                    logger.LogWarning(
+                        "{Email} was made an admin before SMDatabase had its schema, and its profile is " +
+                        "written now. Remove Admin:BootstrapEmail and Admin:BootstrapPassword from this " +
+                        "deployment.", email);
+                }
+                return;
         }
 
         Check(await users.AddToRoleAsync(login!, AdminRole), $"make {email} an admin");
 
-        // The portal finds its signed-in user's name here; without the row a good sign-in reads
-        // as a failed one. See UserController.GetById.
-        var profiles = scope.ServiceProvider.GetRequiredService<IUserData>();
-
-        if (profiles.GetUserById(login!.Id).Count == 0)
+        if (WriteProfile(profiles, login!, email!, logger))
         {
-            profiles.CreateUser(new UserModel
-            {
-                UserId = login.Id,
-                FirstName = "Administrator",
-                LastName = "",
-                EmailAddress = email!
-            });
+            logger.LogWarning(
+                "{Email} is now an admin. Remove Admin:BootstrapEmail and Admin:BootstrapPassword from " +
+                "this deployment, and have them change the password from the portal.", email);
         }
+    }
 
-        // Every store, including ones not created yet: somebody has to be able to give every
-        // other admin theirs, and on a fresh deployment there is nobody else (T9).
-        profiles.SetSiteAccess(login.Id, allSites: true, Array.Empty<int>());
+    // Only a profile known to be missing is finished. Finishing grants every store, so an admin
+    // whose stores were since cut back must not be finished again because a read failed.
+    private static bool LacksProfile(IUserData profiles, string userId, string email, ILogger logger)
+    {
+        try
+        {
+            return profiles.GetUserById(userId).Count == 0;
+        }
+        catch (DbException exception)
+        {
+            logger.LogError(exception,
+                "SMDatabase could not be read, so {Email} may still be without its profile and unable to " +
+                "sign in. Restart StockApi once the schema is published.", email);
+            return false;
+        }
+    }
 
-        logger.LogWarning(
-            "{Email} is now an admin. Remove Admin:BootstrapEmail and Admin:BootstrapPassword from " +
-            "this deployment, and have them change the password from the portal.", email);
+    // SMDatabase's half of an admin, written after ApiAuthDb's. A first deploy starts StockApi
+    // before that schema is published, so this used to throw with the login and its role already
+    // made, and every later start found an admin and stopped: /token issued a token, GET api/User
+    // answered 404 for want of the profile, and the portal read that as a wrong password. Now it
+    // logs, the host stays up, and the first start after the schema is published finishes it.
+    private static bool WriteProfile(IUserData profiles, IdentityUser login, string email, ILogger logger)
+    {
+        try
+        {
+            if (profiles.GetUserById(login.Id).Count == 0)
+            {
+                profiles.CreateUser(new UserModel
+                {
+                    UserId = login.Id,
+                    FirstName = "Administrator",
+                    LastName = "",
+                    EmailAddress = email
+                });
+            }
+
+            // Every store, including ones not created yet: somebody has to be able to give every
+            // other admin theirs, and on a fresh deployment there is nobody else (T9).
+            profiles.SetSiteAccess(login.Id, allSites: true, Array.Empty<int>());
+
+            return true;
+        }
+        catch (DbException exception)
+        {
+            logger.LogError(exception,
+                "{Email} is an admin, but its profile could not be written to SMDatabase, so the portal " +
+                "refuses its sign-in. Restart StockApi once the schema is published to finish it.", email);
+            return false;
+        }
     }
 
     private static void Check(IdentityResult result, string what)

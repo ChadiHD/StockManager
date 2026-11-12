@@ -1265,6 +1265,12 @@ check stops the host starting.
   `Admin:BootstrapPassword`** (`AdminBootstrap`), which act only while no user holds Admin.
   Staff after that are added in the portal with a first password the admin hands over, and
   change it at `/admin/password`.
+  - **The admin is made in two databases, and a first deploy starts `StockApi` before
+    `SMDatabase` has its schema.** The login and its role went into `ApiAuthDb`, the profile
+    failed, and every later start found an admin and stopped. `/token` then accepted the right
+    password, `GET api/User` answered 404, and the portal said the password was wrong. The
+    profile write now logs instead of throwing, and the next start finishes that admin
+    (`Step.Finish`): the profile, with every store. No other admin is touched.
 - Swagger is mapped in Development only.
 
 `AdminDataService.EnsureAuthHeaderAsync` reads the token straight from storage rather than trusting
