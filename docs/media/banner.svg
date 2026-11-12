@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="StockManager — one platform, many stores">
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#5980a6" stroke-opacity=".14" stroke-width="1"/>
+    </pattern>
+    <pattern id="grid-major" width="120" height="120" patternUnits="userSpaceOnUse">
+      <path d="M120 0H0V120" fill="none" stroke="#5980a6" stroke-opacity=".28" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14202e"/>
+      <stop offset="1" stop-color="#1f3347"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" x2="1">
+      <stop offset="0" stop-color="#9fc0e0"/>
+      <stop offset=".5" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#9fc0e0"/>
+    </linearGradient>
+    <style>
+      .box { animation: bob 4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+      .b2 { animation-delay: -1.3s; } .b3 { animation-delay: -2.6s; }
+      @keyframes bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+      .pulse { animation: pulse 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+      .p2 { animation-delay: -.8s; } .p3 { animation-delay: -1.6s; }
+      @keyframes pulse { 0% { opacity: .9; transform: scale(.6) } 100% { opacity: 0; transform: scale(2.4) } }
+      .word { opacity: 0; animation: cycle 12s infinite; }
+      .w2 { animation-delay: 3s; } .w3 { animation-delay: 6s; } .w4 { animation-delay: 9s; }
+      @keyframes cycle { 0% { opacity: 0; transform: translateY(8px) } 3%,22% { opacity: 1; transform: translateY(0) } 25%,100% { opacity: 0; transform: translateY(-8px) } }
+      .dash { stroke-dasharray: 6 8; animation: flow 1.2s linear infinite; }
+      @keyframes flow { to { stroke-dashoffset: -28 } }
+      @media (prefers-reduced-motion: reduce) {
+        .box, .pulse, .dash { animation: none }
+        .word { animation: none } .w1 { opacity: 1 }
+      }
+    </style>
+  </defs>
+
+  <rect width="1200" height="320" rx="18" fill="url(#bg)"/>
+  <rect width="1200" height="320" rx="18" fill="url(#grid)"/>
+  <rect width="1200" height="320" rx="18" fill="url(#grid-major)"/>
+
+  <!-- Title -->
+  <g font-family="Segoe UI, system-ui, -apple-system, Helvetica, Arial, sans-serif">
+    <text x="72" y="128" font-size="64" font-weight="700" fill="url(#shine)">StockManager</text>
+    <text x="74" y="172" font-size="22" fill="#c9d8e8">One .NET platform. Many storefronts.</text>
+    <g font-size="20" font-weight="600" fill="#ffd27a">
+      <text x="74" y="232">▸</text>
+      <text class="word w1" x="100" y="232">B2B quotes with per-customer pricing</text>
+      <text class="word w2" x="100" y="232">B2C cart, guests and card checkout</text>
+      <text class="word w3" x="100" y="232">Every store its own country, tax and brand</text>
+      <text class="word w4" x="100" y="232">Distributor feeds synced every night</text>
+    </g>
+  </g>
+
+  <!-- Hub: one deployment -->
+  <g transform="translate(900 160)">
+    <path class="dash" d="M0 0 L-130 -90 M0 0 L170 -70 M0 0 L120 100 M0 0 L-140 90" stroke="#7fa6cc" stroke-width="2" fill="none"/>
+    <circle class="pulse" r="34" fill="#5980a6"/>
+    <circle class="pulse p2" r="34" fill="#5980a6"/>
+    <rect x="-40" y="-40" width="80" height="80" rx="14" fill="#5980a6"/>
+    <path d="M-18 -12h36M-18 0h36M-18 12h24" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+
+    <!-- Stores -->
+    <g class="box">
+      <rect x="-176" y="-130" width="92" height="66" rx="10" fill="#ffffff" fill-opacity=".1" stroke="#9fc0e0"/>
+      <text x="-130" y="-90" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="26" font-weight="700" fill="#fff">€</text>
+    </g>
+    <g class="box b2">
+      <rect x="124" y="-110" width="92" height="66" rx="10" fill="#ffffff" fill-opacity=".1" stroke="#9fc0e0"/>
+      <text x="170" y="-70" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="26" font-weight="700" fill="#fff">£</text>
+    </g>
+    <g class="box b3">
+      <rect x="74" y="66" width="92" height="66" rx="10" fill="#ffffff" fill-opacity=".1" stroke="#9fc0e0"/>
+      <text x="120" y="108" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="24" font-weight="700" fill="#fff">R$</text>
+    </g>
+    <g class="box b2">
+      <rect x="-186" y="56" width="92" height="66" rx="10" fill="#ffffff" fill-opacity=".06" stroke="#9fc0e0" stroke-dasharray="5 5"/>
+      <text x="-140" y="98" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="28" fill="#9fc0e0">+</text>
+    </g>
+  </g>
+</svg>
