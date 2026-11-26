@@ -78,7 +78,10 @@ public static partial class ProductDocumentTypes
     /// </summary>
     public static string DisplayName(string? fileName, string extension)
     {
-        var name = new string(Path.GetFileName(fileName ?? string.Empty).Where(c => !char.IsControl(c)).ToArray()).Trim();
+        // Both separators by hand: Path.GetFileName splits on '\' only on Windows, and a browser
+        // on Windows can send a whole path to a host running on Linux.
+        var leaf = (fileName ?? string.Empty).Split('/', '\\')[^1];
+        var name = new string(leaf.Where(c => !char.IsControl(c)).ToArray()).Trim();
 
         if (name.Length == 0) name = "document" + extension;
 
