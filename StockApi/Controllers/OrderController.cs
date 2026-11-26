@@ -67,7 +67,9 @@ namespace StockApi.Controllers
         {
             // Taken from the token rather than the request body so a caller cannot attribute an
             // order to another member of staff.
-            string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            // StaffToken.IsCurrentAsync refuses a token that names no user, so this cannot be null here.
+            string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? throw new InvalidOperationException("A staff token always names its user.");
 
             return _orderData.CreateOrder(staffId, order.AccountId, _site.SiteId);
         }
@@ -91,7 +93,9 @@ namespace StockApi.Controllers
             // attributed to another member of staff. StaffId is a foreign key into dbo.[User],
             // so a claim naming nobody fails in the database rather than at the boundary --
             // which is how Account.ApprovedBy shipped broken in T3.
-            string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            // StaffToken.IsCurrentAsync refuses a token that names no user, so this cannot be null here.
+            string staffId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? throw new InvalidOperationException("A staff token always names its user.");
 
             // Assessed here rather than inside the procedure: reverse charge turns on the
             // customer's country and VAT number against this store's, and the same assessor

@@ -296,7 +296,7 @@ namespace StockApi.Controllers
         [Route("Admin/GetAllRoles")]
         public Dictionary<string, string> GetAllRoles()
         {
-            var roles = _context.Roles.ToDictionary(x => x.Id, x => x.Name);
+            var roles = _context.Roles.ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
             return roles;
         }
 

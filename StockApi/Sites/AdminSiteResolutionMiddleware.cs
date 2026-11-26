@@ -156,6 +156,6 @@ namespace StockApi.Sites
             {
                 entry.AbsoluteExpirationRelativeToNow = CacheLifetime;
                 return load();
-            });
+            }) ?? [];
     }
 }
