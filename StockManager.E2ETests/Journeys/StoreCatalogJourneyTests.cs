@@ -97,7 +97,9 @@ public sealed class StoreCatalogJourneyTests
             await Expect(shop).ToHaveTitleAsync(new Regex("Product not found"));
 
             await shop.GotoAsync(new Uri(storeA, $"/catalog?cat={categoryA.Slug}").ToString());
-            await Expect(shop.Locator(".product-card__sku")).ToHaveTextAsync([$"SKU {shownSku}"]);
+            // The card names no SKU, so it is known by its link.
+            await Expect(shop.Locator("a.product-card__title")).ToHaveCountAsync(1);
+            await Expect(shop.Locator("a.product-card__title")).ToHaveAttributeAsync("href", $"/product/{Uri.EscapeDataString(shownSku)}");
 
             // --- Store B did not ---------------------------------------------------------------
             await shop.GotoAsync(new Uri(storeB, $"/product/{curatedSku}").ToString());

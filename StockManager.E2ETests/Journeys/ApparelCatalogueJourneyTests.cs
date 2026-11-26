@@ -83,7 +83,8 @@ public sealed class ApparelCatalogueJourneyTests
 
         await shop.GotoAsync(new Uri(store, $"/catalog?cat={category.Slug}").ToString());
         await Expect(shop.Locator(".product-card")).ToHaveCountAsync(1);
-        await Expect(shop.Locator(".product-card__sku")).ToHaveTextAsync($"SKU {style}");
+        // The card names no SKU (only an MPN, which this shirt has none of), so it is known by its link.
+        await Expect(shop.Locator("a.product-card__title")).ToHaveAttributeAsync("href", $"/product/{Uri.EscapeDataString(style)}");
         await Expect(shop.Locator("a.product-card__add")).ToHaveTextAsync("Choose options");
 
         var storeSrc = await shop.Locator(".product-card img").GetAttributeAsync("src");
