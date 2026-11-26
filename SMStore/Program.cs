@@ -14,6 +14,7 @@ using SMStore.Payments;
 using SMStore.Registration;
 using StockManager.Documents;
 using StockManager.ProductImages;
+using StockManager.ProductDocuments;
 using StockManager.Identity;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
@@ -73,6 +74,9 @@ builder.AddDocumentStore();
 
 // Product photographs (T11), uploaded in the portal and shown here from /img/, this origin.
 builder.AddProductImageStore();
+
+// Product documents (datasheets, manuals): uploaded in the portal, downloaded from /product-docs/.
+builder.AddProductDocumentStore();
 
 // Outbound customer mail is queued here and sent by StockApi's dispatcher. Queueing is a row in
 // dbo.EmailOutbox, so a mail relay that is down can no longer fail a registration; see
@@ -298,6 +302,7 @@ app.MapPayments();
 app.MapQuoteDecisions();
 app.MapAccountDocuments();
 app.MapProductImages();
+app.MapProductDocuments();
 app.MapEmailConfirmation();
 app.MapPasswordReset();
 app.MapRazorComponents<App>();

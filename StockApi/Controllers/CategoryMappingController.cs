@@ -57,7 +57,7 @@ namespace StockApi.Controllers
             return refusal is null ? NoContent() : BadRequest(refusal);
         }
 
-        public record CategoryModel(string? Slug, string? Name, string? Blurb, int SortOrder, bool IsActive);
+        public record CategoryModel(string? Slug, string? Name, string? Blurb, int SortOrder, bool IsActive, decimal? MarginPct = null);
 
         // The store's own categories (T9): what the feed categories above file under.
 
@@ -85,7 +85,7 @@ namespace StockApi.Controllers
 
             if ((category.Blurb?.Trim().Length ?? 0) > 400)
             {
-                return BadRequest("The blurb is at most 400 characters.");
+                return BadRequest("The description is at most 400 characters.");
             }
 
             var (savedId, refusal) = _mappings.SaveCategory(_site.SiteId, new SiteCategoryModel
@@ -95,7 +95,8 @@ namespace StockApi.Controllers
                 Name = category.Name.Trim(),
                 Blurb = category.Blurb,
                 SortOrder = category.SortOrder,
-                IsActive = category.IsActive
+                IsActive = category.IsActive,
+                MarginPct = category.MarginPct
             });
 
             return refusal is null ? Ok(new { id = savedId }) : BadRequest(refusal);

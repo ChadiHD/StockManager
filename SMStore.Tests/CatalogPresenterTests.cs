@@ -153,6 +153,20 @@ public class CatalogPresenterTests
     }
 
     [Fact]
+    public void ACategorysMarginOverridesTheSitesFloor()
+    {
+        // fnCatalog_VisibleProducts sorts on the category's margin; the price shown must use it too.
+        _customer.GroupDiscountPct.Returns(0m);
+        var presenter = PresenterFor(SiteWith(minMarginPct: 8m));
+
+        presenter.Resolve(new CatalogItemModel { RetailPrice = 100m, Cost = 60m, CategoryMarginPct = 25m });
+        presenter.Resolve(100m, 60m, categoryMarginPct: null);
+
+        _pricing.Received(1).Resolve(100m, 60m, groupDiscountPct: 0m, minMarginPct: 25m);
+        _pricing.Received(1).Resolve(100m, 60m, groupDiscountPct: 0m, minMarginPct: 8m);
+    }
+
+    [Fact]
     public void ResolveDoesNotMixUpTheDiscountAndTheMarginFloor()
     {
         // Both are bare decimals on the same interface, so swapping the two arguments compiles

@@ -39,6 +39,11 @@ public static class AdminUi
     /// <summary>The noun for a count: "1 account", "2 accounts".</summary>
     public static string Noun(int count, string one, string many) => count == 1 ? one : many;
 
+    /// <summary>A file's size as a person reads it: "820 KB", "3.4 MB".</summary>
+    public static string FileSize(long bytes) => bytes >= 1024 * 1024
+        ? $"{bytes / (1024d * 1024):0.#} MB"
+        : $"{Math.Max(1, bytes / 1024)} KB";
+
     /// <summary>
     /// A distributor feed, or a line it supplies, that has not synced within a day. One rule for the
     /// product rows and the feed strip above them, which used to count stale products as feeds.

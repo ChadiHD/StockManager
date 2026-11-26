@@ -61,12 +61,13 @@ namespace SMDataManager.Library.DataAccess
                     category.Name,
                     category.Blurb,
                     category.SortOrder,
-                    category.IsActive
+                    category.IsActive,
+                    category.MarginPct
                 }, "SMDatabase").FirstOrDefault();
 
                 return (id, null);
             }
-            // spSiteCategory_Save's refusals, 50100-50103, are sentences for the admin.
+            // spSiteCategory_Save's refusals, 50100-50104, are sentences for the admin.
             catch (SqlException ex) when (ex.Number is >= 50100 and <= 50109)
             {
                 return (0, ex.Message);

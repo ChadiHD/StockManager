@@ -69,6 +69,8 @@ RETURN
 		[pl].[CategorySlug],
 		[pl].[CategoryName],
 		[pl].[CategorySortOrder],
+		-- PriceResolver needs it to floor what the sort key floored; see [margin] below.
+		[pl].[CategoryMarginPct],
 
 		CASE
 			WHEN @Term IS NULL THEN 0
@@ -143,23 +145,26 @@ RETURN
 		      * (1 - CAST(@DiscountPct AS decimal(9, 4)) / 100), 2)
 	)) AS [discounted]([Net])
 
+	-- A category's margin floor overrides the store's for the products filed under it.
+	CROSS APPLY (VALUES (ISNULL([pl].[CategoryMarginPct], @MinMarginPct))) AS [margin]([Pct])
+
 	CROSS APPLY (VALUES (
 		-- NULL when no floor applies, which keeps the comparison below a single test. A feed
 		-- row with no cost gets the group's rate as configured rather than a floor invented
 		-- from nothing.
 		CASE
-			WHEN [p].[Cost] IS NOT NULL AND [p].[Cost] > 0 AND @MinMarginPct > 0
+			WHEN [p].[Cost] IS NOT NULL AND [p].[Cost] > 0 AND [margin].[Pct] > 0
 			THEN CASE
 				-- Capped against the raw list price, not the rounded one, and a floor above
 				-- list means the product is mispriced: raising the customer above list would
 				-- be worse than honouring it, so the operator finds this in the margin report
 				-- rather than through a complaint.
 				WHEN ROUND(CAST([p].[Cost] AS decimal(19, 4))
-				           * (1 + CAST(@MinMarginPct AS decimal(9, 4)) / 100), 2)
+				           * (1 + CAST([margin].[Pct] AS decimal(9, 4)) / 100), 2)
 				     > CAST([p].[RetailPrice] AS decimal(19, 4))
 				THEN CAST([p].[RetailPrice] AS decimal(19, 4))
 				ELSE ROUND(CAST([p].[Cost] AS decimal(19, 4))
-				           * (1 + CAST(@MinMarginPct AS decimal(9, 4)) / 100), 2)
+				           * (1 + CAST([margin].[Pct] AS decimal(9, 4)) / 100), 2)
 			END
 		END
 	)) AS [floored]([Floor])

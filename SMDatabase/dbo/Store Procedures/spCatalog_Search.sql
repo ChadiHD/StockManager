@@ -166,7 +166,7 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants], [CategoryMarginPct],
 			-- One window function rather than a second query: the caller needs the total to
 			-- build the pager, and a separate COUNT would re-evaluate the whole predicate.
 			COUNT(*) OVER () AS [TotalCount]
@@ -194,7 +194,7 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants], [CategoryMarginPct],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
@@ -210,7 +210,7 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants], [CategoryMarginPct],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
@@ -226,7 +226,7 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants], [CategoryMarginPct],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,
@@ -242,7 +242,7 @@ BEGIN
 		SELECT
 			[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost], [QuantityInStock],
 			[ProductImage], [Manufacturer], [ManufacturerPartNumber], [Distributor], [Source],
-			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants],
+			[Badge], [Featured], [CategorySlug], [CategoryName], [HasVariants], [CategoryMarginPct],
 			COUNT(*) OVER () AS [TotalCount]
 		FROM dbo.fnCatalog_VisibleProducts(
 			@SiteId, @CustomerGroupId, @HasIncludeRule, @CategorySlug, @Brand, @InStockOnly,

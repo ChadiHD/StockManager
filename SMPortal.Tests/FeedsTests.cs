@@ -209,9 +209,9 @@ public class FeedsTests : TestContext
         var buttons = cut.Find("table.tbl tbody tr").QuerySelectorAll("button");
 
         buttons.Select(button => button.GetAttribute("title")).Should().Equal(
-            "Edit feed", "Sync history", "Sync now", "Delete feed");
+            "Edit feed", "Sync history", "Sync now", "Export to CSV", "Delete feed");
         buttons.Select(button => button.GetAttribute("aria-label")).Should().Equal(
-            "Edit Main", "Sync history of Main", "Sync Main now", "Delete Main");
+            "Edit Main", "Sync history of Main", "Sync Main now", "Export Main to CSV", "Delete Main");
         buttons.Should().OnlyContain(button => button.TextContent.Trim() == string.Empty);
     }
 

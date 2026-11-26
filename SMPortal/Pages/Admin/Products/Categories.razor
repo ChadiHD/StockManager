@@ -40,7 +40,7 @@ else
         {
             <div class="tbl-wrap">
                 <table class="tbl">
-                    <thead><tr><th class="lead">Category</th><th>Address</th><th class="num">Order</th><th class="num">Feed categories</th><th>Status</th><th class="trail"></th></tr></thead>
+                    <thead><tr><th class="lead">Category</th><th>Address</th><th class="num">Position</th><th class="num">Margin</th><th class="num">Feed categories</th><th>Status</th><th class="trail"></th></tr></thead>
                     <tbody>
                         @foreach (var category in _view.Categories)
                         {
@@ -48,9 +48,13 @@ else
                                 <td class="lead"><span class="cell-strong">@category.Name</span><span class="cell-sub">@category.Blurb</span></td>
                                 <td class="mono">@category.Slug</td>
                                 <td class="num">@category.SortOrder</td>
+                                <td class="num">@(category.MarginPct is { } m ? $"{m:0.##}%" : "Store")</td>
                                 <td class="num">@category.MappedFeedValues</td>
                                 <td><span class="badge @(category.IsActive ? "badge--ok" : "badge--neutral")">@(category.IsActive ? "On sale" : "Off")</span></td>
-                                <td class="trail"><button class="btn btn-secondary btn-sm" @onclick="() => OpenEditor(category)">Edit</button></td>
+                                <td class="trail">
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenEditor(category)">Edit</button>
+                                    <button class="btn btn-secondary btn-sm category-visibility" disabled="@_savingCategory" @onclick="() => ToggleShown(category)">@(category.IsActive ? "Hide from store" : "Show on store")</button>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -113,14 +117,19 @@ else
                     <span class="field-note">In the shop's links, as /catalog?cat=@(_editing.Slug). Fixed once the store is live.</span>
                 </div>
                 <div class="field span2">
-                    <label for="category-blurb">Blurb</label>
+                    <label for="category-blurb">Description</label>
                     <textarea id="category-blurb" class="input" rows="2" maxlength="400" @onchange="args => _editing.Blurb = args.Value?.ToString()">@_editing.Blurb</textarea>
                     <span class="field-note">One line under the name on the home page.</span>
                 </div>
                 <div class="field">
-                    <label for="category-order">Order</label>
+                    <label for="category-order">Position</label>
                     <input id="category-order" class="input" type="number" value="@_editing.SortOrder" @onchange="args => _editing.SortOrder = int.TryParse(args.Value?.ToString(), out var order) ? order : 0" />
                     <span class="field-note">Lower comes first.</span>
+                </div>
+                <div class="field">
+                    <label for="category-margin">Price margin %</label>
+                    <input id="category-margin" class="input" type="number" min="0" max="100" step="0.01" placeholder="Store's" value="@_editing.MarginPct" @onchange="args => _editing.MarginPct = decimal.TryParse(args.Value?.ToString(), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var margin) ? margin : null" />
+                    <span class="field-note">No product here sells below cost plus this margin. Blank uses the store's.</span>
                 </div>
                 <div class="field">
                     <label class="switch-row"><input id="category-active" type="checkbox" checked="@_editing.IsActive" @onchange="args => _editing.IsActive = args.Value is true" /> On sale</label>
@@ -152,6 +161,7 @@ else
         public string? Blurb { get; set; }
         public int SortOrder { get; set; }
         public bool IsActive { get; set; } = true;
+        public decimal? MarginPct { get; set; }
         public bool SlugTouched { get; set; }
     }
 
@@ -167,8 +177,21 @@ else
             : new CategoryEdit
             {
                 Id = category.Id, Name = category.Name, Slug = category.Slug, Blurb = category.Blurb,
-                SortOrder = category.SortOrder, IsActive = category.IsActive, SlugTouched = true
+                SortOrder = category.SortOrder, IsActive = category.IsActive, MarginPct = category.MarginPct,
+                SlugTouched = true
             };
+    }
+
+    // The same save the editor makes, with only the flag flipped, so a category's other
+    // settings cannot be lost by showing or hiding it.
+    private async Task ToggleShown(StoreCategoryOption category)
+    {
+        _savingCategory = true;
+        var refusal = await Data.SaveStoreCategory(category with { IsActive = !category.IsActive });
+        _savingCategory = false;
+
+        Toast.Show(refusal ?? (category.IsActive ? $"{category.Name} hidden from the store" : $"{category.Name} shown on the store"));
+        _view = await Data.GetCategoryMappings();
     }
 
     // A new category's address follows its name until somebody types one, so the common case is
@@ -193,7 +216,8 @@ else
 
         _savingCategory = true;
         _editorError = await Data.SaveStoreCategory(new StoreCategoryOption(
-            _editing.Id, _editing.Name, _editing.IsActive, _editing.Slug, _editing.Blurb, _editing.SortOrder));
+            _editing.Id, _editing.Name, _editing.IsActive, _editing.Slug, _editing.Blurb, _editing.SortOrder,
+            MarginPct: _editing.MarginPct));
         _savingCategory = false;
 
         if (_editorError is not null) return;

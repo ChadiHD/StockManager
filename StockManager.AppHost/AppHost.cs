@@ -33,6 +33,9 @@ var documents = storage.AddBlobContainer("documents");
 // account (see AddProductImageStore), which is why both containers are on this one resource.
 var productImages = storage.AddBlobContainer("product-images");
 
+// Product documents (datasheets, manuals), reached the same way.
+var productDocuments = storage.AddBlobContainer("product-documents");
+
 // Distributor feeds are no longer configured here. They are created in the admin portal and
 // stored in dbo.DistributorFeed, with credentials held by an IFeedSecretStore (Data Protection,
 // its ring wrapped by the vault key in a deployment) — see FeedSecrets in the API's appsettings.
@@ -201,6 +204,7 @@ var api = builder.AddProject<Projects.StockApi>("stock-api")
 	.WaitFor(stockDatabase)
 	.WaitFor(documents)
 	.WaitFor(productImages)
+	.WaitFor(productDocuments)
 	.WithEndpoint("https", endpoint => endpoint.Port = 7042)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints();
@@ -223,6 +227,7 @@ var store = builder.AddProject<Projects.SMStore>("sm-store")
 	.WaitFor(identityDatabase)
 	.WaitFor(documents)
 	.WaitFor(productImages)
+	.WaitFor(productDocuments)
 	.WithHttpHealthCheck("/health")
 	.WithExternalHttpEndpoints();
 

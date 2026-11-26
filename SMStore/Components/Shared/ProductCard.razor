@@ -34,7 +34,10 @@
 
         <a href="@Product.Href" class="product-card__title">@Product.Title</a>
 
-        <div class="text-muted product-card__sku">@L["SKU {0}", Product.Sku]</div>
+        @if (!string.IsNullOrWhiteSpace(Product.Mpn))
+        {
+            <div class="text-muted product-card__sku">@L["MPN {0}", Product.Mpn]</div>
+        }
 
         <div class="product-card__foot">
             <div class="product-card__price">

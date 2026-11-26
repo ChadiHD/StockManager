@@ -65,7 +65,10 @@ else
                         <tr>
                             <td>
                                 <strong>@line.Name</strong>
-                                <span class="text-muted mono document__sku">@line.Sku</span>
+                                @if (!string.IsNullOrWhiteSpace(line.Mpn))
+                        {
+                            <span class="text-muted mono document__sku">@L["MPN {0}", line.Mpn]</span>
+                        }
                             </td>
                             <td class="document-list__num">@line.Quantity</td>
                             <td class="document-list__num">@line.UnitPrice</td>

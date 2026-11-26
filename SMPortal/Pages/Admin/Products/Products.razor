@@ -46,10 +46,22 @@
     </div>
     @if (_selected.Count > 0)
     {
-        @* The bulk half of the per-store choice. Hide, or hand back to the category mapping;
-           showing a selection needs a category to file it under, which is the detail page's. *@
+        @* The bulk half of the per-store choice: show under a store category, hide, or hand back
+           to the category mapping. *@
         <div class="bulk-bar">
             <span><strong>@_selected.Count</strong> selected</span>
+            <select class="input bulk-category" aria-label="Store category to show the selection under"
+                    value="@(_showUnder?.ToString() ?? "")"
+                    @onchange="args => _showUnder = int.TryParse(args.Value?.ToString(), out var id) ? id : null">
+                <option value="">Show under…</option>
+                @foreach (var category in _storeCategories.Where(c => c.IsActive))
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+            <button class="btn btn-secondary bulk-show" disabled="@(_bulkBusy || _showUnder is null)"
+                    title="@(_showUnder is null ? "Choose a store category to show them under" : null)"
+                    @onclick='() => Bulk("Show")'>Show on this store</button>
             <button class="btn btn-secondary bulk-hide" disabled="@_bulkBusy" @onclick='() => Bulk("Hide")'>Hide from this store</button>
             <button class="btn btn-secondary bulk-restore" disabled="@_bulkBusy" @onclick="() => Bulk(null)">Follow the category mapping</button>
             <button class="btn btn-secondary" @onclick="_selected.Clear">Clear selection</button>
@@ -236,6 +248,24 @@
     private bool _bulkBusy;
     private int _version;
 
+    // What a selection can be shown under. Fetched when the page opens: the snapshot carries
+    // products, not the store's categories.
+    private IReadOnlyList<StoreCategoryOption> _storeCategories = [];
+    private int? _showUnder;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _storeCategories = (await Data.GetCategoryMappings())?.Categories ?? [];
+        }
+        catch (Exception exception)
+        {
+            // The list still works without them; only Show is left with nothing to choose.
+            Console.Error.WriteLine(exception);
+        }
+    }
+
     private bool PageSelected => Paged.Any() && Paged.All(p => _selected.Contains(p.Sku));
 
     private void Toggle(string sku)
@@ -261,7 +291,7 @@
 
         try
         {
-            var refusal = await Data.SetVisibility(_selected.ToList(), visibility);
+            var refusal = await Data.SetVisibility(_selected.ToList(), visibility, visibility == "Show" ? _showUnder : null);
 
             if (refusal is not null)
             {
@@ -269,9 +299,12 @@
                 return;
             }
 
-            Toast.Show(visibility == "Hide"
-                ? $"{_selected.Count} hidden from this store"
-                : $"{_selected.Count} following the category mapping");
+            Toast.Show(visibility switch
+            {
+                "Hide" => $"{_selected.Count} hidden from this store",
+                "Show" => $"{_selected.Count} shown on this store",
+                _ => $"{_selected.Count} following the category mapping"
+            });
             _selected.Clear();
             _version++;
         }

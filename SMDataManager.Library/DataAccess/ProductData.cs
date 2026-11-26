@@ -192,6 +192,30 @@ namespace SMDataManager.Library.DataAccess
                 new { ProductId = productId, StoredName = storedName }, "SMDatabase").Single() > 0;
         }
 
+        public void AddDocument(int productId, ProductDocumentModel document)
+        {
+            _sqlDataAccess.SaveData("dbo.spProductDocument_Add", new
+            {
+                ProductId = productId,
+                document.StoredName,
+                document.FileName,
+                document.ContentType,
+                document.SizeBytes
+            }, "SMDatabase");
+        }
+
+        public bool RemoveDocument(int productId, string storedName)
+        {
+            return _sqlDataAccess.LoadData<int, dynamic>("dbo.spProductDocument_Remove",
+                new { ProductId = productId, StoredName = storedName }, "SMDatabase").Single() > 0;
+        }
+
+        public List<ProductDocumentModel> GetDocuments(int productId)
+        {
+            return _sqlDataAccess.LoadData<ProductDocumentModel, dynamic>(
+                "dbo.spProductDocument_GetByProduct", new { ProductId = productId }, "SMDatabase");
+        }
+
         public List<string> GetImages(int productId)
         {
             return _sqlDataAccess.LoadData<string, dynamic>(

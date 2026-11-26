@@ -17,6 +17,9 @@ namespace SMDataManager.Library.DataAccess
         /// <summary>A product's photographs in order, as stored names (T11). Public, so not scoped.</summary>
         List<string> GetImages(int productId);
 
+        /// <summary>A product's documents, oldest first. Public, like its photographs.</summary>
+        List<ProductDocumentModel> GetDocuments(int productId);
+
         List<SiteCategoryModel> GetCategories(int siteId);
 
         /// <summary>Feed category values with no mapping for this store, and what they are holding back.</summary>

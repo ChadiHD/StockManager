@@ -16,6 +16,9 @@ CREATE TABLE [dbo].[SiteCategory]
 	[SortOrder] INT NOT NULL DEFAULT 0,
 	[IsActive] BIT NOT NULL DEFAULT 1,
 	[CreatedDate] DATETIME2 NOT NULL DEFAULT getutcdate(),
+	-- A margin floor for the products filed here, overriding Site.MinMarginPct; NULL is the
+	-- store's. Declared last: DacFx rebuilds a table whose column order moves.
+	[MarginPct] DECIMAL(5, 2) NULL,
 
 	CONSTRAINT [FK_SiteCategory_ToSite] FOREIGN KEY ([SiteId]) REFERENCES [Site]([Id]),
 	-- Scoped by site: two stores may each want a "Networking".

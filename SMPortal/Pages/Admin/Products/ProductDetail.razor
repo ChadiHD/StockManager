@@ -133,6 +133,41 @@ else
                 }
             </div>
 
+            @if (_p.ParentId is null)
+            {
+                <div class="panel panel-pad product-documents">
+                    <span class="card-kicker">Documents</span>
+                    @if (_documents.Count == 0)
+                    {
+                        <p class="field-note">No documents yet. Datasheets and manuals added here are listed on the product's page in the shop.</p>
+                    }
+                    else
+                    {
+                        <ul class="document-list">
+                            @foreach (var document in _documents)
+                            {
+                                <li class="document-row">
+                                    <a href="/product-docs/@document.StoredName">@document.FileName</a>
+                                    <span class="field-note">@AdminUi.FileSize(document.SizeBytes)</span>
+                                    <button type="button" class="btn btn-secondary btn-sm document-remove" disabled="@_uploadingDocument"
+                                            @onclick="() => RemoveDocument(document.StoredName)">Remove</button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    <label class="btn btn-secondary btn-sm mt" for="document-upload">
+                        @(_uploadingDocument ? "Uploading…" : "Add documents")
+                        <InputFile id="document-upload" class="image-add__input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" multiple
+                                   OnChange="UploadDocuments" disabled="@_uploadingDocument" />
+                    </label>
+                    <p class="field-note mt">PDF, Word, Excel or PowerPoint, up to 20 MB each and @MaxUploads at a time.</p>
+                    @foreach (var error in _documentErrors)
+                    {
+                        <p class="field-note field-note--warn document-error">@error</p>
+                    }
+                </div>
+            }
+
             @if (!_p.IsDistributor)
             {
                 <div class="panel panel-pad product-variants">
@@ -251,6 +286,9 @@ else
     private IReadOnlyList<StoreCategoryOption> _categories = [];
 
     private IReadOnlyList<string> _images = [];
+    private IReadOnlyList<ProductDocumentFile> _documents = [];
+    private readonly List<string> _documentErrors = [];
+    private bool _uploadingDocument;
     private readonly List<string> _imageErrors = [];
     private bool _uploading;
 
@@ -293,6 +331,7 @@ else
         // Per product and fetched on opening it, the GetContacts precedent: the snapshot holds every
         // product, and a style's variants and photographs are this page's question (T11).
         _images = _p.ParentId is null ? await Data.GetImages(Sku) : [];
+        _documents = _p.ParentId is null ? await Data.GetProductDocuments(Sku) ?? [] : [];
         _variants = _p.ParentId is null && !_p.IsDistributor ? await Data.GetVariants(Sku) : [];
     }
 
@@ -343,6 +382,54 @@ else
         _variants = await Data.GetVariants(Sku);
         _p = Data.GetProduct(Sku);
         Toast.Show("Variant removed");
+    }
+
+    private async Task UploadDocuments(InputFileChangeEventArgs e)
+    {
+        _documentErrors.Clear();
+
+        if (e.FileCount > MaxUploads)
+        {
+            _documentErrors.Add($"Choose at most {MaxUploads} documents at a time.");
+            return;
+        }
+
+        const long maxBytes = 20 * 1024 * 1024;
+        var added = 0;
+        _uploadingDocument = true;
+
+        try
+        {
+            foreach (var file in e.GetMultipleFiles(MaxUploads))
+            {
+                if (file.Size > maxBytes)
+                {
+                    _documentErrors.Add($"{file.Name}: a document can be at most 20 MB.");
+                    continue;
+                }
+
+                await using var content = file.OpenReadStream(maxBytes);
+                var refusal = await Data.UploadProductDocument(Sku, content, file.Name);
+                if (refusal is null) added++;
+                else _documentErrors.Add($"{file.Name}: {refusal}");
+            }
+
+            if (added == 0) return;
+
+            _documents = await Data.GetProductDocuments(Sku);
+            Toast.Show(added == 1 ? "Document added" : $"{added} documents added");
+        }
+        finally
+        {
+            _uploadingDocument = false;
+        }
+    }
+
+    private async Task RemoveDocument(string storedName)
+    {
+        await Data.RemoveProductDocument(Sku, storedName);
+        _documents = await Data.GetProductDocuments(Sku);
+        Toast.Show("Document removed");
     }
 
     private async Task UploadImages(InputFileChangeEventArgs e)

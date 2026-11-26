@@ -98,6 +98,12 @@ namespace SMDataManager.Library.DataAccess
                 "dbo.spProductImage_GetByProduct", new { ProductId = productId }, "SMDatabase");
         }
 
+        public List<ProductDocumentModel> GetDocuments(int productId)
+        {
+            return _sqlDataAccess.LoadData<ProductDocumentModel, dynamic>(
+                "dbo.spProductDocument_GetByProduct", new { ProductId = productId }, "SMDatabase");
+        }
+
         public List<SiteCategoryModel> GetCategories(int siteId)
         {
             return _sqlDataAccess.LoadData<SiteCategoryModel, dynamic>(

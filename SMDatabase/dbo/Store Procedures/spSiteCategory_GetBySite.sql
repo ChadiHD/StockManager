@@ -7,7 +7,7 @@ BEGIN
 	SET NOCOUNT ON;
 
 	SELECT [c].[Id], [c].[SiteId], [c].[Slug], [c].[Name], [c].[Blurb], [c].[SortOrder],
-	       [c].[IsActive],
+	       [c].[IsActive], [c].[MarginPct],
 	       -- How many feed values currently land here, so an unmapped or over-mapped category
 	       -- is obvious on the admin screen without a second query.
 	       (SELECT COUNT(*) FROM [dbo].[CategoryMapping] m WHERE m.[SiteCategoryId] = [c].[Id])

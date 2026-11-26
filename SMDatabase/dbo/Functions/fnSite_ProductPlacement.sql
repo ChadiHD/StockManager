@@ -46,6 +46,9 @@ RETURN
 		[c].[Slug] AS [CategorySlug],
 		[c].[Name] AS [CategoryName],
 		[c].[SortOrder] AS [CategorySortOrder],
+		-- The category's own margin floor, overriding Site.MinMarginPct for what it holds.
+		-- NULL means the store's.
+		[c].[MarginPct] AS [CategoryMarginPct],
 		CAST(CASE WHEN [sel].[Sellable] = 1 AND [c].[Id] IS NOT NULL AND ISNULL([sp].[Visibility], N'') <> N'Hide'
 		          THEN 1 ELSE 0 END AS bit) AS [OnStore],
 		CASE

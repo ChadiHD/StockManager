@@ -10,6 +10,9 @@ namespace SMDataManager.Library.Models
         public int SortOrder { get; set; }
         public bool IsActive { get; set; }
 
+        /// <summary>A margin floor for what is filed here, overriding Site.MinMarginPct; null is the store's.</summary>
+        public decimal? MarginPct { get; set; }
+
         /// <summary>How many feed values currently file into this category.</summary>
         public int MappedFeedValues { get; set; }
     }

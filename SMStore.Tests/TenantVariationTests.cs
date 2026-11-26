@@ -141,6 +141,21 @@ public class TenantVariationTests
     }
 
     [Fact]
+    public void ACardShowsTheManufacturersPartNumberAndNeverTheSku()
+    {
+        var site = SiteWith("Store", "DirectCheckout");
+        using var store = new Bunit.TestContext();
+        store.Services.AddSingleton(SiteContextReturning(site));
+        store.Services.AddSingleton(new OrderingModeProvider(SiteContextReturning(site), [new DirectCheckoutOrderingMode()]));
+
+        var card = new ProductCardView("STORE-SKU-1", "Widget", "Acme", null, "In stock", true, "€10.00", null, Mpn: "AC-1234");
+        var render = store.RenderComponent<ProductCard>(p => p.Add(x => x.Product, card));
+
+        render.Find(".product-card__sku").TextContent.Should().Be("MPN AC-1234");
+        render.FindAll(".product-card__body").Single().TextContent.Should().NotContain("STORE-SKU-1");
+    }
+
+    [Fact]
     public void RegistrationFieldsFollowTheSitesFieldSet()
     {
         using var euStore = new Bunit.TestContext();

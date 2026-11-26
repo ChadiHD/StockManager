@@ -17,7 +17,7 @@ fonts/fonts.css.
 @import url('fonts/fonts.css');
 
 :root {
-    --color-bg: #f2f2f3;
+    --color-bg: #ffffff;
     --color-surface: #e9e9ea;
     --color-text: #1d1f20;
     --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);

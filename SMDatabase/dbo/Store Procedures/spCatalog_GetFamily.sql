@@ -37,7 +37,7 @@ BEGIN
 		[Id], [Sku], [ProductName], [Description], [RetailPrice], [Cost],
 		[QuantityInStock], [ProductImage], [Manufacturer], [ManufacturerPartNumber],
 		[Ean], [Distributor], [Source], [Badge], [Featured], [LastSynced],
-		[CategorySlug], [CategoryName], [ParentProductId], [HasVariants]
+		[CategorySlug], [CategoryName], [ParentProductId], [HasVariants], [CategoryMarginPct]
 	INTO #family
 	FROM dbo.fnCatalog_VisibleProducts(
 		@SiteId, @CustomerGroupId, @HasIncludeRule, NULL, NULL, 0, NULL, NULL, NULL, 0, 0,

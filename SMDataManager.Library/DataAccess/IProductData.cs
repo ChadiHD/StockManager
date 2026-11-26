@@ -51,6 +51,15 @@ namespace SMDataManager.Library.DataAccess
         /// <summary>A product's photographs, in order: stored names.</summary>
         List<string> GetImages(int productId);
 
+        /// <summary>Records a document whose bytes are stored.</summary>
+        void AddDocument(int productId, ProductDocumentModel document);
+
+        /// <summary>Forgets one, and says whether it was this product's.</summary>
+        bool RemoveDocument(int productId, string storedName);
+
+        /// <summary>A product's documents, oldest first.</summary>
+        List<ProductDocumentModel> GetDocuments(int productId);
+
         /// <summary>
         /// Applies an entire distributor feed in a single round trip, and delists products the
         /// feed no longer supplies. Keyed on the feed, not its name (T9).

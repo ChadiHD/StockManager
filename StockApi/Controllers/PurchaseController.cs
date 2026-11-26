@@ -26,7 +26,9 @@ namespace StockApi.Controllers
         public void Post(PurchaseModel purchase)
         {
             // request the staffId from the API directly (much more secure)
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier); //RequestContext.Principal.Identity.GetUserId();
+            // StaffToken.IsCurrentAsync refuses a token that names no user, so this cannot be null here.
+            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? throw new InvalidOperationException("A staff token always names its user.");
 
             _purchaseData.SavePurchases(purchase, userId);
         }
