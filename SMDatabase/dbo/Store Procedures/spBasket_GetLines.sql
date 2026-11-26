@@ -43,12 +43,16 @@ BEGIN
 		[l].[BasketId],
 		[l].[ProductId],
 		[p].[Sku],
+		[p].[ManufacturerPartNumber] AS [Mpn],
 		[p].[ProductName] AS [Name],
 		[l].[Quantity],
 		[p].[RetailPrice],
 		[p].[Cost],
 		[p].[QuantityInStock],
 		[l].[AddedUtc],
+		-- Category margin overrides the store's floor (fnSite_ProductPlacement); NULL when the
+		-- line is no longer placed, and the caller falls back to Site.MinMarginPct.
+		[v].[CategoryMarginPct],
 		CASE WHEN [v].[Id] IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS [Available]
 	FROM dbo.BasketLine l
 	-- The basket is joined rather than assumed, so a guessed basket id returns nothing instead

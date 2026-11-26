@@ -11,3 +11,6 @@ GO
 GO
 :r .\FillLegacyFeedFields.sql
 GO
+
+:r .\RetireDuplicateFeedProducts.sql
+GO

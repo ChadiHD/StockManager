@@ -6,6 +6,9 @@ namespace SMDataManager.Library.Models
         public int QuoteId { get; set; }
         public int ProductId { get; set; }
         public string Sku { get; set; }
+
+        /// <summary>The manufacturer's part number: what the storefront shows a customer instead of the SKU.</summary>
+        public string Mpn { get; set; }
         public string Name { get; set; }
         public int Quantity { get; set; }
         public decimal ListPrice { get; set; }

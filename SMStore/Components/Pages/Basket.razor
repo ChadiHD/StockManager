@@ -61,7 +61,10 @@
                         <tr class="@(line.Available ? null : "basket__row--unavailable")">
                             <td>
                                 <strong>@line.Name</strong>
-                                <span class="text-muted basket__sku">@line.Sku</span>
+                                @if (!string.IsNullOrWhiteSpace(line.Mpn))
+                                {
+                                    <span class="text-muted basket__sku">@L["MPN {0}", line.Mpn]</span>
+                                }
                                 @if (line.Available)
                                 {
                                     <span class="tag tag-neutral">@line.Availability</span>

@@ -216,7 +216,7 @@ public sealed class CheckoutService
 
     private QuoteRequestLine ToLine(BasketLineModel line)
     {
-        var resolved = _catalog.Resolve(line.RetailPrice, line.Cost);
+        var resolved = _catalog.Resolve(line.RetailPrice, line.Cost, line.CategoryMarginPct);
 
         return new QuoteRequestLine
         {

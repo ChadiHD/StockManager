@@ -141,7 +141,7 @@ public sealed class CustomerOrderPresenter
 
         var lines = _quotes.GetQuoteLinesForAccount(quote.Id, accountId, siteId)
             .Select(line => new DocumentLineView(
-                line.Sku, line.Name, line.Quantity,
+                line.Mpn, line.Name, line.Quantity,
                 Money(line.NetPrice), Money(line.Quantity * line.NetPrice)))
             .ToList();
 
@@ -194,7 +194,7 @@ public sealed class CustomerOrderPresenter
         var siteId = _siteContext.Site.Id;
         var lines = _orders.GetOrderLinesForAccount(order.Id, accountId, siteId)
             .Select(line => new DocumentLineView(
-                line.Sku, line.Name, line.Quantity,
+                line.Mpn, line.Name, line.Quantity,
                 Money(line.Price), Money(line.Quantity * line.Price)))
             .ToList();
 
@@ -307,7 +307,7 @@ public sealed record DocumentSummary(
 /// No product id and no cost, for the same two reasons <c>BasketLineView</c> has neither.
 /// </remarks>
 public sealed record DocumentLineView(
-    string Sku, string Name, int Quantity, string UnitPrice, string LineTotal);
+    string? Mpn, string Name, int Quantity, string UnitPrice, string LineTotal);
 
 /// <summary>The company and person a printed quote or order is addressed to.</summary>
 public sealed record DocumentParty(string Company, string Contact, string Email);

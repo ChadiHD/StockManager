@@ -36,6 +36,9 @@ namespace SMDataManager.Library.Models
         public string CategorySlug { get; set; }
         public string CategoryName { get; set; }
 
+        /// <summary>The margin floor of the category it is filed under, or null for the store's.</summary>
+        public decimal? CategoryMarginPct { get; set; }
+
         /// <summary>The style this row is a size or colour of (T11), or null for a style or a plain product.</summary>
         public int? ParentProductId { get; set; }
 

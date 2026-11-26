@@ -41,7 +41,7 @@ public sealed class BasketPresenter
         // delisted line would be a number the customer is then told is wrong.
         var total = lines
             .Where(line => line.Available)
-            .Sum(line => line.Quantity * _catalog.Resolve(line.RetailPrice, line.Cost).NetPrice);
+            .Sum(line => line.Quantity * _catalog.Resolve(line.RetailPrice, line.Cost, line.CategoryMarginPct).NetPrice);
 
         return new BasketView(
             views,
@@ -58,10 +58,11 @@ public sealed class BasketPresenter
 
     private BasketLineView ToView(BasketLineModel line)
     {
-        var unit = _catalog.Resolve(line.RetailPrice, line.Cost).NetPrice;
+        var unit = _catalog.Resolve(line.RetailPrice, line.Cost, line.CategoryMarginPct).NetPrice;
 
         return new BasketLineView(
             line.Sku,
+            line.Mpn,
             line.Name,
             line.Quantity,
             _catalog.ShowPrices ? _catalog.Money(unit) : null,
@@ -83,6 +84,7 @@ public sealed class BasketPresenter
 /// </remarks>
 public sealed record BasketLineView(
     string Sku,
+    string? Mpn,
     string Name,
     int Quantity,
     string? UnitPrice,

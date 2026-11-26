@@ -8,6 +8,7 @@ using StockApi.Feeds;
 using StockApi.Security;
 using StockApi.Sites;
 using StockManager.ProductImages;
+using StockManager.ProductDocuments;
 using System.Data;
 
 namespace StockApi.Controllers
@@ -350,6 +351,112 @@ namespace StockApi.Controllers
             }
 
             await images.DeleteAsync(name, cancellationToken);
+
+            return NoContent();
+        }
+
+        /// <summary>A product's documents, oldest first, served from /product-docs/.</summary>
+        [Authorize(Roles = "Admin")]
+        [HttpGet("Catalog/{sku}/Documents")]
+        public ActionResult<List<ProductDocumentModel>> GetDocuments(string sku, [FromServices] IAdminSiteContext site)
+        {
+            var product = _productData.GetProductBySku(site.SiteId, sku);
+
+            return product is null ? NotFound() : _productData.GetDocuments(product.Id);
+        }
+
+        /// <summary>
+        /// Adds a document — a datasheet, a manual — to a product, on <see cref="AddImage"/>'s
+        /// rules: the bytes decide the type, the request is capped, a variant uses its style's,
+        /// and the bytes are written before the row and deleted if the row fails.
+        /// </summary>
+        [Authorize(Roles = "Admin")]
+        [HttpPost("Catalog/{sku}/Documents")]
+        [RequestSizeLimit(ProductDocumentTypes.MaxBytes + 64 * 1024)]
+        [RequestFormLimits(MultipartBodyLengthLimit = ProductDocumentTypes.MaxBytes + 64 * 1024)]
+        public async Task<IActionResult> AddDocument(
+            string sku, IFormFile? file,
+            [FromServices] IAdminSiteContext site,
+            [FromServices] IProductDocumentStore documents,
+            CancellationToken cancellationToken)
+        {
+            var product = _productData.GetProductBySku(site.SiteId, sku);
+            if (product is null)
+            {
+                return NotFound();
+            }
+
+            if (product.ParentProductId is not null)
+            {
+                return BadRequest("A variant shows its style's documents. Add this one to the style.");
+            }
+
+            if (file is null || file.Length == 0)
+            {
+                return BadRequest("Choose a document to upload.");
+            }
+
+            if (file.Length > ProductDocumentTypes.MaxBytes)
+            {
+                return BadRequest("A document can be at most 20 MB.");
+            }
+
+            var leading = new byte[ProductDocumentTypes.SignatureLength];
+            int read;
+            await using (var head = file.OpenReadStream())
+            {
+                read = await head.ReadAtLeastAsync(leading, leading.Length, throwOnEndOfStream: false, cancellationToken);
+            }
+
+            if (!ProductDocumentTypes.TryDetect(leading.AsSpan(0, read), file.FileName, out var contentType, out var extension))
+            {
+                return BadRequest("A document is a PDF, or a Word, Excel or PowerPoint file.");
+            }
+
+            var fileName = ProductDocumentTypes.DisplayName(file.FileName, extension);
+
+            string storedName;
+            await using (var content = file.OpenReadStream())
+            {
+                storedName = await documents.SaveAsync(content, extension, contentType, fileName, cancellationToken);
+            }
+
+            try
+            {
+                _productData.AddDocument(product.Id, new ProductDocumentModel
+                {
+                    StoredName = storedName,
+                    FileName = fileName,
+                    ContentType = contentType,
+                    SizeBytes = file.Length
+                });
+            }
+            catch
+            {
+                await documents.DeleteAsync(storedName, CancellationToken.None);
+                throw;
+            }
+
+            return Ok(storedName);
+        }
+
+        /// <summary>Removes one of a product's documents, and its bytes.</summary>
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("Catalog/{sku}/Documents/{name}")]
+        public async Task<IActionResult> RemoveDocument(
+            string sku, string name,
+            [FromServices] IAdminSiteContext site,
+            [FromServices] IProductDocumentStore documents,
+            CancellationToken cancellationToken)
+        {
+            var product = _productData.GetProductBySku(site.SiteId, sku);
+
+            if (product is null || !ProductDocumentTypes.IsStoredName(name) || !_productData.RemoveDocument(product.Id, name))
+            {
+                return NotFound();
+            }
+
+            await documents.DeleteAsync(name, cancellationToken);
 
             return NoContent();
         }

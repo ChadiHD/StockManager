@@ -106,10 +106,13 @@ CREATE NONCLUSTERED INDEX [IX_Product_CatalogGate]
 GO
 
 -- The feed sync merges and delists on these (T9); before, on the feed's name and DistributorSku,
--- which nothing indexed.
-CREATE NONCLUSTERED INDEX [IX_Product_Feed]
+-- which nothing indexed. Unique, because one feed's SKU is one product: a second row for it
+-- (Seed.sql's backfill re-filing a re-added feed's old rows, or an unlocked merge) put the same
+-- product on the products screen twice, and every later sync updated both. Scripts/PreDeployment/RetireDuplicateFeedProducts.sql clears the rows that
+-- predate it.
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Product_FeedSku]
 	ON [dbo].[Product] ([FeedId], [DistributorSku])
-	WHERE [FeedId] IS NOT NULL;
+	WHERE ([FeedId] IS NOT NULL AND [DistributorSku] IS NOT NULL);
 GO
 
 -- A style's variants (T11), which the catalogue rolls up into the style's stock on every row it

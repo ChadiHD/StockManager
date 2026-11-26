@@ -190,7 +190,7 @@ public sealed class CatalogPresenter
 
         if (item.ParentProductId is null && !item.HasVariants)
         {
-            return new ProductPage(item, [], null, null, ImagesOf(item.Id));
+            return new ProductPage(item, [], null, null, ImagesOf(item.Id), _catalog.GetDocuments(item.Id));
         }
 
         var family = _catalog.GetFamily(_siteContext.Site.Id, item.ParentProductId ?? item.Id, CustomerGroupId);
@@ -218,7 +218,8 @@ public sealed class CatalogPresenter
             family.Variants.Select(variant => new VariantChoice(variant.Sku, LabelOf(variant.Id), variant.QuantityInStock > 0)).ToList(),
             item.ParentProductId is null ? null : item.Sku,
             names.Count == 0 ? null : string.Join(" / ", names),
-            ImagesOf(family.Style.Id));
+            ImagesOf(family.Style.Id),
+            _catalog.GetDocuments(family.Style.Id));
     }
 
     private IReadOnlyList<string> ImagesOf(int productId) =>
@@ -238,7 +239,8 @@ public sealed class CatalogPresenter
         item.QuantityInStock > 0,
         FormatPrice(item),
         string.IsNullOrWhiteSpace(item.ProductImage) ? null : item.ProductImage,
-        item.HasVariants);
+        item.HasVariants,
+        item.ManufacturerPartNumber);
 
     /// <summary>Null when this viewer may not see prices, which the card renders differently.</summary>
     public string? FormatPrice(CatalogItemModel item)
@@ -261,7 +263,7 @@ public sealed class CatalogPresenter
     /// <c>CatalogPriceParityTests</c> is what keeps the two implementations of the rule
     /// agreeing on what to do with them.
     /// </remarks>
-    public ResolvedPrice Resolve(CatalogItemModel item) => Resolve(item.RetailPrice, item.Cost);
+    public ResolvedPrice Resolve(CatalogItemModel item) => Resolve(item.RetailPrice, item.Cost, item.CategoryMarginPct);
 
     /// <summary>
     /// The same resolution for a row that is not a catalog item.
@@ -272,11 +274,15 @@ public sealed class CatalogPresenter
     /// prices through the same two inputs as the catalog rather than reaching
     /// <c>IPriceResolver</c> itself, which is the thing pages are forbidden to do.
     /// </remarks>
-    public ResolvedPrice Resolve(decimal listPrice, decimal? cost) => _pricing.Resolve(
+    /// <param name="categoryMarginPct">
+    /// The margin floor of the category the product is filed under, which overrides the
+    /// store's exactly as <c>fnCatalog_VisibleProducts</c> does; null is the store's.
+    /// </param>
+    public ResolvedPrice Resolve(decimal listPrice, decimal? cost, decimal? categoryMarginPct = null) => _pricing.Resolve(
         listPrice,
         cost,
         groupDiscountPct: _customer.GroupDiscountPct,
-        minMarginPct: _siteContext.Site.MinMarginPct);
+        minMarginPct: categoryMarginPct ?? _siteContext.Site.MinMarginPct);
 
     // Through SiteMoney, which the mail templates use too, so a total on a page and the same
     // total in a confirmation are written by one rule.

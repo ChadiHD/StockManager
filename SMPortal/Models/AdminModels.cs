@@ -363,7 +363,7 @@ public sealed class QuoteConversion
 /// first three.
 /// </remarks>
 public sealed record StoreCategoryOption(int Id, string Name, bool IsActive,
-    string Slug = "", string? Blurb = null, int SortOrder = 0, int MappedFeedValues = 0);
+    string Slug = "", string? Blurb = null, int SortOrder = 0, int MappedFeedValues = 0, decimal? MarginPct = null);
 
 /// <summary>A category string from the feeds, and where the acting store files it.</summary>
 public sealed record FeedCategoryRow(string FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);
@@ -373,3 +373,6 @@ public sealed record CategoryMappingView(
 
 /// <summary>One variant of a style as its product page lists it (T11): "M / Navy", and its stock.</summary>
 public sealed record VariantItem(string Sku, string Label, int Avail);
+
+/// <summary>One of a product's documents. Downloaded from /product-docs/{StoredName}; FileName labels it.</summary>
+public sealed record ProductDocumentFile(string StoredName, string FileName, string ContentType, long SizeBytes);

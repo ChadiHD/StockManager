@@ -21,7 +21,9 @@ public sealed record ProductCardView(
     string? PriceLabel,
     string? ImageUrl,
     // A style with sizes and colours (T11): the card links to its page instead of adding it.
-    bool HasVariants = false)
+    bool HasVariants = false,
+    // Shown on the card in place of the SKU, which is the store's code and not the customer's.
+    string? Mpn = null)
 {
     public string Href => $"/product/{Uri.EscapeDataString(Sku)}";
 }

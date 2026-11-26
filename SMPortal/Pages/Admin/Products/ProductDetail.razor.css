@@ -80,3 +80,8 @@
 .variant-remove:hover { background:var(--danger-bg); color:var(--danger-fg); }
 /* InputTextArea renders the <textarea>, so without ::deep this matched nothing and the box could not be resized. */
 ::deep .product-description { resize:vertical; min-height:96px; }
+.product-documents label.btn { position:relative; overflow:hidden; }
+.document-list { list-style:none; margin:12px 0 0; padding:0; }
+.document-row { display:flex; align-items:center; gap:12px; padding:6px 0; }
+.document-row a { flex:1; min-width:0; overflow-wrap:anywhere; }
+.document-error { margin:12px 0 0; }

@@ -1,6 +1,7 @@
 @page "/product/{Sku}"
 @using SMStore.Catalog
 @using SMStore.Ordering
+@using StockManager.ProductDocuments
 @inject ISiteContext SiteContext
 @inject CatalogPresenter Catalog
 @inject OrderingModeProvider Ordering
@@ -46,17 +47,14 @@ else
             <div class="card-kicker">@Brand</div>
             <h1>@_item.ProductName</h1>
 
-            <div class="product__ids">
-                <span>@L["SKU {0}", _item.Sku]</span>
-                @if (!string.IsNullOrWhiteSpace(_item.ManufacturerPartNumber))
-                {
+            @* The manufacturer's part number only: the SKU is the store's own code and the EAN a
+               barcode, and neither is what a buyer searches a datasheet by. *@
+            @if (!string.IsNullOrWhiteSpace(_item.ManufacturerPartNumber))
+            {
+                <div class="product__ids">
                     <span>@L["MPN {0}", _item.ManufacturerPartNumber]</span>
-                }
-                @if (!string.IsNullOrWhiteSpace(_item.Ean))
-                {
-                    <span>@L["EAN {0}", _item.Ean]</span>
-                }
-            </div>
+                </div>
+            }
 
             <span class="tag @(InStock ? "tag-accent" : "tag-neutral")">@Availability</span>
 
@@ -148,10 +146,28 @@ else
         }
 
         <h2>@L["Specifications"]</h2>
-        @* The artboard renders a spec table and a document list. Nothing stores either, and
-           the Icecat licence that would populate them is deferred, so this empty state is the
-           common case rather than an edge case — see the plan's risks. *@
+        @* The artboard renders a spec table. Nothing stores one, and the Icecat licence that
+           would populate it is deferred, so this empty state is the common case rather than an
+           edge case — see the plan's risks. *@
         <div class="stub">@L["No specifications are published for this product."]</div>
+
+        <h2>@L["Documents"]</h2>
+        @if (_page.Documents.Count > 0)
+        {
+            @* Downloads, never rendered here: /product-docs/ answers with an attachment. *@
+            <ul class="product__documents">
+                @foreach (var document in _page.Documents)
+                {
+                    <li>
+                        <a href="@(ProductDocumentTypes.PathPrefix + document.StoredName)" download>@document.FileName</a>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="stub">@L["No documents are published for this product."]</div>
+        }
     </section>
 }
 
@@ -197,7 +213,7 @@ else
         new(L["Home"], "/"),
         new(L["Catalog"], "/catalog"),
         new(_item!.CategoryName, $"/catalog?cat={_item.CategorySlug}"),
-        new(_item.Sku, $"/product/{_item.Sku}")
+        new(_item.ProductName, $"/product/{Uri.EscapeDataString(_item.Sku)}")
     ];
 
     protected override void OnParametersSet() => _page = Catalog.GetProductPage(Sku);

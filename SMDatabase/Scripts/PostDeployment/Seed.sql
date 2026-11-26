@@ -95,7 +95,20 @@ INNER JOIN [dbo].[DistributorFeed] f ON f.[Name] = p.[Distributor]
 WHERE p.[FeedId] IS NULL
   AND p.[Source] = N'Distributor'
   AND NOT EXISTS (SELECT 1 FROM [dbo].[DistributorFeed] other
-                  WHERE other.[Name] = f.[Name] AND other.[Id] <> f.[Id]);
+                  WHERE other.[Name] = f.[Name] AND other.[Id] <> f.[Id])
+  /*
+  Never beside a row the feed already has for that SKU, and only one orphan per SKU. This runs
+  on every publish, so a feed deleted (its products' FeedId set NULL) and added again under the
+  same name had its old rows filed back under it next to the copies its first sync made: every
+  product listed twice, and twice more each time it happened. UQ_Product_FeedSku now refuses it.
+  */
+  AND NOT EXISTS (SELECT 1 FROM [dbo].[Product] twin
+                  WHERE twin.[FeedId] = f.[Id] AND twin.[DistributorSku] = p.[DistributorSku])
+  AND NOT EXISTS (SELECT 1 FROM [dbo].[Product] earlier
+                  WHERE earlier.[FeedId] IS NULL AND earlier.[Source] = N'Distributor'
+                    AND earlier.[Distributor] = p.[Distributor]
+                    AND earlier.[DistributorSku] = p.[DistributorSku]
+                    AND earlier.[Id] < p.[Id]);
 
 UPDATE p
 SET p.[CurrencyCode] = s.[CurrencyCode]

@@ -290,6 +290,14 @@ public interface IAdminDataService
 
     Task RemoveImage(string sku, string storedName);
 
+    /// <summary>A product's documents (datasheets, manuals), oldest first.</summary>
+    Task<IReadOnlyList<ProductDocumentFile>> GetProductDocuments(string sku);
+
+    /// <summary>Adds a document to a product. Returns the API's refusal, or null.</summary>
+    Task<string?> UploadProductDocument(string sku, Stream content, string fileName);
+
+    Task RemoveProductDocument(string sku, string storedName);
+
     /// <summary>
     /// The acting store's choice about one product: Show, Hide or null to follow the category
     /// mapping, the category a shown product is filed under, and its featured flag and badge.
@@ -298,7 +306,7 @@ public interface IAdminDataService
     Task<string?> SetPlacement(string sku, string? visibility, int? storeCategoryId, bool featured, string? badge);
 
     /// <summary>The same visibility for a selection of products, applied whole. Refusal or null.</summary>
-    Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility);
+    Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility, int? storeCategoryId = null);
 
     /// <summary>
     /// The feed categories and where the acting store files each, with the store's own

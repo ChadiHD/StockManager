@@ -941,13 +941,46 @@ public class AdminDataService : IAdminDataService
         await RefreshAsync();
     }
 
-    public async Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility)
+    // Documents change nothing the snapshot carries, so none of these refreshes it.
+    public async Task<IReadOnlyList<ProductDocumentFile>> GetProductDocuments(string sku)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        return await GetListAsync<ProductDocumentFile>($"api/Product/Catalog/{Uri.EscapeDataString(sku)}/Documents");
+    }
+
+    public async Task<string?> UploadProductDocument(string sku, Stream content, string fileName)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        using var form = new MultipartFormDataContent { { new StreamContent(content), "file", fileName } };
+
+        var response = await _client.PostAsync($"{_api}/api/Product/Catalog/{Uri.EscapeDataString(sku)}/Documents", form);
+
+        return response.IsSuccessStatusCode
+            ? null
+            : await PlainErrors.Refusal(response, "That document could not be added.");
+    }
+
+    public async Task RemoveProductDocument(string sku, string storedName)
+    {
+        await EnsureAuthHeaderAsync();
+        await EnsureSiteAsync();
+
+        var response = await _client.DeleteAsync(
+            $"{_api}/api/Product/Catalog/{Uri.EscapeDataString(sku)}/Documents/{Uri.EscapeDataString(storedName)}");
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<string?> SetVisibility(IReadOnlyCollection<string> skus, string? visibility, int? storeCategoryId = null)
     {
         await EnsureAuthHeaderAsync();
         await EnsureSiteAsync();
 
         var response = await _client.PostAsJsonAsync(
-            $"{_api}/api/Product/Catalog/Placement", new { Skus = skus, Visibility = visibility });
+            $"{_api}/api/Product/Catalog/Placement", new { Skus = skus, Visibility = visibility, SiteCategoryId = storeCategoryId });
 
         if (!response.IsSuccessStatusCode)
         {
@@ -976,7 +1009,7 @@ public class AdminDataService : IAdminDataService
 
         return new CategoryMappingView(
             (dto?.Categories ?? []).Select(c => new StoreCategoryOption(c.Id, c.Name ?? string.Empty, c.IsActive,
-                c.Slug ?? string.Empty, c.Blurb, c.SortOrder, c.MappedFeedValues)).ToList(),
+                c.Slug ?? string.Empty, c.Blurb, c.SortOrder, c.MappedFeedValues, c.MarginPct)).ToList(),
             (dto?.FeedCategories ?? []).Select(f => new FeedCategoryRow(
                 f.FeedValue ?? string.Empty, f.Products, f.SiteCategoryId, f.SiteCategoryName)).ToList());
     }
@@ -1005,7 +1038,7 @@ public class AdminDataService : IAdminDataService
         await EnsureAuthHeaderAsync();
         await EnsureSiteAsync();
 
-        var body = new { category.Slug, category.Name, category.Blurb, category.SortOrder, category.IsActive };
+        var body = new { category.Slug, category.Name, category.Blurb, category.SortOrder, category.IsActive, category.MarginPct };
         var response = category.Id == 0
             ? await _client.PostAsJsonAsync($"{_api}/api/CategoryMapping/Categories", body)
             : await _client.PutAsJsonAsync($"{_api}/api/CategoryMapping/Categories/{category.Id}", body);
@@ -1736,7 +1769,7 @@ public class AdminDataService : IAdminDataService
         List<SiteCategoryDto>? Categories, List<FeedCategoryDto>? FeedCategories);
 
     private sealed record SiteCategoryDto(int Id, string? Name, bool IsActive,
-        string? Slug, string? Blurb, int SortOrder, int MappedFeedValues);
+        string? Slug, string? Blurb, int SortOrder, int MappedFeedValues, decimal? MarginPct);
 
     private sealed record FeedCategoryDto(
         string? FeedValue, int Products, int? SiteCategoryId, string? SiteCategoryName);

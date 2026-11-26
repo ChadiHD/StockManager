@@ -18,6 +18,7 @@ using StockApi.Security;
 using StockApi.Sites;
 using StockManager.Identity;
 using StockManager.ProductImages;
+using StockManager.ProductDocuments;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
 
@@ -141,6 +142,9 @@ builder.AddDocumentStore();
 // Product photographs (T11): written by the product screens, and served from /img/ here as well
 // as on the storefront, so the portal shows them from its own origin.
 builder.AddProductImageStore();
+
+// Product documents (datasheets, manuals): uploaded in the portal, downloaded from /product-docs/.
+builder.AddProductDocumentStore();
 
 // Outbound mail. The transport is still the logger — see AddEmail — and since T6 nothing
 // calls it but the dispatcher: call sites queue through IEmailOutbox, procedures queue inside
@@ -315,6 +319,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapProductImages();
+app.MapProductDocuments();
 app.MapDefaultEndpoints();
 
 // The portal's own routes load its page; nothing else does. A catch-all would answer a

@@ -51,6 +51,7 @@
     <None Include="Scripts\PreDeployment\BackfillPaymentTermsDays.sql" />
     <None Include="Scripts\PreDeployment\HoldProductFlags.sql" />
     <None Include="Scripts\PreDeployment\FillLegacyFeedFields.sql" />
+    <None Include="Scripts\PreDeployment\RetireDuplicateFeedProducts.sql" />
     <PostDeploy Include="Scripts\PostDeployment\Seed.sql" />
     <None Include="Scripts\PostDeployment\MoveProductFlagsToSites.sql" />
     <RefactorLog Include="SMDatabase.refactorlog" />

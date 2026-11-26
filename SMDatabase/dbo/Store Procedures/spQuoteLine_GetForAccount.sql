@@ -22,6 +22,7 @@ BEGIN
 
 	SELECT [l].[Id], [l].[QuoteId], [l].[ProductId],
 	       [p].[Sku], [p].[ProductName] AS [Name],
+	       [p].[ManufacturerPartNumber] AS [Mpn],
 	       [l].[Quantity], [l].[ListPrice], [l].[DiscountPct], [l].[NetPrice]
 	FROM [dbo].[QuoteLine] l
 	INNER JOIN [dbo].[Quote] q

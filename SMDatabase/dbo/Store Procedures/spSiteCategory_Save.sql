@@ -12,6 +12,8 @@ the store without breaking any of them.
          and in search engines, so it is fixed once the store is active
   50102  no such category on this store
   50103  no name
+  50104  a margin outside 0 to 100, or any margin on a store that states prices with tax in:
+         Cost is net, so the floor would compare a net number with a gross one
 */
 CREATE PROCEDURE [dbo].[spSiteCategory_Save]
 	@SiteId int,
@@ -20,7 +22,8 @@ CREATE PROCEDURE [dbo].[spSiteCategory_Save]
 	@Name nvarchar(120),
 	@Blurb nvarchar(400) = NULL,
 	@SortOrder int = 0,
-	@IsActive bit = 1
+	@IsActive bit = 1,
+	@MarginPct decimal(5, 2) = NULL
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -28,6 +31,13 @@ BEGIN
 	IF LEN(LTRIM(RTRIM(ISNULL(@Name, N'')))) = 0
 	BEGIN
 		THROW 50103, 'A category needs a name.', 1;
+	END
+
+	IF @MarginPct IS NOT NULL
+	   AND (@MarginPct NOT BETWEEN 0 AND 100
+	        OR (@MarginPct > 0 AND EXISTS (SELECT 1 FROM dbo.Site WHERE [Id] = @SiteId AND [PricesIncludeTax] = 1)))
+	BEGIN
+		THROW 50104, 'A category margin is between 0 and 100, and a store that states prices with tax in cannot have one.', 1;
 	END
 
 	IF @Id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.SiteCategory WHERE [Id] = @Id AND [SiteId] = @SiteId)
@@ -50,8 +60,8 @@ BEGIN
 
 	IF @Id IS NULL
 	BEGIN
-		INSERT INTO dbo.SiteCategory ([SiteId], [Slug], [Name], [Blurb], [SortOrder], [IsActive])
-		VALUES (@SiteId, @Slug, LTRIM(RTRIM(@Name)), NULLIF(LTRIM(RTRIM(@Blurb)), N''), @SortOrder, @IsActive);
+		INSERT INTO dbo.SiteCategory ([SiteId], [Slug], [Name], [Blurb], [SortOrder], [IsActive], [MarginPct])
+		VALUES (@SiteId, @Slug, LTRIM(RTRIM(@Name)), NULLIF(LTRIM(RTRIM(@Blurb)), N''), @SortOrder, @IsActive, @MarginPct);
 
 		SELECT CAST(SCOPE_IDENTITY() AS int);
 		RETURN;
@@ -62,7 +72,8 @@ BEGIN
 	    [Name] = LTRIM(RTRIM(@Name)),
 	    [Blurb] = NULLIF(LTRIM(RTRIM(@Blurb)), N''),
 	    [SortOrder] = @SortOrder,
-	    [IsActive] = @IsActive
+	    [IsActive] = @IsActive,
+	    [MarginPct] = @MarginPct
 	WHERE [Id] = @Id AND [SiteId] = @SiteId;
 
 	SELECT @Id;

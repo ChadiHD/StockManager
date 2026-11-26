@@ -45,12 +45,18 @@ namespace SMDataManager.Library.Models
         public int BasketId { get; set; }
         public int ProductId { get; set; }
         public string Sku { get; set; }
+
+        /// <summary>The manufacturer's part number: what the storefront shows a customer instead of the SKU.</summary>
+        public string Mpn { get; set; }
         public string Name { get; set; }
         public int Quantity { get; set; }
         public decimal RetailPrice { get; set; }
         public decimal? Cost { get; set; }
         public int QuantityInStock { get; set; }
         public DateTime AddedUtc { get; set; }
+
+        /// <summary>The margin floor of the category the product is filed under, or null for the store's.</summary>
+        public decimal? CategoryMarginPct { get; set; }
 
         /// <summary>
         /// Whether the product is still visible in this store to this customer group.

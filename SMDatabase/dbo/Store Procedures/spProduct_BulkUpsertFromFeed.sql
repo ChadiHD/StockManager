@@ -39,7 +39,9 @@ BEGIN
 	BEGIN TRY
 		BEGIN TRANSACTION;
 
-		MERGE dbo.Product AS target
+		-- HOLDLOCK: without it two merges of one feed can both find a SKU missing and both insert
+		-- it, which is how a product came to be listed twice. UQ_Product_FeedSku is the backstop.
+		MERGE dbo.Product WITH (HOLDLOCK) AS target
 		USING @Items AS source
 			ON target.[FeedId] = @FeedId
 			AND target.[DistributorSku] = source.[DistributorSku]

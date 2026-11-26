@@ -14,12 +14,14 @@ namespace SMStore.Catalog;
 /// The product's own photographs in order, as addresses on this origin. Empty when it has none,
 /// and the page then shows <c>Product.ProductImage</c>, which may be a content provider's.
 /// </param>
+/// <param name="Documents">The product's datasheets and manuals, downloaded from /product-docs/.</param>
 public sealed record ProductPage(
     CatalogItemModel Product,
     IReadOnlyList<VariantChoice> Variants,
     string? SelectedSku,
     string? ChoiceLabel,
-    IReadOnlyList<string> Images);
+    IReadOnlyList<string> Images,
+    IReadOnlyList<ProductDocumentModel> Documents);
 
 /// <summary>One variant as a customer chooses it: "M / Navy", and whether it is in stock.</summary>
 public sealed record VariantChoice(string Sku, string Label, bool InStock);
